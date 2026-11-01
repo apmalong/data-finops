@@ -12,6 +12,10 @@ _Avoid_: bill row, invoice line, cost record
 The complete set of Billing Lines a provider published for one billing account, Billing Period and source at one point in time. A restatement replaces the whole snapshot; earlier snapshots are retained.
 _Avoid_: file, batch, version (alone)
 
+**Snapshot Scope**:
+The billing account, Billing Period and source an Export Snapshot covers. At most one Export Snapshot is current for a Snapshot Scope.
+_Avoid_: partition, key (alone)
+
 **Billing Period**:
 The provider's invoicing period that a Billing Line belongs to. It may differ from the line's charge period.
 _Avoid_: month (alone)
