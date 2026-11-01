@@ -217,6 +217,21 @@
       ],
       "default": null,
       "title": "Tags"
+    },
+    "data_finops_raw_values": {
+      "anyOf": [
+        {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Data Finops Raw Values"
     }
   },
   "required": [

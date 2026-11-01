@@ -13,7 +13,7 @@ ADR 0015 makes the Export Snapshot ("all lines … as published at one time") th
 5. `published_at` must come from the provider's own export metadata (for example the export manifest), never from file modification time or import time.
 
 ## Consequences
-Restatement is deterministic in any import order. A late older publication whose content equals the current snapshot is a replay and is not stored, so that publication is not recorded as separate history; no money or line is lost. Readers (#11, #12) carry the responsibility for a trustworthy `published_at`. Ledger files created before this ADR are incompatible (new `published_at_us` column) and are disposable: none exist outside tests before M1 closes.
+Restatement is deterministic in any import order. A late older publication whose content equals the current snapshot is a replay and is not stored, so that publication is not recorded as separate history; no money or line is lost. Readers (#11, #12) carry the responsibility for a trustworthy `published_at`. Because AWS does not publicly document the Data Exports manifest fields, the Parquet reader (#11) takes the snapshot metadata from its caller; parsing the manifest, and with it the guarantee on `published_at`, moves to #12 where a real manifest can be checked. Ledger files created before this ADR are incompatible (new `published_at_us` column) and are disposable: none exist outside tests before M1 closes.
 
 ## Alternatives rejected
 - Import order: a late or replayed older export would silently become current.

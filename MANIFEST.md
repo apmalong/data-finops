@@ -90,6 +90,7 @@
 - `tests/contract/test_fixtures.py`
 - `tests/contract/test_golden_fixture.py`
 - `tests/contract/test_schemas_up_to_date.py`
+- `tests/integration/test_focus_parquet.py`
 - `tests/integration/test_ledger.py`
 - `tests/integration/test_reconciliation.py`
 - `tests/unit/test_contracts.py`
