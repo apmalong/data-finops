@@ -7,8 +7,9 @@ the upstream file changed: re-review it before updating the pin.
 dbt artifacts may carry fields their published schema does not list (OQ-23): dbt adds
 fields without bumping the schema version. Every node type still has to match its own
 `resource_type`; only dbt's two test types share one. OpenLineage events are checked
-strictly. Real outputs: `--dbt DIR` (repeatable; holds manifest.json, run_results.json or both)
-and `--openlineage FILE` (JSON array or JSON Lines, as `dbt-ol` writes).
+strictly. With no arguments it checks the fixtures, including the reference workload sample.
+Other outputs: `--dbt DIR` (repeatable; holds manifest.json, run_results.json or both) and
+`--openlineage FILE` (repeatable; JSON array or JSON Lines, as `dbt-ol` writes).
 """
 
 import argparse
@@ -51,6 +52,21 @@ DBT_KNOWN_VALUES = (
 )
 
 FORMAT_CHECKER = Draft202012Validator.FORMAT_CHECKER
+
+DBT_ARTIFACT_SCHEMAS = {
+    "manifest.json": "dbt-manifest-v12",
+    "run_results.json": "dbt-run-results-v6",
+}
+SAMPLE = ROOT / "fixtures/reference-workload"
+# With no arguments: the hand-written fixtures and the reference workload sample (#35).
+DEFAULT_DBT_DIRS = [
+    ROOT / "fixtures/dbt",
+    *(SAMPLE / "dbt" / s for s in ("1-seed", "2-run", "3-run")),
+]
+DEFAULT_EVENT_FILES = [
+    ROOT / "fixtures/openlineage/events.json",
+    SAMPLE / "openlineage/dbt-events.jsonl",
+]
 
 
 def fetch(name: str) -> dict[str, Any]:
@@ -113,9 +129,9 @@ def dbt_failures(validator: Draft202012Validator, artifact: Any) -> list[str]:
 
 def dbt_artifacts(folder: Path) -> list[str]:
     """The dbt artifact files present in `folder`; a run step may keep only its run results."""
-    present = [f for f in ("manifest.json", "run_results.json") if (folder / f).is_file()]
+    present = [f for f in DBT_ARTIFACT_SCHEMAS if (folder / f).is_file()]
     if not present:
-        raise SystemExit(f"{folder}: no dbt artifacts (manifest.json or run_results.json)")
+        raise SystemExit(f"{folder}: no dbt artifacts ({' or '.join(DBT_ARTIFACT_SCHEMAS)})")
     return present
 
 
@@ -139,17 +155,18 @@ def report(label: str, found: list[str]) -> int:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--dbt", type=Path, action="append", help="folder with dbt artifacts")
-    parser.add_argument("--openlineage", type=Path, help="events file, JSON array or JSON Lines")
+    parser.add_argument(
+        "--openlineage", type=Path, action="append", help="events file, JSON array or JSON Lines"
+    )
     args = parser.parse_args(argv)
-    dbt_dirs: list[Path] = args.dbt or [ROOT / "fixtures/dbt"]
-    events_file: Path = args.openlineage or ROOT / "fixtures/openlineage/events.json"
+    dbt_dirs: list[Path] = args.dbt or DEFAULT_DBT_DIRS
+    events_files: list[Path] = args.openlineage or DEFAULT_EVENT_FILES
 
     schemas = {name: fetch(name) for name in PINNED}
     total_failures = 0
 
     dbt_validators = {
-        "manifest.json": dbt_validator(schemas["dbt-manifest-v12"]),
-        "run_results.json": dbt_validator(schemas["dbt-run-results-v6"]),
+        file: dbt_validator(schemas[name]) for file, name in DBT_ARTIFACT_SCHEMAS.items()
     }
     for folder in dbt_dirs:
         for file in dbt_artifacts(folder):
@@ -164,13 +181,13 @@ def main(argv: list[str] | None = None) -> int:
     )
     run_event = strict_validator({"$ref": f"{core['$id']}#/$defs/RunEvent"}, registry)
     parent_facet = strict_validator({"$ref": f"{parent['$id']}#/$defs/ParentRunFacet"}, registry)
-    for i, event in enumerate(load_events(events_file)):
-        total_failures += report(f"openlineage event {i} RunEvent", failures(run_event, event))
-        if "parent" in event["run"]["facets"]:
-            facet = event["run"]["facets"]["parent"]
-            total_failures += report(
-                f"openlineage event {i} ParentRunFacet", failures(parent_facet, facet)
-            )
+    for events_file in events_files:
+        for i, event in enumerate(load_events(events_file)):
+            label = f"{events_file.name} event {i}"
+            total_failures += report(f"{label} RunEvent", failures(run_event, event))
+            if "parent" in event["run"]["facets"]:
+                facet = event["run"]["facets"]["parent"]
+                total_failures += report(f"{label} ParentRunFacet", failures(parent_facet, facet))
 
     print(f"{total_failures} failure(s)")
     return 1 if total_failures else 0

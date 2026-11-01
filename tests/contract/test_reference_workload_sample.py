@@ -3,6 +3,7 @@
 import json
 import re
 from collections import Counter
+from functools import cache
 from pathlib import Path
 
 from data_finops.dbt.artifacts import load_manifest, load_run_results
@@ -14,18 +15,24 @@ COMMENT = re.compile(r"-- /\* (?P<json>\{.*\}) \*/\n")
 STEPS = ("1-seed", "2-run", "3-run")
 
 
+@cache
 def _history() -> AthenaQueryHistory:
-    # The AWS response names no account; any placeholder serves, as no test reads it.
+    # The AWS response names no account; the sample's ARNs use the same documentation placeholder.
     return load_query_executions(
         SAMPLE / "athena" / "query-executions.json", account_id="111122223333", region="us-east-1"
     )
 
 
-def _invocations() -> dict[str, str]:
+@cache
+def _step_by_invocation() -> dict[str, str]:
     return {
         load_run_results(SAMPLE / "dbt" / step / "run_results.json").metadata.invocation_id: step
         for step in STEPS
     }
+
+
+def _invocation_of(step: str) -> str:
+    return next(i for i, s in _step_by_invocation().items() if s == step)
 
 
 def _comments() -> list[dict[str, str]]:
@@ -35,14 +42,14 @@ def _comments() -> list[dict[str, str]]:
 
 def test_every_commented_query_links_to_a_run_and_a_manifest_node():
     nodes = set(load_manifest(SAMPLE / "dbt" / "3-run" / "manifest.json").nodes)
-    invocations = _invocations()
     comments = _comments()
     assert len(comments) == 17
-    assert all(c["invocation_id"] in invocations and c["node_id"] in nodes for c in comments)
+    assert all(c["invocation_id"] in _step_by_invocation() for c in comments)
+    assert all(c["node_id"] in nodes for c in comments)
 
 
 def test_one_model_issues_several_queries_in_one_incremental_run():
-    run = next(i for i, step in _invocations().items() if step == "3-run")
+    run = _invocation_of("3-run")
     per_node = Counter(c["node_id"] for c in _comments() if c["invocation_id"] == run)
     assert per_node["model.reference_workload.daily_orders"] == 3
 
@@ -57,7 +64,7 @@ def test_uncommented_statements_are_exactly_the_alter_tables():
 def test_openlineage_dbt_run_invocations_match_the_runs():
     events = load_events(SAMPLE / "openlineage" / "dbt-events.jsonl")
     steps = Counter(
-        _invocations()[e.run.facets["dbt_run"]["invocation_id"]]
+        _step_by_invocation()[e.run.facets["dbt_run"]["invocation_id"]]
         for e in events
         if "dbt_run" in e.run.facets
     )
