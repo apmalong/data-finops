@@ -55,6 +55,13 @@
 - `docs/specs/04-integrations.md`
 - `docs/specs/05-security-operations.md`
 - `examples/demo/README.md`
+- `examples/reference-workload/Pulumi.yaml`
+- `examples/reference-workload/README.md`
+- `examples/reference-workload/__main__.py`
+- `examples/reference-workload/infra.py`
+- `examples/reference-workload/pyproject.toml`
+- `examples/reference-workload/tests/test_infra.py`
+- `examples/reference-workload/uv.lock`
 - `fixtures/athena/query-executions.json`
 - `fixtures/dbt/manifest.json`
 - `fixtures/dbt/run_results.json`
