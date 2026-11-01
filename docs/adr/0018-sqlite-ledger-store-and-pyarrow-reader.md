@@ -11,7 +11,7 @@ M1 needs a persistent local store for the Ledger and a reader for provider Parqu
 3. DuckDB is rejected for the MVP store: it allows a single writing process per database file, which conflicts with a collector, a recalculation and the API working against the same store. SQLite in WAL mode allows concurrent readers alongside one writer across processes.
 
 ## Consequences
-Two components instead of one, and pyarrow is a large wheel; it is confined to the reader so the core does not depend on it. Analytical queries run in Python or SQL over SQLite; if that proves too slow at target scale, the store can change behind the Ledger interface without touching callers. Decimal amounts are stored as text to keep exact values and scale (SQLite has no exact decimal type).
+Two components instead of one, and pyarrow is a large wheel; it is confined to the reader so the core does not depend on it. Operator tools in `scripts/` (for example the FOCUS export anonymizer, #18) may also use it; they are not part of the package. Analytical queries run in Python or SQL over SQLite; if that proves too slow at target scale, the store can change behind the Ledger interface without touching callers. Decimal amounts are stored as text to keep exact values and scale (SQLite has no exact decimal type).
 
 ## Alternatives rejected
 - DuckDB for both store and Parquet: one dependency, but its single-writer process model conflicts with concurrent components.
