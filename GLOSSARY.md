@@ -12,6 +12,10 @@ _Avoid_: bill row, invoice line, cost record
 The complete set of Billing Lines a provider published for one billing account, Billing Period and source at one point in time. A restatement replaces the whole snapshot; earlier snapshots are retained.
 _Avoid_: file, batch, version (alone)
 
+**Superseded Snapshot**:
+An Export Snapshot kept as history because a later publication is current for its Snapshot Scope.
+_Avoid_: old version, stale snapshot
+
 **Snapshot Scope**:
 The billing account, Billing Period and source an Export Snapshot covers. At most one Export Snapshot is current for a Snapshot Scope.
 _Avoid_: partition, key (alone)

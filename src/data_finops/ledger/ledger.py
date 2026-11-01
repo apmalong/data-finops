@@ -25,8 +25,7 @@ from data_finops.contracts.billing import (
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS export_snapshot (
-    seq INTEGER PRIMARY KEY AUTOINCREMENT,
-    snapshot_id TEXT NOT NULL UNIQUE,
+    snapshot_id TEXT PRIMARY KEY,
     billing_account_id TEXT NOT NULL,
     billing_period_start TEXT NOT NULL,
     billing_period_end TEXT NOT NULL,
@@ -44,6 +43,8 @@ CREATE TABLE IF NOT EXISTS billing_line (
 """
 
 
+_SELECT_STORED = "SELECT snapshot_id, content_digest, snapshot_json FROM export_snapshot"
+
 _EPOCH = datetime(1970, 1, 1, tzinfo=UTC)
 
 
@@ -57,7 +58,8 @@ class ImportOutcome(StrEnum):
     SUPERSEDED = "superseded"
     """Stored as history; a later publication is current for its scope."""
     REPLAY = "replay"
-    """Nothing stored: the content or the snapshot is already in the Ledger."""
+    """Nothing stored: the content equals the scope's current snapshot, or this snapshot
+    ID is already stored with the same content (ADR 0020)."""
 
 
 @dataclass(frozen=True)
@@ -159,9 +161,7 @@ class Ledger:
     def snapshot(self, snapshot_id: str) -> FocusExport | None:
         """Any stored Export Snapshot, current or superseded."""
         row = self._connection.execute(
-            "SELECT snapshot_id, content_digest, snapshot_json FROM export_snapshot"
-            " WHERE snapshot_id = ?",
-            (snapshot_id,),
+            f"{_SELECT_STORED} WHERE snapshot_id = ?", (snapshot_id,)
         ).fetchone()
         return None if row is None else self._load(_StoredSnapshot(*row))
 
@@ -177,8 +177,7 @@ class Ledger:
 
     def _current(self, scope: SnapshotScope) -> _StoredSnapshot | None:
         row = self._connection.execute(
-            "SELECT snapshot_id, content_digest, snapshot_json FROM export_snapshot"
-            " WHERE billing_account_id = ? AND billing_period_start = ?"
+            f"{_SELECT_STORED} WHERE billing_account_id = ? AND billing_period_start = ?"
             " AND billing_period_end = ? AND source = ?"
             " ORDER BY published_at_us DESC, snapshot_id DESC LIMIT 1",
             _scope_key(scope),

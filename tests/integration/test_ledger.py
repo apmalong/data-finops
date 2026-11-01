@@ -211,15 +211,12 @@ def test_simultaneous_publications_resolve_to_the_same_current_in_any_order(tmp_
 
 def test_restating_one_scope_leaves_other_scopes_untouched(tmp_path):
     a = load_export(FIXTURE)
-    other_source = FocusExport(
-        snapshot=ExportSnapshot.model_validate(
-            {
-                **a.snapshot.model_dump(mode="json"),
-                "snapshot_id": "other-source-2026-10-v1",
-                "source": "aws-data-exports:FOCUS_1_2_AWS:second-export",
-            }
-        ),
-        lines=a.lines,
+    other_source = _republished(
+        a,
+        "other-source-2026-10-v1",
+        a.lines,
+        "2026-10-02T06:00:00Z",
+        source="aws-data-exports:FOCUS_1_2_AWS:second-export",
     )
     b = _republished(a, "aws-focus-123456789012-2026-10-v2", a.lines[:1], "2026-10-03T06:00:00Z")
     with Ledger(tmp_path / "ledger.db") as ledger:
@@ -249,13 +246,18 @@ def test_publication_order_respects_fractional_seconds(tmp_path):
 
 
 def _republished(
-    export: FocusExport, snapshot_id: str, lines: list[FocusBillingLine], published_at: str
+    export: FocusExport,
+    snapshot_id: str,
+    lines: list[FocusBillingLine],
+    published_at: str,
+    source: str | None = None,
 ) -> FocusExport:
     snapshot = ExportSnapshot.model_validate(
         {
             **export.snapshot.model_dump(mode="json"),
             "snapshot_id": snapshot_id,
             "published_at": published_at,
+            "source": source or export.snapshot.source,
         }
     )
     return FocusExport(snapshot=snapshot, lines=list(lines))
