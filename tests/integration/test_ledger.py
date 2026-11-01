@@ -7,7 +7,7 @@ import pytest
 from pydantic import ValidationError
 
 from data_finops.billing.focus import load_export
-from data_finops.contracts.billing import FocusBillingLine, FocusExport
+from data_finops.contracts.billing import ExportSnapshot, FocusBillingLine, FocusExport
 from data_finops.ledger import ImportOutcome, Ledger, SnapshotConflictError
 
 FIXTURE = Path(__file__).resolve().parents[2] / "fixtures" / "focus" / "export-2026-10.json"
@@ -105,7 +105,7 @@ def test_reimporting_the_same_snapshot_is_a_reported_no_op(tmp_path):
 def test_same_content_redelivered_under_a_new_id_is_a_replay_of_the_original(tmp_path):
     export = load_export(FIXTURE)
     redelivered = _republished(
-        export, "aws-focus-123456789012-2026-10-redelivered", lines=export.lines
+        export, "aws-focus-123456789012-2026-10-redelivered", export.lines, "2026-10-03T06:00:00Z"
     )
     with Ledger(tmp_path / "ledger.db") as ledger:
         ledger.import_snapshot(export)
@@ -130,8 +130,8 @@ def test_reused_snapshot_id_with_different_content_is_rejected(tmp_path):
 
 def test_old_content_republished_after_a_restatement_becomes_current(tmp_path):
     a = load_export(FIXTURE)
-    b = _republished(a, "aws-focus-123456789012-2026-10-v2", lines=a.lines[:1])
-    a_again = _republished(a, "aws-focus-123456789012-2026-10-v3", lines=a.lines)
+    b = _republished(a, "aws-focus-123456789012-2026-10-v2", a.lines[:1], "2026-10-03T06:00:00Z")
+    a_again = _republished(a, "aws-focus-123456789012-2026-10-v3", a.lines, "2026-10-04T06:00:00Z")
     with Ledger(tmp_path / "ledger.db") as ledger:
         ledger.import_snapshot(a)
         ledger.import_snapshot(b)
@@ -145,9 +145,10 @@ def test_old_content_republished_after_a_restatement_becomes_current(tmp_path):
 
 
 def test_reimporting_a_superseded_snapshot_under_its_own_id_changes_nothing(tmp_path):
-    # Pins current behaviour; #9 decides whether this should restore the old snapshot.
+    # The current snapshot is the latest publication, so re-importing an older one
+    # never restores it, whatever the import order.
     a = load_export(FIXTURE)
-    b = _republished(a, "aws-focus-123456789012-2026-10-v2", lines=a.lines[:1])
+    b = _republished(a, "aws-focus-123456789012-2026-10-v2", a.lines[:1], "2026-10-03T06:00:00Z")
     with Ledger(tmp_path / "ledger.db") as ledger:
         ledger.import_snapshot(a)
         ledger.import_snapshot(b)
@@ -160,8 +161,101 @@ def test_reimporting_a_superseded_snapshot_under_its_own_id_changes_nothing(tmp_
     assert current.snapshot.snapshot_id == "aws-focus-123456789012-2026-10-v2"
 
 
+def test_previous_snapshot_stays_readable_by_id_after_a_restatement(tmp_path):
+    a = load_export(FIXTURE)
+    b = _republished(a, "aws-focus-123456789012-2026-10-v2", a.lines[:1], "2026-10-03T06:00:00Z")
+    with Ledger(tmp_path / "ledger.db") as ledger:
+        ledger.import_snapshot(a)
+        ledger.import_snapshot(b)
+        current = ledger.current_snapshot(a.snapshot.scope)
+        previous = ledger.snapshot("aws-focus-123456789012-2026-10-v1")
+
+    assert current is not None and previous is not None
+    assert [str(line.BilledCost) for line in current.lines] == ["6.00"]
+    assert [str(line.BilledCost) for line in previous.lines] == ["6.00", "4.00"]
+    assert previous.snapshot.published_at.isoformat() == "2026-10-02T06:00:00+00:00"
+
+
+def test_late_arriving_older_publication_is_kept_but_not_current(tmp_path):
+    a = load_export(FIXTURE)
+    b = _republished(a, "aws-focus-123456789012-2026-10-v2", a.lines[:1], "2026-10-03T06:00:00Z")
+    with Ledger(tmp_path / "ledger.db") as ledger:
+        ledger.import_snapshot(b)
+        result = ledger.import_snapshot(a)
+        current = ledger.current_snapshot(a.snapshot.scope)
+        kept = ledger.snapshot("aws-focus-123456789012-2026-10-v1")
+
+    assert result.outcome is ImportOutcome.SUPERSEDED
+    assert current is not None and kept is not None
+    assert current.snapshot.snapshot_id == "aws-focus-123456789012-2026-10-v2"
+    assert [str(line.BilledCost) for line in kept.lines] == ["6.00", "4.00"]
+
+
+@pytest.mark.parametrize("order", [("x", "y"), ("y", "x")])
+def test_simultaneous_publications_resolve_to_the_same_current_in_any_order(tmp_path, order):
+    a = load_export(FIXTURE)
+    exports = {
+        "x": _republished(
+            a, "aws-focus-123456789012-2026-10-x", a.lines[:1], "2026-10-03T06:00:00Z"
+        ),
+        "y": _republished(a, "aws-focus-123456789012-2026-10-y", a.lines, "2026-10-03T06:00:00Z"),
+    }
+    with Ledger(tmp_path / "ledger.db") as ledger:
+        for key in order:
+            ledger.import_snapshot(exports[key])
+        current = ledger.current_snapshot(a.snapshot.scope)
+
+    assert current is not None
+    assert current.snapshot.snapshot_id == "aws-focus-123456789012-2026-10-y"
+
+
+def test_restating_one_scope_leaves_other_scopes_untouched(tmp_path):
+    a = load_export(FIXTURE)
+    other_source = FocusExport(
+        snapshot=ExportSnapshot.model_validate(
+            {
+                **a.snapshot.model_dump(mode="json"),
+                "snapshot_id": "other-source-2026-10-v1",
+                "source": "aws-data-exports:FOCUS_1_2_AWS:second-export",
+            }
+        ),
+        lines=a.lines,
+    )
+    b = _republished(a, "aws-focus-123456789012-2026-10-v2", a.lines[:1], "2026-10-03T06:00:00Z")
+    with Ledger(tmp_path / "ledger.db") as ledger:
+        ledger.import_snapshot(a)
+        ledger.import_snapshot(other_source)
+        ledger.import_snapshot(b)
+        untouched = ledger.current_snapshot(other_source.snapshot.scope)
+
+    assert untouched is not None
+    assert untouched.snapshot.snapshot_id == "other-source-2026-10-v1"
+    assert [str(line.BilledCost) for line in untouched.lines] == ["6.00", "4.00"]
+
+
+def test_publication_order_respects_fractional_seconds(tmp_path):
+    a = load_export(FIXTURE)
+    earlier = _republished(
+        a, "aws-focus-123456789012-2026-10-e", a.lines[:1], "2026-10-03T06:00:00Z"
+    )
+    later = _republished(a, "aws-focus-123456789012-2026-10-d", a.lines, "2026-10-03T06:00:00.500Z")
+    with Ledger(tmp_path / "ledger.db") as ledger:
+        ledger.import_snapshot(later)
+        ledger.import_snapshot(earlier)
+        current = ledger.current_snapshot(a.snapshot.scope)
+
+    assert current is not None
+    assert current.snapshot.snapshot_id == "aws-focus-123456789012-2026-10-d"
+
+
 def _republished(
-    export: FocusExport, snapshot_id: str, lines: list[FocusBillingLine]
+    export: FocusExport, snapshot_id: str, lines: list[FocusBillingLine], published_at: str
 ) -> FocusExport:
-    snapshot = export.snapshot.model_copy(update={"snapshot_id": snapshot_id})
+    snapshot = ExportSnapshot.model_validate(
+        {
+            **export.snapshot.model_dump(mode="json"),
+            "snapshot_id": snapshot_id,
+            "published_at": published_at,
+        }
+    )
     return FocusExport(snapshot=snapshot, lines=list(lines))
