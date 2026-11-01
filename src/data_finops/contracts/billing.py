@@ -70,6 +70,16 @@ class SnapshotFile(BaseModel):
     sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
 
 
+class SnapshotScope(BaseModel):
+    """What an Export Snapshot covers; a restatement replaces the snapshot for its scope."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    billing_account_id: str
+    billing_period_start: UtcDatetime
+    source: str
+
+
 class ExportSnapshot(BaseModel):
     """One provider publication of all lines for a billing account and Billing Period."""
 
@@ -83,6 +93,14 @@ class ExportSnapshot(BaseModel):
     billing_period_end: UtcDatetime
     published_at: UtcDatetime
     files: list[SnapshotFile] = []
+
+    @property
+    def scope(self) -> SnapshotScope:
+        return SnapshotScope(
+            billing_account_id=self.billing_account_id,
+            billing_period_start=self.billing_period_start,
+            source=self.source,
+        )
 
 
 class FocusExport(BaseModel):
