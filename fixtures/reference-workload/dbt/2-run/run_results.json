@@ -25,12 +25,12 @@
       "thread_id": "Thread-1 (worker)",
       "execution_time": 2.2001242637634277,
       "adapter_response": {
-        "_message": "OK -1",
+        "_message": "anon-79b86f71c800",
         "code": "OK",
         "rows_affected": -1,
         "data_scanned_in_bytes": 0
       },
-      "message": "OK -1",
+      "message": "anon-79b86f71c800",
       "failures": null,
       "unique_id": "model.reference_workload.stg_customers",
       "compiled": true,
@@ -56,12 +56,12 @@
       "thread_id": "Thread-1 (worker)",
       "execution_time": 1.9092357158660889,
       "adapter_response": {
-        "_message": "OK -1",
+        "_message": "anon-79b86f71c800",
         "code": "OK",
         "rows_affected": -1,
         "data_scanned_in_bytes": 0
       },
-      "message": "OK -1",
+      "message": "anon-79b86f71c800",
       "failures": null,
       "unique_id": "model.reference_workload.stg_orders",
       "compiled": true,
@@ -87,12 +87,12 @@
       "thread_id": "Thread-1 (worker)",
       "execution_time": 5.750155687332153,
       "adapter_response": {
-        "_message": "OK 6",
+        "_message": "anon-3508b2506da6",
         "code": "OK",
         "rows_affected": 6,
         "data_scanned_in_bytes": 189
       },
-      "message": "OK 6",
+      "message": "anon-3508b2506da6",
       "failures": null,
       "unique_id": "model.reference_workload.daily_orders",
       "compiled": true,
@@ -118,12 +118,12 @@
       "thread_id": "Thread-1 (worker)",
       "execution_time": 6.110215187072754,
       "adapter_response": {
-        "_message": "OK 4",
+        "_message": "anon-135c45841cff",
         "code": "OK",
         "rows_affected": 4,
         "data_scanned_in_bytes": 397
       },
-      "message": "OK 4",
+      "message": "anon-135c45841cff",
       "failures": null,
       "unique_id": "model.reference_workload.revenue_by_region",
       "compiled": true,

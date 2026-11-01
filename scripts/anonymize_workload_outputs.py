@@ -6,19 +6,20 @@ Usage (same secret as the FOCUS anonymizer, so pseudonyms match across billing a
 
 Files are recognised by content: a BatchGetQueryExecution response, a dbt manifest or run
 results, or OpenLineage events (JSON array or JSON Lines). Anything else is skipped and
-reported, never copied. Rules (spec 04, data protection; #32):
+reported, never copied. Rules (spec 04, data protection; #32, #36):
+- fields: only allowlisted fields are kept (ATHENA_FIELDS here; dbt and OpenLineage specs in
+  anonymize_workload_fields.py); every other field is dropped and counted by its path;
+  free text becomes pseudonyms; dbt collections the product does not read are emptied;
 - every string: S3 bucket names found anywhere in the inputs (`s3://`, S3 ARNs, virtual-host
   URLs), 12-digit account IDs and local paths (whole values, paths inside text, `~/` and
   `file://`) become the FOCUS anonymizer's keyed pseudonyms, also in output file names;
-- SQL (Athena `Query`, dbt `raw_code`/`compiled_code`/`macro_sql`, the OpenLineage `sql`
-  facet) keeps only a dbt comment and the statement's leading keywords (`create table …`);
-- Athena: only known execution fields, and known fields inside them, are kept;
-- dbt: `user_id` is removed, `project_id` and environment values pseudonymized; run-results
+  timestamps with a UTC offset are converted to UTC, so they do not reveal a time zone;
+- SQL keeps only a dbt comment and the statement's leading keywords (`create table …`);
+- dbt: `user_id` is cleared, `project_id` and environment values pseudonymized; run-results
   `args` keep flags, numbers and the selection and logging settings in ARGS_TEXT;
 - correlation survives: query execution IDs, workgroup, `node_id` and `invocation_id`.
-dbt and OpenLineage structures are not allowlisted field by field: their strings pass the
-rules above. After writing, the output is scanned for every original identifier and the run
-fails if one remains. The output must be outside the repository or under `.local/`.
+After writing, the output is scanned for every original identifier and the run fails if
+one remains. The output must be outside the repository or under its git-ignored `.local/`.
 """
 
 import json
@@ -27,11 +28,23 @@ import re
 import sys
 from collections import Counter
 from collections.abc import Callable
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from anonymize_focus_export import SKIPPED, Pseudonyms, writable_target  # noqa: E402
+from anonymize_workload_fields import (  # noqa: E402
+    EMPTY,
+    KEEP,
+    MANIFEST,
+    OPENLINEAGE_EVENT,
+    RUN_RESULTS,
+    SQL,
+    TEXT,
+    Each,
+    Items,
+)
 
 # Known BatchGetQueryExecution fields; None keeps a field whole, a set keeps those sub-fields.
 ATHENA_FIELDS: dict[str, frozenset[str] | None] = {
@@ -76,7 +89,6 @@ ARGS_TEXT = frozenset(
         "which",
     }
 )
-SQL_FIELDS = frozenset({"Query", "compiled_code", "macro_sql", "query", "raw_code"})
 _BUCKET = r"([a-z0-9][a-z0-9.-]{1,61}[a-z0-9])"
 _BUCKET_MENTIONS = (
     re.compile(r"s3://" + _BUCKET),
@@ -89,6 +101,7 @@ _EMBEDDED_PATH = re.compile(
     r"|(?<![\w])[A-Za-z]:[\\/][^\s'\"<>|]*"
     r"|(?<![\w:/.~-])~?/(?:[\w.-]+/)+[\w.-]*"
 )
+_OFFSET_TIME = re.compile(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?[+-]\d{2}:\d{2}")
 _COMMENT = re.compile(r"-- /\* \{.*\} \*/\n")
 _KEYWORD = re.compile(r"[A-Za-z_]+")
 _LEADING_KEYWORDS = 2
@@ -110,6 +123,8 @@ class _Scrubber:
         ]
 
     def text(self, value: str) -> str:
+        if _OFFSET_TIME.fullmatch(value):
+            return _utc(value)
         if _WHOLE_PATH.match(value) and "://" not in value:
             return self.redact(value)
         value = _EMBEDDED_PATH.sub(lambda m: self.redact(m[0]), value)
@@ -119,9 +134,13 @@ class _Scrubber:
         return self.pseudonyms.scrub_accounts(value)
 
     def redact(self, value: str) -> str:
-        """Replace a value that must not survive in any form, such as a path or env value."""
+        """Replace an identifier that must not survive in any form, such as a path."""
         self.originals.add(value)
         return self.pseudonyms.text(value)
+
+
+def _utc(value: str) -> str:
+    return datetime.fromisoformat(value).astimezone(UTC).isoformat().replace("+00:00", "Z")
 
 
 def anonymize_workload_outputs(source: Path, target: Path, secret: str) -> dict[str, int]:
@@ -203,7 +222,7 @@ def _athena(document: dict[str, Any], scrubber: _Scrubber, summary: Counter[str]
                 for sub in sorted(value.keys() - allowed):
                     summary[f"dropped athena.{key}.{sub}"] += 1
                 value = {k: v for k, v in value.items() if k in allowed}
-            kept[key] = value
+            kept[key] = _sql_summary(value) if key == "Query" else value
         executions.append(kept)
     return _walk({**document, "QueryExecutions": executions}, scrubber.text)
 
@@ -237,11 +256,14 @@ def _dbt(document: dict[str, Any], scrubber: _Scrubber, summary: Counter[str]) -
             else:
                 summary[f"dropped dbt.args.{key}"] += 1
         result["args"] = args
-    return _walk(result, scrubber.text)
+    is_manifest = "/manifest/" in str(metadata.get("dbt_schema_version"))
+    spec, name = (MANIFEST, "manifest") if is_manifest else (RUN_RESULTS, "run_results")
+    return _walk(_allow(result, spec, name, scrubber, summary), scrubber.text)
 
 
 def _openlineage(events: list[Any], scrubber: _Scrubber, summary: Counter[str]) -> Any:
-    return _walk(events, scrubber.text)
+    allowed = _allow(events, Items(OPENLINEAGE_EVENT), "openlineage", scrubber, summary)
+    return _walk(allowed, scrubber.text)
 
 
 _ANONYMIZERS: dict[str, Callable[[Any, _Scrubber, Counter[str]], Any]] = {
@@ -251,14 +273,51 @@ _ANONYMIZERS: dict[str, Callable[[Any, _Scrubber, Counter[str]], Any]] = {
 }
 
 
-def _walk(value: Any, rule: Callable[[str], str], key: str | None = None) -> Any:
-    """Apply `rule` to every string; SQL fields are first cut to a summary."""
+def _allow(value: Any, spec: Any, path: str, scrubber: _Scrubber, summary: Counter[str]) -> Any:
+    """Keep only the fields `spec` lists (see anonymize_workload_fields); count the rest."""
+    if spec == KEEP or value is None:
+        return value
+    if spec == SQL:
+        return _sql_summary(value) if isinstance(value, str) else value
+    if spec == TEXT:
+        return _free_text(value, scrubber, summary, path)
+    if spec == EMPTY:
+        if value:
+            summary[f"emptied {path}"] += 1
+        return {}
+    if isinstance(spec, Each) and isinstance(value, dict):
+        return {k: _allow(v, spec.spec, f"{path}.*", scrubber, summary) for k, v in value.items()}
+    if isinstance(spec, Items) and isinstance(value, list):
+        return [_allow(v, spec.spec, f"{path}[]", scrubber, summary) for v in value]
+    if isinstance(spec, dict) and isinstance(value, dict):
+        kept = {}
+        for key, item in value.items():
+            if key in spec:
+                kept[key] = _allow(item, spec[key], f"{path}.{key}", scrubber, summary)
+            else:
+                summary[f"dropped {path}.{key}"] += 1
+        return kept
+    return value
+
+
+def _free_text(value: Any, scrubber: _Scrubber, summary: Counter[str], path: str) -> Any:
+    """Free text is not an identifier, so it is pseudonymized without joining the scan list."""
     if isinstance(value, str):
-        return rule(_sql_summary(value) if key in SQL_FIELDS else value)
+        return scrubber.pseudonyms.text(value) if value else value
+    if isinstance(value, list):
+        return [scrubber.pseudonyms.text(v) for v in value if isinstance(v, str)]
+    if value:
+        summary[f"emptied {path}"] += 1
+    return {} if isinstance(value, dict) else value
+
+
+def _walk(value: Any, rule: Callable[[str], str]) -> Any:
+    if isinstance(value, str):
+        return rule(value)
     if isinstance(value, list):
         return [_walk(item, rule) for item in value]
     if isinstance(value, dict):
-        return {k: _walk(item, rule, k) for k, item in value.items()}
+        return {key: _walk(item, rule) for key, item in value.items()}
     return value  # numbers, booleans and nulls are copied untouched
 
 

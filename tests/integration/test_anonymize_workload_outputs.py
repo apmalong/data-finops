@@ -261,7 +261,7 @@ def test_run_fails_rather_than_leak_a_value_found_elsewhere(outputs: tuple[Path,
     source, target = outputs
     manifest_path = source / "dbt/2-run/manifest.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    manifest["nodes"][NODE]["description"] = "owned by secret-project"  # the env value again
+    manifest["nodes"][NODE]["alias"] = "secret-project"  # the env value again, in a kept field
     manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
     with pytest.raises(RuntimeError, match="remain"):
         anonymizer.anonymize_workload_outputs(source, target, SECRET)
@@ -336,3 +336,114 @@ def test_command_line_reads_the_secret_from_the_environment(
     with pytest.raises(ValueError, match="secret"):
         anonymizer.main([str(source), str(target / "again")])
     assert anonymizer.main([]) == 2
+
+
+# Field allowlists (#36)
+
+UNKNOWN = "zz_unknown_field"
+FREE_TEXT = ["orders by day for finance", "pii-owner", "analyst@example.com", "wrote 6 rows"]
+
+
+def _plant_allowlist_cases(source: Path) -> None:
+    def manifest(document: dict[str, Any]) -> None:
+        node = document["nodes"][NODE]
+        node[UNKNOWN] = "x"
+        node["description"] = FREE_TEXT[0]
+        node["meta"] = {"owner": FREE_TEXT[1]}
+        node["tags"] = [FREE_TEXT[1]]
+        node["config"] = {"materialized": "incremental", "grants": {"select": [FREE_TEXT[1]]}}
+        document["macros"]["macro.example.m"][UNKNOWN] = "x"
+        document["metadata"][UNKNOWN] = "x"
+        document["docs"] = {
+            "doc.example.d": {"unique_id": "doc.example.d", "block_contents": FREE_TEXT[0]}
+        }
+        document["groups"] = {"group.example.g": {"owner": {"email": FREE_TEXT[2]}}}
+
+    def run_results(document: dict[str, Any]) -> None:
+        result = document["results"][0]
+        result[UNKNOWN] = "x"
+        result["message"] = FREE_TEXT[3]
+
+    def athena(document: dict[str, Any]) -> None:
+        document["QueryExecutions"][0]["Status"]["SubmissionDateTime"] = (
+            "2026-11-01T15:19:15.713-06:00"
+        )
+
+    _edit(source / "dbt/2-run/manifest.json", manifest)
+    _edit(source / "dbt/2-run/run_results.json", run_results)
+    _edit(source / "athena/query-executions.json", athena)
+    events = [json.loads(line) for line in (source / "openlineage/dbt-events.jsonl").open()]
+    event = events[0]
+    event[UNKNOWN] = "x"
+    event["run"]["facets"][UNKNOWN] = {"secret": FREE_TEXT[1]}
+    event["run"]["facets"]["tags"] = {
+        "tags": [{"key": "owner", "value": FREE_TEXT[1], "source": "DBT"}]
+    }
+    event["job"]["facets"] = {UNKNOWN: {"x": 1}, "dbt_node": {"unique_id": NODE}}
+    event["outputs"][0]["facets"][UNKNOWN] = {"x": 1}
+    (source / "openlineage/dbt-events.jsonl").write_text(
+        "".join(json.dumps(e) + "\n" for e in events), encoding="utf-8"
+    )
+
+
+@pytest.fixture
+def allowlisted(outputs: tuple[Path, Path]) -> tuple[Path, dict[str, int]]:
+    source, target = outputs
+    _plant_allowlist_cases(source)
+    return target, anonymizer.anonymize_workload_outputs(source, target, SECRET)
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "manifest.nodes.*",
+        "manifest.macros.*",
+        "manifest.metadata",
+        "run_results.results[]",
+        "openlineage[]",
+        "openlineage[].run.facets",
+        "openlineage[].job.facets",
+        "openlineage[].outputs[].facets",
+    ],
+)
+def test_unknown_fields_at_every_level_are_dropped_and_reported(
+    allowlisted: tuple[Path, dict[str, int]], path: str
+) -> None:
+    target, summary = allowlisted
+    assert summary[f"dropped {path}.{UNKNOWN}"] == 1
+    assert UNKNOWN not in _all_text(target)
+
+
+def test_known_fields_keep_their_values(allowlisted: tuple[Path, dict[str, int]]) -> None:
+    target, _ = allowlisted
+    node = _json(target, "dbt/2-run/manifest.json")["nodes"][NODE]
+    assert (node["name"], node["fqn"], node["config"]["materialized"]) == (
+        "daily_orders",
+        ["example", "marts", "daily_orders"],
+        "incremental",
+    )
+    result = _json(target, "dbt/2-run/run_results.json")["results"][0]
+    assert (result["unique_id"], result["status"], result["execution_time"]) == (
+        NODE,
+        "success",
+        8.1,
+    )
+    event = load_events(target / "openlineage/dbt-events.jsonl")[0]
+    assert event.job.facets["dbt_node"]["unique_id"] == NODE
+
+
+def test_free_text_and_unread_collections_do_not_survive(
+    allowlisted: tuple[Path, dict[str, int]],
+) -> None:
+    target, summary = allowlisted
+    text = _all_text(target)
+    assert not any(value in text for value in FREE_TEXT)
+    manifest = _json(target, "dbt/2-run/manifest.json")
+    assert manifest["nodes"][NODE]["meta"] == {}
+    assert manifest["nodes"][NODE]["config"]["grants"] == {}
+    assert manifest["groups"] == {} and summary["emptied manifest.groups"] == 1
+
+
+def test_timestamps_with_a_utc_offset_become_utc(allowlisted: tuple[Path, dict[str, int]]) -> None:
+    status = _json(allowlisted[0], "athena/query-executions.json")["QueryExecutions"][0]["Status"]
+    assert status["SubmissionDateTime"] == "2026-11-01T21:19:15.713000Z"
