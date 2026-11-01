@@ -222,7 +222,7 @@
       "anyOf": [
         {
           "additionalProperties": {
-            "type": "number"
+            "type": "string"
           },
           "type": "object"
         },

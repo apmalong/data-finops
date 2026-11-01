@@ -63,9 +63,10 @@ class FocusBillingLine(BaseModel):
     PricingQuantity: DecimalString | None = None
     PricingUnit: str | None = None
     Tags: dict[str, str] | None = None
-    data_finops_raw_values: dict[str, float] | None = None
-    """Provenance, not a FOCUS column: each provider double converted to a decimal
-    string, keyed by column (`column.key` inside maps), as delivered (OQ-21)."""
+    data_finops_raw_values: dict[str, str] | None = None
+    """Provenance, not a FOCUS column (spec 02, OQ-21): the provider's raw double for
+    every amount converted to a decimal, as its exact repr() string, keyed by column
+    path (`column`, `column.field`, `column[index]`). Never compute with these."""
 
     @model_validator(mode="after")
     def _periods_are_ordered(self) -> "FocusBillingLine":

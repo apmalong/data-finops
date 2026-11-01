@@ -28,7 +28,7 @@ def _parse_decimal(value: object) -> Decimal:
     raise ValueError("expected a decimal string such as '12.34'")
 
 
-def _format_decimal(value: Decimal) -> str:
+def format_decimal(value: Decimal) -> str:
     # Fixed-point keeps the value and scale; str() would emit exponents such as '1E-7'
     # below 1e-6, which DECIMAL_PATTERN rejects on the way back in.
     return format(value, "f")
@@ -37,7 +37,7 @@ def _format_decimal(value: Decimal) -> str:
 DecimalString = Annotated[
     Decimal,
     PlainValidator(_parse_decimal),
-    PlainSerializer(_format_decimal, return_type=str),
+    PlainSerializer(format_decimal, return_type=str),
     WithJsonSchema({"type": "string", "pattern": DECIMAL_PATTERN}),
 ]
 

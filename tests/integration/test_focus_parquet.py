@@ -1,5 +1,6 @@
 """FOCUS Parquet export reader through its public interface (seam agreed in #6)."""
 
+import hashlib
 from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
@@ -82,8 +83,9 @@ def test_doubles_become_their_shortest_decimal_and_keep_the_raw_value(tmp_path):
     ]
     assert str(export.lines[0].ConsumedQuantity) == "0.001"
     raw = export.lines[0].model_dump(mode="json")["data_finops_raw_values"]
-    assert raw["BilledCost"] == 0.1
-    assert raw["x_Discounts.EDP"] == -0.02
+    assert raw["BilledCost"] == "0.1"
+    assert float(raw["BilledCost"]) == 0.1
+    assert raw["x_Discounts.EDP"] == "-0.02"
 
 
 def test_line_order_does_not_depend_on_file_listing_order(tmp_path):
@@ -129,3 +131,46 @@ def test_non_finite_amounts_are_rejected(tmp_path):
 
     with pytest.raises(ValueError, match="BilledCost"):
         load_parquet_export([part], SNAPSHOT)
+
+
+def test_the_snapshot_records_a_sha256_for_every_file_read(tmp_path):
+    first = _write(tmp_path / "part-00001.parquet", [_row(1.5)])
+    second = _write(tmp_path / "part-00002.parquet", [_row(2.5)])
+
+    files = load_parquet_export([second, first], SNAPSHOT).snapshot.files
+
+    assert [(f.path, f.sha256) for f in files] == [
+        ("part-00001.parquet", hashlib.sha256(first.read_bytes()).hexdigest()),
+        ("part-00002.parquet", hashlib.sha256(second.read_bytes()).hexdigest()),
+    ]
+
+
+def test_doubles_nested_in_struct_and_list_columns_are_converted_with_raw_values(tmp_path):
+    nested = pa.schema(
+        [
+            *SCHEMA,
+            ("x_Detail", pa.struct([("rate", pa.float64()), ("note", pa.string())])),
+            ("x_Tiers", pa.list_(pa.float64())),
+        ]
+    )
+    row = {**_row(6.0), "x_Detail": {"rate": 0.3, "note": "tiered"}, "x_Tiers": [0.25, 1e-07]}
+    pq.write_table(pa.Table.from_pylist([row], schema=nested), tmp_path / "part-00001.parquet")
+
+    line = load_parquet_export([tmp_path / "part-00001.parquet"], SNAPSHOT).lines[0]
+    dumped = line.model_dump(mode="json")
+
+    assert dumped["x_Detail"] == {"rate": "0.3", "note": "tiered"}
+    assert dumped["x_Tiers"] == ["0.25", "0.0000001"]
+    assert dumped["data_finops_raw_values"]["x_Detail.rate"] == "0.3"
+    assert dumped["data_finops_raw_values"]["x_Tiers[1]"] == "1e-07"
+
+
+def test_files_with_the_same_name_in_different_folders_order_by_full_path(tmp_path):
+    (tmp_path / "a").mkdir()
+    (tmp_path / "b").mkdir()
+    in_a = _write(tmp_path / "a" / "part-00001.parquet", [_row(1.5)])
+    in_b = _write(tmp_path / "b" / "part-00001.parquet", [_row(2.5)])
+
+    export = load_parquet_export([in_b, in_a], SNAPSHOT)
+
+    assert [line.model_dump(mode="json")["BilledCost"] for line in export.lines] == ["1.5", "2.5"]
