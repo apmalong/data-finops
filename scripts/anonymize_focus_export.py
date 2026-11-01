@@ -69,7 +69,11 @@ PASS_THROUGH = frozenset(
     }
 )
 _ACCOUNT_ID = re.compile(r"(?<!\d)\d{12}(?!\d)")
-_UUID = re.compile(r"([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})")
+# Bounded on both sides, so an account ID running into hex text is never taken for a UUID.
+_UUID = re.compile(
+    r"(?<![0-9A-Za-z-])([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})"
+    r"(?![0-9A-Za-z-])"
+)
 
 
 class Pseudonyms:
@@ -88,11 +92,20 @@ class Pseudonyms:
 
     def scrub_accounts(self, text: str) -> str:
         """Replace account IDs, leaving UUIDs whole: their last group can be 12 digits."""
-        parts = _UUID.split(text)
         return "".join(
             part if _UUID.fullmatch(part) else _ACCOUNT_ID.sub(lambda m: self.account(m[0]), part)
-            for part in parts
+            for part in _UUID.split(text)
         )
+
+    @staticmethod
+    def account_ids(text: str) -> set[str]:
+        """The account IDs `scrub_accounts` would replace in `text`."""
+        return {
+            found
+            for part in _UUID.split(text)
+            if not _UUID.fullmatch(part)
+            for found in _ACCOUNT_ID.findall(part)
+        }
 
     def text(self, value: str) -> str:
         """Any identifying text: ARNs keep their shape, account IDs stay 12 digits."""
@@ -131,9 +144,7 @@ class Pseudonyms:
 
 def anonymize_export(source: Path, target: Path, secret: str) -> dict[str, int]:
     """Write an anonymized copy of `source` to `target`; return replacements per column."""
-    target = target.resolve()
-    if target.is_relative_to(REPO) and not target.is_relative_to(REPO / ".local"):
-        raise ValueError(f"refusing to write inside the repository outside .local/: {target}")
+    target = writable_target(target)
     pseudonyms = Pseudonyms(secret)
     summary: Counter[str] = Counter()
     for path in sorted(p for p in source.rglob("*") if p.is_file()):
@@ -147,6 +158,14 @@ def anonymize_export(source: Path, target: Path, secret: str) -> dict[str, int]:
         else:
             summary[SKIPPED] += 1
     return dict(summary)
+
+
+def writable_target(target: Path) -> Path:
+    """The resolved output directory; never inside the repository except under `.local/`."""
+    target = target.resolve()
+    if target.is_relative_to(REPO) and not target.is_relative_to(REPO / ".local"):
+        raise ValueError(f"refusing to write inside the repository outside .local/: {target}")
+    return target
 
 
 def _output(target: Path, relative: Path) -> Path:

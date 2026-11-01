@@ -237,3 +237,13 @@ def test_uuids_survive_account_scrubbing() -> None:
     uuid = "6f1e0c3a-1111-4222-8333-444455556666"
     scrubbed = anonymizer.Pseudonyms("s").scrub_accounts(f"run {uuid} in {PAYER}")
     assert uuid in scrubbed and PAYER not in scrubbed
+
+
+@pytest.mark.parametrize(
+    "text",
+    [f"{PAYER}-abcd-abcd-abcd-abcdefabcdef", f"x{PAYER}-1111-2222-3333-444455556666"],
+)
+def test_account_ids_running_into_hex_are_not_taken_for_uuids(text: str) -> None:
+    scrubbed = anonymizer.Pseudonyms("s").scrub_accounts(text)
+    assert PAYER not in scrubbed
+    assert PAYER in anonymizer.Pseudonyms.account_ids(text)

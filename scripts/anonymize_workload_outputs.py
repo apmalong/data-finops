@@ -7,15 +7,18 @@ Usage (same secret as the FOCUS anonymizer, so pseudonyms match across billing a
 Files are recognised by content: a BatchGetQueryExecution response, a dbt manifest or run
 results, or OpenLineage events (JSON array or JSON Lines). Anything else is skipped and
 reported, never copied. Rules (spec 04, data protection; #32):
-- every string: S3 bucket names found anywhere in the inputs, 12-digit account IDs and
-  absolute local paths become the FOCUS anonymizer's keyed pseudonyms;
-- Athena: only known execution fields are kept; query text keeps its dbt comment and the
-  statement's leading keywords (`create table …`), never literals or object names;
-- dbt: `user_id` is removed and environment values pseudonymized; run-results `args` keep
-  flags, numbers and the selection and logging settings in ARGS_TEXT, nothing else;
+- every string: S3 bucket names found anywhere in the inputs (`s3://`, S3 ARNs, virtual-host
+  URLs), 12-digit account IDs and local paths (whole values, paths inside text, `~/` and
+  `file://`) become the FOCUS anonymizer's keyed pseudonyms, also in output file names;
+- SQL (Athena `Query`, dbt `raw_code`/`compiled_code`/`macro_sql`, the OpenLineage `sql`
+  facet) keeps only a dbt comment and the statement's leading keywords (`create table …`);
+- Athena: only known execution fields, and known fields inside them, are kept;
+- dbt: `user_id` is removed, `project_id` and environment values pseudonymized; run-results
+  `args` keep flags, numbers and the selection and logging settings in ARGS_TEXT;
 - correlation survives: query execution IDs, workgroup, `node_id` and `invocation_id`.
-After writing, the output is scanned for every original identifier and the run fails if
-one remains. The output must be outside the repository or under its git-ignored `.local/`.
+dbt and OpenLineage structures are not allowlisted field by field: their strings pass the
+rules above. After writing, the output is scanned for every original identifier and the run
+fails if one remains. The output must be outside the repository or under `.local/`.
 """
 
 import json
@@ -28,23 +31,37 @@ from pathlib import Path
 from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from anonymize_focus_export import _UUID, REPO, SKIPPED, Pseudonyms  # noqa: E402
+from anonymize_focus_export import SKIPPED, Pseudonyms, writable_target  # noqa: E402
 
-ATHENA_FIELDS = frozenset(
-    {
-        "EngineVersion",
-        "Query",
-        "QueryExecutionContext",
-        "QueryExecutionId",
-        "ResultConfiguration",
-        "ResultReuseConfiguration",
-        "StatementType",
-        "Statistics",
-        "Status",
-        "SubstatementType",
-        "WorkGroup",
-    }
-)
+# Known BatchGetQueryExecution fields; None keeps a field whole, a set keeps those sub-fields.
+ATHENA_FIELDS: dict[str, frozenset[str] | None] = {
+    "EngineVersion": frozenset({"EffectiveEngineVersion", "SelectedEngineVersion"}),
+    "Query": None,
+    "QueryExecutionContext": frozenset({"Catalog", "Database"}),
+    "QueryExecutionId": None,
+    "ResultConfiguration": frozenset(
+        {"EncryptionConfiguration", "ExpectedBucketOwner", "OutputLocation"}
+    ),
+    "ResultReuseConfiguration": frozenset({"ResultReuseByAgeConfiguration"}),
+    "StatementType": None,
+    "Statistics": frozenset(
+        {
+            "DataManifestLocation",
+            "DataScannedInBytes",
+            "DpuCount",
+            "EngineExecutionTimeInMillis",
+            "QueryPlanningTimeInMillis",
+            "QueryQueueTimeInMillis",
+            "ResultReuseInformation",
+            "ServicePreProcessingTimeInMillis",
+            "ServiceProcessingTimeInMillis",
+            "TotalExecutionTimeInMillis",
+        }
+    ),
+    "Status": frozenset({"CompletionDateTime", "State", "SubmissionDateTime"}),
+    "SubstatementType": None,
+    "WorkGroup": None,
+}
 ARGS_TEXT = frozenset(
     {
         "exclude",
@@ -59,10 +76,19 @@ ARGS_TEXT = frozenset(
         "which",
     }
 )
+SQL_FIELDS = frozenset({"Query", "compiled_code", "macro_sql", "query", "raw_code"})
 _BUCKET = r"([a-z0-9][a-z0-9.-]{1,61}[a-z0-9])"
-_BUCKET_MENTIONS = (re.compile(r"s3://" + _BUCKET), re.compile(r"arn:aws:s3:::" + _BUCKET))
-_ACCOUNT_ID = re.compile(r"(?<!\d)\d{12}(?!\d)")
-_ABSOLUTE_PATH = re.compile(r"(?:/(?![/*])|[A-Za-z]:[\\/])")
+_BUCKET_MENTIONS = (
+    re.compile(r"s3://" + _BUCKET),
+    re.compile(r"arn:aws:s3:::" + _BUCKET),
+    re.compile(_BUCKET + r"\.s3[.-](?:[a-z0-9-]+\.)?amazonaws\.com"),
+)
+_WHOLE_PATH = re.compile(r"(?:/(?![/*])|~/|[A-Za-z]:[\\/])")
+_EMBEDDED_PATH = re.compile(
+    r"file://[^\s'\"]+"
+    r"|(?<![\w])[A-Za-z]:[\\/][^\s'\"<>|]*"
+    r"|(?<![\w:/.~-])~?/(?:[\w.-]+/)+[\w.-]*"
+)
 _COMMENT = re.compile(r"-- /\* \{.*\} \*/\n")
 _KEYWORD = re.compile(r"[A-Za-z_]+")
 _LEADING_KEYWORDS = 2
@@ -75,38 +101,38 @@ class _Scrubber:
         self.pseudonyms = pseudonyms
         self.originals: set[str] = set(buckets)
         self._buckets = [
-            (re.compile(rf"(?<![a-z0-9.-]){re.escape(b)}(?![a-z0-9.-])"), pseudonyms.text(b))
+            # A name ends where bucket characters end, or at a virtual-host `.s3.` suffix.
+            (
+                re.compile(rf"(?<![a-z0-9.-]){re.escape(b)}(?![a-z0-9-]|\.(?!s3[.-]))"),
+                pseudonyms.text(b),
+            )
             for b in sorted(buckets, key=len, reverse=True)
         ]
 
     def text(self, value: str) -> str:
-        if _ABSOLUTE_PATH.match(value) and "://" not in value:
-            self.originals.add(value)
-            return self.pseudonyms.text(value)
-        for part in _UUID.split(value):
-            if not _UUID.fullmatch(part):
-                self.originals.update(_ACCOUNT_ID.findall(part))
+        if _WHOLE_PATH.match(value) and "://" not in value:
+            return self.redact(value)
+        value = _EMBEDDED_PATH.sub(lambda m: self.redact(m[0]), value)
+        self.originals.update(self.pseudonyms.account_ids(value))
         for pattern, replacement in self._buckets:
             value = pattern.sub(replacement, value)
         return self.pseudonyms.scrub_accounts(value)
 
-    def secret(self, value: str) -> str:
-        """A value that must not survive in any form, such as an environment value."""
+    def redact(self, value: str) -> str:
+        """Replace a value that must not survive in any form, such as a path or env value."""
         self.originals.add(value)
         return self.pseudonyms.text(value)
 
 
 def anonymize_workload_outputs(source: Path, target: Path, secret: str) -> dict[str, int]:
     """Write anonymized copies of the outputs under `source` to `target`; return a summary."""
-    target = target.resolve()
-    if target.is_relative_to(REPO) and not target.is_relative_to(REPO / ".local"):
-        raise ValueError(f"refusing to write inside the repository outside .local/: {target}")
+    target = writable_target(target)
     pseudonyms = Pseudonyms(secret)
     files = {p: _read(p) for p in sorted(source.rglob("*")) if p.is_file()}
     buckets = {
         bucket
-        for document in files.values()
-        for text in _strings(document)
+        for path, document in files.items()
+        for text in [path.relative_to(source).as_posix(), *_strings(document)]
         for pattern in _BUCKET_MENTIONS
         for bucket in pattern.findall(text)
     }
@@ -120,14 +146,14 @@ def anonymize_workload_outputs(source: Path, target: Path, secret: str) -> dict[
             continue
         anonymized = _ANONYMIZERS[kind](document, scrubber, summary)
         summary[f"{kind} files"] += 1
-        out = target / pseudonyms.scrub_accounts(path.relative_to(source).as_posix())
+        out = target.joinpath(*(scrubber.text(part) for part in path.relative_to(source).parts))
         out.parent.mkdir(parents=True, exist_ok=True)
         if path.suffix == ".jsonl":
             out.write_text("".join(json.dumps(e) + "\n" for e in anonymized), encoding="utf-8")
         else:
             out.write_text(json.dumps(anonymized, indent=2), encoding="utf-8")
         written.append(out)
-    _scan(written, scrubber.originals)
+    _scan(written, target, scrubber.originals)
     return dict(summary)
 
 
@@ -167,18 +193,23 @@ def _is_event(value: Any) -> bool:
 def _athena(document: dict[str, Any], scrubber: _Scrubber, summary: Counter[str]) -> Any:
     executions = []
     for execution in document["QueryExecutions"]:
-        kept = {}
+        kept: dict[str, Any] = {}
         for key, value in execution.items():
-            if key in ATHENA_FIELDS:
-                kept[key] = _query(value) if key == "Query" else value
-            else:
+            if key not in ATHENA_FIELDS:
                 summary[f"dropped athena.{key}"] += 1
+                continue
+            allowed = ATHENA_FIELDS[key]
+            if allowed is not None and isinstance(value, dict):
+                for sub in sorted(value.keys() - allowed):
+                    summary[f"dropped athena.{key}.{sub}"] += 1
+                value = {k: v for k, v in value.items() if k in allowed}
+            kept[key] = value
         executions.append(kept)
     return _walk({**document, "QueryExecutions": executions}, scrubber.text)
 
 
-def _query(text: str) -> str:
-    """Keep the dbt comment and the statement's leading keywords; drop the rest."""
+def _sql_summary(text: str) -> str:
+    """Keep a dbt comment and the statement's leading keywords; drop the rest."""
     comment = _COMMENT.match(text)
     body = text[comment.end() :] if comment else text
     keywords = []
@@ -192,9 +223,11 @@ def _query(text: str) -> str:
 def _dbt(document: dict[str, Any], scrubber: _Scrubber, summary: Counter[str]) -> Any:
     metadata = dict(document["metadata"])
     if metadata.get("user_id"):
-        scrubber.secret(str(metadata["user_id"]))
+        scrubber.redact(str(metadata["user_id"]))
         metadata["user_id"] = None
-    metadata["env"] = {k: scrubber.secret(str(v)) for k, v in metadata.get("env", {}).items()}
+    if metadata.get("project_id"):
+        metadata["project_id"] = scrubber.redact(str(metadata["project_id"]))
+    metadata["env"] = {k: scrubber.redact(str(v)) for k, v in metadata.get("env", {}).items()}
     result = {**document, "metadata": metadata}
     if "args" in document:
         args = {}
@@ -218,13 +251,14 @@ _ANONYMIZERS: dict[str, Callable[[Any, _Scrubber, Counter[str]], Any]] = {
 }
 
 
-def _walk(value: Any, rule: Callable[[str], str]) -> Any:
+def _walk(value: Any, rule: Callable[[str], str], key: str | None = None) -> Any:
+    """Apply `rule` to every string; SQL fields are first cut to a summary."""
     if isinstance(value, str):
-        return rule(value)
+        return rule(_sql_summary(value) if key in SQL_FIELDS else value)
     if isinstance(value, list):
         return [_walk(item, rule) for item in value]
     if isinstance(value, dict):
-        return {key: _walk(item, rule) for key, item in value.items()}
+        return {k: _walk(item, rule, k) for k, item in value.items()}
     return value  # numbers, booleans and nulls are copied untouched
 
 
@@ -238,13 +272,13 @@ def _strings(value: Any) -> list[str]:
     return []
 
 
-def _scan(written: list[Path], originals: set[str]) -> None:
+def _scan(written: list[Path], target: Path, originals: set[str]) -> None:
     """Fail if any original identifier survives; name files and counts, never the values."""
-    leaks = {
-        str(path): count
-        for path in written
-        if (count := sum(1 for o in originals if o in path.read_text(encoding="utf-8")))
-    }
+    leaks = {}
+    for path in written:
+        text = path.relative_to(target).as_posix() + "\n" + path.read_text(encoding="utf-8")
+        if count := sum(1 for original in originals if original in text):
+            leaks[path.name] = count
     if leaks:
         raise RuntimeError(f"original identifiers remain in the output: {leaks}")
 

@@ -265,3 +265,74 @@ def test_run_fails_rather_than_leak_a_value_found_elsewhere(outputs: tuple[Path,
     manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
     with pytest.raises(RuntimeError, match="remain"):
         anonymizer.anonymize_workload_outputs(source, target, SECRET)
+
+
+def _edit(path: Path, change: Any) -> None:
+    document = json.loads(path.read_text(encoding="utf-8"))
+    change(document)
+    path.write_text(json.dumps(document), encoding="utf-8")
+
+
+LITERAL = "customer@example.com"
+HOSTED_BUCKET = "other-hosted-bucket"
+
+
+def _plant_review_cases(source: Path) -> None:
+    def manifest(document: dict[str, Any]) -> None:
+        node = document["nodes"][NODE]
+        node["raw_code"] = f"select '{LITERAL}' as email"
+        node["compiled_code"] = f"select '{LITERAL}' as email"
+        document["macros"]["macro.example.m"]["macro_sql"] = f"select '{LITERAL}'"
+        document["metadata"]["project_id"] = "0123456789abcdef0123456789abcdef"
+
+    def run_results(document: dict[str, Any]) -> None:
+        result = document["results"][0]
+        result["compiled_code"] = f"select '{LITERAL}'"
+        result["message"] = "wrote /home/someone/exports/out.csv and ~/notes/run.txt"
+        result["adapter_response"] = {"log": "file:///home/someone/logs/dbt.log"}
+
+    def athena(document: dict[str, Any]) -> None:
+        document["QueryExecutions"][0]["Statistics"]["SomeFutureStatistic"] = 1
+
+    _edit(source / "dbt/2-run/manifest.json", manifest)
+    _edit(source / "dbt/2-run/run_results.json", run_results)
+    _edit(source / "athena/query-executions.json", athena)
+    events = [json.loads(line) for line in (source / "openlineage/dbt-events.jsonl").open()]
+    events[0]["job"]["facets"] = {"sql": {"query": f"select '{LITERAL}' as email"}}
+    events[0]["outputs"][0]["facets"]["dataSource"]["uri"] = (
+        f"https://{HOSTED_BUCKET}.s3.us-east-1.amazonaws.com/tables/daily_orders"
+    )
+    (source / "openlineage/dbt-events.jsonl").write_text(
+        "".join(json.dumps(e) + "\n" for e in events), encoding="utf-8"
+    )
+    named = source / "athena" / BUCKET / "history.json"  # a folder named after the bucket
+    named.parent.mkdir()
+    named.write_text((source / "athena/query-executions.json").read_text(encoding="utf-8"))
+
+
+def test_sql_paths_hosted_buckets_and_project_id_are_replaced(outputs: tuple[Path, Path]) -> None:
+    source, target = outputs
+    _plant_review_cases(source)
+    summary = anonymizer.anonymize_workload_outputs(source, target, SECRET)
+    text = _all_text(target)
+    names = " ".join(p.relative_to(target).as_posix() for p in target.rglob("*"))
+    for original in [LITERAL, HOSTED_BUCKET, "someone", "~/notes", "0123456789abcdef0123456789"]:
+        assert original not in text
+    assert BUCKET not in names
+    manifest = _json(target, "dbt/2-run/manifest.json")
+    assert manifest["nodes"][NODE]["raw_code"] == "select …"
+    assert summary["dropped athena.Statistics.SomeFutureStatistic"] >= 1
+    statistics = _json(target, "athena/query-executions.json")["QueryExecutions"][0]["Statistics"]
+    assert "SomeFutureStatistic" not in statistics
+
+
+def test_command_line_reads_the_secret_from_the_environment(
+    outputs: tuple[Path, Path], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source, target = outputs
+    monkeypatch.setenv("DATA_FINOPS_ANON_SECRET", SECRET)
+    assert anonymizer.main([str(source), str(target)]) == 0
+    monkeypatch.delenv("DATA_FINOPS_ANON_SECRET")
+    with pytest.raises(ValueError, match="secret"):
+        anonymizer.main([str(source), str(target / "again")])
+    assert anonymizer.main([]) == 2
