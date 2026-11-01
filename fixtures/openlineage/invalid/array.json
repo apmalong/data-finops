@@ -1,0 +1,34 @@
+[
+  {
+    "eventType": "START",
+    "eventTime": "2026-10-01T03:00:00Z",
+    "producer": "https://example.invalid/data-finops-demo/producer",
+    "schemaURL": "https://openlineage.io/spec/2-0-2/OpenLineage.json#/$defs/RunEvent",
+    "job": {
+      "namespace": "demo",
+      "name": "array-fixture"
+    },
+    "run": {
+      "runId": "00000000-0000-4000-8000-0000000000b1",
+      "facets": {}
+    }
+  },
+  {
+    "eventTime": "nope"
+  },
+  42,
+  {
+    "eventType": "COMPLETE",
+    "eventTime": "2026-10-01T03:00:00Z",
+    "producer": "https://example.invalid/data-finops-demo/producer",
+    "schemaURL": "https://openlineage.io/spec/2-0-2/OpenLineage.json#/$defs/RunEvent",
+    "job": {
+      "namespace": "demo",
+      "name": "array-fixture"
+    },
+    "run": {
+      "runId": "00000000-0000-4000-8000-0000000000b4",
+      "facets": {}
+    }
+  }
+]

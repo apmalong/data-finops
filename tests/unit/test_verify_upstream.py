@@ -1,5 +1,6 @@
 """Upstream checker strictness, offline (#29): dbt additions allowed, OpenLineage strict."""
 
+import hashlib
 import importlib.util
 import json
 from pathlib import Path
@@ -103,3 +104,13 @@ def test_dbt_folder_may_hold_run_results_alone(tmp_path: Path) -> None:
 def test_dbt_folder_without_artifacts_is_an_error(tmp_path: Path) -> None:
     with pytest.raises(SystemExit, match="no dbt artifacts"):
         verify.dbt_artifacts(tmp_path)
+
+
+def test_bundled_openlineage_schemas_match_the_pins() -> None:
+    """The product validates against the same files this checker pins (#42)."""
+    bundled = ROOT / "src" / "data_finops" / "lineage" / "schemas"
+    for name, file in [
+        ("openlineage-2-0-2", "OpenLineage-2-0-2.json"),
+        ("openlineage-parent-run-1-1-0", "ParentRunFacet-1-1-0.json"),
+    ]:
+        assert hashlib.sha256((bundled / file).read_bytes()).hexdigest() == verify.PINNED[name][1]

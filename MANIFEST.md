@@ -9,6 +9,7 @@
 - `AGENTS.md`
 - `CLAUDE.md`
 - `GLOSSARY.md`
+- `LICENSES/OpenLineage-Apache-2.0.txt`
 - `MANIFEST.md`
 - `README.md`
 - `THIRD_PARTY_NOTICES.md`
@@ -81,6 +82,7 @@
 - `fixtures/focus/export-2026-10.json`
 - `fixtures/golden/scenarios.json`
 - `fixtures/openlineage/events.json`
+- `fixtures/openlineage/invalid/array.json`
 - `fixtures/openlineage/invalid/mixed.jsonl`
 - `fixtures/reference-workload/README.md`
 - `fixtures/reference-workload/athena/query-executions.json`

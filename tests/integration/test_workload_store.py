@@ -10,6 +10,7 @@ import pytest
 
 from data_finops.contracts.workload import WorkloadRunStatus
 from data_finops.ledger import Ledger
+from data_finops.lineage.validation import RejectionKind
 from data_finops.workload.store import WorkloadStore
 
 FIXTURES = Path(__file__).resolve().parents[2] / "fixtures"
@@ -155,7 +156,11 @@ INVALID = FIXTURES / "openlineage" / "invalid" / "mixed.jsonl"
 
 def test_invalid_events_are_rejected_one_by_one_and_the_rest_ingested(store: WorkloadStore) -> None:
     result = store.ingest_events(INVALID)
-    assert (result.accepted, result.unsupported) == (3, 2)
+    assert result.accepted == 3
+    assert [(u.position, u.kind) for u in result.unsupported] == [
+        (6, RejectionKind.UNSUPPORTED_JOB_EVENT),
+        (7, RejectionKind.UNSUPPORTED_DATASET_EVENT),
+    ]
     reasons = {r.position: r.reason for r in result.rejected}
     assert sorted(reasons) == [2, 3, 4, 5]
     assert reasons[2] == "not valid JSON"
@@ -202,20 +207,82 @@ def test_a_file_that_is_not_json_at_all_is_one_rejection(
     assert (result.accepted, [r.reason for r in result.rejected]) == (0, ["not valid JSON"])
 
 
-def test_bundled_schemas_match_the_upstream_checker_pins() -> None:
-    import hashlib
-    import importlib.util
+ARRAY = FIXTURES / "openlineage" / "invalid" / "array.json"
 
-    root = FIXTURES.parent
-    spec = importlib.util.spec_from_file_location(
-        "verify_upstream", root / "scripts" / "verify_upstream.py"
+
+def _line(event: dict[str, Any]) -> bytes:
+    return json.dumps(event, ensure_ascii=False).encode("utf-8") + b"\n"
+
+
+@pytest.mark.parametrize("event_type", ["FOO", "complete", None])
+def test_any_event_type_is_tolerated(store: WorkloadStore, tmp_path: Path, event_type: Any) -> None:
+    event = _event(RUN, "START", "2026-11-01T21:19:00Z") | {"eventType": event_type}
+    result = store.ingest_events(_write(tmp_path / "events.jsonl", [event]))
+    assert (result.accepted, result.rejected) == (1, ())
+
+
+def test_one_hostile_line_never_stops_the_file(store: WorkloadStore, tmp_path: Path) -> None:
+    deep = b'{"a":' * 100_000 + b"1" + b"}" * 100_000 + b"\n"
+    path = tmp_path / "events.jsonl"
+    path.write_bytes(
+        _line(_event(RUN, "START", "2026-11-01T21:19:00Z"))
+        + deep
+        + b"\xff\xfe not utf-8\n"
+        + b'{"eventTime": NaN}\n'
+        + _line(_event(RUN, "COMPLETE", "2026-11-01T21:19:30Z"))
     )
-    assert spec and spec.loader
-    checker = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(checker)
-    bundled = root / "src" / "data_finops" / "lineage" / "schemas"
-    for name, file in [
-        ("openlineage-2-0-2", "OpenLineage-2-0-2.json"),
-        ("openlineage-parent-run-1-1-0", "ParentRunFacet-1-1-0.json"),
-    ]:
-        assert hashlib.sha256((bundled / file).read_bytes()).hexdigest() == checker.PINNED[name][1]
+    result = store.ingest_events(path)
+    assert result.accepted == 2
+    assert [(r.position, r.kind) for r in result.rejected] == [
+        (2, RejectionKind.TOO_DEEP),
+        (3, RejectionKind.NOT_UTF8),
+        (4, RejectionKind.NOT_JSON),
+    ]
+
+
+def test_only_valid_job_and_dataset_events_count_as_unsupported(
+    store: WorkloadStore, tmp_path: Path
+) -> None:
+    fake_job = {"schemaURL": "x#/$defs/JobEvent", "junk": 1}
+    run_with_dataset = _event(RUN, "START", "2026-11-01T21:19:00Z") | {"dataset": {}}
+    del run_with_dataset["run"]
+    result = store.ingest_events(_write(tmp_path / "events.jsonl", [fake_job, run_with_dataset]))
+    assert result.unsupported == ()
+    assert [r.kind for r in result.rejected] == [
+        RejectionKind.INVALID_JOB_EVENT,
+        RejectionKind.INVALID_DATASET_EVENT,
+    ]
+
+
+def test_array_elements_are_measured_in_utf8_like_lines(
+    store: WorkloadStore, tmp_path: Path
+) -> None:
+    event = _event(RUN, "START", "2026-11-01T21:19:00Z")
+    event["job"]["name"] = "数" * 300_000  # 900 KB in UTF-8, 1.8 MB if escaped to ASCII
+    path = tmp_path / "events.json"
+    path.write_text(json.dumps([event], ensure_ascii=False), encoding="utf-8")
+    assert store.ingest_events(path).accepted == 1
+
+
+def test_rejections_are_in_file_order_and_counted_by_kind(store: WorkloadStore) -> None:
+    result = store.ingest_events(INVALID)
+    assert [r.position for r in result.rejected] == sorted(r.position for r in result.rejected)
+    counts = result.counts()
+    assert counts[RejectionKind.INVALID_RUN_EVENT] == 2 and counts[RejectionKind.NOT_JSON] == 1
+
+
+def test_invalid_array_elements_are_rejected_by_element(store: WorkloadStore) -> None:
+    result = store.ingest_events(ARRAY)
+    assert result.accepted == 2
+    assert [(r.position, r.kind) for r in result.rejected] == [
+        (2, RejectionKind.INVALID_RUN_EVENT),
+        (3, RejectionKind.INVALID_RUN_EVENT),
+    ]
+
+
+def test_a_schema_failure_before_an_unreadable_line_keeps_file_order(
+    store: WorkloadStore, tmp_path: Path
+) -> None:
+    path = tmp_path / "events.jsonl"
+    path.write_bytes(_line({"eventTime": "nope"}) + b"{not json\n")
+    assert [r.position for r in store.ingest_events(path).rejected] == [1, 2]

@@ -1,13 +1,16 @@
 """Screen OpenLineage event files event by event (spec 04, spec 05 payload controls; #42).
 
 Each event is size-checked, sorted by kind and validated against the OpenLineage 2-0-2
-RunEvent schema, and its ParentRunFacet against 1-1-0, both bundled in this package and
-matching the sha256 pins in `scripts/verify_upstream.py`. Rejected events are reported by
-position and reason only: a reason names the failing field and rule, never the value.
+schema for its kind (RunEvent, JobEvent or DatasetEvent), and a RunEvent's ParentRunFacet
+against 1-1-0, all bundled in this package and matching the sha256 pins in
+`scripts/verify_upstream.py`. Any `eventType` string is tolerated (spec 04). One bad event
+never stops the file: every problem becomes a Rejection naming the failing field and rule,
+never the value.
 """
 
 import json
 from dataclasses import dataclass
+from enum import StrEnum
 from functools import cache
 from importlib.resources import files
 from pathlib import Path
@@ -20,114 +23,189 @@ from referencing import Registry, Resource
 from data_finops.lineage.openlineage import RunEvent
 
 MAX_EVENT_BYTES = 1024 * 1024
-_UNSUPPORTED_KINDS = ("#/$defs/JobEvent", "#/$defs/DatasetEvent")
+"""Per event: the raw line in JSON Lines, the element's compact UTF-8 encoding in an array."""
+
+
+class RejectionKind(StrEnum):
+    NOT_UTF8 = "not valid UTF-8"
+    NOT_JSON = "not valid JSON"
+    TOO_LARGE = "too large"
+    TOO_DEEP = "too deeply nested"
+    INVALID_RUN_EVENT = "invalid RunEvent"
+    INVALID_PARENT_FACET = "invalid ParentRunFacet"
+    INVALID_JOB_EVENT = "invalid JobEvent"
+    INVALID_DATASET_EVENT = "invalid DatasetEvent"
+    UNSUPPORTED_JOB_EVENT = "unsupported JobEvent"
+    UNSUPPORTED_DATASET_EVENT = "unsupported DatasetEvent"
 
 
 @dataclass(frozen=True)
 class Rejection:
     position: int
     """1-based: the line in a JSON Lines file, the element in a JSON array."""
-    reason: str
+    kind: RejectionKind
+    detail: str = ""
+    """The failing field and rule, e.g. `run/runId (format)`; never a value from the event."""
+
+    @property
+    def reason(self) -> str:
+        return f"{self.kind}: {self.detail}" if self.detail else str(self.kind)
 
 
 @dataclass(frozen=True)
 class Screening:
-    events: list[tuple[int, RunEvent]]
+    events: list[RunEvent]
     rejected: list[Rejection]
-    unsupported: int
-    """JobEvents and DatasetEvents: valid OpenLineage, not stored in M2."""
+    """Invalid events, in file order."""
+    unsupported: list[Rejection]
+    """Valid JobEvents and DatasetEvents, in file order; not stored in M2."""
 
 
 def screen_events(path: Path) -> Screening:
     """Split an event file (JSON array or JSON Lines) into valid RunEvents and the rest."""
-    events: list[tuple[int, RunEvent]] = []
+    events: list[RunEvent] = []
     rejected: list[Rejection] = []
-    unsupported = 0
-    for position, item, size in _items(path, rejected):
-        if size > MAX_EVENT_BYTES:
-            rejected.append(Rejection(position, "too large"))
-        elif _is_unsupported(item):
-            unsupported += 1
-        elif (reason := _invalid(item)) is not None:
-            rejected.append(Rejection(position, reason))
+    unsupported: list[Rejection] = []
+    for position, item in _items(path.read_bytes(), rejected):
+        outcome = _check(position, item)
+        if isinstance(outcome, RunEvent):
+            events.append(outcome)
+        elif outcome.kind in (
+            RejectionKind.UNSUPPORTED_JOB_EVENT,
+            RejectionKind.UNSUPPORTED_DATASET_EVENT,
+        ):
+            unsupported.append(outcome)
         else:
-            events.append((position, RunEvent.model_validate(item)))
+            rejected.append(outcome)
+    rejected.sort(key=lambda r: r.position)
     return Screening(events=events, rejected=rejected, unsupported=unsupported)
 
 
-def _items(path: Path, rejected: list[Rejection]) -> list[tuple[int, Any, int]]:
-    text = path.read_text(encoding="utf-8-sig")
-    if text.lstrip().startswith("["):
+def _items(data: bytes, rejected: list[Rejection]) -> list[tuple[int, Any]]:
+    data = data.removeprefix(b"\xef\xbb\xbf")
+    if data.lstrip().startswith(b"["):
         try:
-            elements = json.loads(text)
-        except json.JSONDecodeError:
-            rejected.append(Rejection(1, "not valid JSON"))
+            elements = _loads(data.decode("utf-8"))
+        except UnicodeDecodeError:
+            rejected.append(Rejection(1, RejectionKind.NOT_UTF8))
             return []
-        return [
-            (position, item, len(json.dumps(item, separators=(",", ":")).encode("utf-8")))
-            for position, item in enumerate(elements, start=1)
-        ]
+        except RecursionError:
+            rejected.append(Rejection(1, RejectionKind.TOO_DEEP))
+            return []
+        except ValueError:
+            rejected.append(Rejection(1, RejectionKind.NOT_JSON))
+            return []
+        items = []
+        for position, element in enumerate(elements, start=1):
+            encoded = json.dumps(element, separators=(",", ":"), ensure_ascii=False)
+            if len(encoded.encode("utf-8")) > MAX_EVENT_BYTES:
+                rejected.append(Rejection(position, RejectionKind.TOO_LARGE))
+            else:
+                items.append((position, element))
+        return items
     items = []
     # Split on newlines only: U+2028 and similar may appear unescaped inside JSON strings.
-    for position, line in enumerate(text.split("\n"), start=1):
+    for position, line in enumerate(data.split(b"\n"), start=1):
         if not line.strip():
             continue
-        size = len(line.encode("utf-8"))
-        if size > MAX_EVENT_BYTES:
-            items.append((position, None, size))
+        if len(line) > MAX_EVENT_BYTES:
+            rejected.append(Rejection(position, RejectionKind.TOO_LARGE))
             continue
         try:
-            items.append((position, json.loads(line), size))
-        except json.JSONDecodeError:
-            rejected.append(Rejection(position, "not valid JSON"))
+            items.append((position, _loads(line.decode("utf-8"))))
+        except UnicodeDecodeError:
+            rejected.append(Rejection(position, RejectionKind.NOT_UTF8))
+        except RecursionError:
+            rejected.append(Rejection(position, RejectionKind.TOO_DEEP))
+        except ValueError:
+            rejected.append(Rejection(position, RejectionKind.NOT_JSON))
     return items
 
 
-def _is_unsupported(item: Any) -> bool:
-    if not isinstance(item, dict) or "run" in item:
-        return False
-    return "dataset" in item or str(item.get("schemaURL", "")).endswith(_UNSUPPORTED_KINDS)
+def _loads(text: str) -> Any:
+    """Strict JSON: NaN and Infinity are not JSON and are refused."""
+    return json.loads(text, parse_constant=_refuse_constant)
 
 
-def _invalid(item: Any) -> str | None:
-    run_event, parent_facet = _validators()
-    if reason := _first_error("RunEvent", run_event, item):
-        return reason
-    parent = item["run"].get("facets", {}).get("parent")
-    if parent is not None and (reason := _first_error("ParentRunFacet", parent_facet, parent)):
-        return reason
+def _refuse_constant(name: str) -> Any:
+    raise ValueError(f"{name} is not JSON")
+
+
+def _check(position: int, item: Any) -> RunEvent | Rejection:
+    validators = _validators()
     try:
-        RunEvent.model_validate(item)
+        if isinstance(item, dict) and "run" not in item:
+            if "dataset" in item:
+                return _unsupported_or_invalid(position, item, "DatasetEvent")
+            if str(item.get("schemaURL", "")).endswith("#/$defs/JobEvent"):
+                return _unsupported_or_invalid(position, item, "JobEvent")
+        if detail := _first_error(validators["RunEvent"], _tolerating_event_type(item)):
+            return Rejection(position, RejectionKind.INVALID_RUN_EVENT, detail)
+        parent = item["run"].get("facets", {}).get("parent")
+        if parent is not None and (detail := _first_error(validators["ParentRunFacet"], parent)):
+            return Rejection(position, RejectionKind.INVALID_PARENT_FACET, detail)
+        return RunEvent.model_validate(item)
+    except RecursionError:
+        return Rejection(position, RejectionKind.TOO_DEEP)
     except ValidationError:
-        return "invalid RunEvent: does not match the product's RunEvent model"
-    return None
+        return Rejection(
+            position, RejectionKind.INVALID_RUN_EVENT, "does not match the product's model"
+        )
 
 
-def _first_error(kind: str, validator: Draft202012Validator, instance: Any) -> str | None:
+def _unsupported_or_invalid(position: int, item: dict[str, Any], kind: str) -> Rejection:
+    if detail := _first_error(_validators()[kind], item):
+        return Rejection(position, RejectionKind(f"invalid {kind}"), detail)
+    return Rejection(position, RejectionKind(f"unsupported {kind}"))
+
+
+def _tolerating_event_type(item: Any) -> Any:
+    """The event as the schema should see it: an unknown or null `eventType` is tolerated."""
+    if not isinstance(item, dict) or "eventType" not in item:
+        return item
+    event_type = item["eventType"]
+    if event_type is None or (isinstance(event_type, str) and event_type not in _event_types()):
+        return {k: v for k, v in item.items() if k != "eventType"}
+    return item
+
+
+def _first_error(validator: Draft202012Validator, instance: Any) -> str:
     errors = sorted(validator.iter_errors(instance), key=lambda e: list(map(str, e.absolute_path)))
     if not errors:
-        return None
+        return ""
     error = errors[0]
-    where = "/".join(map(str, error.absolute_path)) or "(event)"
-    return f"invalid {kind}: {where} ({error.validator})"
+    return f"{'/'.join(map(str, error.absolute_path)) or '(event)'} ({error.validator})"
 
 
 @cache
-def _validators() -> tuple[Draft202012Validator, Draft202012Validator]:
-    schemas = files("data_finops.lineage") / "schemas"
-    core = json.loads((schemas / "OpenLineage-2-0-2.json").read_text(encoding="utf-8"))
-    parent = json.loads((schemas / "ParentRunFacet-1-1-0.json").read_text(encoding="utf-8"))
+def _schemas() -> tuple[dict[str, Any], dict[str, Any]]:
+    folder = files("data_finops.lineage") / "schemas"
+    core = json.loads((folder / "OpenLineage-2-0-2.json").read_text(encoding="utf-8"))
+    parent = json.loads((folder / "ParentRunFacet-1-1-0.json").read_text(encoding="utf-8"))
+    return core, parent
+
+
+@cache
+def _event_types() -> frozenset[str]:
+    core, _ = _schemas()
+    return frozenset(core["$defs"]["RunEvent"]["allOf"][1]["properties"]["eventType"]["enum"])
+
+
+@cache
+def _validators() -> dict[str, Draft202012Validator]:
+    core, parent = _schemas()
     registry: Registry = Registry().with_resources(
         [(s["$id"], Resource.from_contents(s)) for s in (core, parent)]
     )
-    checker = Draft202012Validator.FORMAT_CHECKER
-    return (
-        Draft202012Validator(
-            {"$ref": f"{core['$id']}#/$defs/RunEvent"}, registry=registry, format_checker=checker
-        ),
-        Draft202012Validator(
-            {"$ref": f"{parent['$id']}#/$defs/ParentRunFacet"},
-            registry=registry,
-            format_checker=checker,
-        ),
-    )
+    refs = {
+        "RunEvent": f"{core['$id']}#/$defs/RunEvent",
+        "JobEvent": f"{core['$id']}#/$defs/JobEvent",
+        "DatasetEvent": f"{core['$id']}#/$defs/DatasetEvent",
+        "ParentRunFacet": f"{parent['$id']}#/$defs/ParentRunFacet",
+    }
+    return {
+        name: Draft202012Validator(
+            {"$ref": ref}, registry=registry, format_checker=Draft202012Validator.FORMAT_CHECKER
+        )
+        for name, ref in refs.items()
+    }
