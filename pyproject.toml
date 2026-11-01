@@ -8,6 +8,7 @@ description = "Workload-aware cloud cost attribution (bootstrap)"
 requires-python = ">=3.12"
 dependencies = [
     "jsonschema>=4.23,<5",
+    "pyarrow>=18,<25",
     "pydantic>=2.10,<3",
     "rfc3339-validator>=0.1.4,<0.2",
 ]

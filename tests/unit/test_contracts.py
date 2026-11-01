@@ -95,3 +95,11 @@ def test_generated_schema_accepts_a_valid_allocation():
 def test_confidence_vocabulary_excludes_unallocated():
     assert "unallocated" not in {c.value for c in Confidence}
     assert {c.value for c in AllocationCategory} == {"direct", "shared", "idle", "unallocated"}
+
+
+@pytest.mark.parametrize("amount", ["0.0000001", "-0.00000012", "100000000000000000000.5"])
+def test_amounts_serialize_without_exponent_and_round_trip(amount):
+    a = Allocation.model_validate({**BASE, "amount": amount})
+    dumped = a.model_dump(mode="json")["amount"]
+    assert dumped == amount
+    assert Allocation.model_validate({**BASE, "amount": dumped}).amount == Decimal(amount)

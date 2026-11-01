@@ -52,3 +52,12 @@ def test_attribution_reads_no_clock():
         for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
             if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name):
                 assert (node.value.id, node.attr) not in CLOCK_CALLS, f"{path}: clock read"
+
+
+def test_pyarrow_is_used_only_by_the_focus_reader():
+    # ADR 0018: pyarrow stays inside the export reader so the core does not depend on it.
+    allowed = SRC / "billing" / "focus.py"
+    for path in SRC.rglob("*.py"):
+        if path == allowed:
+            continue
+        assert not any(name.startswith("pyarrow") for name in _imports(path)), path
