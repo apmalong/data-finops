@@ -69,6 +69,7 @@ PASS_THROUGH = frozenset(
     }
 )
 _ACCOUNT_ID = re.compile(r"(?<!\d)\d{12}(?!\d)")
+_UUID = re.compile(r"([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})")
 
 
 class Pseudonyms:
@@ -86,7 +87,12 @@ class Pseudonyms:
         return str(int(self._digest("account", value), 16) % 10**12).zfill(12)
 
     def scrub_accounts(self, text: str) -> str:
-        return _ACCOUNT_ID.sub(lambda m: self.account(m[0]), text)
+        """Replace account IDs, leaving UUIDs whole: their last group can be 12 digits."""
+        parts = _UUID.split(text)
+        return "".join(
+            part if _UUID.fullmatch(part) else _ACCOUNT_ID.sub(lambda m: self.account(m[0]), part)
+            for part in parts
+        )
 
     def text(self, value: str) -> str:
         """Any identifying text: ARNs keep their shape, account IDs stay 12 digits."""

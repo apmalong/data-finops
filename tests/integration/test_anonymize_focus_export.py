@@ -230,3 +230,10 @@ def test_refuses_to_write_inside_the_repository_outside_local(export_dir):
     with pytest.raises(ValueError, match=r"\.local"):
         anonymizer.anonymize_export(export_dir, ROOT / "fixtures" / "leak", secret="s3cret")
     assert not (ROOT / "fixtures" / "leak").exists()
+
+
+def test_uuids_survive_account_scrubbing() -> None:
+    """A UUID's last group can be 12 digits; it is an identifier for correlation, not an account."""
+    uuid = "6f1e0c3a-1111-4222-8333-444455556666"
+    scrubbed = anonymizer.Pseudonyms("s").scrub_accounts(f"run {uuid} in {PAYER}")
+    assert uuid in scrubbed and PAYER not in scrubbed

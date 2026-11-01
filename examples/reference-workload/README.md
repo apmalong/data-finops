@@ -8,7 +8,7 @@ A small, removable AWS workload used only to validate data-finops against real b
 - State is kept locally under the repository's git-ignored `.local/`, so no Pulumi Cloud account is needed (ADR 0001). The program refuses to run unless `PULUMI_BACKEND_URL` is a `file://` URL.
 - Deploy with a dedicated, least-privilege profile, separate from any identity that later reads billing data (`execution-permissions.md`, AGENTS.md security).
 - Every resource is created in us-east-1 through an explicit provider, matching the FOCUS export.
-- Real outputs are anonymized (`scripts/anonymize_focus_export.py`) before they are used as fixtures.
+- Real outputs are anonymized before they are used as fixtures, with one secret (`DATA_FINOPS_ANON_SECRET`) so pseudonyms match across sources: billing exports with `scripts/anonymize_focus_export.py`, Athena history, dbt artifacts and OpenLineage events with `scripts/anonymize_workload_outputs.py`.
 
 ## Configuration (per installation)
 
