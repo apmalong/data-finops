@@ -1,40 +1,52 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Allocation",
+  "description": "Target contract per spec 02 and ADRs 0016-0017. From M0 this file is generated from the Pydantic models and checked for drift in CI.",
   "type": "object",
   "required": [
+    "billing_line_ref",
     "pool_id",
+    "target_type",
     "target_id",
     "amount",
     "currency",
-    "method",
-    "confidence",
+    "cost_basis",
     "category",
-    "policy_version"
+    "method",
+    "policy_version",
+    "calculation_run_id"
   ],
   "properties": {
+    "billing_line_ref": {
+      "type": "string",
+      "description": "The Billing Line this Allocation partitions."
+    },
     "pool_id": {
       "type": "string"
+    },
+    "target_type": {
+      "enum": [
+        "query_execution",
+        "idle",
+        "unallocated"
+      ]
     },
     "target_id": {
       "type": "string"
     },
     "amount": {
-      "type": "string"
+      "type": "string",
+      "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+      "description": "Signed decimal as string, quantized at the Billing Line's own scale."
     },
     "currency": {
-      "type": "string"
+      "type": "string",
+      "pattern": "^[A-Z]{3}$",
+      "description": "ISO 4217 code."
     },
-    "method": {
-      "type": "string"
-    },
-    "confidence": {
-      "enum": [
-        "direct_verified",
-        "metered_estimate",
-        "heuristic_estimate",
-        "unallocated"
-      ]
+    "cost_basis": {
+      "type": "string",
+      "description": "FOCUS cost column partitioned, e.g. BilledCost."
     },
     "category": {
       "enum": [
@@ -44,7 +56,25 @@
         "unallocated"
       ]
     },
+    "method": {
+      "type": "string"
+    },
+    "confidence": {
+      "enum": [
+        "direct_verified",
+        "metered_estimate",
+        "heuristic_estimate"
+      ]
+    },
+    "coverage": {
+      "type": "string",
+      "pattern": "^[0-9]+(\\.[0-9]+)?$",
+      "description": "Coverage of the Billing Line for metered shares (ADR 0017)."
+    },
     "policy_version": {
+      "type": "string"
+    },
+    "calculation_run_id": {
       "type": "string"
     },
     "evidence_refs": {
@@ -52,6 +82,41 @@
       "items": {
         "type": "string"
       }
+    },
+    "as_of": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "if": {
+    "properties": {
+      "category": {
+        "const": "unallocated"
+      }
+    }
+  },
+  "then": {
+    "not": {
+      "required": [
+        "confidence"
+      ]
+    }
+  },
+  "else": {
+    "if": {
+      "properties": {
+        "category": {
+          "enum": [
+            "direct",
+            "shared"
+          ]
+        }
+      }
+    },
+    "then": {
+      "required": [
+        "confidence"
+      ]
     }
   }
 }

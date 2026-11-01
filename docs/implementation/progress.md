@@ -28,3 +28,11 @@ Run locally on Windows 11 with uv 0.12.23 and CPython 3.12.15 (uv-managed). No c
 - CI on PR #1: first run failed at gitleaks (shallow checkout could not resolve the PR commit range); fixed with `fetch-depth: 0`. Both push and pull_request runs then passed.
 
 Still open: GitHub branch protection (repository owner).
+
+## Pre-implementation architecture review (2026-11-01)
+Domain modeling and design review with the repository owner, following the grill-with-docs workflow. No production code written.
+- Added `GLOSSARY.md` (domain language) and `docs/research/architecture-review.md` (12 internal contradictions, 10 standards conflicts, 9 proposals; now a historical record).
+- Decided OQ-9 to OQ-19 and narrowed OQ-1 (`open-questions.md`); OQ-20 open, non-blocking.
+- New ADRs: 0015 (FOCUS billing lines, export-snapshot revisions), 0016 (allocate to Query Executions, roll-ups above), 0017 (metered share requires measured Coverage).
+- Updated specs 02–04, `acceptance.md`, `golden-fixtures.md`, `plan.md`, demo walkthrough, both schemas, the standards matrix and the golden scenario. The demo and golden oracle no longer conflict: the $6 Athena line is a metered estimate to `q-001` at Coverage = 1.
+- Moved to M0: fixture rebuild in provider-native form and contracts generated from Pydantic models.

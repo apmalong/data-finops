@@ -3,10 +3,10 @@
 1. Install project dependencies after M0 implementation.
 2. Run fixture importer against `fixtures/`.
 3. Start FastAPI and open dashboard.
-4. Inspect model `model.demo.orders`: exact query evidence `q-001`, allocation from $6 synthetic eligible pool under documented metering rule.
+4. Inspect query `q-001`: $6 metered estimate from the eligible Athena line at Coverage = 1 (ADR 0017), rolled up to `model.demo.orders` and the `daily_orders` run.
 5. Inspect `model.demo.customers`: no query evidence; no invented direct allocation.
-6. Inspect $4 unknown pool as unallocated.
+6. Inspect the $4 ineligible line as Unallocated.
 7. Re-run import; assert $10 total unchanged.
-8. Correct a source billing record and verify versioned recomputation.
+8. Restate the billing Export Snapshot and verify a new current Allocation Snapshot with the previous one retained.
 
 **These are test inputs, not actual AWS billing records or valid provider pricing assertions.** The fixture schema is intentionally minimal and may require adaptation to real dbt/OpenLineage versions; pin and validate against official schemas before implementation.

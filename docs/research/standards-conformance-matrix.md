@@ -4,7 +4,7 @@
 
 | Domain | Standard / upstream | MVP use | Conformance contract | Validation evidence / state |
 |---|---|---|---|---|
-| Billing | FinOps FOCUS | Canonical cost and usage record; source fields retained | Choose a specific supported FOCUS release; enumerate required/nullable fields, charge categories, time, currency, billing vs effective cost and adjustments; preserve provider extensions | **Pending:** version, field mapping, upstream fixtures, reconciliation tests |
+| Billing | FinOps FOCUS (ADR 0015) | Canonical cost and usage record; FOCUS rows are the internal Billing Line, `x_` extensions retained; AWS native FOCUS export first | Choose a specific supported FOCUS release; enumerate required/nullable fields, charge categories, time, currency, billing vs effective cost and adjustments; preserve provider extensions | **Pending:** version, field mapping, upstream fixtures, reconciliation tests |
 | Billing methodology | FinOps Foundation Framework | Terms: allocation, unit economics, optimization | Guidance only; no assertion of machine conformance | **Reference only** |
 | Lineage | OpenLineage event spec | Job/run/dataset events, facets | Validate event schema against pinned spec; preserve unknown facets; deduplicate by event identity and semantics | **Pending:** schema pin and upstream fixture tests |
 | Traces | OpenTelemetry + semantic conventions | Optional span/run/query correlation | Use standard trace/span IDs; custom attributes prefixed `data_finops.*`; avoid claiming a convention exists for unstandardized query identifiers | **Deferred:** verify semantic convention stability |
@@ -14,7 +14,7 @@
 | Kubernetes | OpenCost | Optional K8s allocation | Consume API for existing deployments; do not assert it calculates Athena/dbt costs | **Deferred** |
 | Contracts | Open Data Contract Standard (ODCS) | Optional dataset contract metadata | Select supported ODCS release, schema validation, preserve extensions | **Deferred** |
 | HTTP API | OpenAPI 3.1 | Document FastAPI endpoints | Generate schema; contract tests; error responses and pagination documented | **M5** |
-| Payloads | JSON Schema | Billing/allocation and ingested events | Declare JSON Schema dialect explicitly; validate fixtures and invalid examples | **Partial:** local schemas exist, conformance tests pending |
+| Payloads | JSON Schema | Billing/allocation and ingested events | Declare JSON Schema dialect explicitly; generate from Pydantic models; validate with format assertion enabled; validate fixtures and invalid examples | **Partial:** local schemas exist, conformance tests pending |
 | Infrastructure | Pulumi Python | Optional customer-owned deployment | Pin provider/plugin versions, previews and least privilege | **M6** |
 | Provenance | SPDX / CycloneDX | SBOM and third-party notices | Generate SPDX or CycloneDX SBOM; scan license exceptions and preserve NOTICE | **M-1** |
 
