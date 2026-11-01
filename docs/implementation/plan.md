@@ -10,7 +10,7 @@ Create `pyproject.toml`, package, CI, format/type/test setup, Pydantic models, J
 Pin the FOCUS release AWS emits (ADR 0015). Load fixture Export Snapshots, retain every cost column and persist to SQLite (ADR 0018); read Parquet exports with pyarrow; no row deduplication (ADR 0019). Build ledger with Decimal and per-line reconciliation. **Exit:** zero delta per Billing Line, replay idempotent, restatement replaces the Export Snapshot and retains the previous one.
 
 ## M2: workload metadata
-Parse dbt manifest/run_results, ingest OpenLineage JSON/HTTP events, build run/model/asset graph. **Exit:** expected fixture lineage and statuses; invalid payload rejected.
+Parse dbt manifest/run_results, ingest OpenLineage event files (JSON array or JSON Lines; HTTP moves to M5), build the run/model/asset graph in the workload store (ADR 0018 amendment, ADR 0022). Identity Links wait for M3. **Exit:** expected fixture lineage and statuses; invalid payload rejected.
 
 ## M3: query correlation
 Load Athena query history fixture, link explicit query IDs to dbt model execution and parent Airflow run. **Exit:** exact links match, missing/ambiguous IDs stay unallocated.
@@ -19,7 +19,7 @@ Load Athena query history fixture, link explicit query IDs to dbt model executio
 Implement Coverage-based Athena on-demand metering (ADR 0017) with Billable Usage from a versioned provider policy, and shared/idle/unallocated pools; per-line rounding at line scale, method/evidence, Allocation Snapshots. **Exit:** all accounting invariants and negative adjustment tests pass; tests call the engine and match the golden scenarios.
 
 ## M5: API and HTML demo
-FastAPI `/health`, `/v1/costs/summary`, `/v1/allocations`, `/v1/lineage`, `/v1/reconciliation`, `/v1/provenance`; static dashboard and explain-cost drilldown. **Exit:** local demo walkthrough passes.
+FastAPI OpenLineage receiver (reusing M2's ingest path; OQ-6), `/health`, `/v1/costs/summary`, `/v1/allocations`, `/v1/lineage`, `/v1/reconciliation`, `/v1/provenance`; static dashboard and explain-cost drilldown. **Exit:** local demo walkthrough passes.
 
 ## Reference workload (supports M2–M4 validation; ADR 0021)
 Pulumi Python stack in `examples/reference-workload/` (S3, Glue database, Athena workgroup with a per-query scan limit) and a tiny dbt-athena project run with `dbt-ol`, as its own uv project. Produces real Athena billing lines, query history, dbt artifacts and OpenLineage events, anonymized before use. Airflow deferred until M3 needs it. **Exit:** stack previews and deploys only with owner approval; a run produces artifacts and events; Athena charges appear in the FOCUS export; teardown verified.
