@@ -1,7 +1,7 @@
 [
   {
-    "id": "existing-fixtures-no-price-evidence",
-    "description": "A 1GB Athena query has no explicit bill-to-query price mapping; do not infer $6 from time overlap. Both existing billing lines remain unallocated.",
+    "id": "existing-fixtures-complete-coverage",
+    "description": "ADR 0017: assumes bill-001's billed usage quantity equals q-001's Billable Usage (Coverage = 1), so the whole $6 line is a metered estimate to q-001, rolling up to model.demo.orders. The $4 ineligible line stays unallocated. Never inferred from time overlap.",
     "currency": "USD",
     "billed_cost": "10.00",
     "allocations": [
@@ -9,15 +9,18 @@
         "source_record_id": "bill-001",
         "currency": "USD",
         "amount": "6.00",
-        "kind": "unallocated",
-        "target": "unknown"
+        "kind": "direct",
+        "target": "q-001",
+        "confidence": "metered_estimate",
+        "coverage": "1",
+        "evidence_id": "q-001"
       },
       {
         "source_record_id": "bill-002",
         "currency": "USD",
         "amount": "4.00",
         "kind": "unallocated",
-        "target": "unknown"
+        "target": "unallocated"
       }
     ]
   },

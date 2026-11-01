@@ -1,12 +1,14 @@
 # Package file index
 
 - `.claude/first-task.md`
+- `.gitattributes`
 - `.github/workflows/ci.yml`
 - `.gitignore`
 - `.pre-commit-config.yaml`
 - `.python-version`
 - `AGENTS.md`
 - `CLAUDE.md`
+- `GLOSSARY.md`
 - `README.md`
 - `THIRD_PARTY_NOTICES.md`
 - `docs/adr/0001-customer-managed-and-open-source.md`
@@ -23,7 +25,13 @@
 - `docs/adr/0012-security-and-privacy-by-default.md`
 - `docs/adr/0013-reproducible-local-bootstrap.md`
 - `docs/adr/0014-standards-first-and-build-vs-reuse.md`
+- `docs/adr/0015-focus-billing-lines-and-export-snapshots.md`
+- `docs/adr/0016-allocate-to-query-executions-with-roll-ups.md`
+- `docs/adr/0017-metered-share-requires-coverage.md`
 - `docs/adr/README.md`
+- `docs/agents/domain.md`
+- `docs/agents/issue-tracker.md`
+- `docs/agents/triage-labels.md`
 - `docs/implementation/M-1-bootstrap.md`
 - `docs/implementation/acceptance.md`
 - `docs/implementation/architecture-boundaries.md`
@@ -32,6 +40,7 @@
 - `docs/implementation/open-questions.md`
 - `docs/implementation/plan.md`
 - `docs/implementation/progress.md`
+- `docs/research/architecture-review.md`
 - `docs/research/build-vs-reuse-register.md`
 - `docs/research/standards-conformance-matrix.md`
 - `docs/research/upstream-audit.md`
@@ -65,4 +74,5 @@
 - `tests/contract/test_golden_fixture.py`
 - `tests/unit/test_bootstrap_contracts.py`
 - `third_party/provenance.yaml`
+- `uv.lock`
 - `MANIFEST.md`

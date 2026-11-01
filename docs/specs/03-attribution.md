@@ -2,34 +2,35 @@
 
 ## Principles
 1. Financial source is authoritative; execution metadata does not generate money.
-2. A cost pool has one accounting basis and currency, and must be partitioned exactly once.
+2. A cost pool has one accounting basis and currency. Each Billing Line in it is partitioned exactly once; the pool only supplies the weights (ADR 0016).
 3. Explicit query IDs outrank tag or time-based heuristics. No match solely on temporal overlap.
 4. Distinguish billed cost from estimated allocation, and attributable cost from marginal cost.
 5. Idle and unallocated are first-class synthetic targets.
 
 ## Deterministic pipeline
-A. Import billing rows, deduplicate by source key/version, select current revision.
-B. Normalize provider and SKU, classify pool and eligibility. Non-eligible billing stays unallocated.
-C. Ingest OpenLineage events idempotently keyed by event/run identity and content digest; ingest dbt artifacts by invocation and artifact hash.
-D. Resolve exact provider query ID to dbt node execution via trusted query-comment mapping or query-history linkage; resolve dbt invocation to Airflow run via explicit parent facets / run mapping. Store evidence and confidence.
-E. Allocate direct charges only where provider pricing/billing permits a defensible line-to-query match. When billing is aggregated, apportion an eligible pool by measured billed bytes or provider-specific meter with method `estimated_metered_share` and keep reconciliation adjustment separate. Do not treat proportional weights as exact invoices.
+A. Import billing as Export Snapshots (ADR 0015). A restatement replaces the whole snapshot for its (billing account, Billing Period, source); prior snapshots are retained. Deduplicate rows only within a snapshot.
+B. Normalize provider and SKU, classify pool and eligibility. Non-eligible billing stays unallocated. Adjustment lines (credits, refunds, discounts) are Unallocated in the MVP and reported as their own labelled amount (ADR 0017).
+C. Ingest OpenLineage events idempotently keyed by (runId, eventType, eventTime) plus content digest; an event with the same key and a different digest is retained as a separate observation, never merged silently. Ingest dbt artifacts by invocation and artifact hash.
+D. Resolve exact provider query ID to dbt Model Execution (node and invocation) via the trusted query comment; resolve dbt invocation to Airflow run via the OpenLineage ParentRunFacet. Store evidence. One Model Execution may own several Query Executions; a Query Execution linking to more than one Model Execution is ambiguous and stays unallocated.
+E. Allocate direct charges only where provider pricing/billing permits a defensible line-to-query match. When billing is aggregated, compute Coverage per Billing Line (ADR 0017): known Billable Usage divided by the line's billed usage quantity. Coverage = 1: split the line by Billable Usage. Coverage < 1: split the covered fraction, put the remainder in Unallocated, record Coverage. Coverage > 1: the whole line is Unallocated and flagged. Method `estimated_metered_share`, category `direct`, confidence `metered_estimate`. Do not treat proportional weights as exact invoices. Charges for failed or retried work go to that Query Execution with its status (ADR 0016).
 F. For shared pool, allocate by documented nonnegative weights over aligned time intervals; if no observed activity, allocate to `idle`; if ambiguous, `unallocated`. If weights only partially cover activity, record coverage and allocate unknown remainder according to explicit policy.
-G. Quantize at currency minor units using largest-remainder deterministic tie-breaker by stable target ID; enforce sum allocations == pool total including negative adjustments.
-H. Materialize ledger atomically under policy/input version; replay replaces equivalent results rather than appending duplicate financial allocations.
+G. Quantize each line's allocations at that line's own decimal scale, never coarser than the currency minor unit, using largest remainder with a deterministic tie-break by stable target ID. For a negative amount, apply this to the absolute value and restore the sign. Enforce sum of allocations == line amount for every Billing Line, including negative adjustments.
+H. Materialize an Allocation Snapshot atomically under policy/input version and move the current pointer; replay with identical inputs and policy reproduces the identical snapshot rather than appending duplicate financial allocations. Earlier snapshots are retained.
 
 ## Pseudocode
 ```
 for pool in eligible_cost_pools:
   evidence = resolve_exact_links(pool, telemetry)
-  shares = calculate_weights(pool, evidence, policy)
-  if shares missing: shares = {UNALLOCATED: 1}
-  amounts = allocate_decimal_with_deterministic_remainders(pool.amount, shares)
-  assert sum(amounts) == pool.amount
-  upsert_allocation_snapshot(pool, policy_version, input_digest, amounts)
+  for line in pool.lines:
+    shares = calculate_weights(line, pool, evidence, policy)   # includes coverage remainder
+    if shares missing: shares = {UNALLOCATED: 1}
+    amounts = allocate_decimal_with_deterministic_remainders(line.amount, shares, scale=line.scale)
+    assert sum(amounts) == line.amount
+  write_allocation_snapshot(policy_version, input_digest, all_amounts)
 ```
 
 ## Confidence vocabulary
-`direct_verified` (billing or provider-level linkage), `metered_estimate` (validated usage weights), `heuristic_estimate` (opt-in, never automatic for MVP), `unallocated`. Confidence is categorical evidence quality, not a fabricated probability.
+`direct_verified` (billing or provider-level linkage), `metered_estimate` (validated usage weights with measured Coverage), `heuristic_estimate` (opt-in, never automatic for MVP). Confidence applies only to allocated amounts; Unallocated amounts carry no confidence. Confidence is categorical evidence quality, not a fabricated probability.
 
 ## Special cases to test
-Retries, failed jobs, zero-billed queries, canceled queries, missing/duplicate events, multiple parents, concurrent runs, shared queries, partial billing periods, negative credits, currency mismatch, daylight savings, late corrections, and zero usage weights.
+Retries, failed jobs, zero-billed queries, canceled queries, missing/duplicate events, multiple parents, concurrent runs, shared queries, partial billing periods, negative credits, currency mismatch, daylight savings, late corrections, zero usage weights, Coverage below, equal to and above one, sub-cent lines, several queries per Model Execution, and whole-snapshot restatement.
