@@ -27,7 +27,7 @@ All development follows Matt Pocock's engineering skills (`mattpocock-skills` pl
 8. Bugs use `diagnosing-bugs`; issue intake uses `triage` with the labels in `docs/agents/triage-labels.md`.
 
 ## Repository conventions
-`src/data_finops/{contracts,billing,normalization,ledger,identity,lineage,dbt,attribution,api,providers}`; contracts are generated into `schemas/` by `uv run python -m data_finops.schemas`; `scripts/` holds operator tools and network-dependent upstream checks, never product code; `infra/pulumi/aws`; `tests/{unit,integration,contract}`; `examples/demo`.
+`src/data_finops/{contracts,billing,normalization,ledger,identity,lineage,dbt,attribution,api,providers}`; contracts are generated into `schemas/` by `uv run python -m data_finops.schemas`; `scripts/` holds operator tools and network-dependent upstream checks, never product code; `infra/pulumi/aws`; `tests/{unit,integration,contract}`; `examples/demo`; `examples/reference-workload` (ADR 0021: separate uv project, never imported by `data_finops`).
 
 ## Security
 Use read-only IAM for ingestion, separate deployment permissions, secrets from runtime identity/secret manager, bound query limits, no public ingestion endpoint by default, and no direct SQL interpolation of untrusted metadata.

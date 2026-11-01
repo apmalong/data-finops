@@ -31,6 +31,8 @@ jobs:
         working-directory: examples/reference-workload
         run: |
           uv sync --frozen
+          uv run mypy
+          uv run bandit -q -r infra.py __main__.py
           uv run pytest
           uv run pip-audit
       - name: Secret scan

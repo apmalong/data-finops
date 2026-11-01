@@ -3,7 +3,8 @@
 import infra
 import pulumi
 
-stack = infra.build(infra.Settings.from_config(pulumi.Config()))
-pulumi.export("bucket", stack.bucket_name)
-pulumi.export("database", stack.database_name)
-pulumi.export("workgroup", stack.workgroup_name)
+infra.require_local_state()
+outputs = infra.build(infra.Settings.from_config(pulumi.Config(), pulumi.Config("aws")))
+pulumi.export("bucket", outputs.bucket_name)
+pulumi.export("database", outputs.database_name)
+pulumi.export("workgroup", outputs.workgroup_name)
