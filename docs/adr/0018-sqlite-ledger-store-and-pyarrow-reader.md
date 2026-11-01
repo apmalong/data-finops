@@ -19,3 +19,6 @@ Two components instead of one, and pyarrow is a large wheel; it is confined to t
 
 ## Revisit triggers
 Measured query latency at target scale; a deployment needing multiple concurrent writers (consider Postgres, already "optional later" in spec 01).
+
+## Amendment (2026-11-01, M2)
+Workload metadata (Workload Runs, Model Executions, dbt manifest nodes, Data Assets and Lineage Edges) is stored in the same SQLite database file as the Ledger, in tables owned by a separate workload store module. Billing and lineage code do not import each other (architecture boundaries); they share only the file, WAL mode and `BEGIN IMMEDIATE` writes.
