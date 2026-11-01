@@ -13,7 +13,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class _Provider(BaseModel):
-    model_config = ConfigDict(frozen=True, extra="allow")
+    model_config = ConfigDict(frozen=True, extra="allow", hide_input_in_errors=True)
 
 
 class QueryExecutionStatus(_Provider):
@@ -38,7 +38,7 @@ class AthenaQueryExecution(_Provider):
 class AthenaQueryHistory(BaseModel):
     """A BatchGetQueryExecution response plus the account and region it was read from."""
 
-    model_config = ConfigDict(frozen=True, extra="forbid")
+    model_config = ConfigDict(frozen=True, extra="forbid", hide_input_in_errors=True)
 
     account_id: str
     region: str
@@ -54,7 +54,12 @@ def load_query_executions(
     The AWS response does not name its account or region, so for a plain response the
     caller supplies them. A value given here must agree with one recorded in the file.
     """
-    document = json.loads(path.read_text(encoding="utf-8-sig"))
+    try:
+        document = json.loads(path.read_text(encoding="utf-8-sig"))
+    except json.JSONDecodeError as error:
+        raise ValueError(f"{path}: not valid JSON: {error}") from error
+    if not isinstance(document, dict):
+        raise ValueError(f"{path}: expected a BatchGetQueryExecution response object")
     for key, given in (("account_id", account_id), ("region", region)):
         if given is None:
             continue

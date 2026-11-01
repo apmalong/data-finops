@@ -44,7 +44,7 @@ RESPONSE = {
 
 
 def _write(path: Path, text: str, bom: bool = False) -> Path:
-    path.write_bytes(("﻿" if bom else "").encode("utf-8") + text.encode("utf-8"))
+    path.write_bytes(("\ufeff" if bom else "").encode("utf-8") + text.encode("utf-8"))
     return path
 
 
@@ -103,3 +103,31 @@ def test_missing_or_conflicting_account_and_region_are_rejected(
     path = _write(tmp_path / "history.json", json.dumps(document))
     with pytest.raises(ValueError):
         load_query_executions(path, **given)
+
+
+def test_event_text_may_contain_unicode_line_separators(tmp_path: Path) -> None:
+    event = {**EVENTS[0], "job": {"namespace": "dbt", "name": "a\u2028b"}}
+    path = _write(tmp_path / "dbt-events.jsonl", json.dumps(event, ensure_ascii=False) + "\n")
+    assert [e.job.name for e in load_events(path)] == ["a\u2028b"]
+
+
+@pytest.mark.parametrize("text", ["[{bad", "{not json", "[1, 2]"])
+def test_unreadable_files_are_reported_with_their_path(tmp_path: Path, text: str) -> None:
+    events, history = (
+        _write(tmp_path / "events.json", text),
+        _write(tmp_path / "history.json", text),
+    )
+    with pytest.raises(ValueError, match="events.json"):
+        load_events(events)
+    with pytest.raises(ValueError, match="history.json"):
+        load_query_executions(history, account_id=ACCOUNT, region="us-east-1")
+
+
+def test_errors_do_not_echo_query_text(tmp_path: Path) -> None:
+    secret = "select customer_email from private_table"
+    bad = {"QueryExecutionId": "a1b2c3d4-EXAMPLE", "Query": secret}  # Status missing
+    path = _write(tmp_path / "history.json", json.dumps({**RESPONSE, "QueryExecutions": [bad]}))
+    with pytest.raises(ValueError) as raised:
+        load_query_executions(path, account_id=ACCOUNT, region="us-east-1")
+    # pydantic shortens long inputs in the middle, so check fragments, not the whole query
+    assert not any(word in str(raised.value) for word in secret.split())
