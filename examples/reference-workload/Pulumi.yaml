@@ -1,0 +1,6 @@
+name: data-finops-reference-workload
+description: Reference workload for validating data-finops against real billing (ADR 0021). Test harness, not product.
+runtime:
+  name: python
+  options:
+    toolchain: uv

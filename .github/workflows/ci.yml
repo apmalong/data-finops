@@ -27,6 +27,12 @@ jobs:
         with:
           name: sbom
           path: sbom.cdx.json
+      - name: Reference workload tests (offline, Pulumi mocks)
+        working-directory: examples/reference-workload
+        run: |
+          uv sync --frozen
+          uv run pytest
+          uv run pip-audit
       - name: Secret scan
         uses: gitleaks/gitleaks-action@v2
         env:
