@@ -1,60 +1,239 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "BillingLine",
-  "description": "Interim fixture shape. Superseded at M1 by the pinned FOCUS release schema plus documented x_ extensions (ADR 0015); do not extend this shape.",
-  "type": "object",
-  "required": [
-    "provider",
-    "source_record_id",
-    "source_version",
-    "service",
-    "usage_start",
-    "usage_end",
-    "currency",
-    "billed_cost",
-    "cost_basis"
-  ],
-  "properties": {
-    "provider": {
+  "$defs": {
+    "FocusChargeCategory": {
       "enum": [
-        "aws",
-        "gcp",
-        "snowflake",
-        "other"
-      ]
-    },
-    "source_record_id": {
+        "Usage",
+        "Purchase",
+        "Tax",
+        "Credit",
+        "Adjustment"
+      ],
+      "title": "FocusChargeCategory",
       "type": "string"
     },
-    "source_version": {
+    "FocusChargeClass": {
+      "enum": [
+        "Correction"
+      ],
+      "title": "FocusChargeClass",
       "type": "string"
-    },
-    "service": {
-      "type": "string"
-    },
-    "usage_start": {
-      "type": "string",
-      "format": "date-time"
-    },
-    "usage_end": {
-      "type": "string",
-      "format": "date-time"
-    },
-    "currency": {
-      "type": "string",
-      "pattern": "^[A-Z]{3}$",
-      "description": "ISO 4217 code."
-    },
-    "billed_cost": {
-      "type": "string",
-      "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
-      "description": "Signed decimal as string"
-    },
-    "cost_basis": {
-      "type": "string"
-    },
-    "metadata": {
-      "type": "object"
     }
-  }
+  },
+  "additionalProperties": true,
+  "properties": {
+    "BilledCost": {
+      "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+      "title": "Billedcost",
+      "type": "string"
+    },
+    "EffectiveCost": {
+      "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+      "title": "Effectivecost",
+      "type": "string"
+    },
+    "ListCost": {
+      "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+      "title": "Listcost",
+      "type": "string"
+    },
+    "ContractedCost": {
+      "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+      "title": "Contractedcost",
+      "type": "string"
+    },
+    "BillingAccountId": {
+      "title": "Billingaccountid",
+      "type": "string"
+    },
+    "BillingCurrency": {
+      "pattern": "^[A-Z]{3}$",
+      "title": "Billingcurrency",
+      "type": "string"
+    },
+    "BillingPeriodStart": {
+      "format": "date-time",
+      "title": "Billingperiodstart",
+      "type": "string"
+    },
+    "BillingPeriodEnd": {
+      "format": "date-time",
+      "title": "Billingperiodend",
+      "type": "string"
+    },
+    "ChargePeriodStart": {
+      "format": "date-time",
+      "title": "Chargeperiodstart",
+      "type": "string"
+    },
+    "ChargePeriodEnd": {
+      "format": "date-time",
+      "title": "Chargeperiodend",
+      "type": "string"
+    },
+    "ChargeCategory": {
+      "$ref": "#/$defs/FocusChargeCategory"
+    },
+    "ChargeClass": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/FocusChargeClass"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "ProviderName": {
+      "title": "Providername",
+      "type": "string"
+    },
+    "ServiceName": {
+      "title": "Servicename",
+      "type": "string"
+    },
+    "ServiceCategory": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Servicecategory"
+    },
+    "SkuId": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Skuid"
+    },
+    "RegionId": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Regionid"
+    },
+    "ResourceId": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Resourceid"
+    },
+    "SubAccountId": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Subaccountid"
+    },
+    "ConsumedQuantity": {
+      "anyOf": [
+        {
+          "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Consumedquantity"
+    },
+    "ConsumedUnit": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Consumedunit"
+    },
+    "PricingQuantity": {
+      "anyOf": [
+        {
+          "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Pricingquantity"
+    },
+    "PricingUnit": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Pricingunit"
+    },
+    "Tags": {
+      "anyOf": [
+        {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Tags"
+    }
+  },
+  "required": [
+    "BilledCost",
+    "EffectiveCost",
+    "ListCost",
+    "ContractedCost",
+    "BillingAccountId",
+    "BillingCurrency",
+    "BillingPeriodStart",
+    "BillingPeriodEnd",
+    "ChargePeriodStart",
+    "ChargePeriodEnd",
+    "ChargeCategory",
+    "ProviderName",
+    "ServiceName"
+  ],
+  "title": "BillingLine",
+  "type": "object"
 }

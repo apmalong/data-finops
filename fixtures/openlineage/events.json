@@ -1,0 +1,158 @@
+[
+  {
+    "eventType": "START",
+    "eventTime": "2026-10-01T00:59:50Z",
+    "producer": "https://example.invalid/data-finops-demo/airflow",
+    "schemaURL": "https://openlineage.io/spec/2-0-2/OpenLineage.json#/$defs/RunEvent",
+    "job": {
+      "namespace": "demo-airflow",
+      "name": "daily_orders.dbt_run"
+    },
+    "run": {
+      "runId": "00000000-0000-4000-8000-000000000001",
+      "facets": {
+        "parent": {
+          "_producer": "https://example.invalid/data-finops-demo/airflow",
+          "_schemaURL": "https://openlineage.io/spec/facets/1-1-0/ParentRunFacet.json#/$defs/ParentRunFacet",
+          "run": {
+            "runId": "00000000-0000-4000-8000-000000000000"
+          },
+          "job": {
+            "namespace": "demo-airflow",
+            "name": "daily_orders"
+          }
+        }
+      }
+    },
+    "inputs": [],
+    "outputs": []
+  },
+  {
+    "eventType": "START",
+    "eventTime": "2026-10-01T00:59:55Z",
+    "producer": "https://example.invalid/data-finops-demo/dbt",
+    "schemaURL": "https://openlineage.io/spec/2-0-2/OpenLineage.json#/$defs/RunEvent",
+    "job": {
+      "namespace": "demo-dbt",
+      "name": "dbt-run-demo"
+    },
+    "run": {
+      "runId": "00000000-0000-4000-8000-000000000002",
+      "facets": {
+        "parent": {
+          "_producer": "https://example.invalid/data-finops-demo/dbt",
+          "_schemaURL": "https://openlineage.io/spec/facets/1-1-0/ParentRunFacet.json#/$defs/ParentRunFacet",
+          "run": {
+            "runId": "00000000-0000-4000-8000-000000000001"
+          },
+          "job": {
+            "namespace": "demo-airflow",
+            "name": "daily_orders.dbt_run"
+          },
+          "root": {
+            "run": {
+              "runId": "00000000-0000-4000-8000-000000000000"
+            },
+            "job": {
+              "namespace": "demo-airflow",
+              "name": "daily_orders"
+            }
+          }
+        },
+        "dbt_run": {
+          "_producer": "https://example.invalid/data-finops-demo/dbt",
+          "_schemaURL": "https://github.com/OpenLineage/OpenLineage/tree/main/integration/common/openlineage/schema/dbt-run-run-facet.json",
+          "invocation_id": "inv-001",
+          "project_name": "demo",
+          "profile_name": "demo"
+        },
+        "dbt_version": {
+          "_producer": "https://example.invalid/data-finops-demo/dbt",
+          "_schemaURL": "https://github.com/OpenLineage/OpenLineage/tree/main/integration/common/openlineage/schema/dbt-version-run-facet.json",
+          "version": "1.10.0"
+        }
+      }
+    },
+    "inputs": [],
+    "outputs": []
+  },
+  {
+    "eventType": "COMPLETE",
+    "eventTime": "2026-10-01T01:00:13Z",
+    "producer": "https://example.invalid/data-finops-demo/dbt",
+    "schemaURL": "https://openlineage.io/spec/2-0-2/OpenLineage.json#/$defs/RunEvent",
+    "job": {
+      "namespace": "demo-dbt",
+      "name": "demo.orders"
+    },
+    "run": {
+      "runId": "00000000-0000-4000-8000-000000000003",
+      "facets": {
+        "parent": {
+          "_producer": "https://example.invalid/data-finops-demo/dbt",
+          "_schemaURL": "https://openlineage.io/spec/facets/1-1-0/ParentRunFacet.json#/$defs/ParentRunFacet",
+          "run": {
+            "runId": "00000000-0000-4000-8000-000000000002"
+          },
+          "job": {
+            "namespace": "demo-dbt",
+            "name": "dbt-run-demo"
+          },
+          "root": {
+            "run": {
+              "runId": "00000000-0000-4000-8000-000000000000"
+            },
+            "job": {
+              "namespace": "demo-airflow",
+              "name": "daily_orders"
+            }
+          }
+        }
+      }
+    },
+    "inputs": [
+      {
+        "namespace": "awsathena://athena.us-east-1.amazonaws.com",
+        "name": "AwsDataCatalog.demo.raw_orders"
+      }
+    ],
+    "outputs": [
+      {
+        "namespace": "awsathena://athena.us-east-1.amazonaws.com",
+        "name": "AwsDataCatalog.demo.orders"
+      }
+    ]
+  },
+  {
+    "eventType": "COMPLETE",
+    "eventTime": "2026-10-01T01:00:20Z",
+    "producer": "https://example.invalid/data-finops-demo/dbt",
+    "schemaURL": "https://openlineage.io/spec/2-0-2/OpenLineage.json#/$defs/RunEvent",
+    "job": {
+      "namespace": "demo-dbt",
+      "name": "dbt-run-demo"
+    },
+    "run": {
+      "runId": "00000000-0000-4000-8000-000000000002",
+      "facets": {}
+    },
+    "inputs": [],
+    "outputs": []
+  },
+  {
+    "eventType": "COMPLETE",
+    "eventTime": "2026-10-01T01:02:00Z",
+    "producer": "https://example.invalid/data-finops-demo/airflow",
+    "schemaURL": "https://openlineage.io/spec/2-0-2/OpenLineage.json#/$defs/RunEvent",
+    "job": {
+      "namespace": "demo-airflow",
+      "name": "daily_orders.dbt_run"
+    },
+    "run": {
+      "runId": "00000000-0000-4000-8000-000000000001",
+      "facets": {}
+    },
+    "inputs": [],
+    "outputs": []
+  }
+]

@@ -1,0 +1,55 @@
+{
+  "account_id": "123456789012",
+  "region": "us-east-1",
+  "QueryExecutions": [
+    {
+      "QueryExecutionId": "q-001",
+      "Query": "/* {\"app\": \"dbt\", \"dbt_version\": \"1.10.0\", \"invocation_id\": \"inv-001\", \"node_id\": \"model.demo.orders\", \"profile_name\": \"demo\", \"target_name\": \"dev\"} */\ncreate table \"demo\".\"orders__dbt_tmp\" as select order_id, customer_id, amount from \"demo\".\"raw_orders\"",
+      "StatementType": "DML",
+      "WorkGroup": "demo",
+      "QueryExecutionContext": {
+        "Database": "demo",
+        "Catalog": "AwsDataCatalog"
+      },
+      "Status": {
+        "State": "SUCCEEDED",
+        "SubmissionDateTime": "2026-10-01T01:00:00Z",
+        "CompletionDateTime": "2026-10-01T01:00:10Z"
+      },
+      "Statistics": {
+        "EngineExecutionTimeInMillis": 9500,
+        "DataScannedInBytes": 1000000000,
+        "TotalExecutionTimeInMillis": 10000
+      },
+      "EngineVersion": {
+        "SelectedEngineVersion": "AUTO",
+        "EffectiveEngineVersion": "Athena engine version 3"
+      }
+    },
+    {
+      "QueryExecutionId": "q-002",
+      "Query": "/* {\"app\": \"dbt\", \"dbt_version\": \"1.10.0\", \"invocation_id\": \"inv-001\", \"node_id\": \"model.demo.orders\", \"profile_name\": \"demo\", \"target_name\": \"dev\"} */\ndrop table if exists `demo`.`orders__dbt_backup`",
+      "StatementType": "DDL",
+      "WorkGroup": "demo",
+      "QueryExecutionContext": {
+        "Database": "demo",
+        "Catalog": "AwsDataCatalog"
+      },
+      "Status": {
+        "State": "SUCCEEDED",
+        "SubmissionDateTime": "2026-10-01T01:00:11Z",
+        "CompletionDateTime": "2026-10-01T01:00:12Z"
+      },
+      "Statistics": {
+        "EngineExecutionTimeInMillis": 400,
+        "DataScannedInBytes": 0,
+        "TotalExecutionTimeInMillis": 600
+      },
+      "EngineVersion": {
+        "SelectedEngineVersion": "AUTO",
+        "EffectiveEngineVersion": "Athena engine version 3"
+      }
+    }
+  ],
+  "UnprocessedQueryExecutionIds": []
+}

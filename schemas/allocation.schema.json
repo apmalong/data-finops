@@ -1,8 +1,200 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Allocation",
-  "description": "Target contract per spec 02 and ADRs 0016-0017. From M0 this file is generated from the Pydantic models and checked for drift in CI.",
-  "type": "object",
+  "$defs": {
+    "AllocationCategory": {
+      "enum": [
+        "direct",
+        "shared",
+        "idle",
+        "unallocated"
+      ],
+      "title": "AllocationCategory",
+      "type": "string"
+    },
+    "Confidence": {
+      "enum": [
+        "direct_verified",
+        "metered_estimate",
+        "heuristic_estimate"
+      ],
+      "title": "Confidence",
+      "type": "string"
+    },
+    "TargetType": {
+      "enum": [
+        "query_execution",
+        "idle",
+        "unallocated"
+      ],
+      "title": "TargetType",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "category": {
+            "const": "unallocated"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "target_type": {
+            "const": "unallocated"
+          },
+          "target_id": {
+            "const": "unallocated"
+          },
+          "confidence": {
+            "type": "null"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "category": {
+            "const": "idle"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "target_type": {
+            "const": "idle"
+          },
+          "target_id": {
+            "const": "idle"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "category": {
+            "enum": [
+              "direct",
+              "shared"
+            ]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "target_type": {
+            "const": "query_execution"
+          },
+          "confidence": {
+            "enum": [
+              "direct_verified",
+              "metered_estimate",
+              "heuristic_estimate"
+            ]
+          }
+        },
+        "required": [
+          "confidence"
+        ]
+      }
+    }
+  ],
+  "description": "The part of one Billing Line assigned to one Allocation Target.",
+  "properties": {
+    "billing_line_ref": {
+      "title": "Billing Line Ref",
+      "type": "string"
+    },
+    "pool_id": {
+      "title": "Pool Id",
+      "type": "string"
+    },
+    "target_type": {
+      "$ref": "#/$defs/TargetType"
+    },
+    "target_id": {
+      "title": "Target Id",
+      "type": "string"
+    },
+    "amount": {
+      "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+      "title": "Amount",
+      "type": "string"
+    },
+    "currency": {
+      "pattern": "^[A-Z]{3}$",
+      "title": "Currency",
+      "type": "string"
+    },
+    "cost_basis": {
+      "title": "Cost Basis",
+      "type": "string"
+    },
+    "category": {
+      "$ref": "#/$defs/AllocationCategory"
+    },
+    "method": {
+      "title": "Method",
+      "type": "string"
+    },
+    "confidence": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Confidence"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "coverage": {
+      "anyOf": [
+        {
+          "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Coverage"
+    },
+    "policy_version": {
+      "title": "Policy Version",
+      "type": "string"
+    },
+    "calculation_run_id": {
+      "title": "Calculation Run Id",
+      "type": "string"
+    },
+    "evidence_refs": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Evidence Refs",
+      "type": "array"
+    },
+    "as_of": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "As Of"
+    }
+  },
   "required": [
     "billing_line_ref",
     "pool_id",
@@ -16,107 +208,6 @@
     "policy_version",
     "calculation_run_id"
   ],
-  "properties": {
-    "billing_line_ref": {
-      "type": "string",
-      "description": "The Billing Line this Allocation partitions."
-    },
-    "pool_id": {
-      "type": "string"
-    },
-    "target_type": {
-      "enum": [
-        "query_execution",
-        "idle",
-        "unallocated"
-      ]
-    },
-    "target_id": {
-      "type": "string"
-    },
-    "amount": {
-      "type": "string",
-      "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
-      "description": "Signed decimal as string, quantized at the Billing Line's own scale."
-    },
-    "currency": {
-      "type": "string",
-      "pattern": "^[A-Z]{3}$",
-      "description": "ISO 4217 code."
-    },
-    "cost_basis": {
-      "type": "string",
-      "description": "FOCUS cost column partitioned, e.g. BilledCost."
-    },
-    "category": {
-      "enum": [
-        "direct",
-        "shared",
-        "idle",
-        "unallocated"
-      ]
-    },
-    "method": {
-      "type": "string"
-    },
-    "confidence": {
-      "enum": [
-        "direct_verified",
-        "metered_estimate",
-        "heuristic_estimate"
-      ]
-    },
-    "coverage": {
-      "type": "string",
-      "pattern": "^[0-9]+(\\.[0-9]+)?$",
-      "description": "Coverage of the Billing Line for metered shares (ADR 0017)."
-    },
-    "policy_version": {
-      "type": "string"
-    },
-    "calculation_run_id": {
-      "type": "string"
-    },
-    "evidence_refs": {
-      "type": "array",
-      "items": {
-        "type": "string"
-      }
-    },
-    "as_of": {
-      "type": "string",
-      "format": "date-time"
-    }
-  },
-  "if": {
-    "properties": {
-      "category": {
-        "const": "unallocated"
-      }
-    }
-  },
-  "then": {
-    "not": {
-      "required": [
-        "confidence"
-      ]
-    }
-  },
-  "else": {
-    "if": {
-      "properties": {
-        "category": {
-          "enum": [
-            "direct",
-            "shared"
-          ]
-        }
-      }
-    },
-    "then": {
-      "required": [
-        "confidence"
-      ]
-    }
-  }
+  "title": "Allocation",
+  "type": "object"
 }

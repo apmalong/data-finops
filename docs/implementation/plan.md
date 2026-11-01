@@ -4,7 +4,7 @@
 Review ADR 0014, update the standards conformance matrix and build-versus-reuse register; pin upstream schemas and add contract tests as implemented. Never count an unverified upstream version as supported.
 
 ## M0: scaffold and contracts
-Create `pyproject.toml`, package, CI, format/type/test setup, Pydantic models, JSON schema validation, fixture loader, provenance docs. Generate `schemas/` from the models with a CI drift check (spec 02). Rebuild fixtures in provider-native form: FOCUS billing lines with usage quantity, Athena executions carrying the query comment, OpenLineage events with parent and dbt facets, dbt artifacts valid against pinned schemas. **Exit:** `pytest` passes without cloud credentials; golden fixtures validate against generated schemas.
+Create `pyproject.toml`, package, CI, format/type/test setup, Pydantic models, JSON schema validation, fixture loader, provenance docs. Generate `schemas/` from the models with a CI drift check (spec 02). Rebuild fixtures in provider-native form: FOCUS billing lines with usage quantity, Athena executions carrying the query comment, OpenLineage events with parent and dbt facets, dbt artifacts valid against pinned schemas. **Exit:** `pytest` passes without cloud credentials; golden fixtures validate against generated schemas. **Status:** complete 2026-11-01 (progress.md).
 
 ## M1: offline billing ledger
 Pin the FOCUS release AWS emits (ADR 0015). Load fixture Export Snapshots, retain every cost column, deduplicate within a snapshot and persist. Build ledger with Decimal and per-line reconciliation. **Exit:** zero delta per Billing Line, replay idempotent, restatement replaces the Export Snapshot and retains the previous one.

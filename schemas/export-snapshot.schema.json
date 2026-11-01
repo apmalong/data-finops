@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$defs": {
+    "SnapshotFile": {
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "title": "Path",
+          "type": "string"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "path",
+        "sha256"
+      ],
+      "title": "SnapshotFile",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "One provider publication of all lines for a billing account and Billing Period.",
+  "properties": {
+    "snapshot_id": {
+      "pattern": "^[A-Za-z0-9._:-]+$",
+      "title": "Snapshot Id",
+      "type": "string"
+    },
+    "source": {
+      "title": "Source",
+      "type": "string"
+    },
+    "focus_version": {
+      "title": "Focus Version",
+      "type": "string"
+    },
+    "billing_account_id": {
+      "title": "Billing Account Id",
+      "type": "string"
+    },
+    "billing_period_start": {
+      "format": "date-time",
+      "title": "Billing Period Start",
+      "type": "string"
+    },
+    "billing_period_end": {
+      "format": "date-time",
+      "title": "Billing Period End",
+      "type": "string"
+    },
+    "published_at": {
+      "format": "date-time",
+      "title": "Published At",
+      "type": "string"
+    },
+    "files": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/SnapshotFile"
+      },
+      "title": "Files",
+      "type": "array"
+    }
+  },
+  "required": [
+    "snapshot_id",
+    "source",
+    "focus_version",
+    "billing_account_id",
+    "billing_period_start",
+    "billing_period_end",
+    "published_at"
+  ],
+  "title": "ExportSnapshot",
+  "type": "object"
+}
