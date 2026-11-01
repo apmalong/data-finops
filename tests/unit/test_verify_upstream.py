@@ -40,25 +40,45 @@ ARTIFACT: dict[str, Any] = {
 }
 
 
-def _dbt_failures(instance: dict[str, Any]) -> list[str]:
+FUNCTION_MACRO = "macro.dbt.materialization_function_default"
+
+
+def _failures_against_artifact(instance: dict[str, Any]) -> list[str]:
     return verify.dbt_failures(verify.dbt_validator(ARTIFACT), instance)
 
 
+def _with_macro_languages(macro_id: str, languages: Any) -> dict[str, Any]:
+    return {"name": "m", "macros": {macro_id: {"supported_languages": languages}}}
+
+
 def test_dbt_artifact_may_carry_fields_the_schema_does_not_list() -> None:
-    assert _dbt_failures({"name": "m", "added": 1, "macros": {"x": {"config": {}}}}) == []
+    instance = {"name": "m", "added": 1, "macros": {"x": {"config": {}}}}
+    assert _failures_against_artifact(instance) == []
 
 
 @pytest.mark.parametrize("instance", [{}, {"name": 1}, {"name": "m", "languages": ["javascript"]}])
 def test_dbt_artifact_still_fails_on_missing_fields_wrong_types_and_unknown_values(
     instance: dict[str, Any],
 ) -> None:
-    assert _dbt_failures(instance) != []
+    assert _failures_against_artifact(instance) != []
 
 
-def test_known_language_addition_is_allowed_only_in_macros() -> None:
-    languages = ["sql", "python", "javascript"]
-    assert _dbt_failures({"name": "m", "macros": {"x": {"supported_languages": languages}}}) == []
-    assert _dbt_failures({"name": "m", "languages": languages}) != []
+def test_known_language_addition_is_allowed_in_its_macro() -> None:
+    instance = _with_macro_languages(FUNCTION_MACRO, ["sql", "python", "javascript"])
+    assert _failures_against_artifact(instance) == []
+
+
+@pytest.mark.parametrize(
+    "instance",
+    [
+        _with_macro_languages("macro.dbt.other", ["sql", "javascript"]),
+        _with_macro_languages(FUNCTION_MACRO, ["sql", "cobol"]),
+        _with_macro_languages(FUNCTION_MACRO, "sql"),
+        {"name": "m", "languages": ["javascript"]},
+    ],
+)
+def test_known_language_addition_is_allowed_nowhere_else(instance: dict[str, Any]) -> None:
+    assert _failures_against_artifact(instance) != []
 
 
 def test_openlineage_events_stay_strict() -> None:
@@ -66,12 +86,10 @@ def test_openlineage_events_stay_strict() -> None:
     assert verify.failures(validator, {"added": 1}) != []
 
 
-@pytest.mark.parametrize("suffix", [".json", ".jsonl"])
-def test_events_load_from_json_array_or_json_lines(tmp_path: Path, suffix: str) -> None:
+@pytest.mark.parametrize("lines", [False, True])
+def test_events_load_from_json_array_or_json_lines(tmp_path: Path, lines: bool) -> None:
     events = [{"eventType": "START"}, {"eventType": "COMPLETE"}]
-    path = tmp_path / f"events{suffix}"
-    if suffix == ".json":
-        path.write_text(json.dumps(events), encoding="utf-8")
-    else:
-        path.write_text("\n".join(json.dumps(e) for e in events) + "\n", encoding="utf-8")
+    path = tmp_path / "events.json"  # the format is read from the content, not the name
+    text = "".join(json.dumps(e) + "\n" for e in events) if lines else json.dumps(events)
+    path.write_text(text, encoding="utf-8")
     assert verify.load_events(path) == events

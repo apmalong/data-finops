@@ -56,5 +56,5 @@ Records for each step are on the issues; account and bucket identifiers stay out
 
 - #22: Pulumi stack, mock tests; `pulumi preview` and, with owner approval, `pulumi up` (8 resources) recorded on #22 and #24.
 - #23: dbt-athena project; offline parse tests render the exact query comment Athena receives. dbt-athena omits it for `alter`/`drop`/`optimize`/`vacuum`/`msck` (OQ-22).
-- #24 (in progress): seed and two runs via `dbt-ol` in Docker. 20 Athena queries, 17 commented; one model issued 3 queries on an incremental run; 22 OpenLineage events valid upstream; dbt 1.12.6 artifacts exceed their published schemas (OQ-23).
+- #24 run record: seed and two runs via `dbt-ol` in Docker. 20 Athena queries, 17 commented; one model issued 3 queries on an incremental run; 22 OpenLineage events valid upstream; dbt 1.12.6 artifacts exceed their published schemas (OQ-23).
 - #29: `scripts/verify_upstream.py` allows additions in dbt artifacts and checks real outputs (`--dbt`, `--openlineage`, JSON Lines). `uv run python scripts/verify_upstream.py`: 0 failures on fixtures; with `--dbt .local/dbt/{1-seed,2-run,3-run} --openlineage .local/openlineage/dbt-events.jsonl`: 44 checks, 0 failures. A real run-results copy with `status` removed and a string `execution_time` fails with 2 errors.
