@@ -1,10 +1,18 @@
-"""Validate fixtures against pinned upstream schemas (ADR 0014). Needs network access.
+"""Check fixtures or real outputs against pinned upstream schemas (ADR 0014). Needs network.
 
 Not part of CI, which runs offline. Run `uv run python scripts/verify_upstream.py`
 and record the output in docs/implementation/progress.md. A checksum mismatch means
 the upstream file changed: re-review it before updating the pin.
+
+dbt artifacts may carry fields their published schema does not list (OQ-23): dbt adds
+fields without bumping the schema version. OpenLineage events are checked strictly.
+Real outputs: `--dbt DIR` (repeatable; holds manifest.json and run_results.json) and
+`--openlineage FILE` (JSON array or JSON Lines, as `dbt-ol` writes).
 """
 
+import argparse
+import copy
+import fnmatch
 import hashlib
 import json
 import sys
@@ -36,6 +44,12 @@ PINNED = {
     ),
 }
 
+# Known value additions in dbt 1.12 artifacts, allowed only at these paths (OQ-23).
+# dbt's built-in function materialization lists "javascript", outside the v12 enum.
+DBT_ALLOWED_PATHS = ("macros/*/supported_languages",)
+
+FORMATS = Draft202012Validator.FORMAT_CHECKER
+
 
 def fetch(name: str) -> dict[str, Any]:
     url, expected = PINNED[name]
@@ -49,54 +63,99 @@ def fetch(name: str) -> dict[str, Any]:
     return schema
 
 
-def load(relative: str) -> Any:
-    return json.loads((ROOT / relative).read_text(encoding="utf-8"))
+def _allow_additional_properties(node: Any) -> Any:
+    if isinstance(node, dict):
+        return {
+            key: _allow_additional_properties(value)
+            for key, value in node.items()
+            if not (key == "additionalProperties" and value is False)
+        }
+    if isinstance(node, list):
+        return [_allow_additional_properties(item) for item in node]
+    return node
 
 
-def check(label: str, validator: Draft202012Validator, instance: Any) -> int:
+def dbt_validator(schema: dict[str, Any]) -> Draft202012Validator:
+    """A validator that accepts fields the dbt schema does not list; everything else is checked."""
+    return Draft202012Validator(
+        _allow_additional_properties(copy.deepcopy(schema)), format_checker=FORMATS
+    )
+
+
+def strict_validator(
+    schema: dict[str, Any], registry: Registry | None = None
+) -> Draft202012Validator:
+    if registry is None:
+        return Draft202012Validator(schema, format_checker=FORMATS)
+    return Draft202012Validator(schema, registry=registry, format_checker=FORMATS)
+
+
+def failures(validator: Draft202012Validator, instance: Any) -> list[str]:
     errors = sorted(validator.iter_errors(instance), key=lambda e: list(e.absolute_path))
-    for error in errors:
-        print(f"FAIL {label}: {'/'.join(map(str, error.absolute_path))}: {error.message}")
-    if not errors:
-        print(f"ok   {label}")
-    return len(errors)
+    return [f"{'/'.join(map(str, e.absolute_path))}: {e.message}" for e in errors]
 
 
-def main() -> int:
-    schemas = {name: fetch(name) for name in PINNED}
-    fmt = Draft202012Validator.FORMAT_CHECKER
-    failures = 0
-
-    for name, fixture in [
-        ("dbt-manifest-v12", "fixtures/dbt/manifest.json"),
-        ("dbt-run-results-v6", "fixtures/dbt/run_results.json"),
-    ]:
-        failures += check(
-            fixture, Draft202012Validator(schemas[name], format_checker=fmt), load(fixture)
+def dbt_failures(validator: Draft202012Validator, instance: Any) -> list[str]:
+    return [
+        failure
+        for failure in failures(validator, instance)
+        if not any(
+            fnmatch.fnmatchcase(failure.split(": ", 1)[0], allowed) for allowed in DBT_ALLOWED_PATHS
         )
+    ]
+
+
+def load_events(path: Path) -> list[Any]:
+    text = path.read_text(encoding="utf-8")
+    if path.suffix == ".jsonl":
+        return [json.loads(line) for line in text.splitlines() if line.strip()]
+    events: list[Any] = json.loads(text)
+    return events
+
+
+def report(label: str, found: list[str]) -> int:
+    for failure in found:
+        print(f"FAIL {label}: {failure}")
+    if not found:
+        print(f"ok   {label}")
+    return len(found)
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("--dbt", type=Path, action="append", help="folder with dbt artifacts")
+    parser.add_argument("--openlineage", type=Path, help="events file, JSON array or JSON Lines")
+    args = parser.parse_args(argv)
+    dbt_dirs: list[Path] = args.dbt or [ROOT / "fixtures/dbt"]
+    events_file: Path = args.openlineage or ROOT / "fixtures/openlineage/events.json"
+
+    schemas = {name: fetch(name) for name in PINNED}
+    count = 0
+
+    for folder in dbt_dirs:
+        for name, file in [
+            ("dbt-manifest-v12", "manifest.json"),
+            ("dbt-run-results-v6", "run_results.json"),
+        ]:
+            instance = json.loads((folder / file).read_text(encoding="utf-8"))
+            found = dbt_failures(dbt_validator(schemas[name]), instance)
+            count += report(str(folder / file), found)
 
     core = schemas["openlineage-2-0-2"]
     parent = schemas["openlineage-parent-run-1-1-0"]
     registry: Registry = Registry().with_resources(
         [(s["$id"], Resource.from_contents(s)) for s in (core, parent)]
     )
-    run_event = Draft202012Validator(
-        {"$ref": f"{core['$id']}#/$defs/RunEvent"}, registry=registry, format_checker=fmt
-    )
-    parent_facet = Draft202012Validator(
-        {"$ref": f"{parent['$id']}#/$defs/ParentRunFacet"}, registry=registry, format_checker=fmt
-    )
-    for i, event in enumerate(load("fixtures/openlineage/events.json")):
-        failures += check(f"openlineage event {i} RunEvent", run_event, event)
+    run_event = strict_validator({"$ref": f"{core['$id']}#/$defs/RunEvent"}, registry)
+    parent_facet = strict_validator({"$ref": f"{parent['$id']}#/$defs/ParentRunFacet"}, registry)
+    for i, event in enumerate(load_events(events_file)):
+        count += report(f"openlineage event {i} RunEvent", failures(run_event, event))
         if "parent" in event["run"]["facets"]:
-            failures += check(
-                f"openlineage event {i} ParentRunFacet",
-                parent_facet,
-                event["run"]["facets"]["parent"],
-            )
+            facet = event["run"]["facets"]["parent"]
+            count += report(f"openlineage event {i} ParentRunFacet", failures(parent_facet, facet))
 
-    print(f"{failures} failure(s)")
-    return 1 if failures else 0
+    print(f"{count} failure(s)")
+    return 1 if count else 0
 
 
 if __name__ == "__main__":
