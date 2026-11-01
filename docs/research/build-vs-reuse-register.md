@@ -20,6 +20,8 @@ This is a **living implementation gate**. Candidate references are not evidence 
 | SBOM/license | CycloneDX or SPDX tooling; license scanner | **Approved (M0):** pip-audit CycloneDX output uploaded by CI | Trace transitive dependencies and vendored source | CI output and policy for unknown licenses |
 | Contract models and JSON Schema generation | Pydantic 2.14.2 (MIT) | **Approved (M0):** dependency | Typed models generate the published JSON Schemas (spec 02); no hand-maintained schemas | Verified 2026-11-01: lockfile pin, pip-audit clean |
 | JSON Schema validation | jsonschema 4.26.0 with rfc3339-validator 0.1.4 (both MIT); `format-nongpl` extra rejected | **Approved (M0):** dependency | Format-asserting validation of fixtures and events. The extra pulled 11 packages, one MPL-2.0 and one with no declared license; only date-time checking is needed | Verified 2026-11-01: lockfile pin, pip-audit clean |
+| Ledger store | SQLite (stdlib); DuckDB rejected | **Approved (ADR 0018):** stdlib | Concurrent readers with one writer across processes (WAL); DuckDB allows one writing process | Decimal-as-text round trip tests (M1) |
+| Parquet reader | pyarrow | **Proposed (ADR 0018):** dependency, reader only | Reads AWS FOCUS Parquet exports; large wheel kept out of the core | Pin version, license, pip-audit, round-trip tests (M1 ticket) |
 
 ## Required decision template
 - **Capability / issue:**
