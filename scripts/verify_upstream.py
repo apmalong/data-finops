@@ -39,7 +39,8 @@ PINNED = {
 
 def fetch(name: str) -> dict[str, Any]:
     url, expected = PINNED[name]
-    with urllib.request.urlopen(url, timeout=30) as response:  # noqa: S310 (pinned https URL)
+    # Pinned https URLs only, checked by sha256 below.
+    with urllib.request.urlopen(url, timeout=30) as response:  # noqa: S310  # nosec B310
         body = response.read()
     actual = hashlib.sha256(body).hexdigest()
     if actual != expected:

@@ -64,6 +64,7 @@
 - `schemas/allocation.schema.json`
 - `schemas/billing-line.schema.json`
 - `schemas/export-snapshot.schema.json`
+- `scripts/anonymize_focus_export.py`
 - `scripts/verify_upstream.py`
 - `src/data_finops/__init__.py`
 - `src/data_finops/api/__init__.py`
@@ -90,6 +91,7 @@
 - `tests/contract/test_fixtures.py`
 - `tests/contract/test_golden_fixture.py`
 - `tests/contract/test_schemas_up_to_date.py`
+- `tests/integration/test_anonymize_focus_export.py`
 - `tests/integration/test_focus_parquet.py`
 - `tests/integration/test_ledger.py`
 - `tests/integration/test_reconciliation.py`
