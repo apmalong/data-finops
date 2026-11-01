@@ -15,13 +15,16 @@ You are implementing the Data FinOps project specified in this repository. Treat
 - Do not claim an upstream code audit is complete; prior evaluation was preliminary and no exact SHAs or test executions were verified.
 - Do not make automatic infrastructure changes from optimization suggestions.
 
-## Implementation workflow
-1. Read `docs/implementation/plan.md` and pick next unfinished milestone.
-2. Write failing acceptance tests for that milestone.
-3. Implement minimal code with explicit interfaces.
-4. Run lint, types, unit and integration tests; record outputs.
-5. Update documentation and `docs/implementation/progress.md` with changes and limitations.
-6. Never mark a phase complete without runnable verification.
+## Development workflow
+All development follows Matt Pocock's engineering skills (`mattpocock-skills` plugin). Tasks live only in GitHub Issues (`docs/agents/issue-tracker.md`); `docs/implementation/progress.md` is the per-milestone verification log, not a task list.
+1. **Design** (when terms, scope or architecture change): `grill-with-docs`, updating `GLOSSARY.md` and ADRs inline. Unresolved decisions go to `docs/implementation/open-questions.md`.
+2. **Spec:** take the next unfinished milestone in `docs/implementation/plan.md` and run `to-spec`: one spec issue per milestone, labelled `ready-for-agent`, with test seams agreed with the owner.
+3. **Tickets:** `to-tickets` splits the spec into tracer-bullet vertical slices, published as sub-issues of the spec with native blocked-by links and the `ready-for-agent` label. Work the frontier: tickets whose blockers are all closed.
+4. **Build:** `implement`, one ticket per branch. Use `tdd` (red, then green) only at the seams agreed for that ticket. Run type checks and single test files often and the full suite at the end, then run `code-review` against `main`. Commit with `Closes #<ticket>`.
+5. **Standards gate:** before any collector, parser, serializer, lineage model, telemetry format, allocation algorithm or integration, apply ADR 0014 (see the section below).
+6. **Pull request:** body follows the `pr` skill (Summary, Evidence, Merge Danger). `main` is protected: a PR and a passing `quality` check are required.
+7. **Close a milestone** only with runnable verification: record commands and output in `progress.md` and update affected docs.
+8. Bugs use `diagnosing-bugs`; issue intake uses `triage` with the labels in `docs/agents/triage-labels.md`.
 
 ## Repository conventions
 `src/data_finops/{contracts,billing,normalization,ledger,identity,lineage,dbt,attribution,api,providers}`; contracts are generated into `schemas/` by `uv run python -m data_finops.schemas`; network-dependent upstream checks live in `scripts/`; `infra/pulumi/aws`; `tests/{unit,integration,contract}`; `examples/demo`.
