@@ -32,6 +32,7 @@
 - `docs/adr/0018-sqlite-ledger-store-and-pyarrow-reader.md`
 - `docs/adr/0019-no-row-deduplication-within-export-snapshots.md`
 - `docs/adr/0020-current-snapshot-is-latest-publication.md`
+- `docs/adr/0021-reference-workload-for-real-validation.md`
 - `docs/adr/README.md`
 - `docs/agents/domain.md`
 - `docs/agents/issue-tracker.md`

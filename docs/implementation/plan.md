@@ -21,6 +21,9 @@ Implement Coverage-based Athena on-demand metering (ADR 0017) with Billable Usag
 ## M5: API and HTML demo
 FastAPI `/health`, `/v1/costs/summary`, `/v1/allocations`, `/v1/lineage`, `/v1/reconciliation`, `/v1/provenance`; static dashboard and explain-cost drilldown. **Exit:** local demo walkthrough passes.
 
+## Reference workload (supports M2–M4 validation; ADR 0021)
+Pulumi Python stack in `examples/reference-workload/` (S3, Glue database, Athena workgroup with a per-query scan limit) and a tiny dbt-athena project run with `dbt-ol`, as its own uv project. Produces real Athena billing lines, query history, dbt artifacts and OpenLineage events, anonymized before use. Airflow deferred until M3 needs it. **Exit:** stack previews and deploys only with owner approval; a run produces artifacts and events; Athena charges appear in the FOCUS export; teardown verified.
+
 ## M6: AWS deployment (optional after M5)
 Pulumi Python components, private API, scheduled read-only ingestion, encrypted storage, cost limits, deployment docs and teardown. **Exit:** preview policies validated; deployment only with explicit user authorization and credentials.
 

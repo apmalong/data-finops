@@ -2,7 +2,7 @@
 
 1. Which real AWS CUR 2.0 / FOCUS export shape and cost basis should production ingestion support first? Test against anonymized samples. — **narrowed 2026-11-01:** AWS native FOCUS export (Data Exports) first, pinned to the FOCUS release AWS emits; CUR 2.0 via focus_converters deferred. Remaining: which release, and test against anonymized samples.
 2. How will Athena query execution IDs be propagated through the chosen dbt Athena adapter and Airflow OpenLineage provider? Confirm actual hooks and query comments.
-3. What provider-specific method will reconcile aggregated Athena billing to query-level metering, including minimum charges, discounts and adjustments?
+3. What provider-specific method will reconcile aggregated Athena billing to query-level metering, including minimum charges, discounts and adjustments? — partly decided by ADR 0017 (Coverage); the real billing shape is to be observed with the reference workload (ADR 0021).
 4. Should local storage default to DuckDB only, or SQLite metadata + DuckDB analytics? Benchmark before choosing. — **decided 2026-11-01 (ADR 0018):** SQLite for the Ledger store, pyarrow for Parquet; DuckDB rejected for its single-writer process model. A benchmark remains a revisit trigger, not a prerequisite.
 5. Which deployment topology (Lambda + S3 vs Cloud Run-equivalent patterns) minimizes AWS operational cost at target scale?
 6. What authentication and network ingress patterns will customers require for OpenLineage events?
