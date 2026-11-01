@@ -24,7 +24,6 @@ from data_finops.contracts.billing import (
     SnapshotScope,
 )
 from data_finops.ledger import reconciliation
-from data_finops.ledger.reconciliation import ReconciliationReport
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS export_snapshot (
@@ -169,11 +168,12 @@ class Ledger:
         return None if row is None else self._load(_StoredSnapshot(*row))
 
     def reconcile(
-        self, source: FocusExport, cost_basis: CostBasis | str = CostBasis.BILLED_COST
-    ) -> ReconciliationReport:
+        self, source: FocusExport, cost_basis: CostBasis = CostBasis.BILLED_COST
+    ) -> reconciliation.ReconciliationReport:
         """Compare the stored snapshot with the source it was imported from, per Billing Line.
 
-        Raises ValueError for an unknown Cost Basis and LookupError if the source's
+        The Cost Basis is validated at runtime, so a caller passing an unknown name (for
+        example from an API query) gets ValueError. Raises LookupError if the source's
         snapshot is not in the Ledger.
         """
         basis = CostBasis(cost_basis)

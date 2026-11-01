@@ -1,27 +1,52 @@
 """Reconciliation of stored Billing Lines against the source they were imported from.
 
 The Reconciliation Delta is source minus Ledger: the authoritative amount minus what
-the Ledger holds. Amounts are compared exactly; currencies are never summed together.
+the Ledger holds. Amounts compare exactly, and an amount is only ever added to or
+compared with amounts in the same currency.
 """
 
 from collections import defaultdict
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from decimal import Decimal
 from itertools import zip_longest
 
 from data_finops.contracts.billing import CostBasis, FocusBillingLine, FocusExport
 
+_COST_COLUMN: Mapping[CostBasis, Callable[[FocusBillingLine], Decimal]] = {
+    CostBasis.BILLED_COST: lambda line: line.BilledCost,
+    CostBasis.EFFECTIVE_COST: lambda line: line.EffectiveCost,
+    CostBasis.LIST_COST: lambda line: line.ListCost,
+    CostBasis.CONTRACTED_COST: lambda line: line.ContractedCost,
+}
+
+
+@dataclass(frozen=True)
+class Money:
+    amount: Decimal
+    currency: str
+
 
 @dataclass(frozen=True)
 class LineReconciliation:
+    """One Billing Line position; a side is None when that side has no line there."""
+
     ref: str
-    currency: str
-    source_amount: Decimal
-    ledger_amount: Decimal
+    source: Money | None
+    ledger: Money | None
 
     @property
-    def delta(self) -> Decimal:
-        return self.source_amount - self.ledger_amount
+    def balanced(self) -> bool:
+        return self.source == self.ledger
+
+    @property
+    def delta(self) -> Decimal | None:
+        """Source minus Ledger, or None when the two sides are in different currencies."""
+        if self.source and self.ledger and self.source.currency != self.ledger.currency:
+            return None
+        return (self.source.amount if self.source else Decimal(0)) - (
+            self.ledger.amount if self.ledger else Decimal(0)
+        )
 
 
 @dataclass(frozen=True)
@@ -38,46 +63,45 @@ class CurrencyTotal:
 class ReconciliationReport:
     snapshot_id: str
     cost_basis: CostBasis
-    lines: list[LineReconciliation]
-    totals: dict[str, CurrencyTotal]
+    lines: tuple[LineReconciliation, ...]
+    totals: Mapping[str, CurrencyTotal]
     """One total per billing currency; there is deliberately no cross-currency total."""
 
     @property
     def balanced(self) -> bool:
-        return all(line.delta == 0 for line in self.lines)
+        return all(line.balanced for line in self.lines)
 
 
 def reconcile(
     source: FocusExport, stored: FocusExport, cost_basis: CostBasis
 ) -> ReconciliationReport:
-    # Lines pair by position; a line present on only one side counts as zero on the
-    # other, so a missing or extra line shows up as a delta rather than an error.
-    lines = [
+    column = _COST_COLUMN[cost_basis]
+
+    def money(line: FocusBillingLine | None) -> Money | None:
+        return None if line is None else Money(column(line), line.BillingCurrency)
+
+    # Lines pair by position; a line present on only one side shows as unbalanced.
+    lines = tuple(
         LineReconciliation(
             ref=f"{source.snapshot.snapshot_id}#{position}",
-            currency=(source_line or stored_line).BillingCurrency,
-            source_amount=_amount(source_line, cost_basis),
-            ledger_amount=_amount(stored_line, cost_basis),
+            source=money(source_line),
+            ledger=money(stored_line),
         )
         for position, (source_line, stored_line) in enumerate(
             zip_longest(source.lines, stored.lines)
         )
-    ]
-    sums: dict[str, list[Decimal]] = defaultdict(lambda: [Decimal(0), Decimal(0)])
+    )
+    source_sums: dict[str, Decimal] = defaultdict(Decimal)
+    ledger_sums: dict[str, Decimal] = defaultdict(Decimal)
     for line in lines:
-        sums[line.currency][0] += line.source_amount
-        sums[line.currency][1] += line.ledger_amount
+        if line.source:
+            source_sums[line.source.currency] += line.source.amount
+        if line.ledger:
+            ledger_sums[line.ledger.currency] += line.ledger.amount
     totals = {
-        currency: CurrencyTotal(source_amount=s, ledger_amount=held)
-        for currency, (s, held) in sums.items()
+        currency: CurrencyTotal(source_sums[currency], ledger_sums[currency])
+        for currency in sorted(source_sums.keys() | ledger_sums.keys())
     }
     return ReconciliationReport(
         snapshot_id=source.snapshot.snapshot_id, cost_basis=cost_basis, lines=lines, totals=totals
     )
-
-
-def _amount(line: FocusBillingLine | None, cost_basis: CostBasis) -> Decimal:
-    if line is None:
-        return Decimal(0)
-    amount: Decimal = getattr(line, cost_basis)
-    return amount

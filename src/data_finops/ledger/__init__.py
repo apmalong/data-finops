@@ -4,6 +4,7 @@ from data_finops.ledger.ledger import ImportOutcome, ImportResult, Ledger, Snaps
 from data_finops.ledger.reconciliation import (
     CurrencyTotal,
     LineReconciliation,
+    Money,
     ReconciliationReport,
 )
 
@@ -13,6 +14,7 @@ __all__ = [
     "ImportResult",
     "Ledger",
     "LineReconciliation",
+    "Money",
     "ReconciliationReport",
     "SnapshotConflictError",
 ]

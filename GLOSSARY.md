@@ -128,11 +128,11 @@ _Avoid_: job, batch
 ## Reconciliation
 
 **Reconciliation**:
-The check that Allocations sum exactly to the authoritative amount they partition, per currency, cost basis, period and source version.
+The check that what the product holds equals its authoritative source exactly, per Billing Line, currency and Cost Basis: the Ledger against the imported Export Snapshot, and Allocations against the Billing Lines they partition.
 _Avoid_: balancing, matching
 
 **Reconciliation Delta**:
-The signed difference between the authoritative amount and the sum of its Allocations. It is zero when Reconciliation holds.
+The signed difference between the authoritative amount and what is held against it (the Ledger's amount, or the sum of Allocations), in one currency. It is zero when Reconciliation holds.
 
 **Ledger**:
 The immutable, versioned record of Export Snapshots and the Allocation Snapshots computed from them. One of each is current; all are retained.
