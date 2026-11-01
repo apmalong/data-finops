@@ -10,6 +10,7 @@ reported, never copied. Rules (spec 04, data protection; #32, #36):
 - fields: only allowlisted fields are kept (ATHENA_FIELDS here; dbt and OpenLineage specs in
   anonymize_workload_fields.py); every other field is dropped and counted by its path;
   free text becomes pseudonyms; dbt collections the product does not read are emptied;
+  dataset URIs lose credentials, and hosts other than AWS endpoints become pseudonyms;
 - every string: S3 bucket names found anywhere in the inputs (`s3://`, S3 ARNs, virtual-host
   URLs), 12-digit account IDs and local paths (whole values, paths inside text, `~/` and
   `file://`) become the FOCUS anonymizer's keyed pseudonyms, also in output file names;
@@ -42,6 +43,7 @@ from anonymize_workload_fields import (  # noqa: E402
     RUN_RESULTS,
     SQL,
     TEXT,
+    URI,
     Each,
     Items,
 )
@@ -137,6 +139,21 @@ class _Scrubber:
         """Replace an identifier that must not survive in any form, such as a path."""
         self.originals.add(value)
         return self.pseudonyms.text(value)
+
+    def pseudonym(self, value: str) -> str:
+        """Replace free text, which is not an identifier, so it does not join the scan list."""
+        return self.pseudonyms.text(value) if value else value
+
+    def uri(self, value: str) -> str:
+        """Drop credentials; pseudonymize hosts other than AWS public endpoints."""
+        if "://" not in value:
+            return value
+        scheme, rest = value.split("://", 1)
+        authority, slash, path = rest.partition("/")
+        host, colon, port = authority.rpartition("@")[2].partition(":")
+        if host and not host.endswith(".amazonaws.com"):
+            host = self.redact(host)
+        return f"{scheme}://{host}{colon}{port}{slash}{path}"
 
 
 def _utc(value: str) -> str:
@@ -246,7 +263,9 @@ def _dbt(document: dict[str, Any], scrubber: _Scrubber, summary: Counter[str]) -
         metadata["user_id"] = None
     if metadata.get("project_id"):
         metadata["project_id"] = scrubber.redact(str(metadata["project_id"]))
-    metadata["env"] = {k: scrubber.redact(str(v)) for k, v in metadata.get("env", {}).items()}
+    metadata["env"] = {
+        scrubber.redact(str(k)): scrubber.redact(str(v)) for k, v in metadata.get("env", {}).items()
+    }
     result = {**document, "metadata": metadata}
     if "args" in document:
         args = {}
@@ -258,11 +277,11 @@ def _dbt(document: dict[str, Any], scrubber: _Scrubber, summary: Counter[str]) -
         result["args"] = args
     is_manifest = "/manifest/" in str(metadata.get("dbt_schema_version"))
     spec, name = (MANIFEST, "manifest") if is_manifest else (RUN_RESULTS, "run_results")
-    return _walk(_allow(result, spec, name, scrubber, summary), scrubber.text)
+    return _walk(_apply_spec(result, spec, name, scrubber, summary), scrubber.text)
 
 
 def _openlineage(events: list[Any], scrubber: _Scrubber, summary: Counter[str]) -> Any:
-    allowed = _allow(events, Items(OPENLINEAGE_EVENT), "openlineage", scrubber, summary)
+    allowed = _apply_spec(events, Items(OPENLINEAGE_EVENT), "openlineage", scrubber, summary)
     return _walk(allowed, scrubber.text)
 
 
@@ -273,42 +292,54 @@ _ANONYMIZERS: dict[str, Callable[[Any, _Scrubber, Counter[str]], Any]] = {
 }
 
 
-def _allow(value: Any, spec: Any, path: str, scrubber: _Scrubber, summary: Counter[str]) -> Any:
+def _apply_spec(
+    value: Any, spec: Any, path: str, scrubber: _Scrubber, summary: Counter[str]
+) -> Any:
     """Keep only the fields `spec` lists (see anonymize_workload_fields); count the rest."""
     if spec == KEEP or value is None:
         return value
-    if spec == SQL:
-        return _sql_summary(value) if isinstance(value, str) else value
+    if spec == SQL and isinstance(value, str):
+        return _sql_summary(value)
+    if spec == URI and isinstance(value, str):
+        return scrubber.uri(value)
     if spec == TEXT:
-        return _free_text(value, scrubber, summary, path)
+        return _free_text(value, path, scrubber, summary)
     if spec == EMPTY:
         if value:
             summary[f"emptied {path}"] += 1
         return {}
     if isinstance(spec, Each) and isinstance(value, dict):
-        return {k: _allow(v, spec.spec, f"{path}.*", scrubber, summary) for k, v in value.items()}
+        return {
+            k: _apply_spec(v, spec.spec, f"{path}.*", scrubber, summary) for k, v in value.items()
+        }
     if isinstance(spec, Items) and isinstance(value, list):
-        return [_allow(v, spec.spec, f"{path}[]", scrubber, summary) for v in value]
+        return [_apply_spec(v, spec.spec, f"{path}[]", scrubber, summary) for v in value]
     if isinstance(spec, dict) and isinstance(value, dict):
         kept = {}
         for key, item in value.items():
             if key in spec:
-                kept[key] = _allow(item, spec[key], f"{path}.{key}", scrubber, summary)
+                kept[key] = _apply_spec(item, spec[key], f"{path}.{key}", scrubber, summary)
             else:
                 summary[f"dropped {path}.{key}"] += 1
         return kept
-    return value
+    # Never pass an unreviewed shape through; leave an empty value of the expected kind.
+    summary[f"dropped {path} (unexpected shape)"] += 1
+    if isinstance(spec, dict | Each):
+        return {}
+    return [] if isinstance(spec, Items) else None
 
 
-def _free_text(value: Any, scrubber: _Scrubber, summary: Counter[str], path: str) -> Any:
-    """Free text is not an identifier, so it is pseudonymized without joining the scan list."""
+def _free_text(value: Any, path: str, scrubber: _Scrubber, summary: Counter[str]) -> Any:
     if isinstance(value, str):
-        return scrubber.pseudonyms.text(value) if value else value
+        return scrubber.pseudonym(value)
     if isinstance(value, list):
-        return [scrubber.pseudonyms.text(v) for v in value if isinstance(v, str)]
+        dropped = sum(1 for v in value if not isinstance(v, str))
+        if dropped:
+            summary[f"emptied {path}[]"] += dropped
+        return [scrubber.pseudonym(v) for v in value if isinstance(v, str)]
     if value:
         summary[f"emptied {path}"] += 1
-    return {} if isinstance(value, dict) else value
+    return {} if isinstance(value, dict) else None
 
 
 def _walk(value: Any, rule: Callable[[str], str]) -> Any:

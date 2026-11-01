@@ -447,3 +447,59 @@ def test_free_text_and_unread_collections_do_not_survive(
 def test_timestamps_with_a_utc_offset_become_utc(allowlisted: tuple[Path, dict[str, int]]) -> None:
     status = _json(allowlisted[0], "athena/query-executions.json")["QueryExecutions"][0]["Status"]
     assert status["SubmissionDateTime"] == "2026-11-01T21:19:15.713000Z"
+
+
+PRIVATE_HOST = "warehouse.internal.example"
+EXTRA_SECRETS = [
+    "dbuser",
+    "hunter2",
+    PRIVATE_HOST,
+    "cost > 100",
+    "partition notes",
+    "DBT_CLOUD_PROJECT",
+]
+
+
+def _plant_review_cases_36(source: Path) -> None:
+    def manifest(document: dict[str, Any]) -> None:
+        node = document["nodes"][NODE]
+        node["tags"] = ["kept-as-pseudonym", {"unexpected": "map"}]
+        node["constraints"] = [{"type": "check", "expression": "cost > 100"}]
+        document["macros"]["macro.example.m"]["arguments"] = [
+            {"name": "x", "type": "int", "description": "partition notes"}
+        ]
+        document["sources"] = {
+            "source.example.raw.orders": {
+                "unique_id": "source.example.raw.orders",
+                "loaded_at_query": "select max(cost > 100) from raw",
+                "external": {"partitions": [{"name": "p", "description": "partition notes"}]},
+                "freshness": {"warn_after": {"count": 1}, "filter": "cost > 100"},
+            }
+        }
+
+    _edit(source / "dbt/2-run/manifest.json", manifest)
+    events = [json.loads(line) for line in (source / "openlineage/dbt-events.jsonl").open()]
+    dataset = events[0]["outputs"][0]
+    dataset["facets"]["dataSource"]["uri"] = f"postgres://dbuser:hunter2@{PRIVATE_HOST}:5432/db"
+    events[0]["run"]["facets"] = ["not", "a", "map"]
+    (source / "openlineage/dbt-events.jsonl").write_text(
+        "".join(json.dumps(e) + "\n" for e in events), encoding="utf-8"
+    )
+
+
+def test_review_cases_for_other_projects(outputs: tuple[Path, Path]) -> None:
+    source, target = outputs
+    _plant_review_cases_36(source)
+    summary = anonymizer.anonymize_workload_outputs(source, target, SECRET)
+    text = _all_text(target)
+    assert not any(secret in text for secret in EXTRA_SECRETS)
+    assert summary["dropped openlineage[].run.facets (unexpected shape)"] == 1
+    assert summary["emptied manifest.nodes.*.tags[]"] == 1
+    uri = load_events(target / "openlineage/dbt-events.jsonl")[0].outputs[0].model_dump()
+    assert uri["facets"]["dataSource"]["uri"].startswith("postgres://anon-")
+    assert ":5432/db" in uri["facets"]["dataSource"]["uri"]
+    athena_namespace = "awsathena://athena.us-east-1.amazonaws.com"
+    assert (
+        load_events(target / "openlineage/dbt-events.jsonl")[0].outputs[0].namespace
+        == athena_namespace
+    )
