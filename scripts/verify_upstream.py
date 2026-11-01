@@ -7,7 +7,7 @@ the upstream file changed: re-review it before updating the pin.
 dbt artifacts may carry fields their published schema does not list (OQ-23): dbt adds
 fields without bumping the schema version. Every node type still has to match its own
 `resource_type`; only dbt's two test types share one. OpenLineage events are checked
-strictly. Real outputs: `--dbt DIR` (repeatable; holds manifest.json and run_results.json)
+strictly. Real outputs: `--dbt DIR` (repeatable; holds manifest.json, run_results.json or both)
 and `--openlineage FILE` (JSON array or JSON Lines, as `dbt-ol` writes).
 """
 
@@ -111,6 +111,14 @@ def dbt_failures(validator: Draft202012Validator, artifact: Any) -> list[str]:
     return failures(validator, _without_known_values(artifact))
 
 
+def dbt_artifacts(folder: Path) -> list[str]:
+    """The dbt artifact files present in `folder`; a run step may keep only its run results."""
+    present = [f for f in ("manifest.json", "run_results.json") if (folder / f).is_file()]
+    if not present:
+        raise SystemExit(f"{folder}: no dbt artifacts (manifest.json or run_results.json)")
+    return present
+
+
 def load_events(path: Path) -> list[Any]:
     """A JSON array of events, or JSON Lines (one event per line, as `dbt-ol` writes)."""
     text = path.read_text(encoding="utf-8-sig")
@@ -144,7 +152,8 @@ def main(argv: list[str] | None = None) -> int:
         "run_results.json": dbt_validator(schemas["dbt-run-results-v6"]),
     }
     for folder in dbt_dirs:
-        for file, validator in dbt_validators.items():
+        for file in dbt_artifacts(folder):
+            validator = dbt_validators[file]
             artifact = json.loads((folder / file).read_text(encoding="utf-8"))
             total_failures += report(str(folder / file), dbt_failures(validator, artifact))
 

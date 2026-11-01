@@ -1,0 +1,198 @@
+{
+  "metadata": {
+    "dbt_schema_version": "https://schemas.getdbt.com/dbt/run-results/v6.json",
+    "dbt_version": "1.12.6",
+    "generated_at": "2026-11-01T21:19:55.421885Z",
+    "invocation_id": "0d9fc611-0f9f-43ea-81bb-ba7bc63be72f",
+    "invocation_started_at": "2026-11-01T21:19:33.532675Z",
+    "env": {}
+  },
+  "results": [
+    {
+      "status": "success",
+      "timing": [
+        {
+          "name": "compile",
+          "started_at": "2026-11-01T21:19:35.366361Z",
+          "completed_at": "2026-11-01T21:19:35.391184Z"
+        },
+        {
+          "name": "execute",
+          "started_at": "2026-11-01T21:19:35.393060Z",
+          "completed_at": "2026-11-01T21:19:37.556409Z"
+        }
+      ],
+      "thread_id": "Thread-1 (worker)",
+      "execution_time": 2.1941542625427246,
+      "adapter_response": {
+        "_message": "OK -1",
+        "code": "OK",
+        "rows_affected": -1,
+        "data_scanned_in_bytes": 0
+      },
+      "message": "OK -1",
+      "failures": null,
+      "unique_id": "model.reference_workload.stg_customers",
+      "compiled": true,
+      "compiled_code": "select \u2026",
+      "relation_name": "\"awsdatacatalog\".\"reference_workload\".\"stg_customers\"",
+      "batch_results": null,
+      "overload_results": null
+    },
+    {
+      "status": "success",
+      "timing": [
+        {
+          "name": "compile",
+          "started_at": "2026-11-01T21:19:37.567456Z",
+          "completed_at": "2026-11-01T21:19:37.577765Z"
+        },
+        {
+          "name": "execute",
+          "started_at": "2026-11-01T21:19:37.578802Z",
+          "completed_at": "2026-11-01T21:19:39.568723Z"
+        }
+      ],
+      "thread_id": "Thread-1 (worker)",
+      "execution_time": 2.005901575088501,
+      "adapter_response": {
+        "_message": "OK -1",
+        "code": "OK",
+        "rows_affected": -1,
+        "data_scanned_in_bytes": 0
+      },
+      "message": "OK -1",
+      "failures": null,
+      "unique_id": "model.reference_workload.stg_orders",
+      "compiled": true,
+      "compiled_code": "select \u2026",
+      "relation_name": "\"awsdatacatalog\".\"reference_workload\".\"stg_orders\"",
+      "batch_results": null,
+      "overload_results": null
+    },
+    {
+      "status": "success",
+      "timing": [
+        {
+          "name": "compile",
+          "started_at": "2026-11-01T21:19:39.578406Z",
+          "completed_at": "2026-11-01T21:19:39.596990Z"
+        },
+        {
+          "name": "execute",
+          "started_at": "2026-11-01T21:19:39.598258Z",
+          "completed_at": "2026-11-01T21:19:47.670283Z"
+        }
+      ],
+      "thread_id": "Thread-1 (worker)",
+      "execution_time": 8.096191167831421,
+      "adapter_response": {
+        "_message": "OK 0",
+        "code": "OK",
+        "rows_affected": 0,
+        "data_scanned_in_bytes": 0
+      },
+      "message": "OK 0",
+      "failures": null,
+      "unique_id": "model.reference_workload.daily_orders",
+      "compiled": true,
+      "compiled_code": " \u2026",
+      "relation_name": "\"awsdatacatalog\".\"reference_workload\".\"daily_orders\"",
+      "batch_results": null,
+      "overload_results": null
+    },
+    {
+      "status": "success",
+      "timing": [
+        {
+          "name": "compile",
+          "started_at": "2026-11-01T21:19:47.678262Z",
+          "completed_at": "2026-11-01T21:19:47.689046Z"
+        },
+        {
+          "name": "execute",
+          "started_at": "2026-11-01T21:19:47.690091Z",
+          "completed_at": "2026-11-01T21:19:55.412364Z"
+        }
+      ],
+      "thread_id": "Thread-1 (worker)",
+      "execution_time": 7.737630844116211,
+      "adapter_response": {
+        "_message": "OK 4",
+        "code": "OK",
+        "rows_affected": 4,
+        "data_scanned_in_bytes": 397
+      },
+      "message": "OK 4",
+      "failures": null,
+      "unique_id": "model.reference_workload.revenue_by_region",
+      "compiled": true,
+      "compiled_code": "select \u2026",
+      "relation_name": "\"awsdatacatalog\".\"reference_workload\".\"revenue_by_region\"",
+      "batch_results": null,
+      "overload_results": null
+    }
+  ],
+  "elapsed_time": 20.994576930999756,
+  "args": {
+    "printer_width": 80,
+    "require_batched_execution_for_custom_microbatch_strategy": true,
+    "maximum_seed_size_mib": 1,
+    "select": [],
+    "log_format": "default",
+    "cache_selected_only": false,
+    "use_colors": true,
+    "require_sql_header_in_test_configs": false,
+    "macro_debugging": false,
+    "state_modified_compare_vars": false,
+    "show_all_deprecations": false,
+    "print": true,
+    "validate_macro_args": true,
+    "indirect_selection": "eager",
+    "static_parser": true,
+    "strict_mode": false,
+    "enable_grouped_warn_error_parser_logs": false,
+    "allow_jinja_file_extensions": false,
+    "require_generic_test_arguments_property": true,
+    "support_custom_ref_kwargs": false,
+    "quiet": false,
+    "source_freshness_run_project_hooks": true,
+    "introspect": true,
+    "skip_nodes_if_on_run_start_fails": true,
+    "show_resource_report": false,
+    "send_anonymous_usage_stats": false,
+    "require_resource_names_without_spaces": true,
+    "exclude": [],
+    "latest_version_pointer_enabled_by_default": false,
+    "use_fast_test_edges": false,
+    "which": "run",
+    "partial_parse": true,
+    "favor_state": false,
+    "snowflake_projects_otel": false,
+    "require_yaml_configuration_for_mf_time_spines": true,
+    "require_source_and_semantic_model_names_without_spaces": false,
+    "log_file_max_bytes": 10485760,
+    "defer": false,
+    "require_corrected_analysis_fqns": false,
+    "use_colors_file": true,
+    "empty": false,
+    "require_unique_project_resource_names": false,
+    "populate_cache": true,
+    "require_nested_cumulative_type_params": true,
+    "use_v2_parser": false,
+    "state_modified_compare_more_unrendered_values": true,
+    "upload_to_artifacts_ingest_api": false,
+    "require_all_warnings_handled_by_warn_error": true,
+    "require_explicit_package_overrides_for_builtin_materializations": true,
+    "require_valid_schema_from_generate_schema_name": false,
+    "log_level_file": "debug",
+    "log_level": "info",
+    "version_check": true,
+    "require_ref_searches_node_package_before_root": false,
+    "use_catalogs_v2": false,
+    "log_format_file": "debug",
+    "write_json": true,
+    "partial_parse_file_diff": true,
+    "hints_enabled": true
+  }
+}

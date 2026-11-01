@@ -93,3 +93,13 @@ def test_events_load_from_json_array_or_json_lines(tmp_path: Path, lines: bool) 
     text = "".join(json.dumps(e) + "\n" for e in events) if lines else json.dumps(events)
     path.write_text(text, encoding="utf-8")
     assert verify.load_events(path) == events
+
+
+def test_dbt_folder_may_hold_run_results_alone(tmp_path: Path) -> None:
+    (tmp_path / "run_results.json").write_text("{}", encoding="utf-8")
+    assert verify.dbt_artifacts(tmp_path) == ["run_results.json"]
+
+
+def test_dbt_folder_without_artifacts_is_an_error(tmp_path: Path) -> None:
+    with pytest.raises(SystemExit, match="no dbt artifacts"):
+        verify.dbt_artifacts(tmp_path)
