@@ -17,11 +17,13 @@ from types import TracebackType
 from typing import Self
 
 from data_finops.contracts.billing import (
+    CostBasis,
     ExportSnapshot,
     FocusBillingLine,
     FocusExport,
     SnapshotScope,
 )
+from data_finops.ledger import reconciliation
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS export_snapshot (
@@ -164,6 +166,21 @@ class Ledger:
             f"{_SELECT_STORED} WHERE snapshot_id = ?", (snapshot_id,)
         ).fetchone()
         return None if row is None else self._load(_StoredSnapshot(*row))
+
+    def reconcile(
+        self, source: FocusExport, cost_basis: CostBasis = CostBasis.BILLED_COST
+    ) -> reconciliation.ReconciliationReport:
+        """Compare the stored snapshot with the source it was imported from, per Billing Line.
+
+        The Cost Basis is validated at runtime, so a caller passing an unknown name (for
+        example from an API query) gets ValueError. Raises LookupError if the source's
+        snapshot is not in the Ledger.
+        """
+        basis = CostBasis(cost_basis)
+        stored = self.snapshot(source.snapshot.snapshot_id)
+        if stored is None:
+            raise LookupError(f"snapshot {source.snapshot.snapshot_id} is not in the Ledger")
+        return reconciliation.reconcile(source, stored, basis)
 
     def _load(self, stored: _StoredSnapshot) -> FocusExport:
         lines = self._connection.execute(

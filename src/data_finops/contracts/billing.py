@@ -27,6 +27,15 @@ class FocusChargeClass(StrEnum):
     CORRECTION = "Correction"
 
 
+class CostBasis(StrEnum):
+    """The FOCUS cost column a figure is taken from; bases are never added together."""
+
+    BILLED_COST = "BilledCost"
+    EFFECTIVE_COST = "EffectiveCost"
+    LIST_COST = "ListCost"
+    CONTRACTED_COST = "ContractedCost"
+
+
 class FocusBillingLine(BaseModel):
     model_config = ConfigDict(frozen=True, extra="allow", title="BillingLine")
 
