@@ -125,10 +125,12 @@ def test_the_same_instant_with_another_offset_is_the_same_event(
     assert (again.accepted, again.duplicates) == (0, 1)
 
 
-def test_an_event_time_without_a_time_zone_is_refused(store: WorkloadStore, tmp_path: Path) -> None:
+def test_an_event_time_without_a_time_zone_is_rejected(
+    store: WorkloadStore, tmp_path: Path
+) -> None:
     path = _write(tmp_path / "events.jsonl", [_event(RUN, "START", "2026-11-01T21:19:00")])
-    with pytest.raises(ValueError, match="event 0: eventTime has no time zone"):
-        store.ingest_events(path)
+    result = store.ingest_events(path)
+    assert [r.position for r in result.rejected] == [1]
     assert store.workload_run(RUN) is None
 
 
@@ -144,3 +146,76 @@ def test_a_run_reported_under_two_jobs_takes_the_earliest_events_job(
     )
     run = store.workload_run(RUN)
     assert run is not None and run.job_name == "job"
+
+
+# Invalid payloads (#42)
+
+INVALID = FIXTURES / "openlineage" / "invalid" / "mixed.jsonl"
+
+
+def test_invalid_events_are_rejected_one_by_one_and_the_rest_ingested(store: WorkloadStore) -> None:
+    result = store.ingest_events(INVALID)
+    assert (result.accepted, result.unsupported) == (3, 2)
+    reasons = {r.position: r.reason for r in result.rejected}
+    assert sorted(reasons) == [2, 3, 4, 5]
+    assert reasons[2] == "not valid JSON"
+    assert reasons[3].startswith("invalid RunEvent: run/runId")
+    assert reasons[4].startswith("invalid RunEvent: eventTime")
+    assert reasons[5].startswith("invalid ParentRunFacet")
+    completed = store.workload_run("00000000-0000-4000-8000-0000000000a1")
+    assert completed is not None and completed.status == WorkloadRunStatus.COMPLETED
+    other_type = store.workload_run("00000000-0000-4000-8000-0000000000a7")
+    assert other_type is not None  # any eventType value is tolerated
+
+
+def test_rejected_events_are_never_stored_or_echoed(store: WorkloadStore) -> None:
+    result = store.ingest_events(INVALID)
+    assert store.workload_run("00000000-0000-4000-8000-0000000000a3") is None
+    assert store.workload_run("00000000-0000-4000-8000-0000000000a4") is None
+    assert not any("not-a-uuid-secret-value" in r.reason for r in result.rejected)
+
+
+def test_an_event_over_one_mebibyte_is_rejected(store: WorkloadStore, tmp_path: Path) -> None:
+    big = _event(RUN, "START", "2026-11-01T21:19:00Z")
+    big["run"]["facets"] = {
+        "padding": {"_producer": "x", "_schemaURL": "x", "data": "x" * 1_048_576}
+    }
+    result = store.ingest_events(_write(tmp_path / "big.jsonl", [big]))
+    assert [(r.position, r.reason) for r in result.rejected] == [(1, "too large")]
+    assert store.workload_run(RUN) is None
+
+
+def test_a_json_array_reports_positions_by_element(store: WorkloadStore, tmp_path: Path) -> None:
+    events = [_event(RUN, "START", "2026-11-01T21:19:00Z"), {"eventTime": "nope"}]
+    path = tmp_path / "events.json"
+    path.write_text(json.dumps(events), encoding="utf-8")
+    result = store.ingest_events(path)
+    assert result.accepted == 1 and [r.position for r in result.rejected] == [2]
+
+
+def test_a_file_that_is_not_json_at_all_is_one_rejection(
+    store: WorkloadStore, tmp_path: Path
+) -> None:
+    path = tmp_path / "events.json"
+    path.write_text("[not json", encoding="utf-8")
+    result = store.ingest_events(path)
+    assert (result.accepted, [r.reason for r in result.rejected]) == (0, ["not valid JSON"])
+
+
+def test_bundled_schemas_match_the_upstream_checker_pins() -> None:
+    import hashlib
+    import importlib.util
+
+    root = FIXTURES.parent
+    spec = importlib.util.spec_from_file_location(
+        "verify_upstream", root / "scripts" / "verify_upstream.py"
+    )
+    assert spec and spec.loader
+    checker = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(checker)
+    bundled = root / "src" / "data_finops" / "lineage" / "schemas"
+    for name, file in [
+        ("openlineage-2-0-2", "OpenLineage-2-0-2.json"),
+        ("openlineage-parent-run-1-1-0", "ParentRunFacet-1-1-0.json"),
+    ]:
+        assert hashlib.sha256((bundled / file).read_bytes()).hexdigest() == checker.PINNED[name][1]
