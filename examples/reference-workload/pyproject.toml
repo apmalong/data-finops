@@ -4,6 +4,11 @@ version = "0.0.0"
 description = "Reference workload for validating data-finops against real billing (ADR 0021). Not part of the data_finops package."
 requires-python = ">=3.12"
 dependencies = [
+    "dbt-athena==1.11.1",
+    "dbt-core==1.12.6",
+    "openlineage-dbt==1.54.0 ; sys_platform != 'win32'",
+    "openlineage-python==1.54.0",
+    "openlineage-sql==1.54.0 ; sys_platform != 'win32'",
     "pulumi==3.273.0",
     "pulumi-aws==7.52.1",
 ]
@@ -14,6 +19,8 @@ dev = [
     "mypy>=1.14,<2",
     "pip-audit>=2,<3",
     "pytest>=8,<10",
+    "pyyaml>=6,<7",
+    "types-pyyaml>=6,<7",
 ]
 
 [tool.uv]
