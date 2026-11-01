@@ -117,5 +117,6 @@
 - `tests/integration/test_reconciliation.py`
 - `tests/unit/test_contracts.py`
 - `tests/unit/test_import_boundaries.py`
+- `tests/unit/test_verify_upstream.py`
 - `third_party/provenance.yaml`
 - `uv.lock`
