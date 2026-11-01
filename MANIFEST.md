@@ -80,6 +80,7 @@
 - `src/data_finops/identity/__init__.py`
 - `src/data_finops/ledger/__init__.py`
 - `src/data_finops/ledger/ledger.py`
+- `src/data_finops/ledger/reconciliation.py`
 - `src/data_finops/lineage/__init__.py`
 - `src/data_finops/lineage/openlineage.py`
 - `src/data_finops/normalization/__init__.py`
@@ -90,6 +91,7 @@
 - `tests/contract/test_golden_fixture.py`
 - `tests/contract/test_schemas_up_to_date.py`
 - `tests/integration/test_ledger.py`
+- `tests/integration/test_reconciliation.py`
 - `tests/unit/test_contracts.py`
 - `tests/unit/test_import_boundaries.py`
 - `third_party/provenance.yaml`
