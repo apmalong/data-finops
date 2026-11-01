@@ -6,6 +6,7 @@ This is not a claim of full FOCUS conformance (see the standards matrix).
 """
 
 from enum import StrEnum
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -125,6 +126,18 @@ class FocusExport(BaseModel):
             ):
                 raise ValueError(f"line {i}: Billing Period differs from snapshot")
         return self
+
+    def billing_content(self) -> dict[str, Any]:
+        """The billing data itself: Snapshot Scope, FOCUS version and every line in order.
+
+        Publication metadata (snapshot ID, publish time, files) is excluded, so the same
+        content delivered twice can be recognised as a replay (ADR 0019).
+        """
+        return {
+            "scope": self.snapshot.scope.model_dump(mode="json"),
+            "focus_version": self.snapshot.focus_version,
+            "lines": [line.model_dump(mode="json") for line in self.lines],
+        }
 
     def line_ref(self, position: int) -> str:
         if not 0 <= position < len(self.lines):
