@@ -1,13 +1,16 @@
 """Minimal immutable contracts; not a finished attribution implementation."""
+
 from dataclasses import dataclass
 from decimal import Decimal
-from enum import Enum
+from enum import StrEnum
 
-class AllocationKind(str, Enum):
+
+class AllocationKind(StrEnum):
     DIRECT = "direct"
     SHARED = "shared"
     IDLE = "idle"
     UNALLOCATED = "unallocated"
+
 
 @dataclass(frozen=True)
 class Allocation:
