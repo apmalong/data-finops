@@ -6,7 +6,7 @@ Status: Accepted (design)
 The FinOps tool must remain lightweight, auditable, portable and safe for customer-managed data platforms.
 
 ## Decision
-Use local DuckDB/SQLite and FastAPI/static HTML for MVP. Optional managed persistence later.
+Use local DuckDB/SQLite and FastAPI/static HTML for MVP. (Narrowed by ADR 0018: SQLite store, pyarrow for Parquet.) Optional managed persistence later.
 
 ## Consequences
 Avoid mandatory Kubernetes, Postgres, Marquez, OpenCost.

@@ -8,7 +8,7 @@ ADR 0014 adopts FOCUS for canonical billing, but the original `BillingLine` cont
 ## Decision
 1. The internal billing record is a FOCUS row for one pinned FOCUS release. Keep FOCUS column names and every cost column; keep provider extension columns under their FOCUS `x_` names; never move them into an untyped metadata object.
 2. Credits, refunds, discounts and other non-usage charges are their own Billing Lines (Adjustments), identified by charge category.
-3. The revision unit is the Export Snapshot: all lines for one (billing account, Billing Period, source) as published at one time. A restatement replaces the whole snapshot; prior snapshots are retained. Row-level deduplication applies only within a snapshot.
+3. The revision unit is the Export Snapshot: all lines for one (billing account, Billing Period, source) as published at one time. A restatement replaces the whole snapshot; prior snapshots are retained. (Row-level deduplication was originally allowed within a snapshot; removed by ADR 0019.)
 4. The first source is AWS's native FOCUS export (Data Exports), pinned to the FOCUS release AWS emits. CUR 2.0 conversion through `focus_converters` is deferred.
 5. Each cost column reconciles independently. The default Ledger view is BilledCost (matches the invoice, per ADR 0003); EffectiveCost is a selectable view.
 

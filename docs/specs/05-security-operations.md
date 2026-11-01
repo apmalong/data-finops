@@ -1,7 +1,7 @@
 # Security, deployment and operations
 
 ## Deployment
-Local first: Python CLI + DuckDB or SQLite + FastAPI + static HTML. Production AWS: Pulumi Python deploys private ingestion API or scheduled pull, read-only collector IAM, object storage, compute, metrics, and optionally dashboard behind auth. Avoid mandatory NAT, VPC, RDS, Marquez, and Kubernetes.
+Local first: Python CLI + SQLite (ADR 0018) + FastAPI + static HTML. Production AWS: Pulumi Python deploys private ingestion API or scheduled pull, read-only collector IAM, object storage, compute, metrics, and optionally dashboard behind auth. Avoid mandatory NAT, VPC, RDS, Marquez, and Kubernetes.
 
 ## IAM
 Separate deployer identity from collector identity. Billing export bucket read only scoped to path; Athena query history read/list only where APIs permit; CloudWatch read only optional. No permission to execute arbitrary customer queries, mutate data, or remediate automatically. Document AWS API actions after validation; don't invent ARNs or permissions.

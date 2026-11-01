@@ -14,7 +14,7 @@ Data platform engineer, data reliability engineer, platform owner, FinOps analys
 ## MVP scope
 AWS Athena **on-demand query scan charges** only for direct job attribution, plus generic shared/idle/unallocated cost pools for demonstration. Other AWS cost categories remain unallocated until explicit allocators exist. No assertion that Athena billed bytes always map 1:1 to invoice charges: free tiers, minimums, discounts, credits, rounding, pricing changes and billing adjustments matter.
 
-Airflow/OpenLineage run hierarchy; dbt artifact ingestion; query-ID correlation via provider metadata/query comments when available; HTML API/dashboard; JSON/Parquet fixture ingestion; SQLite or DuckDB local analytical store; optional Postgres later.
+Airflow/OpenLineage run hierarchy; dbt artifact ingestion; query-ID correlation via provider metadata/query comments when available; HTML API/dashboard; JSON/Parquet fixture ingestion; SQLite local store (ADR 0018); optional Postgres later.
 
 ## Next releases (interfaces only in MVP)
 GCP BigQuery on-demand and capacity/reservation allocation, S3/GCS storage, ECS/Fargate, Glue, Cloud Run, Dataflow, Snowflake, dlt, Dagster, Prefect, OpenTelemetry, QuickSight, Tableau, Looker, Power BI, OpenCost/K8s, optimizer recommendations, unit economics, policy guardrails.

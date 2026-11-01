@@ -29,6 +29,8 @@
 - `docs/adr/0015-focus-billing-lines-and-export-snapshots.md`
 - `docs/adr/0016-allocate-to-query-executions-with-roll-ups.md`
 - `docs/adr/0017-metered-share-requires-coverage.md`
+- `docs/adr/0018-sqlite-ledger-store-and-pyarrow-reader.md`
+- `docs/adr/0019-no-row-deduplication-within-export-snapshots.md`
 - `docs/adr/README.md`
 - `docs/agents/domain.md`
 - `docs/agents/issue-tracker.md`
