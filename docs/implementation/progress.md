@@ -25,4 +25,6 @@ Run locally on Windows 11 with uv 0.12.23 and CPython 3.12.15 (uv-managed). No c
   - `negative-adjustment`: -1.00 retained signed, not clamped.
   - Gap: synthetic and credit records have no corresponding billing lines with period/source_version, so only aggregate reconciliation is checkable for those scenarios. The doc states aggregate equality is insufficient; add billing-line fixtures for them before M4.
 
-Still open: GitHub branch protection (repository owner), CI on pull request.
+- CI on PR #1: first run failed at gitleaks (shallow checkout could not resolve the PR commit range); fixed with `fetch-depth: 0`. Both push and pull_request runs then passed.
+
+Still open: GitHub branch protection (repository owner).

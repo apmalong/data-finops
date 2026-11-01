@@ -7,7 +7,7 @@
 - [x] `uv run pip-audit` and secret scanning complete; review any alerts.
 - [x] Golden fixtures checked independently against a written financial interpretation.
 - [ ] Git initialized, initial commit created, and GitHub branch protection configured by repository owner.
-- [ ] CI runs successfully on pull request.
+- [x] CI runs successfully on pull request.
 
 ## Scope and caveats
 Scaffold tests validate fixture shape and golden *arithmetic*, not an implemented allocation engine. M1–M4 must implement the algorithms and verify actual computed allocations against golden expectations. Do not mark financial reconciliation complete based only on these tests.
