@@ -1,0 +1,6 @@
+# Read by dbt-ol when run from this folder. The path is relative to it and lands in the
+# repository's git-ignored .local/ (ADR 0021). Create .local/openlineage/ before the first run.
+transport:
+  type: file
+  log_file_path: ../../../.local/openlineage/dbt-events.jsonl
+  append: true

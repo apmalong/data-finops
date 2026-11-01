@@ -1,0 +1,27 @@
+name: reference_workload
+version: "1.0.0"
+config-version: 2
+profile: reference_workload
+require-dbt-version: [">=1.12.0", "<1.13.0"]
+
+# Every Athena query carries node_id and invocation_id so data-finops can link
+# it to the dbt model and run (spec 04). dbt's default comment lacks invocation_id.
+query-comment:
+  comment: "{{ data_finops_query_comment(node) }}"
+  append: false
+
+models:
+  reference_workload:
+    staging:
+      +materialized: view
+    marts:
+      +materialized: table
+
+seeds:
+  reference_workload:
+    +column_types:
+      order_date: date
+      amount: decimal(10,2)
+
+flags:
+  send_anonymous_usage_stats: false

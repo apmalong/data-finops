@@ -13,6 +13,7 @@ import pulumi_aws as aws
 
 NAME = "reference-workload"
 REGION = "us-east-1"  # matches the FOCUS export (#21)
+WORKGROUP = "data-finops-reference"  # also named in dbt/profiles.yml
 ATHENA_MIN_CUTOFF_BYTES = 10 * 1024 * 1024  # Athena rejects lower per-query limits
 DEFAULT_SCAN_CUTOFF_BYTES = 100 * 1024 * 1024  # ample for the tiny models
 
@@ -134,7 +135,7 @@ def _workgroup(
 ) -> aws.athena.Workgroup:
     return aws.athena.Workgroup(
         NAME,
-        name="data-finops-reference",
+        name=WORKGROUP,
         force_destroy=True,
         configuration=aws.athena.WorkgroupConfigurationArgs(
             bytes_scanned_cutoff_per_query=settings.bytes_scanned_cutoff_per_query,

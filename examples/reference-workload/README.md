@@ -1,6 +1,6 @@
 # Reference workload
 
-A small, removable AWS workload used only to validate data-finops against real billing (ADR 0021): an S3 bucket, a Glue database and an Athena workgroup, plus (in #23) a tiny dbt-athena project. It is a separate uv project and is never imported by `data_finops`.
+A small, removable AWS workload used only to validate data-finops against real billing (ADR 0021): an S3 bucket, a Glue database and an Athena workgroup, plus a tiny dbt-athena project in `dbt/` that runs in that workgroup. It is a separate uv project and is never imported by `data_finops`.
 
 ## Rules
 
@@ -33,4 +33,45 @@ pulumi config set aws:profile <your profile>
 pulumi preview                                  # owner approval required
 pulumi up                                       # owner approval required
 pulumi destroy                                  # owner approval required
+```
+
+## dbt project (`dbt/`)
+
+Synthetic seeds (`raw_customers`, `raw_orders`), two staging views and two marts. `daily_orders` is incremental (append), so runs after the first issue several Athena queries for one model.
+
+### Query comment for data-finops correlation
+
+dbt's default query comment has `node_id` but not `invocation_id`. Any dbt-on-Athena project that data-finops should correlate needs this in `dbt_project.yml`, plus the macro in `dbt/macros/data_finops_query_comment.sql`:
+
+```yaml
+query-comment:
+  comment: "{{ data_finops_query_comment(node) }}"
+  append: false
+```
+
+dbt-athena then sends each query as:
+
+```sql
+-- /* {"app": "dbt", "dbt_version": "1.12.6", "invocation_id": "<uuid>", "node_id": "model.reference_workload.daily_orders", "target_name": "reference"} */
+<statement>
+```
+
+Statements starting with `alter`, `drop`, `optimize`, `vacuum` or `msck` are sent **without** a comment by the adapter (OQ-22).
+
+### OpenLineage
+
+`dbt-ol` (openlineage-dbt) reads `dbt/openlineage.yml` when run from `dbt/` and appends events to `.local/openlineage/dbt-events.jsonl` at the repository root. openlineage-dbt needs `openlineage-sql`, which has no Windows wheel, so it is installed only on Linux and macOS: run `dbt-ol` in WSL or a Linux container. `dbt parse` and the offline tests work on Windows.
+
+### Commands
+
+```bash
+cd examples/reference-workload
+uv run pytest                                   # includes the offline dbt parse (no AWS)
+# Real runs (#24, owner approval required), from WSL or Linux:
+export REFERENCE_WORKLOAD_BUCKET=<bucket output of the stack>
+export AWS_PROFILE=<your profile>
+mkdir -p ../../.local/openlineage
+cd dbt
+uv run dbt-ol seed --profiles-dir .
+uv run dbt-ol run --profiles-dir .
 ```
