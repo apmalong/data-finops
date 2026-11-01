@@ -9,6 +9,7 @@
 - `AGENTS.md`
 - `CLAUDE.md`
 - `GLOSSARY.md`
+- `LICENSES/OpenLineage-Apache-2.0.txt`
 - `MANIFEST.md`
 - `README.md`
 - `THIRD_PARTY_NOTICES.md`
@@ -81,6 +82,8 @@
 - `fixtures/focus/export-2026-10.json`
 - `fixtures/golden/scenarios.json`
 - `fixtures/openlineage/events.json`
+- `fixtures/openlineage/invalid/array.json`
+- `fixtures/openlineage/invalid/mixed.jsonl`
 - `fixtures/reference-workload/README.md`
 - `fixtures/reference-workload/athena/query-executions.json`
 - `fixtures/reference-workload/dbt/1-seed/run_results.json`
@@ -114,6 +117,10 @@
 - `src/data_finops/ledger/reconciliation.py`
 - `src/data_finops/lineage/__init__.py`
 - `src/data_finops/lineage/openlineage.py`
+- `src/data_finops/lineage/schemas/.gitattributes`
+- `src/data_finops/lineage/schemas/OpenLineage-2-0-2.json`
+- `src/data_finops/lineage/schemas/ParentRunFacet-1-1-0.json`
+- `src/data_finops/lineage/validation.py`
 - `src/data_finops/normalization/__init__.py`
 - `src/data_finops/providers/__init__.py`
 - `src/data_finops/providers/athena.py`

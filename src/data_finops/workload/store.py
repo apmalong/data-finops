@@ -9,6 +9,7 @@ when read, so they never depend on arrival order. Parent and root runs come with
 import hashlib
 import json
 import sqlite3
+from collections import Counter
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -18,7 +19,7 @@ from types import TracebackType
 from typing import Any, Self
 
 from data_finops.contracts.workload import WorkloadRun, WorkloadRunStatus
-from data_finops.lineage.openlineage import load_events
+from data_finops.lineage.validation import Rejection, RejectionKind, screen_events
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS workload_lineage_event (
@@ -50,6 +51,14 @@ class IngestResult:
     """Events stored by this ingest."""
     duplicates: int
     """Events already stored with the same key and content; nothing changed."""
+    rejected: tuple[Rejection, ...] = ()
+    """Invalid events in file order, by position and reason; never stored, never echoed."""
+    unsupported: tuple[Rejection, ...] = ()
+    """Valid JobEvents and DatasetEvents, by position; not stored in M2."""
+
+    def counts(self) -> Counter[RejectionKind]:
+        """Rejected and unsupported events counted by kind."""
+        return Counter(r.kind for r in (*self.rejected, *self.unsupported))
 
 
 @dataclass(frozen=True)
@@ -87,13 +96,13 @@ class WorkloadStore:
 
         Events are keyed by run, event type and time plus a digest of the event as stored
         (spec 03 step C). The stored form is sorted-key compact JSON with `eventTime` in UTC,
-        so the same instant written with another offset is the same event.
+        so the same instant written with another offset is the same event. Each event is
+        screened first; invalid ones are reported and the rest of the file is still stored.
         """
+        screening = screen_events(path)
         accepted = duplicates = 0
         with self._write_transaction():
-            for position, event in enumerate(load_events(path)):
-                if event.eventTime.tzinfo is None:
-                    raise ValueError(f"{path}: event {position}: eventTime has no time zone")
+            for event in screening.events:
                 document = event.model_dump(mode="json") | {
                     "eventTime": event.eventTime.astimezone(UTC).isoformat().replace("+00:00", "Z")
                 }
@@ -113,7 +122,12 @@ class WorkloadStore:
                 ).rowcount
                 accepted += stored
                 duplicates += 1 - stored
-        return IngestResult(accepted=accepted, duplicates=duplicates)
+        return IngestResult(
+            accepted=accepted,
+            duplicates=duplicates,
+            rejected=tuple(screening.rejected),
+            unsupported=tuple(screening.unsupported),
+        )
 
     def workload_run(self, run_id: str) -> WorkloadRun | None:
         """The Workload Run as its stored observations describe it, or None if unknown.
