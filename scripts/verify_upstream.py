@@ -113,11 +113,11 @@ def dbt_failures(validator: Draft202012Validator, artifact: Any) -> list[str]:
 
 def load_events(path: Path) -> list[Any]:
     """A JSON array of events, or JSON Lines (one event per line, as `dbt-ol` writes)."""
-    text = path.read_text(encoding="utf-8")
+    text = path.read_text(encoding="utf-8-sig")
     if text.lstrip().startswith("["):
         events: list[Any] = json.loads(text)
         return events
-    return [json.loads(line) for line in text.splitlines() if line.strip()]
+    return [json.loads(line) for line in text.split("\n") if line.strip()]
 
 
 def report(label: str, found: list[str]) -> int:

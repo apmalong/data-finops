@@ -4,11 +4,11 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, TypeAdapter
+from pydantic import BaseModel, ConfigDict, TypeAdapter, ValidationError
 
 
 class _Event(BaseModel):
-    model_config = ConfigDict(frozen=True, extra="allow")
+    model_config = ConfigDict(frozen=True, extra="allow", hide_input_in_errors=True)
 
 
 class Run(_Event):
@@ -41,4 +41,20 @@ _EVENTS = TypeAdapter(list[RunEvent])
 
 
 def load_events(path: Path) -> list[RunEvent]:
-    return _EVENTS.validate_json(path.read_text(encoding="utf-8"))
+    """Events as a JSON array, or JSON Lines (one per line, as dbt-ol's file transport writes)."""
+    text = path.read_text(encoding="utf-8-sig")
+    if text.lstrip().startswith("["):
+        try:
+            return _EVENTS.validate_json(text)
+        except ValidationError as error:
+            raise ValueError(f"{path}: {error}") from error
+    events = []
+    # Split on newlines only: U+2028 and similar may appear unescaped inside JSON strings.
+    for line_number, line in enumerate(text.split("\n"), start=1):
+        if not line.strip():
+            continue
+        try:
+            events.append(RunEvent.model_validate_json(line))
+        except ValidationError as error:
+            raise ValueError(f"{path}: line {line_number}: {error}") from error
+    return events
