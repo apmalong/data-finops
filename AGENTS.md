@@ -24,7 +24,7 @@ You are implementing the Data FinOps project specified in this repository. Treat
 6. Never mark a phase complete without runnable verification.
 
 ## Repository conventions
-`src/data_finops/{billing,identity,lineage,dbt,attribution,api,providers}`; `infra/pulumi/aws`; `tests/{unit,integration,contract}`; `examples/demo`.
+`src/data_finops/{contracts,billing,normalization,ledger,identity,lineage,dbt,attribution,api,providers}`; contracts are generated into `schemas/` by `uv run python -m data_finops.schemas`; network-dependent upstream checks live in `scripts/`; `infra/pulumi/aws`; `tests/{unit,integration,contract}`; `examples/demo`.
 
 ## Security
 Use read-only IAM for ingestion, separate deployment permissions, secrets from runtime identity/secret manager, bound query limits, no public ingestion endpoint by default, and no direct SQL interpolation of untrusted metadata.

@@ -16,3 +16,4 @@ Pulumi.*.yaml
 !Pulumi.example.yaml
 *.tfstate*
 .DS_Store
+sbom.cdx.json

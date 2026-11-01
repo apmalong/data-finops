@@ -1,6 +1,6 @@
 # Data FinOps — Claude Code implementation package
 
-Status: **design specification; no implementation or source extraction completed**. Version 0.1, 2026-11-01.
+Status: **M0 complete (contracts, provider-native fixtures, generated schemas); no allocation engine yet; no third-party source extracted**. Version 0.1, 2026-11-01.
 
 ## Mission
 Build a free, open-source, customer-managed, modular FinOps application for data engineering workloads. Attribute authoritative cloud charges to queries, runs, pipelines, models, datasets, data products, tenants, and downstream consumers without double counting. Deliver a small usable AWS Athena + Airflow/OpenLineage + dbt vertical slice first.

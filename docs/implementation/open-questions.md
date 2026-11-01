@@ -26,3 +26,4 @@ Context and evidence for each item: `docs/research/architecture-review.md`. Stat
 
 Recording (decided 2026-11-01): decisions 1 (narrowed), 9–10 and 11–12 become ADRs 0015–0017; 13–17 and 19 are applied directly to specs 02/03 and the schemas.
 20. **Confidence for Idle amounts.** Confidence is required for direct and shared allocations and absent for Unallocated; what, if anything, does an Idle allocation carry? No MVP pool produces Idle (C12), so this can wait until capacity pricing. — open (non-blocking)
+21. **FOCUS doubles to Decimal.** AWS Data Exports publishes FOCUS cost and quantity columns as `double`. Which conversion preserves the provider's stated amount (for example the shortest round-trip representation), and what scale does a line then have for quantization (decision 13)? Needed at M1. — open
