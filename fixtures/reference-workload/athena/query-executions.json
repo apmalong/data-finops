@@ -1,0 +1,859 @@
+{
+  "UnprocessedQueryExecutionIds": [],
+  "QueryExecutions": [
+    {
+      "QueryExecutionId": "7dff75b0-b277-49fd-8cf6-1b9e27843baa",
+      "Query": "-- /* {\"app\": \"dbt\", \"dbt_version\": \"1.12.6\", \"invocation_id\": \"ba26dcbd-17ed-4270-82ad-8d8dd8075b81\", \"node_id\": \"seed.reference_workload.raw_customers\", \"target_name\": \"reference\"} */\ncreate external \u2026",
+      "StatementType": "DDL",
+      "ResultConfiguration": {
+        "OutputLocation": "s3://anon-eac8cdf74ff4/athena-results/7dff75b0-b277-49fd-8cf6-1b9e27843baa.txt",
+        "EncryptionConfiguration": {
+          "EncryptionOption": "SSE_S3"
+        }
+      },
+      "ResultReuseConfiguration": {
+        "ResultReuseByAgeConfiguration": {
+          "Enabled": false
+        }
+      },
+      "QueryExecutionContext": {
+        "Database": "reference_workload",
+        "Catalog": "awsdatacatalog"
+      },
+      "Status": {
+        "State": "SUCCEEDED",
+        "SubmissionDateTime": "2026-11-01T21:18:58.713Z",
+        "CompletionDateTime": "2026-11-01T21:18:59.248Z"
+      },
+      "Statistics": {
+        "EngineExecutionTimeInMillis": 425,
+        "DataScannedInBytes": 0,
+        "TotalExecutionTimeInMillis": 535,
+        "QueryQueueTimeInMillis": 72,
+        "ServicePreProcessingTimeInMillis": 16,
+        "ServiceProcessingTimeInMillis": 22,
+        "ResultReuseInformation": {
+          "ReusedPreviousResult": false
+        }
+      },
+      "WorkGroup": "data-finops-reference",
+      "EngineVersion": {
+        "SelectedEngineVersion": "AUTO",
+        "EffectiveEngineVersion": "Athena engine version 3"
+      },
+      "SubstatementType": "CREATE_TABLE"
+    },
+    {
+      "QueryExecutionId": "2905bf2d-8bb7-498a-88be-842b2c210c3d",
+      "Query": "-- /* {\"app\": \"dbt\", \"dbt_version\": \"1.12.6\", \"invocation_id\": \"ba26dcbd-17ed-4270-82ad-8d8dd8075b81\", \"node_id\": \"seed.reference_workload.raw_customers\", \"target_name\": \"reference\"} */\ncreate table \u2026",
+      "StatementType": "DDL",
+      "ResultConfiguration": {
+        "OutputLocation": "s3://anon-eac8cdf74ff4/athena-results/tables/2905bf2d-8bb7-498a-88be-842b2c210c3d",
+        "EncryptionConfiguration": {
+          "EncryptionOption": "SSE_S3"
+        }
+      },
+      "ResultReuseConfiguration": {
+        "ResultReuseByAgeConfiguration": {
+          "Enabled": false
+        }
+      },
+      "QueryExecutionContext": {
+        "Database": "reference_workload",
+        "Catalog": "awsdatacatalog"
+      },
+      "Status": {
+        "State": "SUCCEEDED",
+        "SubmissionDateTime": "2026-11-01T21:19:00.601Z",
+        "CompletionDateTime": "2026-11-01T21:19:01.560Z"
+      },
+      "Statistics": {
+        "EngineExecutionTimeInMillis": 806,
+        "DataScannedInBytes": 81,
+        "DataManifestLocation": "s3://anon-eac8cdf74ff4/athena-results/tables/2905bf2d-8bb7-498a-88be-842b2c210c3d-manifest.csv",
+        "TotalExecutionTimeInMillis": 959,
+        "QueryQueueTimeInMillis": 60,
+        "ServicePreProcessingTimeInMillis": 65,
+        "QueryPlanningTimeInMillis": 138,
+        "ServiceProcessingTimeInMillis": 28,
+        "ResultReuseInformation": {
+          "ReusedPreviousResult": false
+        }
+      },
+      "WorkGroup": "data-finops-reference",
+      "EngineVersion": {
+        "SelectedEngineVersion": "AUTO",
+        "EffectiveEngineVersion": "Athena engine version 3"
+      },
+      "SubstatementType": "CREATE_TABLE_AS_SELECT"
+    },
+    {
+      "QueryExecutionId": "fcf9ce97-1d17-4967-951f-480b7fa6ec3b",
+      "Query": "-- /* {\"app\": \"dbt\", \"dbt_version\": \"1.12.6\", \"invocation_id\": \"ba26dcbd-17ed-4270-82ad-8d8dd8075b81\", \"node_id\": \"seed.reference_workload.raw_orders\", \"target_name\": \"reference\"} */\ncreate external \u2026",
+      "StatementType": "DDL",
+      "ResultConfiguration": {
+        "OutputLocation": "s3://anon-eac8cdf74ff4/athena-results/fcf9ce97-1d17-4967-951f-480b7fa6ec3b.txt",
+        "EncryptionConfiguration": {
+          "EncryptionOption": "SSE_S3"
+        }
+      },
+      "ResultReuseConfiguration": {
+        "ResultReuseByAgeConfiguration": {
+          "Enabled": false
+        }
+      },
+      "QueryExecutionContext": {
+        "Database": "reference_workload",
+        "Catalog": "awsdatacatalog"
+      },
+      "Status": {
+        "State": "SUCCEEDED",
+        "SubmissionDateTime": "2026-11-01T21:19:05.951Z",
+        "CompletionDateTime": "2026-11-01T21:19:06.359Z"
+      },
+      "Statistics": {
+        "EngineExecutionTimeInMillis": 320,
+        "DataScannedInBytes": 0,
+        "TotalExecutionTimeInMillis": 408,
+        "QueryQueueTimeInMillis": 44,
+        "ServicePreProcessingTimeInMillis": 21,
+        "ServiceProcessingTimeInMillis": 23,
+        "ResultReuseInformation": {
+          "ReusedPreviousResult": false
+        }
+      },
+      "WorkGroup": "data-finops-reference",
+      "EngineVersion": {
+        "SelectedEngineVersion": "AUTO",
+        "EffectiveEngineVersion": "Athena engine version 3"
+      },
+      "SubstatementType": "CREATE_TABLE"
+    },
+    {
+      "QueryExecutionId": "720cd640-5a79-4159-a1d1-dd216ee31102",
+      "Query": "-- /* {\"app\": \"dbt\", \"dbt_version\": \"1.12.6\", \"invocation_id\": \"ba26dcbd-17ed-4270-82ad-8d8dd8075b81\", \"node_id\": \"seed.reference_workload.raw_orders\", \"target_name\": \"reference\"} */\ncreate table \u2026",
+      "StatementType": "DDL",
+      "ResultConfiguration": {
+        "OutputLocation": "s3://anon-eac8cdf74ff4/athena-results/tables/720cd640-5a79-4159-a1d1-dd216ee31102",
+        "EncryptionConfiguration": {
+          "EncryptionOption": "SSE_S3"
+        }
+      },
+      "ResultReuseConfiguration": {
+        "ResultReuseByAgeConfiguration": {
+          "Enabled": false
+        }
+      },
+      "QueryExecutionContext": {
+        "Database": "reference_workload",
+        "Catalog": "awsdatacatalog"
+      },
+      "Status": {
+        "State": "SUCCEEDED",
+        "SubmissionDateTime": "2026-11-01T21:19:07.700Z",
+        "CompletionDateTime": "2026-11-01T21:19:08.635Z"
+      },
+      "Statistics": {
+        "EngineExecutionTimeInMillis": 820,
+        "DataScannedInBytes": 394,
+        "DataManifestLocation": "s3://anon-eac8cdf74ff4/athena-results/tables/720cd640-5a79-4159-a1d1-dd216ee31102-manifest.csv",
+        "TotalExecutionTimeInMillis": 935,
+        "QueryQueueTimeInMillis": 53,
+        "ServicePreProcessingTimeInMillis": 43,
+        "QueryPlanningTimeInMillis": 232,
+        "ServiceProcessingTimeInMillis": 19,
+        "ResultReuseInformation": {
+          "ReusedPreviousResult": false
+        }
+      },
+      "WorkGroup": "data-finops-reference",
+      "EngineVersion": {
+        "SelectedEngineVersion": "AUTO",
+        "EffectiveEngineVersion": "Athena engine version 3"
+      },
+      "SubstatementType": "CREATE_TABLE_AS_SELECT"
+    },
+    {
+      "QueryExecutionId": "a51bd4ba-2ed4-49c2-8c3e-7488525f9551",
+      "Query": "-- /* {\"app\": \"dbt\", \"dbt_version\": \"1.12.6\", \"invocation_id\": \"d54e1d8c-43cb-42f4-a6ab-a055ab074a79\", \"node_id\": \"model.reference_workload.stg_customers\", \"target_name\": \"reference\"} */\ncreate or \u2026",
+      "StatementType": "DDL",
+      "ResultConfiguration": {
+        "OutputLocation": "s3://anon-eac8cdf74ff4/athena-results/a51bd4ba-2ed4-49c2-8c3e-7488525f9551.txt",
+        "EncryptionConfiguration": {
+          "EncryptionOption": "SSE_S3"
+        }
+      },
+      "ResultReuseConfiguration": {
+        "ResultReuseByAgeConfiguration": {
+          "Enabled": false
+        }
+      },
+      "QueryExecutionContext": {
+        "Database": "reference_workload",
+        "Catalog": "awsdatacatalog"
+      },
+      "Status": {
+        "State": "SUCCEEDED",
+        "SubmissionDateTime": "2026-11-01T21:19:16.096Z",
+        "CompletionDateTime": "2026-11-01T21:19:16.559Z"
+      },
+      "Statistics": {
+        "EngineExecutionTimeInMillis": 351,
+        "DataScannedInBytes": 0,
+        "TotalExecutionTimeInMillis": 463,
+        "QueryQueueTimeInMillis": 75,
+        "ServicePreProcessingTimeInMillis": 15,
+        "ServiceProcessingTimeInMillis": 22,
+        "ResultReuseInformation": {
+          "ReusedPreviousResult": false
+        }
+      },
+      "WorkGroup": "data-finops-reference",
+      "EngineVersion": {
+        "SelectedEngineVersion": "AUTO",
+        "EffectiveEngineVersion": "Athena engine version 3"
+      },
+      "SubstatementType": "CREATE_VIEW"
+    },
+    {
+      "QueryExecutionId": "0884c64b-cc26-4fd6-9c93-9d7439c3fdb0",
+      "Query": "-- /* {\"app\": \"dbt\", \"dbt_version\": \"1.12.6\", \"invocation_id\": \"d54e1d8c-43cb-42f4-a6ab-a055ab074a79\", \"node_id\": \"model.reference_workload.stg_orders\", \"target_name\": \"reference\"} */\ncreate or \u2026",
+      "StatementType": "DDL",
+      "ResultConfiguration": {
+        "OutputLocation": "s3://anon-eac8cdf74ff4/athena-results/0884c64b-cc26-4fd6-9c93-9d7439c3fdb0.txt",
+        "EncryptionConfiguration": {
+          "EncryptionOption": "SSE_S3"
+        }
+      },
+      "ResultReuseConfiguration": {
+        "ResultReuseByAgeConfiguration": {
+          "Enabled": false
+        }
+      },
+      "QueryExecutionContext": {
+        "Database": "reference_workload",
+        "Catalog": "awsdatacatalog"
+      },
+      "Status": {
+        "State": "SUCCEEDED",
+        "SubmissionDateTime": "2026-11-01T21:19:18.228Z",
+        "CompletionDateTime": "2026-11-01T21:19:18.687Z"
+      },
+      "Statistics": {
+        "EngineExecutionTimeInMillis": 382,
+        "DataScannedInBytes": 0,
+        "TotalExecutionTimeInMillis": 459,
+        "QueryQueueTimeInMillis": 41,
+        "ServicePreProcessingTimeInMillis": 18,
+        "ServiceProcessingTimeInMillis": 18,
+        "ResultReuseInformation": {
+          "ReusedPreviousResult": false
+        }
+      },
+      "WorkGroup": "data-finops-reference",
+      "EngineVersion": {
+        "SelectedEngineVersion": "AUTO",
+        "EffectiveEngineVersion": "Athena engine version 3"
+      },
+      "SubstatementType": "CREATE_VIEW"
+    },
+    {
+      "QueryExecutionId": "24f940d7-cffe-4a77-bcbf-b8f221bfc62e",
+      "Query": "-- /* {\"app\": \"dbt\", \"dbt_version\": \"1.12.6\", \"invocation_id\": \"d54e1d8c-43cb-42f4-a6ab-a055ab074a79\", \"node_id\": \"model.reference_workload.daily_orders\", \"target_name\": \"reference\"} */\ncreate table \u2026",
+      "StatementType": "DDL",
+      "ResultConfiguration": {
+        "OutputLocation": "s3://anon-eac8cdf74ff4/athena-results/tables/24f940d7-cffe-4a77-bcbf-b8f221bfc62e",
+        "EncryptionConfiguration": {
+          "EncryptionOption": "SSE_S3"
+        }
+      },
+      "ResultReuseConfiguration": {
+        "ResultReuseByAgeConfiguration": {
+          "Enabled": false
+        }
+      },
+      "QueryExecutionContext": {
+        "Database": "reference_workload",
+        "Catalog": "awsdatacatalog"
+      },
+      "Status": {
+        "State": "SUCCEEDED",
+        "SubmissionDateTime": "2026-11-01T21:19:20.914Z",
+        "CompletionDateTime": "2026-11-01T21:19:21.962Z"
+      },
+      "Statistics": {
+        "EngineExecutionTimeInMillis": 877,
+        "DataScannedInBytes": 189,
+        "DataManifestLocation": "s3://anon-eac8cdf74ff4/athena-results/tables/24f940d7-cffe-4a77-bcbf-b8f221bfc62e-manifest.csv",
+        "TotalExecutionTimeInMillis": 1048,
+        "QueryQueueTimeInMillis": 82,
+        "ServicePreProcessingTimeInMillis": 67,
+        "QueryPlanningTimeInMillis": 145,
+        "ServiceProcessingTimeInMillis": 22,
+        "ResultReuseInformation": {
+          "ReusedPreviousResult": false
+        }
+      },
+      "WorkGroup": "data-finops-reference",
+      "EngineVersion": {
+        "SelectedEngineVersion": "AUTO",
+        "EffectiveEngineVersion": "Athena engine version 3"
+      },
+      "SubstatementType": "CREATE_TABLE_AS_SELECT"
+    },
+    {
+      "QueryExecutionId": "f5ff1c5b-68de-4d06-8620-7951973e5810",
+      "Query": "-- /* {\"app\": \"dbt\", \"dbt_version\": \"1.12.6\", \"invocation_id\": \"d54e1d8c-43cb-42f4-a6ab-a055ab074a79\", \"node_id\": \"model.reference_workload.daily_orders\", \"target_name\": \"reference\"} */\nselect \u2026",
+      "StatementType": "DML",
+      "ResultConfiguration": {
+        "OutputLocation": "s3://anon-eac8cdf74ff4/athena-results/f5ff1c5b-68de-4d06-8620-7951973e5810.csv",
+        "EncryptionConfiguration": {
+          "EncryptionOption": "SSE_S3"
+        }
+      },
+      "ResultReuseConfiguration": {
+        "ResultReuseByAgeConfiguration": {
+          "Enabled": false
+        }
+      },
+      "QueryExecutionContext": {
+        "Database": "reference_workload",
+        "Catalog": "awsdatacatalog"
+      },
+      "Status": {
+        "State": "SUCCEEDED",
+        "SubmissionDateTime": "2026-11-01T21:19:22.361Z",
+        "CompletionDateTime": "2026-11-01T21:19:22.631Z"
+      },
+      "Statistics": {
+        "EngineExecutionTimeInMillis": 184,
+        "DataScannedInBytes": 0,
+        "TotalExecutionTimeInMillis": 270,
+        "QueryQueueTimeInMillis": 46,
+        "ServicePreProcessingTimeInMillis": 19,
+        "ServiceProcessingTimeInMillis": 21,
+        "ResultReuseInformation": {
+          "ReusedPreviousResult": false
+        }
+      },
+      "WorkGroup": "data-finops-reference",
+      "EngineVersion": {
+        "SelectedEngineVersion": "AUTO",
+        "EffectiveEngineVersion": "Athena engine version 3"
+      },
+      "SubstatementType": "SELECT"
+    },
+    {
+      "QueryExecutionId": "be3f6437-6c57-41ed-97dc-03651c0dafd4",
+      "Query": "alter table \u2026",
+      "StatementType": "DDL",
+      "ResultConfiguration": {
+        "OutputLocation": "s3://anon-eac8cdf74ff4/athena-results/be3f6437-6c57-41ed-97dc-03651c0dafd4.txt",
+        "EncryptionConfiguration": {
+          "EncryptionOption": "SSE_S3"
+        }
+      },
+      "ResultReuseConfiguration": {
+        "ResultReuseByAgeConfiguration": {
+          "Enabled": false
+        }
+      },
+      "QueryExecutionContext": {
+        "Database": "reference_workload",
+        "Catalog": "awsdatacatalog"
+      },
+      "Status": {
+        "State": "SUCCEEDED",
+        "SubmissionDateTime": "2026-11-01T21:19:23.667Z",
+        "CompletionDateTime": "2026-11-01T21:19:24.230Z"
+      },
+      "Statistics": {
+        "EngineExecutionTimeInMillis": 407,
+        "DataScannedInBytes": 0,
+        "TotalExecutionTimeInMillis": 563,
+        "QueryQueueTimeInMillis": 111,
+        "ServicePreProcessingTimeInMillis": 18,
+        "ServiceProcessingTimeInMillis": 27,
+        "ResultReuseInformation": {
+          "ReusedPreviousResult": false
+        }
+      },
+      "WorkGroup": "data-finops-reference",
+      "EngineVersion": {
+        "SelectedEngineVersion": "AUTO",
+        "EffectiveEngineVersion": "Athena engine version 3"
+      },
+      "SubstatementType": "ALTER_TABLE_PROPERTIES"
+    },
+    {
+      "QueryExecutionId": "c29ff930-4d2d-477d-804f-b256d477c2a5",
+      "Query": "-- /* {\"app\": \"dbt\", \"dbt_version\": \"1.12.6\", \"invocation_id\": \"d54e1d8c-43cb-42f4-a6ab-a055ab074a79\", \"node_id\": \"model.reference_workload.revenue_by_region\", \"target_name\": \"reference\"} */\ncreate table \u2026",
+      "StatementType": "DDL",
+      "ResultConfiguration": {
+        "OutputLocation": "s3://anon-eac8cdf74ff4/athena-results/tables/c29ff930-4d2d-477d-804f-b256d477c2a5",
+        "EncryptionConfiguration": {
+          "EncryptionOption": "SSE_S3"
+        }
+      },
+      "ResultReuseConfiguration": {
+        "ResultReuseByAgeConfiguration": {
+          "Enabled": false
+        }
+      },
+      "QueryExecutionContext": {
+        "Database": "reference_workload",
+        "Catalog": "awsdatacatalog"
+      },
+      "Status": {
+        "State": "SUCCEEDED",
+        "SubmissionDateTime": "2026-11-01T21:19:26.481Z",
+        "CompletionDateTime": "2026-11-01T21:19:27.963Z"
+      },
+      "Statistics": {
+        "EngineExecutionTimeInMillis": 1356,
+        "DataScannedInBytes": 397,
+        "DataManifestLocation": "s3://anon-eac8cdf74ff4/athena-results/tables/c29ff930-4d2d-477d-804f-b256d477c2a5-manifest.csv",
+        "TotalExecutionTimeInMillis": 1482,
+        "QueryQueueTimeInMillis": 55,
+        "ServicePreProcessingTimeInMillis": 47,
+        "QueryPlanningTimeInMillis": 394,
+        "ServiceProcessingTimeInMillis": 24,
+        "ResultReuseInformation": {
+          "ReusedPreviousResult": false
+        }
+      },
+      "WorkGroup": "data-finops-reference",
+      "EngineVersion": {
+        "SelectedEngineVersion": "AUTO",
+        "EffectiveEngineVersion": "Athena engine version 3"
+      },
+      "SubstatementType": "CREATE_TABLE_AS_SELECT"
+    },
+    {
+      "QueryExecutionId": "f8adaf07-905e-418b-8ef9-cae04838db62",
+      "Query": "alter table \u2026",
+      "StatementType": "DDL",
+      "ResultConfiguration": {
+        "OutputLocation": "s3://anon-eac8cdf74ff4/athena-results/f8adaf07-905e-418b-8ef9-cae04838db62.txt",
+        "EncryptionConfiguration": {
+          "EncryptionOption": "SSE_S3"
+        }
+      },
+      "ResultReuseConfiguration": {
+        "ResultReuseByAgeConfiguration": {
+          "Enabled": false
+        }
+      },
+      "QueryExecutionContext": {
+        "Database": "reference_workload",
+        "Catalog": "awsdatacatalog"
+      },
+      "Status": {
+        "State": "SUCCEEDED",
+        "SubmissionDateTime": "2026-11-01T21:19:28.976Z",
+        "CompletionDateTime": "2026-11-01T21:19:29.471Z"
+      },
+      "Statistics": {
+        "EngineExecutionTimeInMillis": 315,
+        "DataScannedInBytes": 0,
+        "TotalExecutionTimeInMillis": 495,
+        "QueryQueueTimeInMillis": 143,
+        "ServicePreProcessingTimeInMillis": 17,
+        "ServiceProcessingTimeInMillis": 20,
+        "ResultReuseInformation": {
+          "ReusedPreviousResult": false
+        }
+      },
+      "WorkGroup": "data-finops-reference",
+      "EngineVersion": {
+        "SelectedEngineVersion": "AUTO",
+        "EffectiveEngineVersion": "Athena engine version 3"
+      },
+      "SubstatementType": "ALTER_TABLE_PROPERTIES"
+    },
+    {
+      "QueryExecutionId": "50911330-ea73-46a9-ab12-10a29bbcfb32",
+      "Query": "-- /* {\"app\": \"dbt\", \"dbt_version\": \"1.12.6\", \"invocation_id\": \"d54e1d8c-43cb-42f4-a6ab-a055ab074a79\", \"node_id\": \"model.reference_workload.revenue_by_region\", \"target_name\": \"reference\"} */\nselect \u2026",
+      "StatementType": "DML",
+      "ResultConfiguration": {
+        "OutputLocation": "s3://anon-eac8cdf74ff4/athena-results/50911330-ea73-46a9-ab12-10a29bbcfb32.csv",
+        "EncryptionConfiguration": {
+          "EncryptionOption": "SSE_S3"
+        }
+      },
+      "ResultReuseConfiguration": {
+        "ResultReuseByAgeConfiguration": {
+          "Enabled": false
+        }
+      },
+      "QueryExecutionContext": {
+        "Database": "reference_workload",
+        "Catalog": "awsdatacatalog"
+      },
+      "Status": {
+        "State": "SUCCEEDED",
+        "SubmissionDateTime": "2026-11-01T21:19:30.443Z",
+        "CompletionDateTime": "2026-11-01T21:19:30.704Z"
+      },
+      "Statistics": {
+        "EngineExecutionTimeInMillis": 179,
+        "DataScannedInBytes": 0,
+        "TotalExecutionTimeInMillis": 261,
+        "QueryQueueTimeInMillis": 42,
+        "ServicePreProcessingTimeInMillis": 16,
+        "ServiceProcessingTimeInMillis": 24,
+        "ResultReuseInformation": {
+          "ReusedPreviousResult": false
+        }
+      },
+      "WorkGroup": "data-finops-reference",
+      "EngineVersion": {
+        "SelectedEngineVersion": "AUTO",
+        "EffectiveEngineVersion": "Athena engine version 3"
+      },
+      "SubstatementType": "SELECT"
+    },
+    {
+      "QueryExecutionId": "a421a0fe-759f-4683-b70a-0f7ae28b118e",
+      "Query": "-- /* {\"app\": \"dbt\", \"dbt_version\": \"1.12.6\", \"invocation_id\": \"0d9fc611-0f9f-43ea-81bb-ba7bc63be72f\", \"node_id\": \"model.reference_workload.stg_customers\", \"target_name\": \"reference\"} */\ncreate or \u2026",
+      "StatementType": "DDL",
+      "ResultConfiguration": {
+        "OutputLocation": "s3://anon-eac8cdf74ff4/athena-results/a421a0fe-759f-4683-b70a-0f7ae28b118e.txt",
+        "EncryptionConfiguration": {
+          "EncryptionOption": "SSE_S3"
+        }
+      },
+      "ResultReuseConfiguration": {
+        "ResultReuseByAgeConfiguration": {
+          "Enabled": false
+        }
+      },
+      "QueryExecutionContext": {
+        "Database": "reference_workload",
+        "Catalog": "awsdatacatalog"
+      },
+      "Status": {
+        "State": "SUCCEEDED",
+        "SubmissionDateTime": "2026-11-01T21:19:36.830Z",
+        "CompletionDateTime": "2026-11-01T21:19:37.280Z"
+      },
+      "Statistics": {
+        "EngineExecutionTimeInMillis": 369,
+        "DataScannedInBytes": 0,
+        "TotalExecutionTimeInMillis": 450,
+        "QueryQueueTimeInMillis": 41,
+        "ServicePreProcessingTimeInMillis": 16,
+        "ServiceProcessingTimeInMillis": 24,
+        "ResultReuseInformation": {
+          "ReusedPreviousResult": false
+        }
+      },
+      "WorkGroup": "data-finops-reference",
+      "EngineVersion": {
+        "SelectedEngineVersion": "AUTO",
+        "EffectiveEngineVersion": "Athena engine version 3"
+      },
+      "SubstatementType": "CREATE_VIEW"
+    },
+    {
+      "QueryExecutionId": "1026c9af-3147-410f-8558-508befaa0a32",
+      "Query": "-- /* {\"app\": \"dbt\", \"dbt_version\": \"1.12.6\", \"invocation_id\": \"0d9fc611-0f9f-43ea-81bb-ba7bc63be72f\", \"node_id\": \"model.reference_workload.stg_orders\", \"target_name\": \"reference\"} */\ncreate or \u2026",
+      "StatementType": "DDL",
+      "ResultConfiguration": {
+        "OutputLocation": "s3://anon-eac8cdf74ff4/athena-results/1026c9af-3147-410f-8558-508befaa0a32.txt",
+        "EncryptionConfiguration": {
+          "EncryptionOption": "SSE_S3"
+        }
+      },
+      "ResultReuseConfiguration": {
+        "ResultReuseByAgeConfiguration": {
+          "Enabled": false
+        }
+      },
+      "QueryExecutionContext": {
+        "Database": "reference_workload",
+        "Catalog": "awsdatacatalog"
+      },
+      "Status": {
+        "State": "SUCCEEDED",
+        "SubmissionDateTime": "2026-11-01T21:19:38.967Z",
+        "CompletionDateTime": "2026-11-01T21:19:39.481Z"
+      },
+      "Statistics": {
+        "EngineExecutionTimeInMillis": 403,
+        "DataScannedInBytes": 0,
+        "TotalExecutionTimeInMillis": 514,
+        "QueryQueueTimeInMillis": 72,
+        "ServicePreProcessingTimeInMillis": 17,
+        "ServiceProcessingTimeInMillis": 22,
+        "ResultReuseInformation": {
+          "ReusedPreviousResult": false
+        }
+      },
+      "WorkGroup": "data-finops-reference",
+      "EngineVersion": {
+        "SelectedEngineVersion": "AUTO",
+        "EffectiveEngineVersion": "Athena engine version 3"
+      },
+      "SubstatementType": "CREATE_VIEW"
+    },
+    {
+      "QueryExecutionId": "8d5991d6-0ebc-4738-8cd1-fd9da519b882",
+      "Query": "-- /* {\"app\": \"dbt\", \"dbt_version\": \"1.12.6\", \"invocation_id\": \"0d9fc611-0f9f-43ea-81bb-ba7bc63be72f\", \"node_id\": \"model.reference_workload.daily_orders\", \"target_name\": \"reference\"} */\ncreate table \u2026",
+      "StatementType": "DDL",
+      "ResultConfiguration": {
+        "OutputLocation": "s3://anon-eac8cdf74ff4/athena-results/tables/8d5991d6-0ebc-4738-8cd1-fd9da519b882",
+        "EncryptionConfiguration": {
+          "EncryptionOption": "SSE_S3"
+        }
+      },
+      "ResultReuseConfiguration": {
+        "ResultReuseByAgeConfiguration": {
+          "Enabled": false
+        }
+      },
+      "QueryExecutionContext": {
+        "Database": "reference_workload",
+        "Catalog": "awsdatacatalog"
+      },
+      "Status": {
+        "State": "SUCCEEDED",
+        "SubmissionDateTime": "2026-11-01T21:19:41.581Z",
+        "CompletionDateTime": "2026-11-01T21:19:42.965Z"
+      },
+      "Statistics": {
+        "EngineExecutionTimeInMillis": 1228,
+        "DataScannedInBytes": 60,
+        "DataManifestLocation": "s3://anon-eac8cdf74ff4/athena-results/tables/8d5991d6-0ebc-4738-8cd1-fd9da519b882-manifest.csv",
+        "TotalExecutionTimeInMillis": 1384,
+        "QueryQueueTimeInMillis": 48,
+        "ServicePreProcessingTimeInMillis": 77,
+        "QueryPlanningTimeInMillis": 425,
+        "ServiceProcessingTimeInMillis": 31,
+        "ResultReuseInformation": {
+          "ReusedPreviousResult": false
+        }
+      },
+      "WorkGroup": "data-finops-reference",
+      "EngineVersion": {
+        "SelectedEngineVersion": "AUTO",
+        "EffectiveEngineVersion": "Athena engine version 3"
+      },
+      "SubstatementType": "CREATE_TABLE_AS_SELECT"
+    },
+    {
+      "QueryExecutionId": "d52df739-2781-48b5-95d8-13ecf6bf0723",
+      "Query": "-- /* {\"app\": \"dbt\", \"dbt_version\": \"1.12.6\", \"invocation_id\": \"0d9fc611-0f9f-43ea-81bb-ba7bc63be72f\", \"node_id\": \"model.reference_workload.daily_orders\", \"target_name\": \"reference\"} */\ninsert into \u2026",
+      "StatementType": "DML",
+      "ResultConfiguration": {
+        "OutputLocation": "s3://anon-eac8cdf74ff4/athena-results/d52df739-2781-48b5-95d8-13ecf6bf0723",
+        "EncryptionConfiguration": {
+          "EncryptionOption": "SSE_S3"
+        }
+      },
+      "ResultReuseConfiguration": {
+        "ResultReuseByAgeConfiguration": {
+          "Enabled": false
+        }
+      },
+      "QueryExecutionContext": {
+        "Database": "reference_workload",
+        "Catalog": "awsdatacatalog"
+      },
+      "Status": {
+        "State": "SUCCEEDED",
+        "SubmissionDateTime": "2026-11-01T21:19:44.477Z",
+        "CompletionDateTime": "2026-11-01T21:19:45.358Z"
+      },
+      "Statistics": {
+        "EngineExecutionTimeInMillis": 674,
+        "DataScannedInBytes": 0,
+        "DataManifestLocation": "s3://anon-eac8cdf74ff4/athena-results/d52df739-2781-48b5-95d8-13ecf6bf0723-manifest.csv",
+        "TotalExecutionTimeInMillis": 881,
+        "QueryQueueTimeInMillis": 67,
+        "ServicePreProcessingTimeInMillis": 122,
+        "QueryPlanningTimeInMillis": 92,
+        "ServiceProcessingTimeInMillis": 18,
+        "ResultReuseInformation": {
+          "ReusedPreviousResult": false
+        }
+      },
+      "WorkGroup": "data-finops-reference",
+      "EngineVersion": {
+        "SelectedEngineVersion": "AUTO",
+        "EffectiveEngineVersion": "Athena engine version 3"
+      },
+      "SubstatementType": "INSERT"
+    },
+    {
+      "QueryExecutionId": "c1c0f14f-24ad-45c6-9c34-1ccc0dc52c73",
+      "Query": "-- /* {\"app\": \"dbt\", \"dbt_version\": \"1.12.6\", \"invocation_id\": \"0d9fc611-0f9f-43ea-81bb-ba7bc63be72f\", \"node_id\": \"model.reference_workload.daily_orders\", \"target_name\": \"reference\"} */\nselect \u2026",
+      "StatementType": "DML",
+      "ResultConfiguration": {
+        "OutputLocation": "s3://anon-eac8cdf74ff4/athena-results/c1c0f14f-24ad-45c6-9c34-1ccc0dc52c73.csv",
+        "EncryptionConfiguration": {
+          "EncryptionOption": "SSE_S3"
+        }
+      },
+      "ResultReuseConfiguration": {
+        "ResultReuseByAgeConfiguration": {
+          "Enabled": false
+        }
+      },
+      "QueryExecutionContext": {
+        "Database": "reference_workload",
+        "Catalog": "awsdatacatalog"
+      },
+      "Status": {
+        "State": "SUCCEEDED",
+        "SubmissionDateTime": "2026-11-01T21:19:45.910Z",
+        "CompletionDateTime": "2026-11-01T21:19:46.212Z"
+      },
+      "Statistics": {
+        "EngineExecutionTimeInMillis": 183,
+        "DataScannedInBytes": 0,
+        "TotalExecutionTimeInMillis": 302,
+        "QueryQueueTimeInMillis": 77,
+        "ServicePreProcessingTimeInMillis": 19,
+        "ServiceProcessingTimeInMillis": 23,
+        "ResultReuseInformation": {
+          "ReusedPreviousResult": false
+        }
+      },
+      "WorkGroup": "data-finops-reference",
+      "EngineVersion": {
+        "SelectedEngineVersion": "AUTO",
+        "EffectiveEngineVersion": "Athena engine version 3"
+      },
+      "SubstatementType": "SELECT"
+    },
+    {
+      "QueryExecutionId": "fc586ab0-5e3d-4654-af8a-1055782b6362",
+      "Query": "-- /* {\"app\": \"dbt\", \"dbt_version\": \"1.12.6\", \"invocation_id\": \"0d9fc611-0f9f-43ea-81bb-ba7bc63be72f\", \"node_id\": \"model.reference_workload.revenue_by_region\", \"target_name\": \"reference\"} */\ncreate table \u2026",
+      "StatementType": "DDL",
+      "ResultConfiguration": {
+        "OutputLocation": "s3://anon-eac8cdf74ff4/athena-results/tables/fc586ab0-5e3d-4654-af8a-1055782b6362",
+        "EncryptionConfiguration": {
+          "EncryptionOption": "SSE_S3"
+        }
+      },
+      "ResultReuseConfiguration": {
+        "ResultReuseByAgeConfiguration": {
+          "Enabled": false
+        }
+      },
+      "QueryExecutionContext": {
+        "Database": "reference_workload",
+        "Catalog": "awsdatacatalog"
+      },
+      "Status": {
+        "State": "SUCCEEDED",
+        "SubmissionDateTime": "2026-11-01T21:19:51.188Z",
+        "CompletionDateTime": "2026-11-01T21:19:52.517Z"
+      },
+      "Statistics": {
+        "EngineExecutionTimeInMillis": 1186,
+        "DataScannedInBytes": 397,
+        "DataManifestLocation": "s3://anon-eac8cdf74ff4/athena-results/tables/fc586ab0-5e3d-4654-af8a-1055782b6362-manifest.csv",
+        "TotalExecutionTimeInMillis": 1329,
+        "QueryQueueTimeInMillis": 58,
+        "ServicePreProcessingTimeInMillis": 58,
+        "QueryPlanningTimeInMillis": 373,
+        "ServiceProcessingTimeInMillis": 27,
+        "ResultReuseInformation": {
+          "ReusedPreviousResult": false
+        }
+      },
+      "WorkGroup": "data-finops-reference",
+      "EngineVersion": {
+        "SelectedEngineVersion": "AUTO",
+        "EffectiveEngineVersion": "Athena engine version 3"
+      },
+      "SubstatementType": "CREATE_TABLE_AS_SELECT"
+    },
+    {
+      "QueryExecutionId": "8a32b676-d0db-4b4d-b19d-d19857a55c6b",
+      "Query": "alter table \u2026",
+      "StatementType": "DDL",
+      "ResultConfiguration": {
+        "OutputLocation": "s3://anon-eac8cdf74ff4/athena-results/8a32b676-d0db-4b4d-b19d-d19857a55c6b.txt",
+        "EncryptionConfiguration": {
+          "EncryptionOption": "SSE_S3"
+        }
+      },
+      "ResultReuseConfiguration": {
+        "ResultReuseByAgeConfiguration": {
+          "Enabled": false
+        }
+      },
+      "QueryExecutionContext": {
+        "Database": "reference_workload",
+        "Catalog": "awsdatacatalog"
+      },
+      "Status": {
+        "State": "SUCCEEDED",
+        "SubmissionDateTime": "2026-11-01T21:19:53.844Z",
+        "CompletionDateTime": "2026-11-01T21:19:54.391Z"
+      },
+      "Statistics": {
+        "EngineExecutionTimeInMillis": 254,
+        "DataScannedInBytes": 0,
+        "TotalExecutionTimeInMillis": 547,
+        "QueryQueueTimeInMillis": 250,
+        "ServicePreProcessingTimeInMillis": 19,
+        "ServiceProcessingTimeInMillis": 24,
+        "ResultReuseInformation": {
+          "ReusedPreviousResult": false
+        }
+      },
+      "WorkGroup": "data-finops-reference",
+      "EngineVersion": {
+        "SelectedEngineVersion": "AUTO",
+        "EffectiveEngineVersion": "Athena engine version 3"
+      },
+      "SubstatementType": "ALTER_TABLE_PROPERTIES"
+    },
+    {
+      "QueryExecutionId": "e926fbd9-a115-4262-bb26-a9dff3996e39",
+      "Query": "-- /* {\"app\": \"dbt\", \"dbt_version\": \"1.12.6\", \"invocation_id\": \"0d9fc611-0f9f-43ea-81bb-ba7bc63be72f\", \"node_id\": \"model.reference_workload.revenue_by_region\", \"target_name\": \"reference\"} */\nselect \u2026",
+      "StatementType": "DML",
+      "ResultConfiguration": {
+        "OutputLocation": "s3://anon-eac8cdf74ff4/athena-results/e926fbd9-a115-4262-bb26-a9dff3996e39.csv",
+        "EncryptionConfiguration": {
+          "EncryptionOption": "SSE_S3"
+        }
+      },
+      "ResultReuseConfiguration": {
+        "ResultReuseByAgeConfiguration": {
+          "Enabled": false
+        }
+      },
+      "QueryExecutionContext": {
+        "Database": "reference_workload",
+        "Catalog": "awsdatacatalog"
+      },
+      "Status": {
+        "State": "SUCCEEDED",
+        "SubmissionDateTime": "2026-11-01T21:19:55.284Z",
+        "CompletionDateTime": "2026-11-01T21:19:55.583Z"
+      },
+      "Statistics": {
+        "EngineExecutionTimeInMillis": 218,
+        "DataScannedInBytes": 0,
+        "TotalExecutionTimeInMillis": 299,
+        "QueryQueueTimeInMillis": 41,
+        "ServicePreProcessingTimeInMillis": 17,
+        "ServiceProcessingTimeInMillis": 23,
+        "ResultReuseInformation": {
+          "ReusedPreviousResult": false
+        }
+      },
+      "WorkGroup": "data-finops-reference",
+      "EngineVersion": {
+        "SelectedEngineVersion": "AUTO",
+        "EffectiveEngineVersion": "Athena engine version 3"
+      },
+      "SubstatementType": "SELECT"
+    }
+  ]
+}

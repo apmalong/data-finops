@@ -80,6 +80,13 @@
 - `fixtures/focus/export-2026-10.json`
 - `fixtures/golden/scenarios.json`
 - `fixtures/openlineage/events.json`
+- `fixtures/reference-workload/README.md`
+- `fixtures/reference-workload/athena/query-executions.json`
+- `fixtures/reference-workload/dbt/1-seed/run_results.json`
+- `fixtures/reference-workload/dbt/2-run/run_results.json`
+- `fixtures/reference-workload/dbt/3-run/manifest.json`
+- `fixtures/reference-workload/dbt/3-run/run_results.json`
+- `fixtures/reference-workload/openlineage/dbt-events.jsonl`
 - `pyproject.toml`
 - `schemas/allocation.schema.json`
 - `schemas/billing-line.schema.json`
@@ -111,6 +118,7 @@
 - `src/data_finops/schemas.py`
 - `tests/contract/test_fixtures.py`
 - `tests/contract/test_golden_fixture.py`
+- `tests/contract/test_reference_workload_sample.py`
 - `tests/contract/test_schemas_up_to_date.py`
 - `tests/integration/test_anonymize_focus_export.py`
 - `tests/integration/test_anonymize_workload_outputs.py`

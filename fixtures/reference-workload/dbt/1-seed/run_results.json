@@ -1,0 +1,135 @@
+{
+  "metadata": {
+    "dbt_schema_version": "https://schemas.getdbt.com/dbt/run-results/v6.json",
+    "dbt_version": "1.12.6",
+    "generated_at": "2026-11-01T21:19:09.923000Z",
+    "invocation_id": "ba26dcbd-17ed-4270-82ad-8d8dd8075b81",
+    "invocation_started_at": "2026-11-01T21:18:53.031631Z",
+    "env": {}
+  },
+  "results": [
+    {
+      "status": "success",
+      "timing": [
+        {
+          "name": "compile",
+          "started_at": "2026-11-01T21:18:55.702426Z",
+          "completed_at": "2026-11-01T21:18:55.702432Z"
+        },
+        {
+          "name": "execute",
+          "started_at": "2026-11-01T21:18:55.703341Z",
+          "completed_at": "2026-11-01T21:19:03.219675Z"
+        }
+      ],
+      "thread_id": "Thread-1 (worker)",
+      "execution_time": 7.521211862564087,
+      "adapter_response": {
+        "_message": "INSERT 5",
+        "code": "INSERT",
+        "rows_affected": 5
+      },
+      "message": "INSERT 5",
+      "failures": null,
+      "unique_id": "seed.reference_workload.raw_customers",
+      "compiled": null,
+      "compiled_code": null,
+      "relation_name": null,
+      "batch_results": null,
+      "overload_results": null
+    },
+    {
+      "status": "success",
+      "timing": [
+        {
+          "name": "compile",
+          "started_at": "2026-11-01T21:19:03.232935Z",
+          "completed_at": "2026-11-01T21:19:03.232946Z"
+        },
+        {
+          "name": "execute",
+          "started_at": "2026-11-01T21:19:03.234060Z",
+          "completed_at": "2026-11-01T21:19:09.909458Z"
+        }
+      ],
+      "thread_id": "Thread-1 (worker)",
+      "execution_time": 6.681198358535767,
+      "adapter_response": {
+        "_message": "INSERT 12",
+        "code": "INSERT",
+        "rows_affected": 12
+      },
+      "message": "INSERT 12",
+      "failures": null,
+      "unique_id": "seed.reference_workload.raw_orders",
+      "compiled": null,
+      "compiled_code": null,
+      "relation_name": null,
+      "batch_results": null,
+      "overload_results": null
+    }
+  ],
+  "elapsed_time": 15.390660285949707,
+  "args": {
+    "show": false,
+    "print": true,
+    "log_level_file": "debug",
+    "indirect_selection": "eager",
+    "state_modified_compare_more_unrendered_values": true,
+    "show_resource_report": false,
+    "require_generic_test_arguments_property": true,
+    "cache_selected_only": false,
+    "log_file_max_bytes": 10485760,
+    "upload_to_artifacts_ingest_api": false,
+    "require_corrected_analysis_fqns": false,
+    "hints_enabled": true,
+    "latest_version_pointer_enabled_by_default": false,
+    "maximum_seed_size_mib": 1,
+    "allow_jinja_file_extensions": false,
+    "send_anonymous_usage_stats": false,
+    "source_freshness_run_project_hooks": true,
+    "require_sql_header_in_test_configs": false,
+    "select": [],
+    "strict_mode": false,
+    "snowflake_projects_otel": false,
+    "show_all_deprecations": false,
+    "exclude": [],
+    "use_colors_file": true,
+    "partial_parse_file_diff": true,
+    "require_valid_schema_from_generate_schema_name": false,
+    "state_modified_compare_vars": false,
+    "populate_cache": true,
+    "introspect": true,
+    "macro_debugging": false,
+    "log_level": "info",
+    "printer_width": 80,
+    "require_source_and_semantic_model_names_without_spaces": false,
+    "use_v2_parser": false,
+    "log_format_file": "debug",
+    "require_nested_cumulative_type_params": true,
+    "use_catalogs_v2": false,
+    "enable_grouped_warn_error_parser_logs": false,
+    "defer": false,
+    "require_resource_names_without_spaces": true,
+    "log_format": "default",
+    "empty": false,
+    "require_all_warnings_handled_by_warn_error": true,
+    "validate_macro_args": true,
+    "require_explicit_package_overrides_for_builtin_materializations": true,
+    "version_check": true,
+    "favor_state": false,
+    "skip_nodes_if_on_run_start_fails": true,
+    "static_parser": true,
+    "support_custom_ref_kwargs": false,
+    "which": "seed",
+    "quiet": false,
+    "require_batched_execution_for_custom_microbatch_strategy": true,
+    "require_ref_searches_node_package_before_root": false,
+    "partial_parse": true,
+    "require_unique_project_resource_names": false,
+    "require_yaml_configuration_for_mf_time_spines": true,
+    "use_colors": true,
+    "write_json": true,
+    "use_fast_test_edges": false
+  }
+}

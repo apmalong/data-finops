@@ -9,3 +9,4 @@
 - Build future independent fixtures for duplicate replay, whole-snapshot restatement, retries, ambiguous joins, weighted interval allocation, refunds, currency separation, Coverage below and above one, sub-cent lines, and several queries per model.
 - Every scenario carries its own billing lines, so reconciliation is checked per line, and every allocation validates against the generated Allocation schema. The existing-fixture scenario is cross-checked against the FOCUS export.
 - At M4, tests MUST call the actual attribution engine and compare its output with these scenarios. Current bootstrap tests intentionally do not do so.
+- `fixtures/reference-workload/` is an anonymized real sample from the reference workload (#24, #32, #35), not an oracle: contract tests check the correlation it shows (comments to run results and manifest nodes, one model with several queries, the uncommented `alter table` statements of OQ-22). Provenance and anonymization are in its README.
