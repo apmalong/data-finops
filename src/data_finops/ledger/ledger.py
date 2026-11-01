@@ -10,6 +10,7 @@ import sqlite3
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 from pathlib import Path
 from types import TracebackType
@@ -24,13 +25,13 @@ from data_finops.contracts.billing import (
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS export_snapshot (
-    seq INTEGER PRIMARY KEY AUTOINCREMENT,
-    snapshot_id TEXT NOT NULL UNIQUE,
+    snapshot_id TEXT PRIMARY KEY,
     billing_account_id TEXT NOT NULL,
     billing_period_start TEXT NOT NULL,
     billing_period_end TEXT NOT NULL,
     source TEXT NOT NULL,
     content_digest TEXT NOT NULL,
+    published_at_us INTEGER NOT NULL,
     snapshot_json TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS billing_line (
@@ -42,13 +43,23 @@ CREATE TABLE IF NOT EXISTS billing_line (
 """
 
 
+_SELECT_STORED = "SELECT snapshot_id, content_digest, snapshot_json FROM export_snapshot"
+
+_EPOCH = datetime(1970, 1, 1, tzinfo=UTC)
+
+
 class SnapshotConflictError(Exception):
     """A snapshot ID is already stored with different billing content."""
 
 
 class ImportOutcome(StrEnum):
     NEW = "new"
+    """Stored, and now the current snapshot for its scope."""
+    SUPERSEDED = "superseded"
+    """Stored as history; a later publication is current for its scope."""
     REPLAY = "replay"
+    """Nothing stored: the content equals the scope's current snapshot, or this snapshot
+    ID is already stored with the same content (ADR 0020)."""
 
 
 @dataclass(frozen=True)
@@ -94,7 +105,8 @@ class Ledger:
         Replay means the same billing content as the scope's *current* snapshot, so
         content republished after a restatement is new (ADR 0019). A snapshot ID
         already stored with different content is rejected: stored snapshots are
-        immutable.
+        immutable. The current snapshot is the latest publication (`published_at`,
+        ties broken by snapshot ID), so the outcome never depends on import order.
         """
         snapshot = export.snapshot
         digest = _content_digest(export)
@@ -112,17 +124,18 @@ class Ledger:
                         f"snapshot {snapshot.snapshot_id} is already stored"
                         " with different billing content"
                     )
-                # The same publication is stored but no longer current; whether
-                # re-importing it should restore it is decided in #9.
+                # The same publication is already stored; it stays where its
+                # publication time puts it.
                 return ImportResult(outcome=ImportOutcome.REPLAY, snapshot_id=snapshot.snapshot_id)
             self._connection.execute(
                 "INSERT INTO export_snapshot (snapshot_id, billing_account_id,"
                 " billing_period_start, billing_period_end, source, content_digest,"
-                " snapshot_json) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                " published_at_us, snapshot_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     snapshot.snapshot_id,
                     *_scope_key(snapshot.scope),
                     digest,
+                    _microseconds(snapshot.published_at),
                     snapshot.model_dump_json(),
                 ),
             )
@@ -133,27 +146,40 @@ class Ledger:
                     for position, line in enumerate(export.lines)
                 ],
             )
-        return ImportResult(outcome=ImportOutcome.NEW, snapshot_id=snapshot.snapshot_id)
+            now_current = self._current(snapshot.scope)
+        outcome = (
+            ImportOutcome.NEW
+            if now_current is not None and now_current.snapshot_id == snapshot.snapshot_id
+            else ImportOutcome.SUPERSEDED
+        )
+        return ImportResult(outcome=outcome, snapshot_id=snapshot.snapshot_id)
 
     def current_snapshot(self, scope: SnapshotScope) -> FocusExport | None:
         current = self._current(scope)
-        if current is None:
-            return None
+        return None if current is None else self._load(current)
+
+    def snapshot(self, snapshot_id: str) -> FocusExport | None:
+        """Any stored Export Snapshot, current or superseded."""
+        row = self._connection.execute(
+            f"{_SELECT_STORED} WHERE snapshot_id = ?", (snapshot_id,)
+        ).fetchone()
+        return None if row is None else self._load(_StoredSnapshot(*row))
+
+    def _load(self, stored: _StoredSnapshot) -> FocusExport:
         lines = self._connection.execute(
             "SELECT line_json FROM billing_line WHERE snapshot_id = ? ORDER BY position",
-            (current.snapshot_id,),
+            (stored.snapshot_id,),
         ).fetchall()
         return FocusExport(
-            snapshot=ExportSnapshot.model_validate_json(current.snapshot_json),
+            snapshot=ExportSnapshot.model_validate_json(stored.snapshot_json),
             lines=[FocusBillingLine.model_validate_json(line_json) for (line_json,) in lines],
         )
 
     def _current(self, scope: SnapshotScope) -> _StoredSnapshot | None:
         row = self._connection.execute(
-            "SELECT snapshot_id, content_digest, snapshot_json FROM export_snapshot"
-            " WHERE billing_account_id = ? AND billing_period_start = ?"
+            f"{_SELECT_STORED} WHERE billing_account_id = ? AND billing_period_start = ?"
             " AND billing_period_end = ? AND source = ?"
-            " ORDER BY seq DESC LIMIT 1",
+            " ORDER BY published_at_us DESC, snapshot_id DESC LIMIT 1",
             _scope_key(scope),
         ).fetchone()
         return None if row is None else _StoredSnapshot(*row)
@@ -180,6 +206,11 @@ def _scope_key(scope: SnapshotScope) -> tuple[str, str, str, str]:
         s["billing_period_end"],
         s["source"],
     )
+
+
+def _microseconds(moment: datetime) -> int:
+    """UTC instant as an integer, so ordering never depends on timestamp formatting."""
+    return (moment - _EPOCH) // timedelta(microseconds=1)
 
 
 def _content_digest(export: FocusExport) -> str:

@@ -31,6 +31,7 @@
 - `docs/adr/0017-metered-share-requires-coverage.md`
 - `docs/adr/0018-sqlite-ledger-store-and-pyarrow-reader.md`
 - `docs/adr/0019-no-row-deduplication-within-export-snapshots.md`
+- `docs/adr/0020-current-snapshot-is-latest-publication.md`
 - `docs/adr/README.md`
 - `docs/agents/domain.md`
 - `docs/agents/issue-tracker.md`
@@ -78,6 +79,7 @@
 - `src/data_finops/dbt/artifacts.py`
 - `src/data_finops/identity/__init__.py`
 - `src/data_finops/ledger/__init__.py`
+- `src/data_finops/ledger/ledger.py`
 - `src/data_finops/lineage/__init__.py`
 - `src/data_finops/lineage/openlineage.py`
 - `src/data_finops/normalization/__init__.py`
@@ -87,6 +89,7 @@
 - `tests/contract/test_fixtures.py`
 - `tests/contract/test_golden_fixture.py`
 - `tests/contract/test_schemas_up_to_date.py`
+- `tests/integration/test_ledger.py`
 - `tests/unit/test_contracts.py`
 - `tests/unit/test_import_boundaries.py`
 - `third_party/provenance.yaml`
