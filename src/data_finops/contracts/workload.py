@@ -45,7 +45,20 @@ class ModelExecution(BaseModel):
     completed_at: UtcDatetime | None = None
 
 
+class WorkloadRunStatus(StrEnum):
+    """Derived from a run's terminal event, whatever the arrival order (spec 02)."""
+
+    RUNNING = "running"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    ABORTED = "aborted"
+    CONFLICTING = "conflicting"
+    """Two different terminal events were reported; never resolved silently."""
+
+
 class WorkloadRun(BaseModel):
+    """One OpenLineage run as reported, including dbt-ol's per-model runs (ADR 0022)."""
+
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     system: str
@@ -55,7 +68,7 @@ class WorkloadRun(BaseModel):
     parent_run_id: str | None = None
     parent_job_namespace: str | None = None
     parent_job_name: str | None = None
-    status: str
+    status: WorkloadRunStatus
     started_at: UtcDatetime | None = None
     ended_at: UtcDatetime | None = None
 

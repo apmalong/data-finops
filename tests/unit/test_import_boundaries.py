@@ -23,6 +23,7 @@ FORBIDDEN_IMPORTS = {
     "identity": ("data_finops.billing", "data_finops.ledger", "data_finops.attribution"),
     "lineage": ("data_finops.billing", "data_finops.ledger", "data_finops.attribution"),
     "dbt": ("data_finops.billing", "data_finops.ledger", "data_finops.attribution"),
+    "workload": ("data_finops.billing", "data_finops.ledger", "data_finops.attribution"),
 }
 ALLOWED = {"contracts": ("data_finops.contracts",)}
 CLOCK_CALLS = {("datetime", "now"), ("datetime", "utcnow"), ("time", "time")}

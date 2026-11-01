@@ -117,6 +117,8 @@
 - `src/data_finops/providers/__init__.py`
 - `src/data_finops/providers/athena.py`
 - `src/data_finops/schemas.py`
+- `src/data_finops/workload/__init__.py`
+- `src/data_finops/workload/store.py`
 - `tests/contract/test_fixtures.py`
 - `tests/contract/test_golden_fixture.py`
 - `tests/contract/test_reference_workload_sample.py`
@@ -127,6 +129,7 @@
 - `tests/integration/test_ledger.py`
 - `tests/integration/test_reader_shapes.py`
 - `tests/integration/test_reconciliation.py`
+- `tests/integration/test_workload_store.py`
 - `tests/unit/test_contracts.py`
 - `tests/unit/test_import_boundaries.py`
 - `tests/unit/test_verify_upstream.py`
