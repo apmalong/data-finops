@@ -114,6 +114,7 @@
 - `tests/integration/test_anonymize_focus_export.py`
 - `tests/integration/test_focus_parquet.py`
 - `tests/integration/test_ledger.py`
+- `tests/integration/test_reader_shapes.py`
 - `tests/integration/test_reconciliation.py`
 - `tests/unit/test_contracts.py`
 - `tests/unit/test_import_boundaries.py`

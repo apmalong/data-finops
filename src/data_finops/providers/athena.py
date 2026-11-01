@@ -5,6 +5,7 @@ are preserved. The query text is held only until correlation is extracted (M3);
 it must not be persisted (spec 04, data protection).
 """
 
+import json
 from datetime import datetime
 from pathlib import Path
 
@@ -45,5 +46,20 @@ class AthenaQueryHistory(BaseModel):
     UnprocessedQueryExecutionIds: list[dict[str, str]] = []
 
 
-def load_query_executions(path: Path) -> AthenaQueryHistory:
-    return AthenaQueryHistory.model_validate_json(path.read_text(encoding="utf-8"))
+def load_query_executions(
+    path: Path, *, account_id: str | None = None, region: str | None = None
+) -> AthenaQueryHistory:
+    """Read a BatchGetQueryExecution response, plain or with account and region recorded.
+
+    The AWS response does not name its account or region, so for a plain response the
+    caller supplies them. A value given here must agree with one recorded in the file.
+    """
+    document = json.loads(path.read_text(encoding="utf-8-sig"))
+    for key, given in (("account_id", account_id), ("region", region)):
+        if given is None:
+            continue
+        recorded = document.get(key)
+        if recorded is not None and recorded != given:
+            raise ValueError(f"{path}: {key} {given!r} disagrees with recorded {recorded!r}")
+        document[key] = given
+    return AthenaQueryHistory.model_validate(document)
