@@ -4,7 +4,11 @@ Snapshots and lines are stored as their contract JSON, so amounts keep their exa
 value and scale and every FOCUS column, including `x_` extensions, round-trips.
 """
 
+import hashlib
+import json
 import sqlite3
+from dataclasses import dataclass
+from enum import StrEnum
 from pathlib import Path
 from types import TracebackType
 from typing import Self
@@ -24,6 +28,7 @@ CREATE TABLE IF NOT EXISTS export_snapshot (
     billing_period_start TEXT NOT NULL,
     billing_period_end TEXT NOT NULL,
     source TEXT NOT NULL,
+    content_digest TEXT NOT NULL UNIQUE,
     snapshot_json TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS billing_line (
@@ -33,6 +38,22 @@ CREATE TABLE IF NOT EXISTS billing_line (
     PRIMARY KEY (snapshot_id, position)
 );
 """
+
+
+class SnapshotConflictError(Exception):
+    """A snapshot ID is already stored with different billing content."""
+
+
+class ImportOutcome(StrEnum):
+    NEW = "new"
+    REPLAY = "replay"
+
+
+@dataclass(frozen=True)
+class ImportResult:
+    outcome: ImportOutcome
+    snapshot_id: str
+    """The stored snapshot: the one just imported, or the one this import replayed."""
 
 
 class Ledger:
@@ -58,14 +79,32 @@ class Ledger:
     ) -> None:
         self.close()
 
-    def import_snapshot(self, export: FocusExport) -> None:
+    def import_snapshot(self, export: FocusExport) -> ImportResult:
         snapshot = export.snapshot
+        digest = _content_digest(export)
         with self._connection:
+            existing = self._connection.execute(
+                "SELECT snapshot_id FROM export_snapshot WHERE content_digest = ?", (digest,)
+            ).fetchone()
+            if existing is not None:
+                return ImportResult(outcome=ImportOutcome.REPLAY, snapshot_id=existing[0])
+            reused_id = self._connection.execute(
+                "SELECT 1 FROM export_snapshot WHERE snapshot_id = ?", (snapshot.snapshot_id,)
+            ).fetchone()
+            if reused_id is not None:
+                raise SnapshotConflictError(
+                    f"snapshot {snapshot.snapshot_id} is already stored with different content"
+                )
             self._connection.execute(
                 "INSERT INTO export_snapshot (snapshot_id, billing_account_id,"
-                " billing_period_start, billing_period_end, source, snapshot_json)"
-                " VALUES (?, ?, ?, ?, ?, ?)",
-                (snapshot.snapshot_id, *_scope_key(snapshot.scope), snapshot.model_dump_json()),
+                " billing_period_start, billing_period_end, source, content_digest,"
+                " snapshot_json) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (
+                    snapshot.snapshot_id,
+                    *_scope_key(snapshot.scope),
+                    digest,
+                    snapshot.model_dump_json(),
+                ),
             )
             self._connection.executemany(
                 "INSERT INTO billing_line (snapshot_id, position, line_json) VALUES (?, ?, ?)",
@@ -74,6 +113,7 @@ class Ledger:
                     for position, line in enumerate(export.lines)
                 ],
             )
+        return ImportResult(outcome=ImportOutcome.NEW, snapshot_id=snapshot.snapshot_id)
 
     def current_snapshot(self, scope: SnapshotScope) -> FocusExport | None:
         row = self._connection.execute(
@@ -105,3 +145,18 @@ def _scope_key(scope: SnapshotScope) -> tuple[str, str, str, str]:
         s["billing_period_end"],
         s["source"],
     )
+
+
+def _content_digest(export: FocusExport) -> str:
+    """Identity of the billing content: scope, FOCUS version and every line, in order.
+
+    Publication metadata (snapshot ID, publish time, files) is excluded, so the same
+    export delivered twice is recognised as a replay (ADR 0019).
+    """
+    content = {
+        "scope": export.snapshot.scope.model_dump(mode="json"),
+        "focus_version": export.snapshot.focus_version,
+        "lines": [line.model_dump(mode="json") for line in export.lines],
+    }
+    canonical = json.dumps(content, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()

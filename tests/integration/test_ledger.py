@@ -8,7 +8,7 @@ from pydantic import ValidationError
 
 from data_finops.billing.focus import load_export
 from data_finops.contracts.billing import FocusExport
-from data_finops.ledger import Ledger
+from data_finops.ledger import ImportOutcome, Ledger, SnapshotConflictError
 
 FIXTURE = Path(__file__).resolve().parents[2] / "fixtures" / "focus" / "export-2026-10.json"
 COST_COLUMNS = ("BilledCost", "EffectiveCost", "ListCost", "ContractedCost")
@@ -84,3 +84,47 @@ def test_identical_rows_in_one_snapshot_stay_distinct_billing_lines(tmp_path):
         "aws-focus-123456789012-2026-10-v1#0",
         "aws-focus-123456789012-2026-10-v1#1",
     ]
+
+
+def test_reimporting_the_same_snapshot_is_a_reported_no_op(tmp_path):
+    export = load_export(FIXTURE)
+    with Ledger(tmp_path / "ledger.db") as ledger:
+        first = ledger.import_snapshot(export)
+        second = ledger.import_snapshot(export)
+        current = ledger.current_snapshot(export.snapshot.scope)
+
+    assert first.outcome is ImportOutcome.NEW
+    assert second.outcome is ImportOutcome.REPLAY
+    assert second.snapshot_id == "aws-focus-123456789012-2026-10-v1"
+    assert current is not None
+    assert [str(line.BilledCost) for line in current.lines] == ["6.00", "4.00"]
+
+
+def test_same_content_redelivered_under_a_new_id_is_a_replay_of_the_original(tmp_path):
+    export = load_export(FIXTURE)
+    redelivered = export.model_copy(
+        update={
+            "snapshot": export.snapshot.model_copy(
+                update={"snapshot_id": "aws-focus-123456789012-2026-10-redelivered"}
+            )
+        }
+    )
+    with Ledger(tmp_path / "ledger.db") as ledger:
+        ledger.import_snapshot(export)
+        result = ledger.import_snapshot(redelivered)
+
+    assert result.outcome is ImportOutcome.REPLAY
+    assert result.snapshot_id == "aws-focus-123456789012-2026-10-v1"
+
+
+def test_reused_snapshot_id_with_different_content_is_rejected(tmp_path):
+    export = load_export(FIXTURE)
+    altered = export.model_copy(update={"lines": export.lines[:1]})
+    with Ledger(tmp_path / "ledger.db") as ledger:
+        ledger.import_snapshot(export)
+        with pytest.raises(SnapshotConflictError, match="aws-focus-123456789012-2026-10-v1"):
+            ledger.import_snapshot(altered)
+        current = ledger.current_snapshot(export.snapshot.scope)
+
+    assert current is not None
+    assert len(current.lines) == 2
