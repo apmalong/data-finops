@@ -25,11 +25,11 @@
       "thread_id": "Thread-1 (worker)",
       "execution_time": 7.521211862564087,
       "adapter_response": {
-        "_message": "INSERT 5",
+        "_message": "anon-fe9d7f894630",
         "code": "INSERT",
         "rows_affected": 5
       },
-      "message": "INSERT 5",
+      "message": "anon-fe9d7f894630",
       "failures": null,
       "unique_id": "seed.reference_workload.raw_customers",
       "compiled": null,
@@ -55,11 +55,11 @@
       "thread_id": "Thread-1 (worker)",
       "execution_time": 6.681198358535767,
       "adapter_response": {
-        "_message": "INSERT 12",
+        "_message": "anon-ca956739dd1a",
         "code": "INSERT",
         "rows_affected": 12
       },
-      "message": "INSERT 12",
+      "message": "anon-ca956739dd1a",
       "failures": null,
       "unique_id": "seed.reference_workload.raw_orders",
       "compiled": null,

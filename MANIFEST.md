@@ -92,6 +92,7 @@
 - `schemas/billing-line.schema.json`
 - `schemas/export-snapshot.schema.json`
 - `scripts/anonymize_focus_export.py`
+- `scripts/anonymize_workload_fields.py`
 - `scripts/anonymize_workload_outputs.py`
 - `scripts/verify_upstream.py`
 - `src/data_finops/__init__.py`

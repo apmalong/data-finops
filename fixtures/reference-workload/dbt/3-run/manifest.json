@@ -4,7 +4,7 @@
     "dbt_version": "1.12.6",
     "generated_at": "2026-11-01T21:19:34.143667Z",
     "invocation_id": "0d9fc611-0f9f-43ea-81bb-ba7bc63be72f",
-    "invocation_started_at": "2026-11-01T21:18:20.509524+00:00",
+    "invocation_started_at": "2026-11-01T21:18:20.509524Z",
     "env": {},
     "project_name": "reference_workload",
     "project_id": "anon-940a85b8db53",
@@ -17,7 +17,7 @@
       "identifier": true,
       "column": null
     },
-    "run_started_at": "2026-11-01T21:18:20.511827+00:00"
+    "run_started_at": "2026-11-01T21:18:20.511827Z"
   },
   "nodes": {
     "model.reference_workload.daily_orders": {
@@ -21054,7 +21054,7 @@
       "path": "overview.md",
       "original_file_path": "docs/overview.md",
       "unique_id": "doc.dbt.__overview__",
-      "block_contents": "### Welcome!\n\nWelcome to the auto-generated documentation for your dbt project!\n\n### Navigation\n\nYou can use the `Project` and `Database` navigation tabs on the left side of the window to explore the models\nin your project.\n\n#### Project Tab\nThe `Project` tab mirrors the directory structure of your dbt project. In this tab, you can see all of the\nmodels defined in your dbt project, as well as models imported from dbt packages.\n\n#### Database Tab\nThe `Database` tab also exposes your models, but in a format that looks more like a database explorer. This view\nshows relations (tables and views) grouped into database schemas. Note that ephemeral models are _not_ shown\nin this interface, as they do not exist in the database.\n\n### Graph Exploration\nYou can click the blue icon on the bottom-right corner of the page to view the lineage graph of your models.\n\nOn model pages, you'll see the immediate parents and children of the model you're exploring. By clicking the `Expand`\nbutton at the top-right of this lineage pane, you'll be able to see all of the models that are used to build,\nor are built from, the model you're exploring.\n\nOnce expanded, you'll be able to use the `--select` and `--exclude` model selection syntax to filter the\nmodels in the graph. For more information on model selection, check out the [dbt docs](https://docs.getdbt.com/docs/model-selection-syntax).\n\nNote that you can also right-click on models to interactively filter and explore the graph.\n\n---\n\n### More information\n\n- [What is dbt](https://docs.getdbt.com/docs/introduction)?\n- Read the [dbt viewpoint](https://docs.getdbt.com/docs/viewpoint)\n- [Installation](https://docs.getdbt.com/docs/installation)\n- Join the [dbt Community](https://www.getdbt.com/community/) for questions and discussion"
+      "block_contents": "anon-e1e2d9b59395"
     }
   },
   "exposures": {},

@@ -1,6 +1,6 @@
 # Reference workload sample
 
-Real outputs of the reference workload (ADR 0021) run on 2026-11-01 (#24), anonymized with `scripts/anonymize_workload_outputs.py` (#32) and added with the owner's approval (#35). They sit beside the hand-written fixtures, which cover cases this run did not (failed queries, Airflow parents).
+Real outputs of the reference workload (ADR 0021) run on 2026-11-01 (#24), anonymized with `scripts/anonymize_workload_outputs.py` (#32, with #36's field allowlists) and added with the owner's approval (#35). They sit beside the hand-written fixtures, which cover cases this run did not (failed queries, Airflow parents).
 
 | Path | Source |
 |---|---|
@@ -18,4 +18,4 @@ Real outputs of the reference workload (ADR 0021) run on 2026-11-01 (#24), anony
 
 ## Anonymization
 
-Bucket names, account IDs and local paths are keyed pseudonyms (consistent with the FOCUS anonymizer); dbt `user_id` is cleared (null) and `project_id` pseudonymized; run-results `args` keep only flags, numbers and selection settings; all SQL is cut to a dbt comment and its leading keywords (`create table …`). Query execution IDs, the workgroup, `node_id` and `invocation_id` are unchanged so the sources still correlate. For this public copy, the account pseudonym was then replaced by the AWS documentation placeholder `111122223333`, and Athena timestamps were converted to UTC so they do not reveal the operator's time zone. Before committing, the files were scanned for the original identifiers and none were found.
+Bucket names, account IDs and local paths are keyed pseudonyms (consistent with the FOCUS anonymizer); dbt `user_id` is cleared (null) and `project_id` pseudonymized; run-results `args` keep only flags, numbers and selection settings; only allowlisted dbt and OpenLineage fields are kept, free text (descriptions, messages, doc blocks, tag values) is pseudonymized and free-form maps (`meta`, `grants`, `table_properties`) are emptied; all SQL is cut to a dbt comment and its leading keywords (`create table …`). Query execution IDs, the workgroup, `node_id` and `invocation_id` are unchanged so the sources still correlate. For this public copy, the account pseudonym was then replaced by the AWS documentation placeholder `111122223333`, and Athena timestamps were converted to UTC so they do not reveal the operator's time zone. Before committing, the files were scanned for the original identifiers and none were found.
