@@ -4,3 +4,25 @@
 
 ## M-1 bootstrap (2026-11-01)
 Scaffold, CI workflow, fixture arithmetic tests, golden scenarios, execution permission guidance, and architecture boundaries added. NOT complete: lockfile generation, actual test runs, remote repository setup, CI validation and real allocation engine.
+
+## M-1 execution (2026-11-01)
+Run locally on Windows 11 with uv 0.12.23 and CPython 3.12.15 (uv-managed). No cloud credentials used.
+
+- `uv lock --python 3.12`: resolved 54 packages; dev-only (no runtime dependencies). Direct: bandit 1.9.4, build 1.6.1, hypothesis 6.170.14, mypy 1.20.2, pip-audit 2.10.1, pre-commit 4.7.0, pytest 9.2.0, pytest-cov 7.1.0, ruff 0.17.3. All from PyPI.
+- `rm -rf .venv && uv sync --extra dev --frozen`: succeeded from the lockfile alone; `uv lock --check` passes.
+- First gate run: mypy, pytest, pip-audit, bandit passed; ruff failed (6 lint errors, 4 files unformatted). Fixed: `AllocationKind` now uses `StrEnum` (UP042), fixture-loader lambda replaced with a `def` (E731), import sorting and long lines via `ruff check --fix` / `ruff format`.
+- Final gate run:
+  - `uv run ruff check .`: All checks passed!
+  - `uv run ruff format --check .`: 55 files already formatted
+  - `uv run mypy src`: Success: no issues found in 11 source files
+  - `uv run pytest --cov=data_finops`: 4 passed; coverage 100% (16 statements, contracts only)
+  - `uv run pip-audit`: No known vulnerabilities found (local package skipped: not on PyPI)
+  - `uv run bandit -q -r src`: no issues
+- Secret scan (gitleaks v8.24.2 via Docker): `git` mode over history: no leaks found. `dir` mode reported 200 findings, all under `.venv/Lib/site-packages/license_expression` (third-party license data, gitignored); zero findings in project files.
+- Golden fixtures, checked independently by script against `golden-fixtures.md`:
+  - `existing-fixtures-no-price-evidence`: per-line reconciliation holds against `fixtures/billing.json` (bill-001 6.00, bill-002 4.00, both unallocated; no query price inferred).
+  - `explicit-synthetic-cost-pools`: direct 3.00, shared 2.00 split 1.25/0.75 (62.5%/37.5%), idle 1.00, unknown 4.00; total 10.00.
+  - `negative-adjustment`: -1.00 retained signed, not clamped.
+  - Gap: synthetic and credit records have no corresponding billing lines with period/source_version, so only aggregate reconciliation is checkable for those scenarios. The doc states aggregate equality is insufficient; add billing-line fixtures for them before M4.
+
+Still open: GitHub branch protection (repository owner), CI on pull request.

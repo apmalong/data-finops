@@ -3,8 +3,11 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 
+
 def test_fixtures_are_readable_and_have_join_keys():
-    load = lambda name: json.loads((ROOT / "fixtures" / name).read_text())
+    def load(name):
+        return json.loads((ROOT / "fixtures" / name).read_text())
+
     billing = load("billing.json")
     manifest = load("manifest.json")
     results = load("run_results.json")
