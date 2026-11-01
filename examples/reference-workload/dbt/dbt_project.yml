@@ -19,9 +19,10 @@ models:
 
 seeds:
   reference_workload:
-    +column_types:
-      order_date: date
-      amount: decimal(10,2)
+    raw_orders:
+      +column_types:
+        order_date: date
+        amount: decimal(10,2)
 
 flags:
   send_anonymous_usage_stats: false

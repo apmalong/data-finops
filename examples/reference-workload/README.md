@@ -60,7 +60,7 @@ Statements starting with `alter`, `drop`, `optimize`, `vacuum` or `msck` are sen
 
 ### OpenLineage
 
-`dbt-ol` (openlineage-dbt) reads `dbt/openlineage.yml` when run from `dbt/` and appends events to `.local/openlineage/dbt-events.jsonl` at the repository root. openlineage-dbt needs `openlineage-sql`, which has no Windows wheel, so it is installed only on Linux and macOS: run `dbt-ol` in WSL or a Linux container. `dbt parse` and the offline tests work on Windows.
+`dbt-ol` (openlineage-dbt) reads `dbt/openlineage.yml` when run from `dbt/` and appends events to `.local/openlineage/dbt-events.jsonl` at the repository root. openlineage-dbt needs `openlineage-sql`, which has no Windows wheel, so it is installed only on Linux and macOS: run `dbt-ol` in WSL or a Linux container. `dbt parse` and the offline tests work on Windows. In WSL on the same checkout, set `UV_PROJECT_ENVIRONMENT=.venv-linux` so uv does not rebuild the Windows `.venv`.
 
 ### Commands
 
@@ -70,8 +70,10 @@ uv run pytest                                   # includes the offline dbt parse
 # Real runs (#24, owner approval required), from WSL or Linux:
 export REFERENCE_WORKLOAD_BUCKET=<bucket output of the stack>
 export AWS_PROFILE=<your profile>
+export UV_PROJECT_ENVIRONMENT=.venv-linux      # when sharing a Windows checkout
 mkdir -p ../../.local/openlineage
 cd dbt
 uv run dbt-ol seed --profiles-dir .
 uv run dbt-ol run --profiles-dir .
+uv run dbt-ol run --profiles-dir .              # second run: daily_orders issues several queries
 ```

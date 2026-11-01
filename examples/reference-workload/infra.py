@@ -14,6 +14,7 @@ import pulumi_aws as aws
 NAME = "reference-workload"
 REGION = "us-east-1"  # matches the FOCUS export (#21)
 WORKGROUP = "data-finops-reference"  # also named in dbt/profiles.yml
+DATABASE = "reference_workload"  # the dbt profile's schema
 ATHENA_MIN_CUTOFF_BYTES = 10 * 1024 * 1024  # Athena rejects lower per-query limits
 DEFAULT_SCAN_CUTOFF_BYTES = 100 * 1024 * 1024  # ample for the tiny models
 
@@ -81,7 +82,7 @@ def build(settings: Settings) -> WorkloadOutputs:
     provider = aws.Provider(NAME, region=REGION, profile=settings.aws_profile)
     opts = pulumi.ResourceOptions(provider=provider)
     bucket, bucket_guards = _private_bucket(opts)
-    database = aws.glue.CatalogDatabase(NAME, name="reference_workload", opts=opts)
+    database = aws.glue.CatalogDatabase(NAME, name=DATABASE, opts=opts)
     workgroup = _workgroup(bucket, settings, opts)
     resources = [bucket, *bucket_guards, database, workgroup]
     if settings.budget is not None:

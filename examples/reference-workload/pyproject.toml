@@ -19,6 +19,7 @@ dev = [
     "mypy>=1.14,<2",
     "pip-audit>=2,<3",
     "pytest>=8,<10",
+    "pyyaml>=6,<7",
     "types-pyyaml>=6,<7",
 ]
 

@@ -87,22 +87,26 @@ def test_adapter_sends_some_statements_without_a_comment(
     assert sent == statement
 
 
-def test_an_incremental_model_issues_several_queries_per_run(manifest: Manifest) -> None:
+def test_daily_orders_is_incremental(manifest: Manifest) -> None:
+    """Incremental runs after the first issue several queries for one model; #24 observes it."""
     incremental = [n for n in manifest.nodes.values() if n.config.materialized == "incremental"]
     assert [n.unique_id for n in incremental] == ["model.reference_workload.daily_orders"]
 
 
-def test_profile_runs_in_the_stacks_workgroup_and_region() -> None:
+def test_profile_targets_the_stacks_workgroup_database_and_region() -> None:
     profile = yaml.safe_load((PROJECT / "profiles.yml").read_text(encoding="utf-8"))
     target = profile["reference_workload"]["outputs"]["reference"]
-    assert (target["work_group"], target["region_name"]) == (infra.WORKGROUP, infra.REGION)
+    assert (target["work_group"], target["schema"], target["region_name"]) == (
+        infra.WORKGROUP,
+        infra.DATABASE,
+        infra.REGION,
+    )
 
 
-def test_openlineage_events_are_written_under_local(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_openlineage_transport_writes_under_local(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.chdir(PROJECT)  # dbt-ol runs from the project folder
-    monkeypatch.delenv("OPENLINEAGE_CONFIG", raising=False)
-    monkeypatch.delenv("OPENLINEAGE_URL", raising=False)
-    monkeypatch.delenv("OPENLINEAGE_DISABLED", raising=False)
+    for name in ("OPENLINEAGE_CONFIG", "OPENLINEAGE_URL", "OPENLINEAGE_DISABLED"):
+        monkeypatch.delenv(name, raising=False)
     transport = OpenLineageClient().transport
     assert isinstance(transport, FileTransport)
     assert Path(transport.config.log_file_path).resolve().is_relative_to(REPO_LOCAL.resolve())

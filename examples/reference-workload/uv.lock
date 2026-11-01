@@ -2006,6 +2006,7 @@ dev = [
     { name = "mypy" },
     { name = "pip-audit" },
     { name = "pytest" },
+    { name = "pyyaml" },
     { name = "types-pyyaml" },
 ]
 
@@ -2026,6 +2027,7 @@ dev = [
     { name = "mypy", specifier = ">=1.14,<2" },
     { name = "pip-audit", specifier = ">=2,<3" },
     { name = "pytest", specifier = ">=8,<10" },
+    { name = "pyyaml", specifier = ">=6,<7" },
     { name = "types-pyyaml", specifier = ">=6,<7" },
 ]
 
