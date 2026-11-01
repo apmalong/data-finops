@@ -1,0 +1,31 @@
+# Milestone plan and task ordering
+
+## Standards-first gate (required at M-1 and before each integration)
+Review ADR 0014, update the standards conformance matrix and build-versus-reuse register; pin upstream schemas and add contract tests as implemented. Never count an unverified upstream version as supported.
+
+## M0: scaffold and contracts
+Create `pyproject.toml`, package, CI, format/type/test setup, Pydantic models, JSON schema validation, fixture loader, provenance docs. **Exit:** `pytest` passes without cloud credentials.
+
+## M1: offline billing ledger
+Load fixture billing records, retain source version and accounting basis, deduplicate and persist. Build ledger with Decimal and deterministic reconciliation. **Exit:** zero delta, replay idempotent, corrections replace previous snapshot.
+
+## M2: workload metadata
+Parse dbt manifest/run_results, ingest OpenLineage JSON/HTTP events, build run/model/asset graph. **Exit:** expected fixture lineage and statuses; invalid payload rejected.
+
+## M3: query correlation
+Load Athena query history fixture, link explicit query IDs to dbt model execution and parent Airflow run. **Exit:** exact links match, missing/ambiguous IDs stay unallocated.
+
+## M4: allocation engine
+Implement eligible Athena on-demand pool metering and shared/idle/unallocated pools; deterministic rounding, method/evidence. **Exit:** all accounting invariants and negative adjustment tests pass.
+
+## M5: API and HTML demo
+FastAPI `/health`, `/v1/costs/summary`, `/v1/allocations`, `/v1/lineage`, `/v1/reconciliation`, `/v1/provenance`; static dashboard and explain-cost drilldown. **Exit:** local demo walkthrough passes.
+
+## M6: AWS deployment (optional after M5)
+Pulumi Python components, private API, scheduled read-only ingestion, encrypted storage, cost limits, deployment docs and teardown. **Exit:** preview policies validated; deployment only with explicit user authorization and credentials.
+
+## Deferred
+GCP, Snowflake, dbt Elementary optional tables, dlt, Dagster, OTel, BI connectors, automatic optimization, multi-account aggregation, enterprise auth.
+
+## Work decomposition
+Each milestone must have issue-sized tasks: models, adapter, tests, docs. Prefer vertical runnable increments to scaffolding all deferred integrations.

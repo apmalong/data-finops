@@ -1,0 +1,12 @@
+[
+  {
+    "query_execution_id": "q-001",
+    "workgroup": "demo",
+    "start": "2026-10-01T01:00:00Z",
+    "end": "2026-10-01T01:00:10Z",
+    "billed_bytes": 1000000000,
+    "dbt_invocation_id": "inv-001",
+    "dbt_node_id": "model.demo.orders",
+    "correlation_source": "trusted_demo_fixture"
+  }
+]

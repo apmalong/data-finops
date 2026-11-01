@@ -1,0 +1,30 @@
+[
+  {
+    "provider": "aws",
+    "source_record_id": "bill-001",
+    "source_version": "1",
+    "service": "AmazonAthena",
+    "usage_start": "2026-10-01T00:00:00Z",
+    "usage_end": "2026-10-02T00:00:00Z",
+    "currency": "USD",
+    "billed_cost": "6.00",
+    "cost_basis": "net_unblended",
+    "metadata": {
+      "pool": "athena-on-demand-demo"
+    }
+  },
+  {
+    "provider": "aws",
+    "source_record_id": "bill-002",
+    "source_version": "1",
+    "service": "OtherSharedDataCost",
+    "usage_start": "2026-10-01T00:00:00Z",
+    "usage_end": "2026-10-02T00:00:00Z",
+    "currency": "USD",
+    "billed_cost": "4.00",
+    "cost_basis": "net_unblended",
+    "metadata": {
+      "pool": "unknown-demo"
+    }
+  }
+]

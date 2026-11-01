@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Allocation",
+  "type": "object",
+  "required": [
+    "pool_id",
+    "target_id",
+    "amount",
+    "currency",
+    "method",
+    "confidence",
+    "category",
+    "policy_version"
+  ],
+  "properties": {
+    "pool_id": {
+      "type": "string"
+    },
+    "target_id": {
+      "type": "string"
+    },
+    "amount": {
+      "type": "string"
+    },
+    "currency": {
+      "type": "string"
+    },
+    "method": {
+      "type": "string"
+    },
+    "confidence": {
+      "enum": [
+        "direct_verified",
+        "metered_estimate",
+        "heuristic_estimate",
+        "unallocated"
+      ]
+    },
+    "category": {
+      "enum": [
+        "direct",
+        "shared",
+        "idle",
+        "unallocated"
+      ]
+    },
+    "policy_version": {
+      "type": "string"
+    },
+    "evidence_refs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

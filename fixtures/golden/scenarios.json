@@ -1,0 +1,85 @@
+[
+  {
+    "id": "existing-fixtures-no-price-evidence",
+    "description": "A 1GB Athena query has no explicit bill-to-query price mapping; do not infer $6 from time overlap. Both existing billing lines remain unallocated.",
+    "currency": "USD",
+    "billed_cost": "10.00",
+    "allocations": [
+      {
+        "source_record_id": "bill-001",
+        "currency": "USD",
+        "amount": "6.00",
+        "kind": "unallocated",
+        "target": "unknown"
+      },
+      {
+        "source_record_id": "bill-002",
+        "currency": "USD",
+        "amount": "4.00",
+        "kind": "unallocated",
+        "target": "unknown"
+      }
+    ]
+  },
+  {
+    "id": "explicit-synthetic-cost-pools",
+    "description": "Independent fabricated allocation test with pre-established direct and shared cost evidence; not inferred from original Athena query.",
+    "currency": "USD",
+    "billed_cost": "10.00",
+    "allocations": [
+      {
+        "source_record_id": "synthetic-direct",
+        "currency": "USD",
+        "amount": "3.00",
+        "kind": "direct",
+        "target": "model.demo.orders",
+        "evidence_id": "explicit-demo-price-001"
+      },
+      {
+        "source_record_id": "synthetic-shared",
+        "currency": "USD",
+        "amount": "1.25",
+        "kind": "shared",
+        "target": "model.demo.orders",
+        "evidence_id": "synthetic-weight-001"
+      },
+      {
+        "source_record_id": "synthetic-shared",
+        "currency": "USD",
+        "amount": "0.75",
+        "kind": "shared",
+        "target": "model.demo.customers",
+        "evidence_id": "synthetic-weight-001"
+      },
+      {
+        "source_record_id": "synthetic-idle",
+        "currency": "USD",
+        "amount": "1.00",
+        "kind": "idle",
+        "target": "__idle__"
+      },
+      {
+        "source_record_id": "synthetic-unknown",
+        "currency": "USD",
+        "amount": "4.00",
+        "kind": "unallocated",
+        "target": "unknown"
+      }
+    ]
+  },
+  {
+    "id": "negative-adjustment",
+    "description": "Credits are signed and retained as separate adjustment records.",
+    "currency": "USD",
+    "billed_cost": "-1.00",
+    "allocations": [
+      {
+        "source_record_id": "credit-001",
+        "currency": "USD",
+        "amount": "-1.00",
+        "kind": "unallocated",
+        "target": "unknown"
+      }
+    ]
+  }
+]

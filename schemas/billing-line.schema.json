@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "BillingLine",
+  "type": "object",
+  "required": [
+    "provider",
+    "source_record_id",
+    "source_version",
+    "service",
+    "usage_start",
+    "usage_end",
+    "currency",
+    "billed_cost",
+    "cost_basis"
+  ],
+  "properties": {
+    "provider": {
+      "enum": [
+        "aws",
+        "gcp",
+        "snowflake",
+        "other"
+      ]
+    },
+    "source_record_id": {
+      "type": "string"
+    },
+    "source_version": {
+      "type": "string"
+    },
+    "service": {
+      "type": "string"
+    },
+    "usage_start": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "usage_end": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "currency": {
+      "type": "string"
+    },
+    "billed_cost": {
+      "type": "string",
+      "description": "Decimal as string"
+    },
+    "cost_basis": {
+      "type": "string"
+    },
+    "metadata": {
+      "type": "object"
+    }
+  }
+}
