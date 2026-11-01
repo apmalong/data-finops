@@ -70,6 +70,17 @@ class SnapshotFile(BaseModel):
     sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
 
 
+class SnapshotScope(BaseModel):
+    """What an Export Snapshot covers; a restatement replaces the snapshot for its scope."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    billing_account_id: str
+    billing_period_start: UtcDatetime
+    billing_period_end: UtcDatetime
+    source: str
+
+
 class ExportSnapshot(BaseModel):
     """One provider publication of all lines for a billing account and Billing Period."""
 
@@ -84,9 +95,18 @@ class ExportSnapshot(BaseModel):
     published_at: UtcDatetime
     files: list[SnapshotFile] = []
 
+    @property
+    def scope(self) -> SnapshotScope:
+        return SnapshotScope(
+            billing_account_id=self.billing_account_id,
+            billing_period_start=self.billing_period_start,
+            billing_period_end=self.billing_period_end,
+            source=self.source,
+        )
+
 
 class FocusExport(BaseModel):
-    """An Export Snapshot with its lines. A line is referenced as `<snapshot_id>#<index>`."""
+    """An Export Snapshot with its lines. A line is referenced as `<snapshot_id>#<position>`."""
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
@@ -106,7 +126,7 @@ class FocusExport(BaseModel):
                 raise ValueError(f"line {i}: Billing Period differs from snapshot")
         return self
 
-    def line_ref(self, index: int) -> str:
-        if not 0 <= index < len(self.lines):
-            raise IndexError(index)
-        return f"{self.snapshot.snapshot_id}#{index}"
+    def line_ref(self, position: int) -> str:
+        if not 0 <= position < len(self.lines):
+            raise IndexError(position)
+        return f"{self.snapshot.snapshot_id}#{position}"
