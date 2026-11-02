@@ -64,12 +64,21 @@ class IngestResult:
     """Invalid events in file order, by position and reason; never stored, never echoed."""
     unsupported: tuple[Rejection, ...] = ()
     """Valid JobEvents and DatasetEvents, by position; not stored in M2."""
-    flagged: int = 0
-    """Stored events sharing run, event type and time with a stored event of other content."""
+    changed_copies: int = 0
+    """Events stored beside an event of the same run, type and time but other content."""
 
     def counts(self) -> Counter[RejectionKind]:
         """Rejected and unsupported events counted by kind."""
         return Counter(r.kind for r in (*self.rejected, *self.unsupported))
+
+
+@dataclass(frozen=True)
+class _EventKey:
+    """Spec 03 step C: run, event type (JSON-encoded, so absent differs from "") and time."""
+
+    run_id: str
+    event_type_key: str
+    event_time_us: int
 
 
 @dataclass(frozen=True)
@@ -84,7 +93,6 @@ class _RunRef:
 @dataclass(frozen=True)
 class _Observation:
     event_type_key: str
-    digest: str
     event_type: str | None
     event_time_us: int
     job_namespace: str
@@ -94,9 +102,9 @@ class _Observation:
 
     @classmethod
     def from_row(cls, row: tuple[Any, ...]) -> "_Observation":
-        key, digest, event_type, time, namespace, name, *refs = row
+        key, event_type, time, namespace, name, *refs = row
         parent, root = (_RunRef(*refs[i : i + 3]) if refs[i] else None for i in (0, 3))
-        return cls(key, digest, event_type, time, namespace, name, parent, root)
+        return cls(key, event_type, time, namespace, name, parent, root)
 
 
 class WorkloadStore:
@@ -132,7 +140,7 @@ class WorkloadStore:
         are reported and the rest of the file is still stored.
         """
         screening = screen_events(path)
-        accepted = duplicates = flagged = 0
+        accepted = duplicates = changed_copies = 0
         with self._write_transaction():
             for event in screening.events:
                 document = _without_sensitive_text(event.model_dump(mode="json")) | {
@@ -140,18 +148,19 @@ class WorkloadStore:
                 }
                 stored_json = _canonical(document)
                 digest = hashlib.sha256(stored_json.encode("utf-8")).hexdigest()
-                # The event type is JSON-encoded so an absent type keys apart from "".
-                key = (event.run.runId, json.dumps(event.eventType), _microseconds(event.eventTime))
+                key = _EventKey(
+                    event.run.runId, json.dumps(event.eventType), _microseconds(event.eventTime)
+                )
                 stored = self._connection.execute(
                     "INSERT OR IGNORE INTO workload_lineage_event (run_id, event_type_key,"
                     " event_type, event_time_us, digest, job_namespace, job_name, parent_run_id,"
                     " parent_job_namespace, parent_job_name, root_run_id, root_job_namespace,"
                     " root_job_name, event_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     (
-                        key[0],
-                        key[1],
+                        key.run_id,
+                        key.event_type_key,
                         event.eventType,
-                        key[2],
+                        key.event_time_us,
                         digest,
                         event.job.namespace,
                         event.job.name,
@@ -162,13 +171,13 @@ class WorkloadStore:
                 accepted += stored
                 duplicates += 1 - stored
                 if stored and self._other_content_stored(key, digest):
-                    flagged += 1
+                    changed_copies += 1
         return IngestResult(
             accepted=accepted,
             duplicates=duplicates,
             rejected=tuple(screening.rejected),
             unsupported=tuple(screening.unsupported),
-            flagged=flagged,
+            changed_copies=changed_copies,
         )
 
     def workload_run(self, run_id: str) -> WorkloadRun | None:
@@ -183,8 +192,8 @@ class WorkloadStore:
         observations = [
             _Observation.from_row(row)
             for row in self._connection.execute(
-                "SELECT event_type_key, digest, event_type, event_time_us, job_namespace,"
-                " job_name, parent_run_id,"
+                "SELECT event_type_key, event_type, event_time_us, job_namespace, job_name,"
+                " parent_run_id,"
                 " parent_job_namespace, parent_job_name, root_run_id, root_job_namespace,"
                 " root_job_name"
                 " FROM workload_lineage_event WHERE run_id = ?"
@@ -205,14 +214,6 @@ class WorkloadStore:
             status = WorkloadRunStatus.CONFLICTING
         first = observations[0]
         parent = next((o.parent for o in observations if o.parent), None)
-        flags = []
-        keys = Counter((o.event_type_key, o.event_time_us) for o in observations)
-        if any(count > 1 for count in keys.values()):
-            flags.append(WorkloadRunFlag.CONFLICTING_OBSERVATIONS)
-        if len({(o.job_namespace, o.job_name) for o in observations}) > 1:
-            flags.append(WorkloadRunFlag.CONFLICTING_JOBS)
-        if len({o.parent.run_id for o in observations if o.parent}) > 1:
-            flags.append(WorkloadRunFlag.CONFLICTING_PARENTS)
         root = next((o.root for o in observations if o.root), None)
         return WorkloadRun(
             system=_SYSTEM,
@@ -226,7 +227,7 @@ class WorkloadStore:
             root_job_namespace=root.job_namespace if root else None,
             root_job_name=root.job_name if root else None,
             status=status,
-            flags=tuple(flags),
+            flags=_flags(observations),
             started_at=_moment(min(starts)) if starts else None,
             ended_at=_moment(max(o.event_time_us for o in terminals)) if terminals else None,
         )
@@ -254,11 +255,11 @@ class WorkloadStore:
         ).fetchall()
         return [row[0] for row in rows]
 
-    def _other_content_stored(self, key: tuple[str, str, int], digest: str) -> bool:
+    def _other_content_stored(self, key: _EventKey, digest: str) -> bool:
         found = self._connection.execute(
             "SELECT 1 FROM workload_lineage_event WHERE run_id = ? AND event_type_key = ?"
             " AND event_time_us = ? AND digest != ? LIMIT 1",
-            (*key, digest),
+            (key.run_id, key.event_type_key, key.event_time_us, digest),
         ).fetchone()
         return found is not None
 
@@ -273,6 +274,19 @@ class WorkloadStore:
             self._connection.execute("ROLLBACK")
             raise
         self._connection.execute("COMMIT")
+
+
+def _flags(observations: list[_Observation]) -> tuple[WorkloadRunFlag, ...]:
+    flags = []
+    # Exact copies are never stored twice, so a repeated key means different content.
+    keys = Counter((o.event_type_key, o.event_time_us) for o in observations)
+    if any(count > 1 for count in keys.values()):
+        flags.append(WorkloadRunFlag.CONFLICTING_OBSERVATIONS)
+    if len({(o.job_namespace, o.job_name) for o in observations}) > 1:
+        flags.append(WorkloadRunFlag.CONFLICTING_JOBS)
+    if len({o.parent for o in observations if o.parent}) > 1:
+        flags.append(WorkloadRunFlag.CONFLICTING_PARENTS)
+    return tuple(flags)
 
 
 def _canonical(document: dict[str, Any]) -> str:
@@ -301,11 +315,28 @@ def _parent_and_root(facet: Any) -> tuple[str | None, ...]:
 
 
 def _without_sensitive_text(document: dict[str, Any]) -> dict[str, Any]:
-    """Drop the `sql` facet's query and `errorMessage.stackTrace` (spec 04); keep the rest."""
-    job_facets = document.get("job", {}).get("facets")
-    if isinstance(job_facets, dict) and isinstance(job_facets.get("sql"), dict):
-        job_facets["sql"].pop("query", None)
-    run_facets = document.get("run", {}).get("facets")
-    if isinstance(run_facets, dict) and isinstance(run_facets.get("errorMessage"), dict):
-        run_facets["errorMessage"].pop("stackTrace", None)
+    """Drop SQL text and stack traces before storage (spec 04); keep every other field.
+
+    Removes `query` from any facet named `sql` (job, run, input or output facets) and
+    `stackTrace` from `errorMessage` and from each `extractionError` error. SQL quoted inside
+    an error message is not detected.
+    """
+    for facets in _facet_maps(document):
+        if isinstance(facets.get("sql"), dict):
+            facets["sql"].pop("query", None)
+        if isinstance(facets.get("errorMessage"), dict):
+            facets["errorMessage"].pop("stackTrace", None)
+        extraction = facets.get("extractionError")
+        if isinstance(extraction, dict) and isinstance(extraction.get("errors"), list):
+            for error in extraction["errors"]:
+                if isinstance(error, dict):
+                    error.pop("stackTrace", None)
     return document
+
+
+def _facet_maps(document: dict[str, Any]) -> list[dict[str, Any]]:
+    maps = [document.get("job", {}).get("facets"), document.get("run", {}).get("facets")]
+    for dataset in [*document.get("inputs", []), *document.get("outputs", [])]:
+        if isinstance(dataset, dict):
+            maps += [dataset.get(k) for k in ("facets", "inputFacets", "outputFacets")]
+    return [m for m in maps if isinstance(m, dict)]

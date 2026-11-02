@@ -425,7 +425,7 @@ def test_a_changed_copy_of_an_event_is_kept_and_flagged(
     }
     store.ingest_events(_write(tmp_path / "a.jsonl", [original]))
     result = store.ingest_events(_write(tmp_path / "b.jsonl", [changed, original]))
-    assert (result.accepted, result.duplicates, result.flagged) == (1, 1, 1)
+    assert (result.accepted, result.duplicates, result.changed_copies) == (1, 1, 1)
     run = store.workload_run(RUN)
     assert run is not None and WorkloadRunFlag.CONFLICTING_OBSERVATIONS in run.flags
 
@@ -438,7 +438,7 @@ def test_an_absent_and_an_empty_event_type_are_not_one_key(
     result = store.ingest_events(
         _write(tmp_path / "events.jsonl", [absent, _event(RUN, "", "2026-11-01T21:19:00Z")])
     )
-    assert result.flagged == 0
+    assert result.changed_copies == 0
     run = store.workload_run(RUN)
     assert run is not None and run.flags == ()
 
@@ -492,4 +492,53 @@ def test_events_differing_only_in_removed_text_are_duplicates(
 
     store.ingest_events(_write(tmp_path / "a.jsonl", [failed("select 1")]))
     result = store.ingest_events(_write(tmp_path / "b.jsonl", [failed("select 2")]))
-    assert (result.accepted, result.duplicates, result.flagged) == (0, 1, 0)
+    assert (result.accepted, result.duplicates, result.changed_copies) == (0, 1, 0)
+
+
+def test_events_differing_only_in_a_stack_trace_are_duplicates(
+    store: WorkloadStore, tmp_path: Path
+) -> None:
+    def failed(trace: str) -> dict[str, Any]:
+        event = _event(RUN, "FAIL", "2026-11-01T21:19:30Z")
+        event["run"]["facets"]["errorMessage"] = {
+            "_producer": "x",
+            "_schemaURL": "x",
+            "message": "boom",
+            "programmingLanguage": "python",
+            "stackTrace": trace,
+        }
+        return event
+
+    store.ingest_events(_write(tmp_path / "a.jsonl", [failed("frame 1")]))
+    result = store.ingest_events(_write(tmp_path / "b.jsonl", [failed("frame 2")]))
+    assert (result.accepted, result.duplicates) == (0, 1)
+
+
+def test_sql_and_stack_traces_elsewhere_are_not_stored(
+    store: WorkloadStore, tmp_path: Path
+) -> None:
+    event = _event(RUN, "FAIL", "2026-11-01T21:19:30Z")
+    sql = {"_producer": "x", "_schemaURL": "x", "query": "select secret_column"}
+    event["run"]["facets"]["sql"] = sql
+    event["run"]["facets"]["extractionError"] = {
+        "_producer": "x",
+        "_schemaURL": "x",
+        "totalTasks": 1,
+        "failedTasks": 1,
+        "errors": [{"errorMessage": "failed", "stackTrace": "Traceback: secret_frame"}],
+    }
+    event["outputs"] = [
+        {"namespace": "demo", "name": "t", "facets": {"sql": dict(sql)}, "outputFacets": {}}
+    ]
+    store.ingest_events(_write(tmp_path / "events.jsonl", [event]))
+    stored = store.stored_events(RUN)
+    assert stored and "secret_column" not in stored[0] and "secret_frame" not in stored[0]
+
+
+def test_a_parent_named_with_two_jobs_is_flagged(store: WorkloadStore, tmp_path: Path) -> None:
+    start = _with_parent(_event(RUN, "START", "2026-11-01T21:19:00Z"), DAG_RUN)
+    other = _with_parent(_event(RUN, "COMPLETE", "2026-11-01T21:19:30Z"), DAG_RUN)
+    other["run"]["facets"]["parent"]["job"]["name"] = "another-job"
+    store.ingest_events(_write(tmp_path / "events.jsonl", [start, other]))
+    run = store.workload_run(RUN)
+    assert run is not None and WorkloadRunFlag.CONFLICTING_PARENTS in run.flags

@@ -62,7 +62,9 @@ class WorkloadRunFlag(StrEnum):
     CONFLICTING_OBSERVATIONS = "conflicting_observations"
     """Two events with the same run, event type and time but different content."""
     CONFLICTING_JOBS = "conflicting_jobs"
+    """The run's events name different jobs."""
     CONFLICTING_PARENTS = "conflicting_parents"
+    """The run's events name different direct parents (run or job)."""
 
 
 class WorkloadRun(BaseModel):
