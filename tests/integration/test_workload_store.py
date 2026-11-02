@@ -8,7 +8,7 @@ from typing import Any
 
 import pytest
 
-from data_finops.contracts.workload import WorkloadRunFlag, WorkloadRunStatus
+from data_finops.contracts.workload import LineageDirection, WorkloadRunFlag, WorkloadRunStatus
 from data_finops.ledger import Ledger
 from data_finops.lineage.validation import RejectionKind
 from data_finops.workload.store import WorkloadStore
@@ -542,3 +542,51 @@ def test_a_parent_named_with_two_jobs_is_flagged(store: WorkloadStore, tmp_path:
     store.ingest_events(_write(tmp_path / "events.jsonl", [start, other]))
     run = store.workload_run(RUN)
     assert run is not None and WorkloadRunFlag.CONFLICTING_PARENTS in run.flags
+
+
+# Data Assets and Lineage Edges (#45)
+
+DAILY_ORDERS_RUN = "01a198fb-baa3-7325-bbb0-5695a9814454"  # daily_orders in the sample's second run
+ATHENA = "awsathena://athena.us-east-1.amazonaws.com"
+
+
+def test_a_model_run_reads_and_writes_assets_named_exactly(store: WorkloadStore) -> None:
+    store.ingest_events(SAMPLE_EVENTS)
+    assets = store.data_assets(DAILY_ORDERS_RUN)
+    assert [(a.namespace, a.name) for a in assets] == [
+        (ATHENA, "awsdatacatalog.reference_workload.daily_orders"),
+        (ATHENA, "awsdatacatalog.reference_workload.stg_orders"),
+    ]
+
+
+def test_each_observation_records_its_edges(store: WorkloadStore) -> None:
+    store.ingest_events(SAMPLE_EVENTS)
+    edges = store.lineage_edges(DAILY_ORDERS_RUN)
+    assert len(edges) == 4  # START and COMPLETE each report one input and one output
+    assert {(e.direction, e.asset.name) for e in edges} == {
+        (LineageDirection.INPUT, "awsdatacatalog.reference_workload.stg_orders"),
+        (LineageDirection.OUTPUT, "awsdatacatalog.reference_workload.daily_orders"),
+    }
+    assert all(e.run_id == DAILY_ORDERS_RUN for e in edges)
+    assert len({e.observed_at for e in edges}) == 2
+
+
+def test_reingesting_adds_no_edges(store: WorkloadStore) -> None:
+    store.ingest_events(SAMPLE_EVENTS)
+    store.ingest_events(SAMPLE_EVENTS)
+    assert len(store.lineage_edges(DAILY_ORDERS_RUN)) == 4
+
+
+def test_names_are_kept_exactly_as_reported(store: WorkloadStore, tmp_path: Path) -> None:
+    event = _event(RUN, "COMPLETE", "2026-11-01T21:19:30Z")
+    event["outputs"] = [
+        {"namespace": "S3://Mixed-Case/", "name": '"Quoted"."Table" ', "facets": {}}
+    ]
+    store.ingest_events(_write(tmp_path / "events.jsonl", [event]))
+    (asset,) = store.data_assets(RUN)
+    assert (asset.namespace, asset.name) == ("S3://Mixed-Case/", '"Quoted"."Table" ')
+
+
+def test_a_run_without_datasets_has_no_assets(store: WorkloadStore) -> None:
+    store.ingest_events(EVENTS)
+    assert (store.data_assets(AIRFLOW_TASK), store.lineage_edges(AIRFLOW_TASK)) == ([], [])

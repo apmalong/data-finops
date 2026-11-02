@@ -19,7 +19,15 @@ from pathlib import Path
 from types import TracebackType
 from typing import Any, Self
 
-from data_finops.contracts.workload import WorkloadRun, WorkloadRunFlag, WorkloadRunStatus
+from data_finops.contracts.workload import (
+    DataAsset,
+    LineageDirection,
+    LineageEdge,
+    WorkloadRun,
+    WorkloadRunFlag,
+    WorkloadRunStatus,
+)
+from data_finops.lineage.openlineage import RunEvent
 from data_finops.lineage.validation import Rejection, RejectionKind, screen_events
 
 _SCHEMA = """
@@ -42,6 +50,15 @@ CREATE TABLE IF NOT EXISTS workload_lineage_event (
 );
 CREATE INDEX IF NOT EXISTS workload_lineage_event_parent
     ON workload_lineage_event (parent_run_id);
+CREATE TABLE IF NOT EXISTS workload_lineage_edge (
+    run_id TEXT NOT NULL,
+    event_digest TEXT NOT NULL,
+    event_time_us INTEGER NOT NULL,
+    direction TEXT NOT NULL,
+    namespace TEXT NOT NULL,
+    name TEXT NOT NULL,
+    PRIMARY KEY (run_id, event_digest, direction, namespace, name)
+);
 """
 
 _START = "START"
@@ -170,6 +187,8 @@ class WorkloadStore:
                 ).rowcount
                 accepted += stored
                 duplicates += 1 - stored
+                if stored:
+                    self._store_edges(key, digest, event)
                 if stored and self._other_content_stored(key, digest):
                     changed_copies += 1
         return IngestResult(
@@ -246,6 +265,32 @@ class WorkloadStore:
         runs = (self.workload_run(candidate) for (candidate,) in candidates)
         return [run for run in runs if run is not None and run.parent_run_id == run_id]
 
+    def data_assets(self, run_id: str) -> list[DataAsset]:
+        """The Data Assets the run read or wrote, as OpenLineage names them; by namespace, name."""
+        rows = self._connection.execute(
+            "SELECT DISTINCT namespace, name FROM workload_lineage_edge WHERE run_id = ?"
+            " ORDER BY namespace, name",
+            (run_id,),
+        ).fetchall()
+        return [DataAsset(namespace=namespace, name=name) for namespace, name in rows]
+
+    def lineage_edges(self, run_id: str) -> list[LineageEdge]:
+        """One edge per stored event, Data Asset and direction, ordered by observation time."""
+        rows = self._connection.execute(
+            "SELECT direction, namespace, name, event_time_us FROM workload_lineage_edge"
+            " WHERE run_id = ? ORDER BY event_time_us, direction, namespace, name",
+            (run_id,),
+        ).fetchall()
+        return [
+            LineageEdge(
+                run_id=run_id,
+                asset=DataAsset(namespace=namespace, name=name),
+                direction=LineageDirection(direction),
+                observed_at=_moment(time),
+            )
+            for direction, namespace, name, time in rows
+        ]
+
     def stored_events(self, run_id: str) -> list[str]:
         """The run's events exactly as stored (canonical JSON), oldest first."""
         rows = self._connection.execute(
@@ -254,6 +299,20 @@ class WorkloadStore:
             (run_id,),
         ).fetchall()
         return [row[0] for row in rows]
+
+    def _store_edges(self, key: _EventKey, digest: str, event: RunEvent) -> None:
+        """Edges from the event's inputs and outputs, names kept exactly as reported."""
+        self._connection.executemany(
+            "INSERT OR IGNORE INTO workload_lineage_edge VALUES (?, ?, ?, ?, ?, ?)",
+            [
+                (key.run_id, digest, key.event_time_us, direction, dataset.namespace, dataset.name)
+                for direction, datasets in (
+                    (LineageDirection.INPUT, event.inputs),
+                    (LineageDirection.OUTPUT, event.outputs),
+                )
+                for dataset in datasets
+            ],
+        )
 
     def _other_content_stored(self, key: _EventKey, digest: str) -> bool:
         found = self._connection.execute(
