@@ -1,0 +1,55 @@
+{
+  "account_id": "123456789012",
+  "region": "us-east-1",
+  "QueryExecutions": [
+    {
+      "QueryExecutionId": "q-003",
+      "Query": "/* {\"app\": \"dbt\", \"dbt_version\": \"1.10.0\", \"invocation_id\": \"inv-001\", \"node_id\": \"model.demo.missing\", \"profile_name\": \"demo\", \"target_name\": \"dev\"} */\ncreate table \"demo\".\"missing__dbt_tmp\" as select * from \"demo\".\"raw_missing\"",
+      "StatementType": "DML",
+      "WorkGroup": "demo-link-outcomes",
+      "QueryExecutionContext": {
+        "Database": "demo",
+        "Catalog": "AwsDataCatalog"
+      },
+      "Status": {
+        "State": "SUCCEEDED",
+        "SubmissionDateTime": "2026-10-01T01:00:30Z",
+        "CompletionDateTime": "2026-10-01T01:00:30Z"
+      },
+      "Statistics": {
+        "EngineExecutionTimeInMillis": 9500,
+        "DataScannedInBytes": 5000000,
+        "TotalExecutionTimeInMillis": 10000
+      },
+      "EngineVersion": {
+        "SelectedEngineVersion": "AUTO",
+        "EffectiveEngineVersion": "Athena engine version 3"
+      }
+    },
+    {
+      "QueryExecutionId": "q-004",
+      "Query": "/* {\"app\": \"dbt\", \"dbt_version\": \"1.10.0\", \"invocation_id\": \"inv-001\", \"node_id\": \"model.demo.orders\", \"profile_name\": \"demo\", \"target_name\": \"dev\"} */\ncreate table \"demo\".\"orders__dbt_tmp\" as select * from \"demo\".\"raw_orders\"",
+      "StatementType": "DML",
+      "WorkGroup": "demo-link-outcomes",
+      "QueryExecutionContext": {
+        "Database": "demo",
+        "Catalog": "AwsDataCatalog"
+      },
+      "Status": {
+        "State": "SUCCEEDED",
+        "SubmissionDateTime": "2026-10-01T01:00:40Z",
+        "CompletionDateTime": "2026-10-01T01:00:40Z"
+      },
+      "Statistics": {
+        "EngineExecutionTimeInMillis": 9500,
+        "DataScannedInBytes": 20000000,
+        "TotalExecutionTimeInMillis": 10000
+      },
+      "EngineVersion": {
+        "SelectedEngineVersion": "AUTO",
+        "EffectiveEngineVersion": "Athena engine version 3"
+      }
+    }
+  ],
+  "UnprocessedQueryExecutionIds": []
+}

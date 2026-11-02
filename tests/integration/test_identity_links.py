@@ -217,12 +217,14 @@ def test_a_link_is_present_exactly_when_the_outcome_is_linked(
 
 
 QUERIES = FIXTURES / "athena" / "query-executions.json"
+OUTCOMES = FIXTURES / "athena" / "link-outcomes.json"
+RESTATED = FIXTURES / "athena" / "link-outcomes-restated.json"
 ACCOUNT, REGION = "123456789012", "us-east-1"
 
 
 def _query_store(store: WorkloadStore, *paths: Path) -> WorkloadStore:
     for path in paths:
-        if path == QUERIES:
+        if path.parent.name == "athena":
             store.ingest_query_history(path, account_id=ACCOUNT, region=REGION)
         else:
             store.ingest_dbt_artifact(path)
@@ -257,7 +259,7 @@ def test_a_query_links_to_the_model_execution_its_trusted_query_comment_names(
 
 
 def test_query_outcomes_on_the_hand_written_fixtures(store: WorkloadStore) -> None:
-    _query_store(store, QUERIES, RUN_RESULTS)
+    _query_store(store, QUERIES, OUTCOMES, RESTATED, RUN_RESULTS)
     assert {q: _outcome(store, q) for q in ("q-001", "q-002", "q-003", "q-004", "q-x")} == {
         "q-001": LinkOutcome.LINKED,
         "q-002": LinkOutcome.LINKED,
@@ -287,11 +289,16 @@ def test_the_query_executions_of_a_model_execution(store: WorkloadStore) -> None
 
 def test_links_do_not_depend_on_arrival_order(tmp_path: Path) -> None:
     answers = []
-    for name, order in (("a", (QUERIES, RUN_RESULTS)), ("b", (RUN_RESULTS, QUERIES))):
+    files = (QUERIES, OUTCOMES, RESTATED, RUN_RESULTS)
+    for name, order in (("a", files), ("b", files[::-1])):
         with WorkloadStore(tmp_path / f"{name}.sqlite") as store:
             _query_store(store, *order)
+            ids = ("q-001", "q-002", "q-003", "q-004")
             answers.append(
-                [store.model_execution_of_query(ACCOUNT, REGION, q) for q in ("q-001", "q-003")]
+                (
+                    [store.model_execution_of_query(ACCOUNT, REGION, q) for q in ids],
+                    store.query_executions_of_model_execution("inv-001", "model.demo.orders"),
+                )
             )
     assert answers[0] == answers[1]
 
@@ -338,6 +345,22 @@ COMMENT = '{"app": "dbt", "invocation_id": "inv-001", "node_id": "model.demo.ord
         ("/* [1, 2] */\nselect 1", LinkOutcome.NO_EVIDENCE),
         ("/* {not json} */\nselect 1", LinkOutcome.NO_EVIDENCE),
         ("alter table t add columns (c int)", LinkOutcome.NO_EVIDENCE),
+        (
+            '/* {"app": "dbt", "invocation_id": "inv-001",'
+            ' "node_id": "model.demo.orders */ select 1 /* "} */\nselect 1',
+            LinkOutcome.NO_EVIDENCE,
+        ),
+        (
+            '/* {"app": "other", "app": "dbt", "invocation_id": "inv-001",'
+            ' "node_id": "model.demo.orders"} */\nselect 1',
+            LinkOutcome.NO_EVIDENCE,
+        ),
+        (
+            '/* {"app": "dbt", "invocation_id": " ", "node_id": "n"} */\nselect 1',
+            LinkOutcome.NO_EVIDENCE,
+        ),
+        (f"/* {COMMENT} */ select '{'x' * 10_000}'", LinkOutcome.LINKED),
+        (f'/* {COMMENT[:-1]}, "pad": "{"x" * 5_000}"}} */\nselect 1', LinkOutcome.NO_EVIDENCE),
     ],
 )
 def test_only_a_trusted_query_comment_is_evidence(

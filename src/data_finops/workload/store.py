@@ -18,7 +18,7 @@ from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 from pathlib import Path
 from types import TracebackType
-from typing import Any, Self
+from typing import Any, NamedTuple, Self
 
 from data_finops.contracts.workload import (
     DataAsset,
@@ -189,6 +189,27 @@ class QueryHistoryIngestResult:
     """Stored beside an observation of the same Query Execution with other content."""
     file_rejection: str | None = None
     """Why the whole file was refused (nothing stored); never content from the file."""
+
+
+class _QueryObservation(NamedTuple):
+    """One stored observation of a Query Execution, in `_query_observations`' column order."""
+
+    digest: str
+    workgroup: str | None
+    statement_type: str | None
+    state: str
+    submitted_us: int
+    completed_us: int | None
+    scanned_bytes: int | None
+    invocation_id: str | None
+    node_id: str | None
+    entry_json: str
+
+    def claim(self) -> ModelExecutionKey | None:
+        """The Model Execution this observation's Trusted Query Comment named, if any."""
+        if self.invocation_id is None or self.node_id is None:
+            return None
+        return ModelExecutionKey(invocation_id=self.invocation_id, node_id=self.node_id)
 
 
 @dataclass(frozen=True)
@@ -444,7 +465,8 @@ class WorkloadStore:
                         _microseconds(entry.Status.SubmissionDateTime),
                         _microseconds(completed) if completed else None,
                         entry.Statistics.DataScannedInBytes if entry.Statistics else None,
-                        *(claim or (None, None)),
+                        claim.invocation_id if claim else None,
+                        claim.node_id if claim else None,
                         stored_json,
                     ),
                 ).rowcount
@@ -469,25 +491,25 @@ class WorkloadStore:
         rows = self._query_observations(account_id, region, query_execution_id)
         if not rows:
             return None
-        digest, workgroup, statement_type, state, submitted, completed, scanned = rows[0][:7]
-        invocation, node = rows[0][7:9]
+        first = rows[0]
+        claim = first.claim()
         return QueryExecution(
             provider=_ATHENA,
             account_id=account_id,
             region=region,
             query_execution_id=query_execution_id,
-            workgroup=workgroup,
-            statement_type=statement_type,
-            state=state,
-            submitted_at=_moment(submitted),
-            completed_at=_moment(completed) if completed is not None else None,
-            scanned_bytes=scanned,
+            workgroup=first.workgroup,
+            statement_type=first.statement_type,
+            state=first.state,
+            submitted_at=_moment(first.submitted_us),
+            completed_at=_moment(first.completed_us) if first.completed_us is not None else None,
+            scanned_bytes=first.scanned_bytes,
             correlation=(
-                QueryCorrelation(node_id=node, invocation_id=invocation)
-                if invocation is not None
+                QueryCorrelation(node_id=claim.node_id, invocation_id=claim.invocation_id)
+                if claim
                 else None
             ),
-            provenance=digest,
+            provenance=first.digest,
             flags=(QueryExecutionFlag.CONFLICTING_OBSERVATIONS,) if len(rows) > 1 else (),
         )
 
@@ -496,19 +518,20 @@ class WorkloadStore:
     ) -> list[str]:
         """The Query Execution's observations exactly as stored (canonical JSON), by digest."""
         rows = self._query_observations(account_id, region, query_execution_id)
-        return [row[-1] for row in rows]
+        return [row.entry_json for row in rows]
 
     def _query_observations(
         self, account_id: str, region: str, query_execution_id: str
-    ) -> list[tuple[Any, ...]]:
-        """A Query Execution's stored observations by digest, `entry_json` last."""
-        return self._connection.execute(
+    ) -> list["_QueryObservation"]:
+        """A Query Execution's stored observations, by digest."""
+        rows = self._connection.execute(
             "SELECT digest, workgroup, statement_type, state, submitted_us, completed_us,"
             " scanned_bytes, invocation_id, node_id, entry_json"
             " FROM workload_query_execution WHERE account_id = ?"
             " AND region = ? AND query_execution_id = ? ORDER BY digest",
             (account_id, region, query_execution_id),
         ).fetchall()
+        return [_QueryObservation._make(row) for row in rows]
 
     def _store_model_executions(self, screened: ScreenedArtifact, results: RunResults) -> None:
         invocation, digest = screened.invocation_id, screened.digest
@@ -665,15 +688,11 @@ class WorkloadStore:
         rows = self._query_observations(account_id, region, query_execution_id)
         if not rows:
             return None
-        claims = {
-            ModelExecutionKey(invocation_id=row[7], node_id=row[8]) if row[7] is not None else None
-            for row in rows
-        }
-        known = {claim for claim in claims if claim is not None}
+        claims = {row.claim() for row in rows}
         return resolve_query(
             QueryExecutionKey(account_id, region, query_execution_id),
             claims,
-            self._reported_model_executions(known),
+            self._reported_model_executions({claim for claim in claims if claim}),
         )
 
     def query_executions_of_model_execution(

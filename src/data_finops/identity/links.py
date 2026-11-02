@@ -7,7 +7,7 @@ workgroup or order. Each attempt yields a Link Outcome; only `linked` carries a 
 import json
 from collections.abc import Callable, Collection, Mapping
 from enum import StrEnum
-from typing import NamedTuple, TypeGuard
+from typing import Any, NamedTuple, TypeGuard
 
 from data_finops.contracts.workload import IdentityLink, LinkOutcome, LinkResolution
 
@@ -99,12 +99,14 @@ def resolve_query(
 def trusted_query_comment(query: str) -> ModelExecutionKey | None:
     """The Model Execution a Trusted Query Comment names, or None (GLOSSARY, spec 03 step D).
 
-    Only the first line is read. It must start with `-- /* ` (dbt-athena) or `/* `, followed
-    by a JSON object and ` */`, with `"app": "dbt"` and non-empty string `node_id` and
-    `invocation_id`. Anything else in the comment is ignored; a comment anywhere else in the
-    query is not Evidence, so SQL cannot forge one mid-statement.
+    Only the first line, and at most MAX_COMMENT_CHARS of it, is read. It must start with
+    `-- /* ` (dbt-athena) or `/* `, followed by a JSON object and ` */`, with `"app": "dbt"`
+    and non-blank string `node_id` and `invocation_id`. The object may not contain `*/`
+    (where SQL would end the comment) or repeat a key. Anything else in the comment is
+    ignored; a comment anywhere else in the query is not Evidence, so SQL cannot forge one
+    mid-statement.
     """
-    line = query.partition("\n")[0]
+    line = query[:MAX_COMMENT_CHARS].partition("\n")[0]
     prefix = next((p for p in _COMMENT_PREFIXES if line.startswith(p)), None)
     if prefix is None:
         return None
@@ -112,7 +114,9 @@ def trusted_query_comment(query: str) -> ModelExecutionKey | None:
         document, end = _DECODER.raw_decode(line, len(prefix))
     except ValueError:
         return None
-    if not line.startswith(" */", end) or not isinstance(document, dict):
+    if not line.startswith(" */", end) or "*/" in line[len(prefix) : end]:
+        return None
+    if not isinstance(document, dict):
         return None
     node, invocation = document.get("node_id"), document.get("invocation_id")
     if document.get("app") != "dbt" or not _identifier(node) or not _identifier(invocation):
@@ -120,32 +124,48 @@ def trusted_query_comment(query: str) -> ModelExecutionKey | None:
     return ModelExecutionKey(invocation_id=invocation, node_id=node)
 
 
+MAX_COMMENT_CHARS = 4096
+"""How much of a query's text is ever read for its comment; dbt's comment is far shorter."""
+
 _COMMENT_PREFIXES = ("-- /* ", "/* ")
-_DECODER = json.JSONDecoder()
+
+
+def _unique_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    keys = [key for key, _ in pairs]
+    if len(keys) != len(set(keys)):
+        raise ValueError("repeated key")
+    return dict(pairs)
+
+
+_DECODER = json.JSONDecoder(object_pairs_hook=_unique_keys)
 
 
 def _identifier(value: object) -> TypeGuard[str]:
-    return isinstance(value, str) and bool(value)
+    return isinstance(value, str) and bool(value.strip())
 
 
 def _resolve(
-    source_type: "Identity",
+    source_type: Identity,
     source_id: str,
-    evidence_type: "EvidenceType",
+    evidence_type: EvidenceType,
     claims: Collection[ModelExecutionKey | None],
     reported: Mapping[ModelExecutionKey, int],
     evidence: Callable[[ModelExecutionKey], dict[str, str]],
 ) -> LinkResolution:
-    """The shared rule: no claim is no evidence; several, or a Model Execution reported in
-    disagreeing versions, is ambiguous (spec 03 step D); a claim nobody reported is unmatched.
+    """The shared rule over what each observation of the source names (spec 03 step D).
 
-    `reported` counts, per Model Execution, the distinct versions run results reported of it.
+    A None claim is an observation naming nothing. No named Model Execution is no evidence;
+    observations that disagree (including one naming nothing beside one naming something),
+    or a Model Execution reported in disagreeing versions, are ambiguous; a Model Execution
+    nobody reported is unmatched. `reported` counts, per Model Execution, the distinct
+    versions run results reported of it.
     """
-    if not {claim for claim in claims if claim is not None}:
+    named = {claim for claim in claims if claim is not None}
+    if not named:
         return LinkResolution(outcome=LinkOutcome.NO_EVIDENCE)
-    if len(claims) > 1:
+    if len(set(claims)) > 1:
         return LinkResolution(outcome=LinkOutcome.AMBIGUOUS)
-    claim = next(claim for claim in claims if claim is not None)
+    (claim,) = named
     versions = reported.get(claim, 0)
     if versions == 0:
         return LinkResolution(outcome=LinkOutcome.UNMATCHED)

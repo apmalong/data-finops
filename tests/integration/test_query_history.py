@@ -27,8 +27,7 @@ def test_ingesting_query_history_records_each_query_execution_as_reported(
     store: WorkloadStore,
 ) -> None:
     result = store.ingest_query_history(QUERIES, account_id=ACCOUNT, region=REGION)
-    assert (result.accepted, result.duplicates, result.rejected) == (5, 0, ())
-    assert result.changed_copies == 1
+    assert (result.accepted, result.duplicates, result.rejected) == (2, 0, ())
     query = store.query_execution(ACCOUNT, REGION, "q-001")
     assert query is not None
     assert (query.provider, query.account_id, query.region) == ("aws_athena", ACCOUNT, REGION)
@@ -76,7 +75,7 @@ def test_reingesting_the_same_file_changes_nothing(store: WorkloadStore) -> None
     _ingest(store, QUERIES)
     before = store.query_execution(ACCOUNT, REGION, "q-001")
     result = _ingest(store, QUERIES)
-    assert (result.accepted, result.duplicates, result.changed_copies) == (0, 5, 0)
+    assert (result.accepted, result.duplicates, result.changed_copies) == (0, 2, 0)
     assert store.query_execution(ACCOUNT, REGION, "q-001") == before
 
 
