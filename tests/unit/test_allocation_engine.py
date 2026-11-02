@@ -192,19 +192,95 @@ def test_a_metered_line_without_a_billed_quantity_is_refused() -> None:
             allocate([_metered(line, q_a="0.001")], policy_version="p", calculation_run_id="r")
 
 
-@pytest.mark.parametrize(
-    "usage",
-    [{"q_a": "0.0005"}, {"q_a": "0.002"}, {"q_a": "0"}, {}],
-    ids=["below-one", "above-one", "no-usage", "no-queries"],
-)
-def test_a_line_whose_coverage_is_not_one_is_refused_until_84(usage: dict[str, str]) -> None:
-    # Coverage below and above one are #84's; until then the engine must not misallocate.
-    with pytest.raises(ValueError, match="Coverage"):
-        allocate(
-            [_metered(_line("1.00", ConsumedQuantity="0.001"), **usage)],
-            policy_version="p",
-            calculation_run_id="r",
+def _shares(allocations: list[Allocation]) -> dict[str, tuple[str, str, str | None]]:
+    """BilledCost per target: (amount, method, coverage)."""
+    return {
+        a.target_id: (
+            a.model_dump(mode="json")["amount"],
+            a.method,
+            a.model_dump(mode="json")["coverage"],
         )
+        for a in allocations
+        if a.cost_basis == CostBasis.BILLED_COST
+    }
+
+
+def test_coverage_below_one_splits_the_covered_fraction_and_leaves_the_rest_unallocated() -> None:
+    # Known 0.003 of a billed 0.004: q_a 1, q_b 2 and the uncovered 1 share $1.00.
+    allocations = allocate(
+        [_metered(_line("1.00", ConsumedQuantity="0.004"), q_a="0.001", q_b="0.002")],
+        policy_version="p",
+        calculation_run_id="r",
+    )
+    assert _shares(allocations) == {
+        "q_a": ("0.25", "estimated_metered_share", "0.75"),
+        "q_b": ("0.50", "estimated_metered_share", "0.75"),
+        "unallocated": ("0.25", "coverage_remainder", "0.75"),
+    }
+    remainder = next(a for a in allocations if a.target_id == "unallocated")
+    assert (remainder.category, remainder.confidence) == ("unallocated", None)
+
+
+@pytest.mark.parametrize(
+    "usage", [{"q_a": "0"}, {}], ids=["no-billable-usage", "no-queries-in-scope"]
+)
+def test_a_line_with_no_known_usage_is_wholly_a_coverage_remainder(usage: dict[str, str]) -> None:
+    allocations = allocate(
+        [_metered(_line("1.00", ConsumedQuantity="0.004"), **usage)],
+        policy_version="p",
+        calculation_run_id="r",
+    )
+    assert _shares(allocations) == {"unallocated": ("1.00", "coverage_remainder", "0")}
+
+
+def test_coverage_above_one_leaves_the_whole_line_unallocated_and_flagged() -> None:
+    allocations = allocate(
+        [_metered(_line("1.00", ConsumedQuantity="0.002"), q_a="0.001", q_b="0.002")],
+        policy_version="p",
+        calculation_run_id="r",
+    )
+    assert _shares(allocations) == {"unallocated": ("1.00", "coverage_exceeded", "1.5")}
+    assert {a.cost_basis for a in allocations} == set(CostBasis)
+
+
+@pytest.mark.parametrize(
+    ("billed", "known", "expected"),
+    [
+        # Exported to 3 places: within half a unit (0.0005) of the billed quantity is 1.
+        ("0.001", "0.0015", "1"),
+        ("0.001", "0.0005", "1"),
+        ("0.001", "0.00151", "1.51"),
+        ("0.001", "0.00049", "0.49"),
+        # Exported to 4 places, the tolerance is 0.00005.
+        ("0.0010", "0.00105", "1"),
+        ("0.0010", "0.0011", "1.1"),
+    ],
+)
+def test_coverage_is_one_within_half_a_unit_of_the_exported_quantity(
+    billed: str, known: str, expected: str
+) -> None:
+    allocations = allocate(
+        [_metered(_line("1.00", ConsumedQuantity=billed), q_a=known)],
+        policy_version="p",
+        calculation_run_id="r",
+    )
+    assert {a.model_dump(mode="json")["coverage"] for a in allocations} == {expected}
+    if expected == "1":
+        assert _shares(allocations) == {"q_a": ("1.00", "estimated_metered_share", "1")}
+
+
+def test_a_sub_cent_line_with_a_remainder_still_balances() -> None:
+    # $0.01 three ways (q_a, q_b, the uncovered third): the one cent goes to q_a.
+    allocations = allocate(
+        [_metered(_line("0.01", ConsumedQuantity="0.003"), q_a="0.001", q_b="0.001")],
+        policy_version="p",
+        calculation_run_id="r",
+    )
+    assert {t: share[0] for t, share in _shares(allocations).items()} == {
+        "q_a": "0.01",
+        "q_b": "0.00",
+        "unallocated": "0.00",
+    }
 
 
 def test_a_negative_amount_is_split_on_its_absolute_value_with_the_sign_restored() -> None:

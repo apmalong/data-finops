@@ -28,11 +28,16 @@ _MINOR_UNITS = {
 }
 
 
+_UNALLOCATED = TargetType.UNALLOCATED.value
+
+
 class AllocationMethod(StrEnum):
     """How an amount was allocated; for Unallocated amounts, why (spec 03, M4 structure 10)."""
 
     ESTIMATED_METERED_SHARE = "estimated_metered_share"
     INELIGIBLE = "ineligible"
+    COVERAGE_REMAINDER = "coverage_remainder"
+    COVERAGE_EXCEEDED = "coverage_exceeded"
 
 
 @dataclass(frozen=True)
@@ -73,8 +78,11 @@ def allocate(
 ) -> list[Allocation]:
     """Partition every line, for every Cost Basis, among its Allocation Targets.
 
-    Raises ValueError for a metered line without a positive ConsumedQuantity, or whose
-    Coverage is not exactly 1 (Coverage below and above one are #84).
+    A metered line is split by Coverage (ADR 0017): its covered fraction among the Query
+    Executions by Billable Usage, the rest Unallocated `coverage_remainder`; a line whose
+    Coverage exceeds one is wholly Unallocated `coverage_exceeded`. Every Allocation of a
+    metered line records its Coverage. Raises ValueError for a metered line without a
+    positive ConsumedQuantity.
     """
     allocations: list[Allocation] = []
     for pooled in lines:
@@ -97,7 +105,7 @@ def allocate(
                 for basis in CostBasis
             ]
             continue
-        weights = _covered_usage(pooled.ref, line, pool)
+        coverage, weights = _coverage(pooled.ref, line, pool)
         for basis in CostBasis:
             amount = line.cost(basis)
             shares = _split(amount, weights, _scale(amount, line.BillingCurrency))
@@ -113,7 +121,7 @@ def allocate(
                     category=AllocationCategory.DIRECT,
                     method=AllocationMethod.ESTIMATED_METERED_SHARE,
                     confidence=Confidence.METERED_ESTIMATE,
-                    coverage=Decimal(1),
+                    coverage=coverage,
                     policy_version=policy_version,
                     calculation_run_id=calculation_run_id,
                     evidence_refs=list(usage.evidence_refs),
@@ -121,12 +129,36 @@ def allocate(
                 for usage in pool.usages
                 if usage.query_execution_id in shares
             ]
+            if _UNALLOCATED in shares:
+                allocations.append(
+                    Allocation(
+                        billing_line_ref=pooled.ref,
+                        pool_id=pool.pool_id,
+                        target_type=TargetType.UNALLOCATED,
+                        target_id=_UNALLOCATED,
+                        amount=shares[_UNALLOCATED],
+                        currency=line.BillingCurrency,
+                        cost_basis=basis,
+                        category=AllocationCategory.UNALLOCATED,
+                        method=AllocationMethod.COVERAGE_EXCEEDED
+                        if coverage > 1
+                        else AllocationMethod.COVERAGE_REMAINDER,
+                        coverage=coverage,
+                        policy_version=policy_version,
+                        calculation_run_id=calculation_run_id,
+                    )
+                )
     return allocations
 
 
-def _covered_usage(ref: str, line: FocusBillingLine, pool: MeteredCostPool) -> dict[str, Decimal]:
-    """Each Query Execution's Billable Usage, once Coverage is known to be 1 (ADR 0017).
+def _coverage(
+    ref: str, line: FocusBillingLine, pool: MeteredCostPool
+) -> tuple[Decimal, dict[str, Decimal]]:
+    """The line's Coverage and the weights its amount is split by (ADR 0017).
 
+    Coverage is known over billed usage in the line's unit, and counts as exactly 1 within
+    half a unit in the last digit ConsumedQuantity was exported with. Below one, the
+    uncovered quantity weighs on Unallocated; above one, Unallocated takes everything.
     Query Executions with no Billable Usage receive nothing.
     """
     billed = line.ConsumedQuantity
@@ -134,17 +166,25 @@ def _covered_usage(ref: str, line: FocusBillingLine, pool: MeteredCostPool) -> d
         raise ValueError(f"{ref}: a metered line needs a positive ConsumedQuantity for Coverage")
     usage = {u.query_execution_id: u.quantity for u in pool.usages if u.quantity > 0}
     known = sum(usage.values(), Decimal(0))
-    if known != billed:
-        raise ValueError(f"{ref}: Coverage {known / billed} is not 1; not yet supported (#84)")
-    return usage
+    if abs(known - billed) <= Decimal(5).scaleb(-_places(billed) - 1):
+        return Decimal(1), usage
+    coverage = known / billed
+    if coverage > 1:
+        return coverage, {_UNALLOCATED: Decimal(1)}
+    return coverage, usage | {_UNALLOCATED: billed - known}
 
 
 def _scale(amount: Decimal, currency: str) -> int:
     """The amount's decimal places as exported, never coarser than the currency minor unit."""
-    exponent = amount.as_tuple().exponent
+    return max(_places(amount), _MINOR_UNITS.get(currency, 2))
+
+
+def _places(value: Decimal) -> int:
+    """Decimal places as written: `0.0010` has 4."""
+    exponent = value.as_tuple().exponent
     if not isinstance(exponent, int):  # DecimalString admits only finite values
-        raise ValueError(f"not a finite amount: {amount}")
-    return max(-exponent, _MINOR_UNITS.get(currency, 2))
+        raise ValueError(f"not a finite decimal: {value}")
+    return -exponent
 
 
 def _split(amount: Decimal, weights: Mapping[str, Decimal], scale: int) -> dict[str, Decimal]:
