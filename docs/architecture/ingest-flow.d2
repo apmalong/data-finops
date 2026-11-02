@@ -1,4 +1,4 @@
-# How each input reaches the shared SQLite file (M1–M2).
+# How each input reaches the shared SQLite file (M1–M3).
 # Render: d2 --layout elk docs/architecture/ingest-flow.d2 docs/architecture/ingest-flow.svg
 direction: right
 
@@ -106,9 +106,40 @@ dbt -> artifacts.screen
 artifacts.stored -> workload_dbt
 artifacts.changed -> workload_dbt
 
-# Athena: read, not stored yet
-athena: Athena query history\nBatchGetQueryExecution {class: input}
-athena_read: providers.athena\nload_query_executions\n→ Athena query executions {class: step}
-m3: M3: Identity Links to\nModel Executions — not built {class: later}
-athena -> athena_read
-athena_read -> m3: {style.stroke-dash: 4}
+# Athena: Query Executions
+athena: Athena query history
+BatchGetQueryExecution
++ account and region {class: input}
+queries: {
+  label: WorkloadStore.ingest_query_history
+  screen: providers.athena.screen_query_history
+per entry, at most 512 MiB {class: step}
+  refused: whole file refused, nothing stored
+too large · not a BatchGetQueryExecution response
+account or region disagrees {class: refused}
+  rejected: rejected by position and field,
+never stored or echoed {class: refused}
+  clean: remove query text and free-text
+failure reasons · sha256 of stored JSON {class: step}
+  key: key = account · region · query ID + digest {class: step}
+  stored: stored {class: outcome}
+  duplicate: duplicate (nothing stored) {class: outcome}
+  changed: changed copy, kept beside
+and flagged {class: outcome}
+  screen -> refused
+  screen -> rejected
+  screen -> clean: valid entry
+  clean -> key
+  key -> stored
+  key -> duplicate
+  key -> changed
+}
+workload_queries: Workload store: Athena {
+  workload_query_execution {class: table}
+}
+m3: M3: Identity Links to
+Model Executions (#63) {class: later}
+athena -> queries.screen
+queries.stored -> workload_queries
+queries.changed -> workload_queries
+workload_queries -> m3: {style.stroke-dash: 4}

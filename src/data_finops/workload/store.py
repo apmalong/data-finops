@@ -27,6 +27,8 @@ from data_finops.contracts.workload import (
     LineageDirection,
     LineageEdge,
     ModelExecution,
+    QueryExecution,
+    QueryExecutionFlag,
     WorkloadRun,
     WorkloadRunFlag,
     WorkloadRunStatus,
@@ -40,6 +42,7 @@ from data_finops.dbt.artifacts import (
 )
 from data_finops.lineage.openlineage import RunEvent
 from data_finops.lineage.validation import Rejection, RejectionKind, screen_events
+from data_finops.providers.athena import EntryRejection, screen_query_history
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS workload_lineage_event (
@@ -97,6 +100,20 @@ CREATE TABLE IF NOT EXISTS workload_manifest_node (
     depends_on TEXT NOT NULL,
     PRIMARY KEY (invocation_id, node_id, artifact_digest)
 );
+CREATE TABLE IF NOT EXISTS workload_query_execution (
+    account_id TEXT NOT NULL,
+    region TEXT NOT NULL,
+    query_execution_id TEXT NOT NULL,
+    digest TEXT NOT NULL,
+    workgroup TEXT,
+    statement_type TEXT,
+    state TEXT NOT NULL,
+    submitted_us INTEGER NOT NULL,
+    completed_us INTEGER,
+    scanned_bytes INTEGER,
+    entry_json TEXT NOT NULL,
+    PRIMARY KEY (account_id, region, query_execution_id, digest)
+);
 """
 
 _START = "START"
@@ -106,6 +123,7 @@ _TERMINAL = {
     "ABORT": WorkloadRunStatus.ABORTED,
 }
 _SYSTEM = "openlineage"
+_ATHENA = "aws_athena"
 _EPOCH = datetime(1970, 1, 1, tzinfo=UTC)
 
 
@@ -142,6 +160,20 @@ class ArtifactIngestResult:
     invocation_id: str | None = None
     reason: str | None = None
     """Why a file was rejected; never content from the file."""
+
+
+@dataclass(frozen=True)
+class QueryHistoryIngestResult:
+    accepted: int = 0
+    """Query Executions stored by this ingest."""
+    duplicates: int = 0
+    """Already stored with the same content; nothing changed."""
+    rejected: tuple[EntryRejection, ...] = ()
+    """Invalid entries by position and reason; never stored, never echoed."""
+    changed_copies: int = 0
+    """Stored beside an observation of the same Query Execution with other content."""
+    file_rejection: str | None = None
+    """Why the whole file was refused (nothing stored); never content from the file."""
 
 
 @dataclass(frozen=True)
@@ -350,6 +382,105 @@ class WorkloadStore:
                 self._store_manifest_nodes(screened, screened.artifact)
         outcome = ArtifactOutcome.CHANGED_COPY if others else ArtifactOutcome.STORED
         return ArtifactIngestResult(outcome, invocation)
+
+    def ingest_query_history(
+        self, path: Path, *, account_id: str, region: str
+    ) -> QueryHistoryIngestResult:
+        """Store an Athena BatchGetQueryExecution response read from one account and region.
+
+        Each Query Execution is keyed by account, region and ID plus a digest of the entry as
+        stored, which keeps only allowlisted metadata (`athena.STORED_FIELDS`, spec 04): query
+        text, execution parameters and free-text failure reasons never reach storage. The same
+        content again is a duplicate; other content for the same key is kept beside it and
+        flagged.
+        """
+        screening = screen_query_history(path, account_id=account_id, region=region)
+        if isinstance(screening, str):
+            return QueryHistoryIngestResult(file_rejection=screening)
+        accepted = changed_copies = 0
+        with self._write_transaction():
+            for screened in screening.entries:
+                stored_json = _canonical(screened.stored)
+                digest = hashlib.sha256(stored_json.encode("utf-8")).hexdigest()
+                key = (account_id, region, screened.parsed.QueryExecutionId)
+                others = self._connection.execute(
+                    "SELECT 1 FROM workload_query_execution WHERE account_id = ? AND region = ?"
+                    " AND query_execution_id = ? AND digest != ? LIMIT 1",
+                    (*key, digest),
+                ).fetchone()
+                entry = screened.parsed
+                completed = entry.Status.CompletionDateTime
+                stored = self._connection.execute(
+                    "INSERT OR IGNORE INTO workload_query_execution (account_id, region,"
+                    " query_execution_id, digest, workgroup, statement_type, state,"
+                    " submitted_us, completed_us, scanned_bytes, entry_json)"
+                    " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    (
+                        *key,
+                        digest,
+                        entry.WorkGroup,
+                        entry.StatementType,
+                        entry.Status.State,
+                        _microseconds(entry.Status.SubmissionDateTime),
+                        _microseconds(completed) if completed else None,
+                        entry.Statistics.DataScannedInBytes if entry.Statistics else None,
+                        stored_json,
+                    ),
+                ).rowcount
+                accepted += stored
+                changed_copies += stored and others is not None
+        return QueryHistoryIngestResult(
+            accepted=accepted,
+            duplicates=len(screening.entries) - accepted,
+            rejected=tuple(screening.rejected),
+            changed_copies=changed_copies,
+        )
+
+    def query_execution(
+        self, account_id: str, region: str, query_execution_id: str
+    ) -> QueryExecution | None:
+        """The Query Execution as reported, or None if unknown.
+
+        When the provider reported it with different content, the fields come from the
+        observation with the lowest digest, so the answer does not depend on arrival order,
+        and the Query Execution is flagged.
+        """
+        rows = self._query_observations(account_id, region, query_execution_id)
+        if not rows:
+            return None
+        digest, workgroup, statement_type, state, submitted, completed, scanned, _ = rows[0]
+        return QueryExecution(
+            provider=_ATHENA,
+            account_id=account_id,
+            region=region,
+            query_execution_id=query_execution_id,
+            workgroup=workgroup,
+            statement_type=statement_type,
+            state=state,
+            submitted_at=_moment(submitted),
+            completed_at=_moment(completed) if completed is not None else None,
+            scanned_bytes=scanned,
+            provenance=digest,
+            flags=(QueryExecutionFlag.CONFLICTING_OBSERVATIONS,) if len(rows) > 1 else (),
+        )
+
+    def stored_query_executions(
+        self, account_id: str, region: str, query_execution_id: str
+    ) -> list[str]:
+        """The Query Execution's observations exactly as stored (canonical JSON), by digest."""
+        rows = self._query_observations(account_id, region, query_execution_id)
+        return [row[-1] for row in rows]
+
+    def _query_observations(
+        self, account_id: str, region: str, query_execution_id: str
+    ) -> list[tuple[Any, ...]]:
+        """A Query Execution's stored observations by digest, `entry_json` last."""
+        return self._connection.execute(
+            "SELECT digest, workgroup, statement_type, state, submitted_us, completed_us,"
+            " scanned_bytes, entry_json FROM workload_query_execution WHERE account_id = ?"
+            " AND region = ? AND query_execution_id = ? ORDER BY digest",
+            (account_id, region, query_execution_id),
+        ).fetchall()
 
     def _store_model_executions(self, screened: ScreenedArtifact, results: RunResults) -> None:
         invocation, digest = screened.invocation_id, screened.digest

@@ -25,8 +25,9 @@ Each input is checked before anything is written.
 - **Billing** is all or nothing per Export Snapshot: an invalid export raises a validation error, and a snapshot ID already stored with other content raises `SnapshotConflictError`. A restatement is a new snapshot. It becomes current and the earlier one is kept as history (ADR 0020).
 - **OpenLineage** files are screened event by event, so one bad event does not stop the rest of the file. The exception is a JSON array that cannot be parsed at all, which is rejected as a whole.
 - **dbt** artifacts are accepted or refused as whole files.
+- **Athena** query history is refused whole when it is not a BatchGetQueryExecution response, is too large, or records another account or region; otherwise it is screened entry by entry. Query text and free-text failure reasons are removed before storage.
 
-For OpenLineage and dbt, nothing is overwritten: a second, different copy is kept next to the first and flagged (ADR 0022).
+For OpenLineage, dbt and Athena, nothing is overwritten: a second, different copy is kept next to the first and flagged (ADR 0022).
 
 ## Domain model
 
