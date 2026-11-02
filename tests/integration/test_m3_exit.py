@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from data_finops.contracts.workload import LinkOutcome
+from data_finops.contracts.workload import LinkOutcome, LinkResolution
 from data_finops.workload.store import WorkloadStore
 
 FIXTURES = Path(__file__).resolve().parents[2] / "fixtures"
@@ -21,7 +21,7 @@ DAG_RUN = "00000000-0000-4000-8000-000000000000"
 AIRFLOW_TASK = "00000000-0000-4000-8000-000000000001"
 DBT_RUN = "00000000-0000-4000-8000-000000000002"
 MODEL_RUN = "00000000-0000-4000-8000-000000000003"
-SEED, FIRST, SECOND = (
+SEED_INVOCATION, FIRST_INVOCATION, SECOND_INVOCATION = (
     "ba26dcbd-17ed-4270-82ad-8d8dd8075b81",
     "d54e1d8c-43cb-42f4-a6ab-a055ab074a79",
     "0d9fc611-0f9f-43ea-81bb-ba7bc63be72f",
@@ -47,6 +47,13 @@ def store(tmp_path_factory: pytest.TempPathFactory) -> Iterator[WorkloadStore]:
         yield opened
 
 
+def _linked(resolution: LinkResolution | None) -> str:
+    """The target of a `linked` resolution; fails the test for any other outcome."""
+    assert resolution is not None and resolution.outcome == LinkOutcome.LINKED
+    assert resolution.link is not None
+    return resolution.link.target_id
+
+
 def _sample_query_ids() -> list[str]:
     history = json.loads(SAMPLE_QUERIES.read_text(encoding="utf-8"))
     return [entry["QueryExecutionId"] for entry in history["QueryExecutions"]]
@@ -68,7 +75,9 @@ def test_reference_queries_link_exactly_and_uncommented_ones_stay_unlinked(
         for q, outcome in outcomes.items()
         if outcome == LinkOutcome.NO_EVIDENCE
     ]
-    # OQ-22: the `alter table` statements dbt-athena sends without a comment.
+    assert None not in unlinked
+    # OQ-22: DDL scanning nothing, which the fixture README identifies as the `alter table`
+    # statements dbt-athena sends without a comment (query text is never stored).
     assert {(q.statement_type, q.scanned_bytes) for q in unlinked if q} == {("DDL", 0)}
 
 
@@ -80,28 +89,25 @@ def test_every_linked_reference_query_rolls_up_to_exactly_one_model_execution(
             q.query_execution_id
             for q in store.query_executions_of_model_execution(invocation, execution.node_id)
         ]
-        for invocation in (SEED, FIRST, SECOND)
+        for invocation in (SEED_INVOCATION, FIRST_INVOCATION, SECOND_INVOCATION)
         for execution in store.model_executions(invocation)
     }
     linked = [q for queries in per_execution.values() for q in queries]
     assert len(linked) == len(set(linked)) == 17
-    assert len(per_execution[(SECOND, "model.reference_workload.daily_orders")]) == 3
+    assert len(per_execution[(SECOND_INVOCATION, "model.reference_workload.daily_orders")]) == 3
 
 
 def test_reference_invocations_and_model_runs_link_to_their_workload_records(
     store: WorkloadStore,
 ) -> None:
-    seed = store.workload_run_of_invocation(SEED)
+    seed = store.workload_run_of_invocation(SEED_INVOCATION)
     assert seed is not None and (seed.outcome, seed.link) == (LinkOutcome.UNMATCHED, None)
-    for invocation in (FIRST, SECOND):
-        resolution = store.workload_run_of_invocation(invocation)
-        assert resolution is not None and resolution.link is not None
-        model_runs = store.children(resolution.link.target_id)
-        targets = set()
-        for run in model_runs:
-            model = store.model_execution_of_run(run.run_id)
-            assert model is not None and model.link is not None
-            targets.add(model.link.target_id)
+    for invocation in (FIRST_INVOCATION, SECOND_INVOCATION):
+        dbt_run = store.workload_run(_linked(store.workload_run_of_invocation(invocation)))
+        assert dbt_run is not None and dbt_run.job_name == "dbt-run-reference_workload"
+        model_runs = store.children(dbt_run.run_id)
+        assert len(model_runs) == 4
+        targets = {_linked(store.model_execution_of_run(run.run_id)) for run in model_runs}
         assert targets == {
             f'["{invocation}","model.reference_workload.{name}"]'
             for name in ("daily_orders", "revenue_by_region", "stg_customers", "stg_orders")
@@ -109,15 +115,11 @@ def test_reference_invocations_and_model_runs_link_to_their_workload_records(
 
 
 def test_a_hand_written_query_reaches_its_airflow_run(store: WorkloadStore) -> None:
-    query = store.model_execution_of_query(HAND_ACCOUNT, REGION, "q-001")
-    assert query is not None and query.link is not None
-    model_run = store.model_execution_of_run(MODEL_RUN)
-    assert model_run is not None and model_run.link is not None
+    query = _linked(store.model_execution_of_query(HAND_ACCOUNT, REGION, "q-001"))
+    model_run = _linked(store.model_execution_of_run(MODEL_RUN))
     # The query and dbt-ol's model run name the same Model Execution: one unit of work.
-    assert query.link.target_id == model_run.link.target_id == '["inv-001","model.demo.orders"]'
-    invocation = store.workload_run_of_invocation("inv-001")
-    assert invocation is not None and invocation.link is not None
-    dbt_run = store.workload_run(invocation.link.target_id)
+    assert query == model_run == '["inv-001","model.demo.orders"]'
+    dbt_run = store.workload_run(_linked(store.workload_run_of_invocation("inv-001")))
     assert dbt_run is not None
     assert (dbt_run.run_id, dbt_run.parent_run_id, dbt_run.root_run_id) == (
         DBT_RUN,
@@ -126,6 +128,9 @@ def test_a_hand_written_query_reaches_its_airflow_run(store: WorkloadStore) -> N
     )
     airflow = store.workload_run(AIRFLOW_TASK)
     assert airflow is not None and airflow.job_name == "daily_orders.dbt_run"
+    # The fixture has no events for the DAG run itself; the ParentRunFacet names it as root.
+    assert (dbt_run.root_job_namespace, dbt_run.root_job_name) == ("demo-airflow", "daily_orders")
+    assert store.workload_run(DAG_RUN) is None
 
 
 def test_missing_or_ambiguous_evidence_makes_no_link(store: WorkloadStore) -> None:

@@ -77,9 +77,9 @@ classDiagram
     WorkloadRun "1" --> "many" LineageEdge : reports
     LineageEdge "many" --> "1" DataAsset
     ModelExecution "many" --> "1" DbtNode : runs, same invocation
-    IdentityLink --> QueryExecution : Trusted Query Comment
-    IdentityLink --> ModelExecution
-    IdentityLink --> WorkloadRun : dbt-ol facets
+    IdentityLink --> QueryExecution : source, by Trusted Query Comment
+    IdentityLink --> WorkloadRun : source or target, by dbt-ol facets
+    IdentityLink --> ModelExecution : target
     Allocation ..> BillingLine : share of its Cost Pool
     Allocation ..> QueryExecution : Allocation Target
 ```
