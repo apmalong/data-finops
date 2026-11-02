@@ -56,6 +56,17 @@ class WorkloadRunStatus(StrEnum):
     """Two different terminal events were reported; never resolved silently."""
 
 
+class WorkloadRunFlag(StrEnum):
+    """Disagreements among a run's stored observations, shown rather than resolved."""
+
+    CONFLICTING_OBSERVATIONS = "conflicting_observations"
+    """Two events with the same run, event type and time but different content."""
+    CONFLICTING_JOBS = "conflicting_jobs"
+    """The run's events name different jobs."""
+    CONFLICTING_PARENTS = "conflicting_parents"
+    """The run's events name different direct parents (run or job)."""
+
+
 class WorkloadRun(BaseModel):
     """One OpenLineage run as reported, including dbt-ol's per-model runs (ADR 0022)."""
 
@@ -72,6 +83,7 @@ class WorkloadRun(BaseModel):
     root_job_namespace: str | None = None
     root_job_name: str | None = None
     status: WorkloadRunStatus
+    flags: tuple[WorkloadRunFlag, ...] = ()
     started_at: UtcDatetime | None = None
     ended_at: UtcDatetime | None = None
 
