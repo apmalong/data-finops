@@ -1,8 +1,11 @@
-# Real runs only (#75, owner approval required): mounts your AWS config read-only and picks
-# a profile. Use with: docker compose -f compose.yaml -f compose.aws.yaml up
+# Real runs only (#75, owner approval required). Passes one profile's short-lived credentials
+# as environment variables (export them first; see the README); no AWS folder is mounted.
+# Use with: docker compose -f compose.yaml -f compose.aws.yaml up -d
 services:
   airflow:
     environment:
-      AWS_PROFILE: ${AWS_PROFILE:?set AWS_PROFILE}
-    volumes:
-      - ${AWS_CONFIG_DIR:?set AWS_CONFIG_DIR to your .aws folder}:/home/airflow/.aws:ro
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:?export one profile's credentials first}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:?export one profile's credentials first}
+      AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN:?use short-lived credentials (a session token)}
+      AWS_DEFAULT_REGION: us-east-1
+      REFERENCE_WORKLOAD_BUCKET: ${REFERENCE_WORKLOAD_BUCKET:?set the stack's bucket output}

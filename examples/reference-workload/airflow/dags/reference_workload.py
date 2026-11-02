@@ -15,7 +15,12 @@ DBT_BIN = "/home/airflow/dbt-venv/bin"
 DBT_SHELL = f'unset PYTHONPATH && export PATH="{DBT_BIN}:$PATH"'
 """The task's own shell: dbt-ol starts `dbt` by name, so its virtualenv comes first on PATH;
 the image's PYTHONPATH would put Airflow's packages ahead of dbt's pinned ones."""
-OPENLINEAGE = "macros.OpenLineageProviderPlugin"
+
+
+def _ol_macro(name: str) -> str:
+    """A Jinja call to one of the OpenLineage provider's macros for this task instance."""
+    return f"{{{{ macros.OpenLineageProviderPlugin.{name}(task_instance) }}}}"
+
 
 with DAG(
     dag_id="reference_workload",
@@ -28,10 +33,8 @@ with DAG(
         task_id="dbt_run",
         bash_command=f"{DBT_SHELL} && cd {DBT_PROJECT} && dbt-ol run --profiles-dir .",
         env={
-            "OPENLINEAGE_PARENT_ID": f"{{{{ {OPENLINEAGE}.lineage_parent_id(task_instance) }}}}",
-            "OPENLINEAGE_ROOT_PARENT_ID": (
-                f"{{{{ {OPENLINEAGE}.lineage_root_parent_id(task_instance) }}}}"
-            ),
+            "OPENLINEAGE_PARENT_ID": _ol_macro("lineage_parent_id"),
+            "OPENLINEAGE_ROOT_PARENT_ID": _ol_macro("lineage_root_parent_id"),
         },
         append_env=True,
     )

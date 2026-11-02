@@ -15,8 +15,9 @@ from typing import Any
 import pytest
 import yaml
 
-AIRFLOW = Path(__file__).resolve().parents[1] / "airflow"
-PYPROJECT = Path(__file__).resolve().parents[1] / "pyproject.toml"
+WORKLOAD = Path(__file__).resolve().parents[1]
+AIRFLOW = WORKLOAD / "airflow"
+PYPROJECT = WORKLOAD / "pyproject.toml"
 DBT_PACKAGES = ("dbt-core", "dbt-athena", "openlineage-dbt")
 
 
@@ -62,18 +63,19 @@ class _Dag:
 def task(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
     """Run the DAG file against stand-ins and return the arguments its task was given."""
     captured: dict[str, Any] = {}
-    stubs = {
-        "airflow": types.ModuleType("airflow"),
-        "airflow.sdk": types.ModuleType("airflow.sdk"),
-        "airflow.providers.standard.operators.bash": types.ModuleType("bash"),
-    }
+    names = (
+        "airflow",
+        "airflow.sdk",
+        "airflow.providers",
+        "airflow.providers.standard",
+        "airflow.providers.standard.operators",
+        "airflow.providers.standard.operators.bash",
+    )
+    stubs = {name: types.ModuleType(name) for name in names}
     stubs["airflow.sdk"].DAG = _Dag  # type: ignore[attr-defined]
     stubs["airflow.providers.standard.operators.bash"].BashOperator = (  # type: ignore[attr-defined]
         lambda **kwargs: captured.update(kwargs)
     )
-    for name in ("airflow.providers", "airflow.providers.standard"):
-        stubs[name] = types.ModuleType(name)
-    stubs["airflow.providers.standard.operators"] = types.ModuleType("operators")
     for name, module in stubs.items():
         monkeypatch.setitem(sys.modules, name, module)
     source = (AIRFLOW / "dags" / "reference_workload.py").read_text(encoding="utf-8")
@@ -106,5 +108,25 @@ def test_events_go_to_the_ignored_local_folder_and_no_credentials_by_default() -
     assert transport["log_file_path"].startswith("/workspace/.local/openlineage/")
     assert not any(".aws" in volume for volume in service["volumes"])
     assert not any(key.startswith("AWS_") for key in service["environment"])
+    # Only the dbt project and the event folder are mounted, not the whole checkout.
+    assert sorted(service["volumes"]) == [
+        "../../../.local/openlineage:/workspace/.local/openlineage",
+        "../dbt:/workspace/examples/reference-workload/dbt",
+        "./dags:/opt/airflow/dags:ro",
+    ]
+
+
+def test_a_real_run_gets_short_lived_credentials_and_no_aws_folder() -> None:
     aws = yaml.safe_load((AIRFLOW / "compose.aws.yaml").read_text(encoding="utf-8"))
-    assert all(v.endswith(":ro") for v in aws["services"]["airflow"]["volumes"])
+    service = aws["services"]["airflow"]
+    assert "volumes" not in service
+    assert {"AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN"} <= set(
+        service["environment"]
+    )
+    assert all(
+        ":?" in str(service["environment"][key])
+        for key in (
+            "AWS_SESSION_TOKEN",
+            "REFERENCE_WORKLOAD_BUCKET",
+        )
+    )

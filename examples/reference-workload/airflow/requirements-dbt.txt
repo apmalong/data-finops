@@ -1,71 +1,33 @@
 agate==1.9.1 \
     --hash=sha256:1cf329510b3dde07c4ad1740b7587c9c679abc3dcd92bb1107eabc10c2e03c50 \
     --hash=sha256:bc60880c2ee59636a2a80cd8603d63f995be64526abf3cbba12f00767bcd5b3d
-    # via
-    #   -c C:/Users/apmal/AppData/Local/Temp/claude/c--Users-apmal-projects/21cb3d35-be24-424f-bf62-1b3c4d5ee717/scratchpad/lock-constraints.txt
-    #   dbt-adapters
-    #   dbt-common
-    #   dbt-core
 annotated-types==0.8.0 \
     --hash=sha256:13b2beaad985e05e2d6407ee4c4f35590b11f8d693a258a561055cac8f64cab7 \
     --hash=sha256:f072f4d804ea359e4eaf198b1af7a8b0943881a87f31bb764f8bf219bb9419e0
-    # via
-    #   -c C:/Users/apmal/AppData/Local/Temp/claude/c--Users-apmal-projects/21cb3d35-be24-424f-bf62-1b3c4d5ee717/scratchpad/lock-constraints.txt
-    #   pydantic
 anyio==4.16.0 ; sys_platform != 'emscripten' \
     --hash=sha256:59bb03251907983d1603d27c3087ddb1e93299ea2163adcdba37899a4fb12ffb \
     --hash=sha256:c66ae634e0b8228396b801741beb3294326d4b6102f7bba4041c0dfb58c29026
-    # via
-    #   -c C:/Users/apmal/AppData/Local/Temp/claude/c--Users-apmal-projects/21cb3d35-be24-424f-bf62-1b3c4d5ee717/scratchpad/lock-constraints.txt
-    #   httpx2
 attrs==26.1.0 \
     --hash=sha256:c647aa4a12dfbad9333ca4e71fe62ddc36f4e63b2d260a37a8b83d2f043ac309 \
     --hash=sha256:d03ceb89cb322a8fd706d4fb91940737b6642aa36998fe130a9bc96c985eff32
-    # via
-    #   -c C:/Users/apmal/AppData/Local/Temp/claude/c--Users-apmal-projects/21cb3d35-be24-424f-bf62-1b3c4d5ee717/scratchpad/lock-constraints.txt
-    #   jsonschema
-    #   openlineage-integration-common
-    #   openlineage-python
-    #   referencing
 babel==2.18.0 \
     --hash=sha256:b80b99a14bd085fcacfa15c9165f651fbb3406e66cc603abf11c5750937c992d \
     --hash=sha256:e2b422b277c2b9a9630c1d7903c2a00d0830c409c59ac8cae9081c92f1aeba35
-    # via
-    #   -c C:/Users/apmal/AppData/Local/Temp/claude/c--Users-apmal-projects/21cb3d35-be24-424f-bf62-1b3c4d5ee717/scratchpad/lock-constraints.txt
-    #   agate
 boto3==1.43.123 \
     --hash=sha256:055fabb990c5d2f31fce4ca569255bd640cdd11a3ca68c9ecad35f4f8a5b83b5 \
     --hash=sha256:d18d66e1e13faa0c25d0b1b8c5ce946e29fb5fc0b6456b655a93a678ff4cc313
-    # via
-    #   -c C:/Users/apmal/AppData/Local/Temp/claude/c--Users-apmal-projects/21cb3d35-be24-424f-bf62-1b3c4d5ee717/scratchpad/lock-constraints.txt
-    #   dbt-athena
-    #   pyathena
 boto3-stubs==1.43.123 \
     --hash=sha256:29bf383f524b10a59478f87994de423cb58e58498b48cd1065a0f23802c0745e \
     --hash=sha256:7e0565ef2c529c4ca569f51baad2af306c8eba3ddb5814a8ffca8c9fb07c763a
-    # via
-    #   -c C:/Users/apmal/AppData/Local/Temp/claude/c--Users-apmal-projects/21cb3d35-be24-424f-bf62-1b3c4d5ee717/scratchpad/lock-constraints.txt
-    #   dbt-athena
 botocore==1.43.123 \
     --hash=sha256:80948cb9b1cdf1a1a25809089a42e3a1bc4af0258d198222db6e97dcc660dd0c \
     --hash=sha256:e30580f9c1282c321529238ff8ff75066096a2adbd0a293c8ae592c21d1733a3
-    # via
-    #   -c C:/Users/apmal/AppData/Local/Temp/claude/c--Users-apmal-projects/21cb3d35-be24-424f-bf62-1b3c4d5ee717/scratchpad/lock-constraints.txt
-    #   boto3
-    #   pyathena
-    #   s3transfer
 botocore-stubs==1.43.123 \
     --hash=sha256:8c0d17ec8464e32097cb1716f45536a92a197ad36011c795fe4407245630c952 \
     --hash=sha256:bb0dc9d13d7f066385bfbe0ed483ca097a7572ae35fe4e1abe5fa9303355d1df
-    # via
-    #   -c C:/Users/apmal/AppData/Local/Temp/claude/c--Users-apmal-projects/21cb3d35-be24-424f-bf62-1b3c4d5ee717/scratchpad/lock-constraints.txt
-    #   boto3-stubs
 certifi==2026.10.23 \
     --hash=sha256:a9895e6e2758b371e0545e321a3a8fd1fcfd9829ada8824a936dfb16aaaf36cd \
     --hash=sha256:e9b54de76e530bb6cf0ccd036787103acb58fd42ba930ea8bf948ddbaa2f61d1
-    # via
-    #   -c C:/Users/apmal/AppData/Local/Temp/claude/c--Users-apmal-projects/21cb3d35-be24-424f-bf62-1b3c4d5ee717/scratchpad/lock-constraints.txt
-    #   requests
 charset-normalizer==3.5.2 \
     --hash=sha256:01077390b03f7988f11d700a2194e69b119741a86b1a638b1db88891e3eced8e \
     --hash=sha256:01b0c0d2262a9e28e8484a278c7e1b5d650e3ac8cf2683d2967e25899f208bdf \
@@ -239,62 +201,29 @@ charset-normalizer==3.5.2 \
     --hash=sha256:fcff63213e8e6e47770541a4607175404f47cbb3ebea7b6058cc82d524a0e424 \
     --hash=sha256:fd1fbe0f116b6e55da77aca2c6ddcddcfac2186cbf78bdebf40fc156efca389d \
     --hash=sha256:fe9753dfee015c570d73df76f899f18444d41388bffcde097deba51c4fadbb9f
-    # via
-    #   -c C:/Users/apmal/AppData/Local/Temp/claude/c--Users-apmal-projects/21cb3d35-be24-424f-bf62-1b3c4d5ee717/scratchpad/lock-constraints.txt
-    #   requests
 click==8.5.0 \
     --hash=sha256:255bc9599cf7748b4b1a446ccc735421bd08a2ae529a8b88597d3de5664ee360 \
     --hash=sha256:ba0d2089de75ea0310e2dde03160e6ca10009947fb95a182f9b54021bb272e34
-    # via
-    #   -c C:/Users/apmal/AppData/Local/Temp/claude/c--Users-apmal-projects/21cb3d35-be24-424f-bf62-1b3c4d5ee717/scratchpad/lock-constraints.txt
-    #   dbt-core
 colorama==0.4.6 \
     --hash=sha256:08695f5cb7ed6e0531a20572697297273c47b8cae5a63ffc6d6ed5c201be6e44 \
     --hash=sha256:4f1d9991f5acc0ca119f9d443620b77f9d6b33703e51011c16baf57afb285fc6
-    # via
-    #   -c C:/Users/apmal/AppData/Local/Temp/claude/c--Users-apmal-projects/21cb3d35-be24-424f-bf62-1b3c4d5ee717/scratchpad/lock-constraints.txt
-    #   dbt-common
-    #   tqdm
 daff==1.4.2 \
     --hash=sha256:47f0391eda7e2b5011f7ccac006b9178accb465bcb94a2c9f284257fff5d2686 \
     --hash=sha256:88981a21d065e4378b5c4bd40b975dbfdea9b7ff540071f3bb5e20cc8b3590b5
-    # via
-    #   -c C:/Users/apmal/AppData/Local/Temp/claude/c--Users-apmal-projects/21cb3d35-be24-424f-bf62-1b3c4d5ee717/scratchpad/lock-constraints.txt
-    #   dbt-core
 dbt-adapters==1.24.5 \
     --hash=sha256:32345118b921160722a13f12c3e369b9d59a0fb8fb9b3297e29d8cd53f973411 \
     --hash=sha256:87de096a0d5b219905f1079b002f13e3447ffb63558f4f3c5b7278670d198acb
-    # via
-    #   -c C:/Users/apmal/AppData/Local/Temp/claude/c--Users-apmal-projects/21cb3d35-be24-424f-bf62-1b3c4d5ee717/scratchpad/lock-constraints.txt
-    #   dbt-athena
-    #   dbt-core
 dbt-athena==1.11.1 \
     --hash=sha256:382506f6e85ca36f40d0f5d9392f4f53b8befaeeeb102c0a4e3abc70a818ee4c \
     --hash=sha256:6eebf322665af918c4a3f7b621ed115d54df0617eaed14cbacf4ed9de761502c
-    # via
-    #   -c C:/Users/apmal/AppData/Local/Temp/claude/c--Users-apmal-projects/21cb3d35-be24-424f-bf62-1b3c4d5ee717/scratchpad/lock-constraints.txt
-    #   -r airflow/requirements-dbt.in
 dbt-common==1.39.0 \
     --hash=sha256:30d63490b9ef2aad6f469ec841fb758430fcb1d997b79ff3df36fcb7b79a241f \
     --hash=sha256:868256ab2b59328efdd455644172ad17303f3f6a78a015f06667e865e068d620
-    # via
-    #   -c C:/Users/apmal/AppData/Local/Temp/claude/c--Users-apmal-projects/21cb3d35-be24-424f-bf62-1b3c4d5ee717/scratchpad/lock-constraints.txt
-    #   dbt-adapters
-    #   dbt-athena
-    #   dbt-core
 dbt-core==1.12.6 \
     --hash=sha256:a14fb6724a557dea781afa19171869a1b0b286a396d5dc012e74b8bd3596325e \
     --hash=sha256:e4378ecde4740d6b6a5b706ad25162272e28dc20ee8390c42c1ebd637752574f
-    # via
-    #   -c C:/Users/apmal/AppData/Local/Temp/claude/c--Users-apmal-projects/21cb3d35-be24-424f-bf62-1b3c4d5ee717/scratchpad/lock-constraints.txt
-    #   -r airflow/requirements-dbt.in
-    #   dbt-athena
-    #   openlineage-dbt
 dbt-core-experimental-parser==2.0.8 \
     --hash=sha256:35b7760967f9542fd0b1a3cd742ffd24e8e08a18473a84a891a3bc8a9d6b2910
-    # via
-    #   -c C:/Users/apmal/AppData/Local/Temp/claude/c--Users-apmal-projects/21cb3d35-be24-424f-bf62-1b3c4d5ee717/scratchpad/lock-constraints.txt
-    #   dbt-core
 dbt-extractor==0.6.0 \
     --hash=sha256:05bcfab7ebd70296ceb31742e8333ba66a2c939de44e61a7088bebafa939aaf6 \
     --hash=sha256:080fd1edf123926ed97929c65a75874d0fea687ccd5d3ebbc9e81b339f099604 \
@@ -312,109 +241,51 @@ dbt-extractor==0.6.0 \
     --hash=sha256:caeaba8d8c813f8e32d586c12615c0c7d6b99bee4f1be845312e80ef731de164 \
     --hash=sha256:d6cf08ec793b8bc2bd6e260ef818230ae68a4f71436fa489f08d7db1a52e2ffe \
     --hash=sha256:dcf14ed245de8df269815ff4c4f555fa72d2621f4fff37c023b8c99d0e421b4f
-    # via
-    #   -c C:/Users/apmal/AppData/Local/Temp/claude/c--Users-apmal-projects/21cb3d35-be24-424f-bf62-1b3c4d5ee717/scratchpad/lock-constraints.txt
-    #   dbt-core
 dbt-protos==1.0.615 \
     --hash=sha256:05ee5544ffbc4d105728bdcf78b4d75c9881d66eda36c26a786a1d2f53d49694 \
     --hash=sha256:86a2237841b2b4b1f282d0dec6919ae6540544318cfd2d63239c961d49d0f195
-    # via
-    #   -c C:/Users/apmal/AppData/Local/Temp/claude/c--Users-apmal-projects/21cb3d35-be24-424f-bf62-1b3c4d5ee717/scratchpad/lock-constraints.txt
-    #   dbt-adapters
-    #   dbt-common
-    #   dbt-core
 deepdiff==8.6.2 \
     --hash=sha256:186dcbd181e4d76cef11ab05f802d0056c5d6083c5a6748c1473e9d7481e183e \
     --hash=sha256:4d22034a866c3928303a9332c279362f714192d9305bac17c498720d095fd1b4
-    # via
-    #   -c C:/Users/apmal/AppData/Local/Temp/claude/c--Users-apmal-projects/21cb3d35-be24-424f-bf62-1b3c4d5ee717/scratchpad/lock-constraints.txt
-    #   dbt-common
 fsspec==2026.9.0 \
     --hash=sha256:0f08147951c8cb31d844c3547d631053b127863b60be04cf06e121333ee0e2fe \
     --hash=sha256:8dd6e646e99ea382bd85f97a45e6b526a442d79423a7dc673f1e2756d05fcb5f
-    # via
-    #   -c C:/Users/apmal/AppData/Local/Temp/claude/c--Users-apmal-projects/21cb3d35-be24-424f-bf62-1b3c4d5ee717/scratchpad/lock-constraints.txt
-    #   pyathena
 h11==0.16.0 ; sys_platform != 'emscripten' \
     --hash=sha256:4e35b956cf45792e4caa5885e69fba00bdbc6ffafbfa020300e549b208ee5ff1 \
     --hash=sha256:63cf8bbe7522de3bf65932fda1d9c2772064ffb3dae62d55932da54b31cb6c86
-    # via
-    #   -c C:/Users/apmal/AppData/Local/Temp/claude/c--Users-apmal-projects/21cb3d35-be24-424f-bf62-1b3c4d5ee717/scratchpad/lock-constraints.txt
-    #   httpcore2
 httpcore2==2.16.0 ; sys_platform != 'emscripten' \
     --hash=sha256:5c4358319f2602d984ad93182c9fee5160f22e9da7babdda870a5e7c4e2dc34f \
     --hash=sha256:c72cd0413563b17e1cd8354677dff887466f8ec2551679759e93126534428643
-    # via
-    #   -c C:/Users/apmal/AppData/Local/Temp/claude/c--Users-apmal-projects/21cb3d35-be24-424f-bf62-1b3c4d5ee717/scratchpad/lock-constraints.txt
-    #   httpx2
 httpx2==2.16.0 \
     --hash=sha256:0d54c98128e8f2ff7fbbde0fca8c359e5f032edeaaaac443cdb7f31f685bcd7f \
     --hash=sha256:fd2c5d7909e8d86fe92d53020c310ca0e4e431b838c207c5754b9bbf0308d49a
-    # via
-    #   -c C:/Users/apmal/AppData/Local/Temp/claude/c--Users-apmal-projects/21cb3d35-be24-424f-bf62-1b3c4d5ee717/scratchpad/lock-constraints.txt
-    #   openlineage-python
 httpx2-jsfetch==1.0 ; sys_platform == 'emscripten' \
     --hash=sha256:70a0e3eabfef7cce5ad9c629f7d01ca05e418f586646f4ddf14782e4c1454c60 \
     --hash=sha256:cb916b707601e69a07721aabc8f3f6659be3a6893bc1ff5c6f9e02241df2da32
-    # via
-    #   -c C:/Users/apmal/AppData/Local/Temp/claude/c--Users-apmal-projects/21cb3d35-be24-424f-bf62-1b3c4d5ee717/scratchpad/lock-constraints.txt
-    #   httpx2
 idna==3.20 \
     --hash=sha256:a7db850025b95ded1eae8a46181a1a6c56c92c96f0e2b005d9ff8dc0210cab44 \
     --hash=sha256:ab7ae7122974553370f0bdb919e1a960b2cd1bc1ef0276416d896db81c14582c
-    # via
-    #   -c C:/Users/apmal/AppData/Local/Temp/claude/c--Users-apmal-projects/21cb3d35-be24-424f-bf62-1b3c4d5ee717/scratchpad/lock-constraints.txt
-    #   anyio
-    #   httpx2
-    #   requests
 importlib-metadata==10.1.0 \
     --hash=sha256:82b04047fa09792c1a8cfeddfe08bec79e4b13c29c8469b0d3949860f61017e8 \
     --hash=sha256:cf45ce66a929c64e994185a809c04840d0501db17e663810d993d0f4829265c7
-    # via
-    #   -c C:/Users/apmal/AppData/Local/Temp/claude/c--Users-apmal-projects/21cb3d35-be24-424f-bf62-1b3c4d5ee717/scratchpad/lock-constraints.txt
-    #   metricflow
 isodate==0.7.2 \
     --hash=sha256:28009937d8031054830160fce6d409ed342816b543597cece116d966c6d99e15 \
     --hash=sha256:4cd1aa0f43ca76f4a6c6c0292a85f40b35ec2e43e315b59f06e6d32171a953e6
-    # via
-    #   -c C:/Users/apmal/AppData/Local/Temp/claude/c--Users-apmal-projects/21cb3d35-be24-424f-bf62-1b3c4d5ee717/scratchpad/lock-constraints.txt
-    #   agate
-    #   dbt-common
 jinja2==3.1.6 \
     --hash=sha256:0137fb05990d35f1275a587e9aee6d56da821fc83491a0fb838183be43f66d6d \
     --hash=sha256:85ece4451f492d0c13c5dd7c13a64681a86afae63a5f347908daf103ce6d2f67
-    # via
-    #   -c C:/Users/apmal/AppData/Local/Temp/claude/c--Users-apmal-projects/21cb3d35-be24-424f-bf62-1b3c4d5ee717/scratchpad/lock-constraints.txt
-    #   dbt-common
-    #   dbt-core
-    #   metricflow
 jmespath==1.1.0 \
     --hash=sha256:472c87d80f36026ae83c6ddd0f1d05d4e510134ed462851fd5f754c8c3cbb88d \
     --hash=sha256:a5663118de4908c91729bea0acadca56526eb2698e83de10cd116ae0f4e97c64
-    # via
-    #   -c C:/Users/apmal/AppData/Local/Temp/claude/c--Users-apmal-projects/21cb3d35-be24-424f-bf62-1b3c4d5ee717/scratchpad/lock-constraints.txt
-    #   boto3
-    #   botocore
 jsonschema==4.26.0 \
     --hash=sha256:0c26707e2efad8aa1bfc5b7ce170f3fccc2e4918ff85989ba9ffa9facb2be326 \
     --hash=sha256:d489f15263b8d200f8387e64b4c3a75f06629559fb73deb8fdfb525f2dab50ce
-    # via
-    #   -c C:/Users/apmal/AppData/Local/Temp/claude/c--Users-apmal-projects/21cb3d35-be24-424f-bf62-1b3c4d5ee717/scratchpad/lock-constraints.txt
-    #   dbt-common
-    #   dbt-core
-    #   metricflow
 jsonschema-specifications==2025.9.1 \
     --hash=sha256:98802fee3a11ee76ecaca44429fda8a41bff98b00a0f2838151b113f210cc6fe \
     --hash=sha256:b540987f239e745613c7a9176f3edb72b832a4ac465cf02712288397832b5e8d
-    # via
-    #   -c C:/Users/apmal/AppData/Local/Temp/claude/c--Users-apmal-projects/21cb3d35-be24-424f-bf62-1b3c4d5ee717/scratchpad/lock-constraints.txt
-    #   jsonschema
 leather==0.4.1 \
     --hash=sha256:67119c2aee93be821f077193bd8534e296c05b38bd174d9c5a80c4aa31d1a4d3 \
     --hash=sha256:ec61cba1ca3ccb96ed90e38b116fc58757d97d352171006b3288c47ce3fbd183
-    # via
-    #   -c C:/Users/apmal/AppData/Local/Temp/claude/c--Users-apmal-projects/21cb3d35-be24-424f-bf62-1b3c4d5ee717/scratchpad/lock-constraints.txt
-    #   agate
 markupsafe==3.0.4 \
     --hash=sha256:007e1ffd9bf65bb6ee96df7b258fc632a4868dd5566037986c64781f35a36e98 \
     --hash=sha256:02fa4acbc6a3fc5c693c34d4dd8c1130b7fe99cc915181b0ddd6f72aeb296002 \
@@ -567,23 +438,12 @@ markupsafe==3.0.4 \
     --hash=sha256:fa95848c929b6a75f6848d3c9793e59db365ee436776e57db835cdbfa79ba977 \
     --hash=sha256:fd9f8797427910198f95bced71ddfed61130d7e349213bfb8466c9c99e2c46a8 \
     --hash=sha256:fdb4ca07ab75ffadab4a8b135ad59cdbb3156b99310f3d565370da74a15d6bd3
-    # via
-    #   -c C:/Users/apmal/AppData/Local/Temp/claude/c--Users-apmal-projects/21cb3d35-be24-424f-bf62-1b3c4d5ee717/scratchpad/lock-constraints.txt
-    #   jinja2
 mashumaro==3.17 \
     --hash=sha256:3964e2c804f62de9e4c58fb985de71dcd716f9507cc18374b1bd5c4f1a1b879b \
     --hash=sha256:de1d8b1faffee58969c7f97e35963a92480a38d4c9858e92e0721efec12258ed
-    # via
-    #   -c C:/Users/apmal/AppData/Local/Temp/claude/c--Users-apmal-projects/21cb3d35-be24-424f-bf62-1b3c4d5ee717/scratchpad/lock-constraints.txt
-    #   dbt-adapters
-    #   dbt-common
-    #   dbt-core
 metricflow==0.213.0 \
     --hash=sha256:6e1865535a200607529970f6ca1a9fcd22b7814d0b71cd654d9ee01eecf0157b \
     --hash=sha256:e6b5e8f05a0b9b0183430416052a61747fc89f809c39f2cdc5a3d9ba7a3f6931
-    # via
-    #   -c C:/Users/apmal/AppData/Local/Temp/claude/c--Users-apmal-projects/21cb3d35-be24-424f-bf62-1b3c4d5ee717/scratchpad/lock-constraints.txt
-    #   dbt-core
 mmh3==4.1.0 \
     --hash=sha256:0033d60c7939168ef65ddc396611077a7268bde024f2c23bdc283a19123f9e9c \
     --hash=sha256:01bb9b90d61854dfc2407c5e5192bfb47222d74f29d140cb2dd2a69f2353f7cc \
@@ -665,15 +525,9 @@ mmh3==4.1.0 \
     --hash=sha256:f90938ff137130e47bcec8dc1f4ceb02f10178c766e2ef58a9f657ff1f62d124 \
     --hash=sha256:fa7eacd2b830727ba3dd65a365bed8a5c992ecd0c8348cf39a05cc77d22f4970 \
     --hash=sha256:fefef92e9c544a8dbc08f77a8d1b6d48006a750c4375bbcd5ff8199d761e263b
-    # via
-    #   -c C:/Users/apmal/AppData/Local/Temp/claude/c--Users-apmal-projects/21cb3d35-be24-424f-bf62-1b3c4d5ee717/scratchpad/lock-constraints.txt
-    #   dbt-athena
 more-itertools==10.8.0 \
     --hash=sha256:52d4362373dcf7c52546bc4af9a86ee7c4579df9a8dc268be0a2f949d376cc9b \
     --hash=sha256:f638ddf8a1a0d134181275fb5d58b086ead7c6a72429ad725c67503f13ba30bd
-    # via
-    #   -c C:/Users/apmal/AppData/Local/Temp/claude/c--Users-apmal-projects/21cb3d35-be24-424f-bf62-1b3c4d5ee717/scratchpad/lock-constraints.txt
-    #   metricflow
 msgpack==1.2.4 \
     --hash=sha256:0221748c30ace75fde0dec8c470abe65fb5374cd4f37adb9db6aca7a3c362c0a \
     --hash=sha256:0626ea840cce866237c4da08439e9faa9cf79e6e4c62358978ee055961e8cff2 \
@@ -766,95 +620,47 @@ msgpack==1.2.4 \
     --hash=sha256:f641971d3eec89ffca57fa36d151ad1cf1b6a214b47faca16cb165c7d45ef8be \
     --hash=sha256:fb811ac3d463a75013b234d2aae56b9f0bdb0105caf4dd2ee65305b6a8a6078d \
     --hash=sha256:fb9ddbf23b8c6e89752af399fcf4daed60055e239cda44c6acfaa76d19331e8c
-    # via
-    #   -c C:/Users/apmal/AppData/Local/Temp/claude/c--Users-apmal-projects/21cb3d35-be24-424f-bf62-1b3c4d5ee717/scratchpad/lock-constraints.txt
-    #   mashumaro
 mypy-boto3-athena==1.43.0 \
     --hash=sha256:b216ec5f34c94ec45a8edec3e7a84b93280aab24509cc1a2f4c885964052cb4f \
     --hash=sha256:d3effaedd902facb838af779de11c9f9dd43f0a836671449bd44b41146998d71
-    # via
-    #   -c C:/Users/apmal/AppData/Local/Temp/claude/c--Users-apmal-projects/21cb3d35-be24-424f-bf62-1b3c4d5ee717/scratchpad/lock-constraints.txt
-    #   boto3-stubs
 mypy-boto3-glue==1.43.118 \
     --hash=sha256:90eae3e7b23649d6fe3f99d4f3b2f491608615b12eb8e8c8b0c0b9a926f85b8c \
     --hash=sha256:a0061e872e324c056f6b7845fde9730e86ebee76d6bc5239eaf232abcab81a8a
-    # via
-    #   -c C:/Users/apmal/AppData/Local/Temp/claude/c--Users-apmal-projects/21cb3d35-be24-424f-bf62-1b3c4d5ee717/scratchpad/lock-constraints.txt
-    #   boto3-stubs
 mypy-boto3-lakeformation==1.43.113 \
     --hash=sha256:129b134ad87dfeb2591e8728d582e43b3bce9d3d142a0ddb3e6e7af3c0f241b9 \
     --hash=sha256:28bcb32262c88195c12266a1d3e3d99eaee57719f222d01025d645d855fdfbb7
-    # via
-    #   -c C:/Users/apmal/AppData/Local/Temp/claude/c--Users-apmal-projects/21cb3d35-be24-424f-bf62-1b3c4d5ee717/scratchpad/lock-constraints.txt
-    #   boto3-stubs
 mypy-boto3-sts==1.43.94 \
     --hash=sha256:4a740ed21a689fc980fe804a4886fbe4ef84281878cf4a87934e38f27386f2cb \
     --hash=sha256:d169e309deecf99cb8a897e34733571fcaa605447e29b9f6a8c32202c82690ce
-    # via
-    #   -c C:/Users/apmal/AppData/Local/Temp/claude/c--Users-apmal-projects/21cb3d35-be24-424f-bf62-1b3c4d5ee717/scratchpad/lock-constraints.txt
-    #   boto3-stubs
 networkx==3.7 \
     --hash=sha256:e3fd2c13a7814cee3746340d8d7f8598a67f16a58bf47fb7f8793fab6efca1b0 \
     --hash=sha256:fd77a511bd90f39f3d016351345b52cf5319b813bdca01de3f755d3cca62e96a
-    # via
-    #   -c C:/Users/apmal/AppData/Local/Temp/claude/c--Users-apmal-projects/21cb3d35-be24-424f-bf62-1b3c4d5ee717/scratchpad/lock-constraints.txt
-    #   dbt-core
 openlineage-dbt==1.54.0 \
     --hash=sha256:9d1cbe3264a5f6aaeafb7d61d50a4b76c517d813ec908e703f06d926ac212344
-    # via
-    #   -c C:/Users/apmal/AppData/Local/Temp/claude/c--Users-apmal-projects/21cb3d35-be24-424f-bf62-1b3c4d5ee717/scratchpad/lock-constraints.txt
-    #   -r airflow/requirements-dbt.in
 openlineage-integration-common==1.54.0 \
     --hash=sha256:374aa6610857d7ac1bd3f7d6e7aa16136096f27eaa0145c52552db4cd9a8bd23
-    # via
-    #   -c C:/Users/apmal/AppData/Local/Temp/claude/c--Users-apmal-projects/21cb3d35-be24-424f-bf62-1b3c4d5ee717/scratchpad/lock-constraints.txt
-    #   openlineage-dbt
 openlineage-python==1.54.0 \
     --hash=sha256:d8df45da51e82131c0f804842c82df4dfbc5dbcf4d70cac7fdb0819c23236f29
-    # via
-    #   -c C:/Users/apmal/AppData/Local/Temp/claude/c--Users-apmal-projects/21cb3d35-be24-424f-bf62-1b3c4d5ee717/scratchpad/lock-constraints.txt
-    #   openlineage-integration-common
 openlineage-sql==1.54.0 \
     --hash=sha256:50474ddc8ae9532b03f913c10858c9702acf138eb76a9fe661acc5c4d8a5775b \
     --hash=sha256:bb9b89537c9ea4cd5e7186af8b76a983acb0838816e0918b454464ffc388d418 \
     --hash=sha256:e60db32f0c1fb3da278375ddf9bc2a8f3f5c33e5a02d4579074123a91d4ebda3 \
     --hash=sha256:fae9b3568f640ad49d38af4f8d55f2bc3c473fe2ca992981656fefa1b7b9099d
-    # via
-    #   -c C:/Users/apmal/AppData/Local/Temp/claude/c--Users-apmal-projects/21cb3d35-be24-424f-bf62-1b3c4d5ee717/scratchpad/lock-constraints.txt
-    #   openlineage-integration-common
 opentelemetry-api==1.45.2 \
     --hash=sha256:2cbd737377e710ee740d261c94e93fa0f08e6d037c18f17513cc0a2d94479a34 \
     --hash=sha256:d7b0008e21e5fd61cbe7a7f34ca3b6905a78ab677d9bc395e299359c75cda6b4
-    # via
-    #   -c C:/Users/apmal/AppData/Local/Temp/claude/c--Users-apmal-projects/21cb3d35-be24-424f-bf62-1b3c4d5ee717/scratchpad/lock-constraints.txt
-    #   dbt-common
-    #   dbt-core
 orderly-set==5.5.0 \
     --hash=sha256:46f0b801948e98f427b412fcabb831677194c05c3b699b80de260374baa0b1e7 \
     --hash=sha256:e87185c8e4d8afa64e7f8160ee2c542a475b738bc891dc3f58102e654125e6ce
-    # via
-    #   -c C:/Users/apmal/AppData/Local/Temp/claude/c--Users-apmal-projects/21cb3d35-be24-424f-bf62-1b3c4d5ee717/scratchpad/lock-constraints.txt
-    #   deepdiff
 packaging==26.3 \
     --hash=sha256:94edc256424af38762eb31306eed28beb9f0efc50a8837492c9d6fd6004aed79 \
     --hash=sha256:d7193f7c8e4e93f444fde0262bf90af30e16fa0ad0ad44cb553c87339b23cd1c
-    # via
-    #   -c C:/Users/apmal/AppData/Local/Temp/claude/c--Users-apmal-projects/21cb3d35-be24-424f-bf62-1b3c4d5ee717/scratchpad/lock-constraints.txt
-    #   dbt-core
-    #   openlineage-python
 parsedatetime==2.6 \
     --hash=sha256:4cb368fbb18a0b7231f4d76119165451c8d2e35951455dfee97c62a87b04d455 \
     --hash=sha256:cb96edd7016872f58479e35879294258c71437195760746faffedb692aef000b
-    # via
-    #   -c C:/Users/apmal/AppData/Local/Temp/claude/c--Users-apmal-projects/21cb3d35-be24-424f-bf62-1b3c4d5ee717/scratchpad/lock-constraints.txt
-    #   agate
 pathspec==1.0.4 \
     --hash=sha256:0210e2ae8a21a9137c0d470578cb0e595af87edaa6ebf12ff176f14a02e0e645 \
     --hash=sha256:fb6ae2fd4e7c921a165808a552060e722767cfa526f99ca5156ed2ce45a5c723
-    # via
-    #   -c C:/Users/apmal/AppData/Local/Temp/claude/c--Users-apmal-projects/21cb3d35-be24-424f-bf62-1b3c4d5ee717/scratchpad/lock-constraints.txt
-    #   dbt-common
-    #   dbt-core
 protobuf==6.33.6 \
     --hash=sha256:0cd27b587afca21b7cfa59a74dcbd48a50f0a6400cfb59391340ad729d91d326 \
     --hash=sha256:77179e006c476e69bf8e8ce866640091ec42e1beb80b213c3900006ecfba6901 \
@@ -866,26 +672,12 @@ protobuf==6.33.6 \
     --hash=sha256:e2afbae9b8e1825e3529f88d514754e094278bb95eadc0e199751cdd9a2e82a2 \
     --hash=sha256:e9db7e292e0ab79dd108d7f1a94fe31601ce1ee3f7b79e0692043423020b0593 \
     --hash=sha256:f443a394af5ed23672bc6c486be138628fbe5c651ccbc536873d7da23d1868cf
-    # via
-    #   -c C:/Users/apmal/AppData/Local/Temp/claude/c--Users-apmal-projects/21cb3d35-be24-424f-bf62-1b3c4d5ee717/scratchpad/lock-constraints.txt
-    #   dbt-adapters
-    #   dbt-common
-    #   dbt-core
-    #   dbt-protos
 pyathena==3.34.0 \
     --hash=sha256:0279274a70321b83e2b24f9470a7cfc32cdc0addbbd95abd3eca1ce3f6e7f066 \
     --hash=sha256:9c4f3b0d6742b6a64cf7053e7486e859a7706c3c5a5e3097653f45b04c991e66
-    # via
-    #   -c C:/Users/apmal/AppData/Local/Temp/claude/c--Users-apmal-projects/21cb3d35-be24-424f-bf62-1b3c4d5ee717/scratchpad/lock-constraints.txt
-    #   dbt-athena
 pydantic==2.14.2 \
     --hash=sha256:7efbf7507b937931cd32a5755acb00ea1cf5ccb1d4e8067a5850d5069e382118 \
     --hash=sha256:fb7b2db6cefe8414dd612edeede49c4c433acb0432b0f92b95024e45f66c505d
-    # via
-    #   -c C:/Users/apmal/AppData/Local/Temp/claude/c--Users-apmal-projects/21cb3d35-be24-424f-bf62-1b3c4d5ee717/scratchpad/lock-constraints.txt
-    #   dbt-athena
-    #   dbt-core
-    #   metricflow
 pydantic-core==2.50.2 \
     --hash=sha256:01eb0282d0b3a065d55956d1be9ce398c46db3dd6d277a6cb2358c8aa8c53179 \
     --hash=sha256:04cf672960b8c4fc28bb159c8cdd101fbd311c520237a5c0360448b851adfb41 \
@@ -1028,44 +820,21 @@ pydantic-core==2.50.2 \
     --hash=sha256:f73930dacad5e611fe019e18df6f53c30629b1843d038d303b8dec86a32493bd \
     --hash=sha256:f81df206b937d0dca5efb38c25fc99037d82dbcd3740e34c3f81997d2322ac1c \
     --hash=sha256:fd9aa71a800c87c0f7ab53fa38009169a23a82c685989626ca74a4bd483e1b67
-    # via
-    #   -c C:/Users/apmal/AppData/Local/Temp/claude/c--Users-apmal-projects/21cb3d35-be24-424f-bf62-1b3c4d5ee717/scratchpad/lock-constraints.txt
-    #   pydantic
 python-dateutil==2.9.0.post0 \
     --hash=sha256:37dd54208da7e1cd875388217d5e00ebd4179249f90fb72437e91a35459a0ad3 \
     --hash=sha256:a8b2bc7bffae282281c8140a97d3aa9c14da0b136dfe83f850eea9a5f7470427
-    # via
-    #   -c C:/Users/apmal/AppData/Local/Temp/claude/c--Users-apmal-projects/21cb3d35-be24-424f-bf62-1b3c4d5ee717/scratchpad/lock-constraints.txt
-    #   botocore
-    #   dbt-common
-    #   metricflow
-    #   openlineage-python
-    #   pyathena
 python-dotenv==1.2.4 \
     --hash=sha256:42269a8a5b3fd54ffa6f3d84b18abed50064717576b4ecf03dc4a55d8aa04fdc \
     --hash=sha256:f0d53e69935a851c0dcc78f3ab7aaccd8cabef0b92382b576b824212902873c0
-    # via
-    #   -c C:/Users/apmal/AppData/Local/Temp/claude/c--Users-apmal-projects/21cb3d35-be24-424f-bf62-1b3c4d5ee717/scratchpad/lock-constraints.txt
-    #   dbt-core
 python-slugify==9.1.3 \
     --hash=sha256:90e997f2e0987239ce95e12f700086eb18e1d1d3ee22624fbbdbd095afca42b6 \
     --hash=sha256:9aced0670e54c5603e2335c0fa9a4011ad4bc41ecb3c46e8097294c46fd60ed4
-    # via
-    #   -c C:/Users/apmal/AppData/Local/Temp/claude/c--Users-apmal-projects/21cb3d35-be24-424f-bf62-1b3c4d5ee717/scratchpad/lock-constraints.txt
-    #   agate
 pytimeparse==1.1.10 \
     --hash=sha256:a9f9117a02eaa32efd268e70af29bc3ec1e84f473d3edef6d9809b36793b1c5d \
     --hash=sha256:ecf0ee613a72cb0b1d3d5404bd398a64266576fc36ccf3149178af6f2ec6f736
-    # via
-    #   -c C:/Users/apmal/AppData/Local/Temp/claude/c--Users-apmal-projects/21cb3d35-be24-424f-bf62-1b3c4d5ee717/scratchpad/lock-constraints.txt
-    #   agate
 pytz==2026.6 \
     --hash=sha256:3b0fc2727707663d6e517936f444fd8a8b240f1fc32f4bf7ee03274245945284 \
     --hash=sha256:7fed3fee8fd6bd4a2b7b75a8d56021d0624127bf69bd5691f115db929ac570b3
-    # via
-    #   -c C:/Users/apmal/AppData/Local/Temp/claude/c--Users-apmal-projects/21cb3d35-be24-424f-bf62-1b3c4d5ee717/scratchpad/lock-constraints.txt
-    #   dbt-adapters
-    #   dbt-core
 pyyaml==6.0.3 \
     --hash=sha256:00c4bdeba853cc34e7dd471f16b4114f4162dc03e6b7afcc2128711f0eca823c \
     --hash=sha256:0150219816b6a1fa26fb4699fb7daa9caf09eb1999f3b70fb6e786805e80375a \
@@ -1140,12 +909,6 @@ pyyaml==6.0.3 \
     --hash=sha256:f7057c9a337546edc7973c0d3ba84ddcdf0daa14533c2065749c9075001090e6 \
     --hash=sha256:fa160448684b4e94d80416c0fa4aac48967a969efe22931448d853ada8baf926 \
     --hash=sha256:fc09d0aa354569bc501d4e787133afc08552722d3ab34836a80547331bb5d4a0
-    # via
-    #   -c C:/Users/apmal/AppData/Local/Temp/claude/c--Users-apmal-projects/21cb3d35-be24-424f-bf62-1b3c4d5ee717/scratchpad/lock-constraints.txt
-    #   dbt-core
-    #   metricflow
-    #   openlineage-integration-common
-    #   openlineage-python
 rapidfuzz==3.14.6 \
     --hash=sha256:07c7aa0b1e4b9999a54f9e73317d6743ff85442c8ef7b7fbbe6b190fd37d9e75 \
     --hash=sha256:0844066900cdc9909ce4ab4fb5ba1d8e0c021252d770f2ea476f3443df1d22ef \
@@ -1250,26 +1013,12 @@ rapidfuzz==3.14.6 \
     --hash=sha256:faebff9b9a287fb673f9a66465a7e03043601c9bfe5e71c3f91b3f2e7b8a37f6 \
     --hash=sha256:fc166efa4ca2fc9cc52e43784a54cbea95fc0e03e533f8266ef66b1c04c7cb76 \
     --hash=sha256:fc950bb77105a2717d03d9f9c9e21e9ace7df2b8e864dd91edef7e32fa143be2
-    # via
-    #   -c C:/Users/apmal/AppData/Local/Temp/claude/c--Users-apmal-projects/21cb3d35-be24-424f-bf62-1b3c4d5ee717/scratchpad/lock-constraints.txt
-    #   metricflow
 referencing==0.37.0 \
     --hash=sha256:381329a9f99628c9069361716891d34ad94af76e461dcb0335825aecc7692231 \
     --hash=sha256:44aefc3142c5b842538163acb373e24cce6632bd54bdb01b21ad5863489f50d8
-    # via
-    #   -c C:/Users/apmal/AppData/Local/Temp/claude/c--Users-apmal-projects/21cb3d35-be24-424f-bf62-1b3c4d5ee717/scratchpad/lock-constraints.txt
-    #   jsonschema
-    #   jsonschema-specifications
-    #   metricflow
 requests==2.34.2 \
     --hash=sha256:2a0d60c172f83ac6ab31e4554906c0f3b3588d37b5cb939b1c061f4907e278e0 \
     --hash=sha256:f288924cae4e29463698d6d60bc6a4da69c89185ad1e0bcc4104f584e960b9ed
-    # via
-    #   -c C:/Users/apmal/AppData/Local/Temp/claude/c--Users-apmal-projects/21cb3d35-be24-424f-bf62-1b3c4d5ee717/scratchpad/lock-constraints.txt
-    #   dbt-common
-    #   dbt-core
-    #   openlineage-python
-    #   snowplow-tracker
 rpds-py==2026.9.1 \
     --hash=sha256:00ba2d8c7dd4ee537978ddf4b3fbd712bef2d8751603f7f3146b3f4287768e25 \
     --hash=sha256:01445c8d194aa032a08e944f16567672da1c62dbdbefd8b6d0693032e290cf68 \
@@ -1399,118 +1148,51 @@ rpds-py==2026.9.1 \
     --hash=sha256:fda1d96e542c37b6c804547dbf489c129fe7c97183a76a5ec275909ba1a063df \
     --hash=sha256:fdcd198979b4ecffcc1beba366a7fbcf4eb41243691a82fe52ceb0b902f09c12 \
     --hash=sha256:fe5ad0664ec772b02c45859041aa17655709cced7a31005817fbbbd988c25567
-    # via
-    #   -c C:/Users/apmal/AppData/Local/Temp/claude/c--Users-apmal-projects/21cb3d35-be24-424f-bf62-1b3c4d5ee717/scratchpad/lock-constraints.txt
-    #   jsonschema
-    #   referencing
 s3transfer==0.19.3 \
     --hash=sha256:24eb7535804306355e31c952a90022bf5b2f9d760f9a11062c7493a217c08553 \
     --hash=sha256:8326acc3d056d7f7b8a37110c7d2aea41f67e83f6ae79cd3b5fbcca34c726406
-    # via
-    #   -c C:/Users/apmal/AppData/Local/Temp/claude/c--Users-apmal-projects/21cb3d35-be24-424f-bf62-1b3c4d5ee717/scratchpad/lock-constraints.txt
-    #   boto3
 six==1.17.0 \
     --hash=sha256:4721f391ed90541fddacab5acf947aa0d3dc7d27b2e1e8eda2be8970586c3274 \
     --hash=sha256:ff70335d468e7eb6ec65b95b99d3a2836546063f63acc5171de367e834932a81
-    # via
-    #   -c C:/Users/apmal/AppData/Local/Temp/claude/c--Users-apmal-projects/21cb3d35-be24-424f-bf62-1b3c4d5ee717/scratchpad/lock-constraints.txt
-    #   python-dateutil
 snowplow-tracker==1.1.0 \
     --hash=sha256:24ea32ddac9cca547421bf9ab162f5f33c00711c6ef118ad5f78093cee962224 \
     --hash=sha256:95d8fdc8bd542fd12a0b9a076852239cbaf0599eda8721deaf5f93f7138fe755
-    # via
-    #   -c C:/Users/apmal/AppData/Local/Temp/claude/c--Users-apmal-projects/21cb3d35-be24-424f-bf62-1b3c4d5ee717/scratchpad/lock-constraints.txt
-    #   dbt-core
 sqlglot==30.27.0 \
     --hash=sha256:10617b2beee196e88a310c6a5348482248bf10ac01c6ade22128bf4a690ec0ee \
     --hash=sha256:b630686fc167762e20960ad3d007ad03d81af0a804c9f7d117f1fe06433c839e
-    # via
-    #   -c C:/Users/apmal/AppData/Local/Temp/claude/c--Users-apmal-projects/21cb3d35-be24-424f-bf62-1b3c4d5ee717/scratchpad/lock-constraints.txt
-    #   metricflow
 sqlparse==0.6.1 \
     --hash=sha256:3be5a72d04c873d690d7c6dedd33d6fae2ef82759881ceec02fc2efd0cba564f \
     --hash=sha256:ca722573f848ff2d30e40ea30f53a104b7dea7635ea9285891263eb2c58fb6e7
-    # via
-    #   -c C:/Users/apmal/AppData/Local/Temp/claude/c--Users-apmal-projects/21cb3d35-be24-424f-bf62-1b3c4d5ee717/scratchpad/lock-constraints.txt
-    #   dbt-core
 tabulate==0.10.0 \
     --hash=sha256:e2cfde8f79420f6deeffdeda9aaec3b6bc5abce947655d17ac662b126e48a60d \
     --hash=sha256:f0b0622e567335c8fabaaa659f1b33bcb6ddfe2e496071b743aa113f8774f2d3
-    # via
-    #   -c C:/Users/apmal/AppData/Local/Temp/claude/c--Users-apmal-projects/21cb3d35-be24-424f-bf62-1b3c4d5ee717/scratchpad/lock-constraints.txt
-    #   metricflow
 tenacity==9.2.1 \
     --hash=sha256:9e56f17539296baab7beabb08b92f6ee3d7be92d8be72d763360677c2ad6580e \
     --hash=sha256:a606b5c808d0cded4a359d5b9932d867ff2a6a6b64d37350260fd01bbdf83839
-    # via
-    #   -c C:/Users/apmal/AppData/Local/Temp/claude/c--Users-apmal-projects/21cb3d35-be24-424f-bf62-1b3c4d5ee717/scratchpad/lock-constraints.txt
-    #   dbt-athena
-    #   pyathena
 text-unidecode==1.3 \
     --hash=sha256:1311f10e8b895935241623731c2ba64f4c455287888b18189350b67134a822e8 \
     --hash=sha256:bad6603bb14d279193107714b288be206cac565dfa49aa5b105294dd5c4aab93
-    # via
-    #   -c C:/Users/apmal/AppData/Local/Temp/claude/c--Users-apmal-projects/21cb3d35-be24-424f-bf62-1b3c4d5ee717/scratchpad/lock-constraints.txt
-    #   python-slugify
 tqdm==4.70.1 \
     --hash=sha256:c293e525e6fef9c20e8728fd4612df02a0aa31bb5fe91ecd93e123b1b7bffa73 \
     --hash=sha256:cefd0eca11b2a37a3aee776544d4f4ae913f02688135b5556b8788dfa474afc4
-    # via
-    #   -c C:/Users/apmal/AppData/Local/Temp/claude/c--Users-apmal-projects/21cb3d35-be24-424f-bf62-1b3c4d5ee717/scratchpad/lock-constraints.txt
-    #   openlineage-dbt
 truststore==0.10.5 ; sys_platform != 'emscripten' \
     --hash=sha256:30d36967ccaded5cbb38d602c433f53600036c79d502f4533a49b60a03bbefcd \
     --hash=sha256:9aaaedaefaf06d8b206278cf8b5012bc897f485a874503501e12d776df78951c
-    # via
-    #   -c C:/Users/apmal/AppData/Local/Temp/claude/c--Users-apmal-projects/21cb3d35-be24-424f-bf62-1b3c4d5ee717/scratchpad/lock-constraints.txt
-    #   httpcore2
-    #   httpx2
 types-s3transfer==0.19.3 \
     --hash=sha256:6843143f3b79e3cb73e58b6f45738e28e88d9f681fd32cc5ef7fa16f0c193356 \
     --hash=sha256:99422ef028a5f854cd92d1e72cf4208bd0569f68a87936ca02fb9f91a68cdcd3
-    # via
-    #   -c C:/Users/apmal/AppData/Local/Temp/claude/c--Users-apmal-projects/21cb3d35-be24-424f-bf62-1b3c4d5ee717/scratchpad/lock-constraints.txt
-    #   boto3-stubs
 typing-extensions==4.16.0 \
     --hash=sha256:481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8 \
     --hash=sha256:dc983d19a509c94dba722ee6abd33940f7c05a89e243c47e907eb4db6f1a43e5
-    # via
-    #   -c C:/Users/apmal/AppData/Local/Temp/claude/c--Users-apmal-projects/21cb3d35-be24-424f-bf62-1b3c4d5ee717/scratchpad/lock-constraints.txt
-    #   anyio
-    #   dbt-adapters
-    #   dbt-common
-    #   dbt-core
-    #   httpx2
-    #   mashumaro
-    #   metricflow
-    #   opentelemetry-api
-    #   pydantic
-    #   pydantic-core
-    #   referencing
-    #   snowplow-tracker
-    #   typing-inspection
 typing-inspection==0.4.4 \
     --hash=sha256:547274fa6b0a561ccf549cc9524b999a578e737d015d8709d021f9d0d13bea47 \
     --hash=sha256:65b8397ba37ccbce054456aaccddfc91e6e3083c92824df348d96ca832f3f147
-    # via
-    #   -c C:/Users/apmal/AppData/Local/Temp/claude/c--Users-apmal-projects/21cb3d35-be24-424f-bf62-1b3c4d5ee717/scratchpad/lock-constraints.txt
-    #   pydantic
 tzdata==2026.6 ; sys_platform == 'win32' \
     --hash=sha256:0a10eec6e13ef16b627fabed9a5f2ba61a62b1c67f327305f4e7e412a70b4aec \
     --hash=sha256:85d2cd9c09f81f0bb29db27759fc83af4f1e620efb814f8c5bf8b4cc4feece6d
-    # via
-    #   -c C:/Users/apmal/AppData/Local/Temp/claude/c--Users-apmal-projects/21cb3d35-be24-424f-bf62-1b3c4d5ee717/scratchpad/lock-constraints.txt
-    #   agate
 urllib3==2.8.0 \
     --hash=sha256:0cf3cae568d36aa9576b28dfb35f11328f1cb974ca7647d9475ebb86c75ac6e3 \
     --hash=sha256:63bf2ead4c879426ebf22ef2a781eeb4aa3b4ae798a0435506f8687fd5bb9b63
-    # via
-    #   -c C:/Users/apmal/AppData/Local/Temp/claude/c--Users-apmal-projects/21cb3d35-be24-424f-bf62-1b3c4d5ee717/scratchpad/lock-constraints.txt
-    #   botocore
-    #   requests
 zipp==4.1.2 \
     --hash=sha256:b30cb6cd253122169c47de245ca24a86bac2a5d3802ba15bf7ba6414eb9e144d \
     --hash=sha256:cf474b90b07ea932637e17c6b9479de2b2882900b0d311bdaf4f5c000a15a97f
-    # via
-    #   -c C:/Users/apmal/AppData/Local/Temp/claude/c--Users-apmal-projects/21cb3d35-be24-424f-bf62-1b3c4d5ee717/scratchpad/lock-constraints.txt
-    #   importlib-metadata
