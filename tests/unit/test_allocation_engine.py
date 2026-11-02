@@ -6,7 +6,7 @@ oracle or are worked by hand in each test.
 """
 
 import json
-from decimal import Decimal
+from decimal import Decimal, localcontext
 from pathlib import Path
 from typing import Any
 
@@ -194,14 +194,11 @@ def test_a_metered_line_without_a_billed_quantity_is_refused() -> None:
 
 def _shares(allocations: list[Allocation]) -> dict[str, tuple[str, str, str | None]]:
     """BilledCost per target: (amount, method, coverage)."""
+    dumped = (a.model_dump(mode="json") for a in allocations)
     return {
-        a.target_id: (
-            a.model_dump(mode="json")["amount"],
-            a.method,
-            a.model_dump(mode="json")["coverage"],
-        )
-        for a in allocations
-        if a.cost_basis == CostBasis.BILLED_COST
+        a["target_id"]: (a["amount"], a["method"], a["coverage"])
+        for a in dumped
+        if a["cost_basis"] == CostBasis.BILLED_COST
     }
 
 
@@ -244,29 +241,105 @@ def test_coverage_above_one_leaves_the_whole_line_unallocated_and_flagged() -> N
 
 
 @pytest.mark.parametrize(
-    ("billed", "known", "expected"),
+    ("billed", "known"),
     [
-        # Exported to 3 places: within half a unit (0.0005) of the billed quantity is 1.
-        ("0.001", "0.0015", "1"),
-        ("0.001", "0.0005", "1"),
-        ("0.001", "0.00151", "1.51"),
-        ("0.001", "0.00049", "0.49"),
-        # Exported to 4 places, the tolerance is 0.00005.
-        ("0.0010", "0.00105", "1"),
-        ("0.0010", "0.0011", "1.1"),
+        ("0.001", "0.0015"),  # exported to 3 places: within half a unit (0.0005)
+        ("0.001", "0.0005"),
+        ("0.0010", "0.00105"),  # exported to 4 places: within 0.00005
     ],
 )
 def test_coverage_is_one_within_half_a_unit_of_the_exported_quantity(
-    billed: str, known: str, expected: str
+    billed: str, known: str
 ) -> None:
     allocations = allocate(
         [_metered(_line("1.00", ConsumedQuantity=billed), q_a=known)],
         policy_version="p",
         calculation_run_id="r",
     )
-    assert {a.model_dump(mode="json")["coverage"] for a in allocations} == {expected}
-    if expected == "1":
-        assert _shares(allocations) == {"q_a": ("1.00", "estimated_metered_share", "1")}
+    assert _shares(allocations) == {"q_a": ("1.00", "estimated_metered_share", "1")}
+
+
+@pytest.mark.parametrize(
+    ("billed", "known", "coverage"),
+    [
+        ("0.001", "0.00151", "1.51"),
+        ("0.001", "0.00049", "0.49"),
+        ("0.0010", "0.0011", "1.1"),
+    ],
+)
+def test_coverage_beyond_half_a_unit_is_recorded_exactly(
+    billed: str, known: str, coverage: str
+) -> None:
+    allocations = allocate(
+        [_metered(_line("1.00", ConsumedQuantity=billed), q_a=known)],
+        policy_version="p",
+        calculation_run_id="r",
+    )
+    assert {a.model_dump(mode="json")["coverage"] for a in allocations} == {coverage}
+
+
+def test_coverage_is_recorded_to_28_significant_digits_whatever_the_callers_precision() -> None:
+    line = _line("1.00", ConsumedQuantity="0.003")
+    with localcontext() as context:
+        context.prec = 5
+        allocations = allocate(
+            [_metered(line, q_a="0.001")], policy_version="p", calculation_run_id="r"
+        )
+    assert {a.model_dump(mode="json")["coverage"] for a in allocations} == {
+        "0.3333333333333333333333333333"
+    }
+
+
+def test_a_remainder_splits_every_cost_basis_and_negative_amounts_alike() -> None:
+    # Known 0.001 + 0.002 of 0.004 billed: weights 1:2:1 (q_a, q_b, the uncovered part).
+    line = _line(
+        BilledCost="1.00",
+        EffectiveCost="-1.00",
+        ListCost="0.10",
+        ContractedCost="0.999",
+        ConsumedQuantity="0.004",
+    )
+    allocations = allocate(
+        [_metered(line, q_a="0.001", q_b="0.002")], policy_version="p", calculation_run_id="r"
+    )
+    assert {basis: _amounts(allocations, basis) for basis in CostBasis} == {
+        CostBasis.BILLED_COST: {"q_a": "0.25", "q_b": "0.50", "unallocated": "0.25"},
+        CostBasis.EFFECTIVE_COST: {"q_a": "-0.25", "q_b": "-0.50", "unallocated": "-0.25"},
+        # 0.025 / 0.05 / 0.025: q_a and the remainder tie; q_a, the query, sorts first.
+        CostBasis.LIST_COST: {"q_a": "0.03", "q_b": "0.05", "unallocated": "0.02"},
+        # 0.24975 / 0.4995 / 0.24975: two units left for the larger 0.00075 fractions.
+        CostBasis.CONTRACTED_COST: {"q_a": "0.250", "q_b": "0.499", "unallocated": "0.250"},
+    }
+
+
+def test_coverage_above_one_keeps_the_conflicting_evidence() -> None:
+    usages = (
+        MeteredUsage("q_a", Decimal("0.001"), ("athena:q_a",)),
+        MeteredUsage("q_b", Decimal("0.002"), ("athena:q_b", "dbt-query-comment:i:n")),
+        MeteredUsage("q_c", Decimal("0"), ("athena:q_c",)),  # no Billable Usage
+    )
+    line = _line("1.00", ConsumedQuantity="0.002")
+    allocations = allocate(
+        [PooledLine("line#0", line, MeteredCostPool("pool", usages))],
+        policy_version="p",
+        calculation_run_id="r",
+    )
+    assert {tuple(a.evidence_refs) for a in allocations} == {
+        ("athena:q_a", "athena:q_b", "dbt-query-comment:i:n")
+    }
+
+
+def test_a_query_named_unallocated_is_still_a_query() -> None:
+    allocations = allocate(
+        [_metered(_line("1.00", ConsumedQuantity="0.002"), unallocated="0.001")],
+        policy_version="p",
+        calculation_run_id="r",
+    )
+    billed = [a for a in allocations if a.cost_basis == CostBasis.BILLED_COST]
+    assert sorted((a.target_type, a.method, str(a.amount)) for a in billed) == [
+        ("query_execution", "estimated_metered_share", "0.50"),
+        ("unallocated", "coverage_remainder", "0.50"),
+    ]
 
 
 def test_a_sub_cent_line_with_a_remainder_still_balances() -> None:
@@ -276,7 +349,7 @@ def test_a_sub_cent_line_with_a_remainder_still_balances() -> None:
         policy_version="p",
         calculation_run_id="r",
     )
-    assert {t: share[0] for t, share in _shares(allocations).items()} == {
+    assert _amounts(allocations, CostBasis.BILLED_COST) == {
         "q_a": "0.01",
         "q_b": "0.00",
         "unallocated": "0.00",

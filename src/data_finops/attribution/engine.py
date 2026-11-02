@@ -28,7 +28,10 @@ _MINOR_UNITS = {
 }
 
 
-_UNALLOCATED = TargetType.UNALLOCATED.value
+# A split target: (target type, target ID). Keying by both keeps the Unallocated remainder
+# apart from any Query Execution, whatever its ID.
+_Target = tuple[TargetType, str]
+_UNALLOCATED: _Target = (TargetType.UNALLOCATED, TargetType.UNALLOCATED.value)
 
 
 class AllocationMethod(StrEnum):
@@ -80,98 +83,142 @@ def allocate(
 
     A metered line is split by Coverage (ADR 0017): its covered fraction among the Query
     Executions by Billable Usage, the rest Unallocated `coverage_remainder`; a line whose
-    Coverage exceeds one is wholly Unallocated `coverage_exceeded`. Every Allocation of a
-    metered line records its Coverage. Raises ValueError for a metered line without a
-    positive ConsumedQuantity.
+    Coverage exceeds one is wholly Unallocated `coverage_exceeded`, with the Evidence of
+    the Query Executions that conflict. Every Allocation of a metered line records its
+    Coverage. Raises ValueError for a metered line without a positive ConsumedQuantity.
     """
     allocations: list[Allocation] = []
     for pooled in lines:
         line, pool = pooled.line, pooled.pool
+        context = _LineContext(
+            pooled.ref, pool.pool_id, line.BillingCurrency, policy_version, calculation_run_id
+        )
         if isinstance(pool, Ineligible):
             allocations += [
-                Allocation(
-                    billing_line_ref=pooled.ref,
-                    pool_id=pool.pool_id,
-                    target_type=TargetType.UNALLOCATED,
-                    target_id=TargetType.UNALLOCATED.value,
-                    amount=line.cost(basis),
-                    currency=line.BillingCurrency,
-                    cost_basis=basis,
-                    category=AllocationCategory.UNALLOCATED,
-                    method=AllocationMethod.INELIGIBLE,
-                    policy_version=policy_version,
-                    calculation_run_id=calculation_run_id,
-                )
+                context.unallocated(basis, line.cost(basis), AllocationMethod.INELIGIBLE)
                 for basis in CostBasis
             ]
             continue
-        coverage, weights = _coverage(pooled.ref, line, pool)
+        metering = _meter(pooled.ref, line, pool)
         for basis in CostBasis:
             amount = line.cost(basis)
-            shares = _split(amount, weights, _scale(amount, line.BillingCurrency))
+            shares = _split(amount, metering.weights, _scale(amount, line.BillingCurrency))
             allocations += [
-                Allocation(
-                    billing_line_ref=pooled.ref,
-                    pool_id=pool.pool_id,
-                    target_type=TargetType.QUERY_EXECUTION,
-                    target_id=usage.query_execution_id,
-                    amount=shares[usage.query_execution_id],
-                    currency=line.BillingCurrency,
-                    cost_basis=basis,
-                    category=AllocationCategory.DIRECT,
-                    method=AllocationMethod.ESTIMATED_METERED_SHARE,
-                    confidence=Confidence.METERED_ESTIMATE,
-                    coverage=coverage,
-                    policy_version=policy_version,
-                    calculation_run_id=calculation_run_id,
-                    evidence_refs=list(usage.evidence_refs),
+                context.metered_share(
+                    basis,
+                    shares[(TargetType.QUERY_EXECUTION, u.query_execution_id)],
+                    u,
+                    metering.coverage,
                 )
-                for usage in pool.usages
-                if usage.query_execution_id in shares
+                for u in pool.usages
+                if (TargetType.QUERY_EXECUTION, u.query_execution_id) in shares
             ]
             if _UNALLOCATED in shares:
                 allocations.append(
-                    Allocation(
-                        billing_line_ref=pooled.ref,
-                        pool_id=pool.pool_id,
-                        target_type=TargetType.UNALLOCATED,
-                        target_id=_UNALLOCATED,
-                        amount=shares[_UNALLOCATED],
-                        currency=line.BillingCurrency,
-                        cost_basis=basis,
-                        category=AllocationCategory.UNALLOCATED,
-                        method=AllocationMethod.COVERAGE_EXCEEDED
-                        if coverage > 1
-                        else AllocationMethod.COVERAGE_REMAINDER,
-                        coverage=coverage,
-                        policy_version=policy_version,
-                        calculation_run_id=calculation_run_id,
+                    context.unallocated(
+                        basis,
+                        shares[_UNALLOCATED],
+                        metering.unallocated_reason,
+                        coverage=metering.coverage,
+                        evidence_refs=metering.unallocated_evidence,
                     )
                 )
     return allocations
 
 
-def _coverage(
-    ref: str, line: FocusBillingLine, pool: MeteredCostPool
-) -> tuple[Decimal, dict[str, Decimal]]:
-    """The line's Coverage and the weights its amount is split by (ADR 0017).
+@dataclass(frozen=True)
+class _LineContext:
+    """What every Allocation of one line shares."""
 
-    Coverage is known over billed usage in the line's unit, and counts as exactly 1 within
-    half a unit in the last digit ConsumedQuantity was exported with. Below one, the
-    uncovered quantity weighs on Unallocated; above one, Unallocated takes everything.
-    Query Executions with no Billable Usage receive nothing.
+    ref: str
+    pool_id: str
+    currency: str
+    policy_version: str
+    calculation_run_id: str
+
+    def metered_share(
+        self, basis: CostBasis, amount: Decimal, usage: MeteredUsage, coverage: Decimal
+    ) -> Allocation:
+        return Allocation(
+            billing_line_ref=self.ref,
+            pool_id=self.pool_id,
+            target_type=TargetType.QUERY_EXECUTION,
+            target_id=usage.query_execution_id,
+            amount=amount,
+            currency=self.currency,
+            cost_basis=basis,
+            category=AllocationCategory.DIRECT,
+            method=AllocationMethod.ESTIMATED_METERED_SHARE,
+            confidence=Confidence.METERED_ESTIMATE,
+            coverage=coverage,
+            policy_version=self.policy_version,
+            calculation_run_id=self.calculation_run_id,
+            evidence_refs=list(usage.evidence_refs),
+        )
+
+    def unallocated(
+        self,
+        basis: CostBasis,
+        amount: Decimal,
+        reason: AllocationMethod,
+        *,
+        coverage: Decimal | None = None,
+        evidence_refs: tuple[str, ...] = (),
+    ) -> Allocation:
+        return Allocation(
+            billing_line_ref=self.ref,
+            pool_id=self.pool_id,
+            target_type=TargetType.UNALLOCATED,
+            target_id=TargetType.UNALLOCATED.value,
+            amount=amount,
+            currency=self.currency,
+            cost_basis=basis,
+            category=AllocationCategory.UNALLOCATED,
+            method=reason,
+            coverage=coverage,
+            policy_version=self.policy_version,
+            calculation_run_id=self.calculation_run_id,
+            evidence_refs=list(evidence_refs),
+        )
+
+
+@dataclass(frozen=True)
+class _Metering:
+    """A metered line's Coverage, the weights its amount is split by, and why any part is
+    Unallocated."""
+
+    coverage: Decimal
+    weights: dict[_Target, Decimal]
+    unallocated_reason: AllocationMethod = AllocationMethod.COVERAGE_REMAINDER
+    unallocated_evidence: tuple[str, ...] = ()
+
+
+def _meter(ref: str, line: FocusBillingLine, pool: MeteredCostPool) -> _Metering:
+    """Coverage and weights for a metered line (ADR 0017).
+
+    Coverage is known over billed usage in the line's unit, to 28 significant digits, and
+    counts as exactly 1 within half a unit in the last digit ConsumedQuantity was exported
+    with. Below one, the uncovered quantity weighs on Unallocated; above one, Unallocated
+    takes everything and keeps the conflicting Query Executions' Evidence. Query
+    Executions with no Billable Usage receive nothing.
     """
     billed = line.ConsumedQuantity
     if billed is None or billed <= 0:
         raise ValueError(f"{ref}: a metered line needs a positive ConsumedQuantity for Coverage")
-    usage = {u.query_execution_id: u.quantity for u in pool.usages if u.quantity > 0}
-    known = sum(usage.values(), Decimal(0))
+    usages = [u for u in pool.usages if u.quantity > 0]
+    weights = {(TargetType.QUERY_EXECUTION, u.query_execution_id): u.quantity for u in usages}
+    known = sum(weights.values(), Decimal(0))
     if abs(known - billed) <= Decimal(5).scaleb(-_places(billed) - 1):
-        return Decimal(1), usage
-    coverage = known / billed
+        return _Metering(Decimal(1), weights)
+    with localcontext() as context:
+        context.prec = 28
+        coverage = known / billed
     if coverage > 1:
-        return coverage, {_UNALLOCATED: Decimal(1)}
-    return coverage, usage | {_UNALLOCATED: billed - known}
+        evidence = tuple(dict.fromkeys(ref for u in usages for ref in u.evidence_refs))
+        return _Metering(
+            coverage, {_UNALLOCATED: Decimal(1)}, AllocationMethod.COVERAGE_EXCEEDED, evidence
+        )
+    return _Metering(coverage, weights | {_UNALLOCATED: billed - known})
 
 
 def _scale(amount: Decimal, currency: str) -> int:
@@ -187,12 +234,14 @@ def _places(value: Decimal) -> int:
     return -exponent
 
 
-def _split(amount: Decimal, weights: Mapping[str, Decimal], scale: int) -> dict[str, Decimal]:
+def _split(
+    amount: Decimal, weights: Mapping[_Target, Decimal], scale: int
+) -> dict[_Target, Decimal]:
     """Split `amount` by `weights` at `scale` decimal places; the parts sum to it exactly.
 
     Largest remainder (spec 03 step G) on the absolute value, sign restored: every target
     gets its share rounded down, then the leftover units go one each to the largest
-    discarded fractions, ties to the lowest target ID.
+    discarded fractions, ties to the lowest (target type, target ID).
     """
     unit = Decimal(1).scaleb(-scale)
     magnitude = abs(amount)
