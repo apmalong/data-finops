@@ -23,7 +23,7 @@ Run locally on Windows 11 with uv 0.12.23 and CPython 3.12.15 (uv-managed). No c
   - `existing-fixtures-no-price-evidence`: per-line reconciliation holds against `fixtures/billing.json` (bill-001 6.00, bill-002 4.00, both unallocated; no query price inferred).
   - `explicit-synthetic-cost-pools`: direct 3.00, shared 2.00 split 1.25/0.75 (62.5%/37.5%), idle 1.00, unknown 4.00; total 10.00.
   - `negative-adjustment`: -1.00 retained signed, not clamped.
-  - Gap: synthetic and credit records have no corresponding billing lines with period/source_version, so only aggregate reconciliation is checkable for those scenarios. The doc states aggregate equality is insufficient; add billing-line fixtures for them before M4 (M4's first ticket, decided 2026-11-02).
+  - Gap: synthetic and credit records have no corresponding billing lines with period/source_version, so only aggregate reconciliation is checkable for those scenarios. The doc states aggregate equality is insufficient; add billing-line fixtures for them before M4. Since closed: every scenario in `fixtures/golden/scenarios.json` carries its own billing lines (`golden-fixtures.md`).
 
 - CI on PR #1: first run failed at gitleaks (shallow checkout could not resolve the PR commit range); fixed with `fetch-depth: 0`. Both push and pull_request runs then passed.
 
