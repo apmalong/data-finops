@@ -503,3 +503,192 @@ def test_review_cases_for_other_projects(outputs: tuple[Path, Path]) -> None:
         load_events(target / "openlineage/dbt-events.jsonl")[0].outputs[0].namespace
         == athena_namespace
     )
+
+
+# Airflow provider facets (#76): shapes from apache-airflow-providers-openlineage 2.20.1
+
+# Plain text the global path, bucket and account rules would not catch on their own.
+OWNER_EMAIL = "jane.doe@example.com"
+USER = "jdoe"
+DAG_FILE = "orders_finance_private.py"
+DAG_TAG = "pii-team"
+TASK_CODE = "echo token-123"
+INLET = "customers_pii_table"
+AIRFLOW_PRIVATE = [OWNER_EMAIL, USER, DAG_FILE, DAG_TAG, TASK_CODE, INLET]
+DAG_RUN_ID = "01a19dd8-4a8c-72ec-873a-a3bb810cbae6"
+TASK_RUN_ID = "01a19dd8-4a8c-7abf-9e93-25adbcb5d081"
+
+
+def _airflow_task_event() -> dict[str, Any]:
+    producer = "https://github.com/apache/airflow/tree/providers-openlineage/2.20.1"
+    facet = {"_producer": producer, "_schemaURL": "https://openlineage.io/spec/2-0-2/x.json"}
+    dag = {
+        "dag_id": "orders",
+        "fileloc": DAG_FILE,
+        "owner": OWNER_EMAIL,
+        "start_date": "2026-11-01T00:00:00+00:00",
+        "tags": f"['{DAG_TAG}']",
+        "timetable_summary": "None",
+    }
+    task = {
+        "task_id": "dbt_run",
+        "operator_class": "BashOperator",
+        "operator_class_path": "airflow.providers.standard.operators.bash.BashOperator",
+        "operator_provider_version": "1.19.0",
+        "owner": USER,
+        "retries": 0,
+        "trigger_rule": "all_success",
+        "queue": "default",
+        "priority_weight": 1,
+        "mapped": False,
+        "inlets": f"['{INLET}']",
+        "outlets": "[]",
+        "upstream_task_ids": "[]",
+        "downstream_task_ids": "[]",
+    }
+    return {
+        "eventType": "START",
+        "eventTime": "2026-11-02T19:59:21.208797+00:00",
+        "producer": producer,
+        "schemaURL": "https://openlineage.io/spec/2-0-2/OpenLineage.json#/$defs/RunEvent",
+        "job": {
+            "namespace": "reference-airflow",
+            "name": "orders.dbt_run",
+            "facets": {
+                "airflow": facet
+                | {
+                    "tasks": {
+                        "dbt_run": {
+                            "operator": task["operator_class_path"],
+                            "emits_ol_events": True,
+                            "is_setup": False,
+                            "is_teardown": False,
+                            "ui_color": "#f0ede4",
+                            "ui_label": "dbt_run",
+                        }
+                    }
+                },
+                "jobType": facet | {"integration": "AIRFLOW", "jobType": "TASK"},
+                "ownership": facet | {"owners": [{"name": OWNER_EMAIL}]},
+                "sourceCode": facet | {"language": "bash", "sourceCode": TASK_CODE},
+                "tags": facet | {"tags": [{"key": DAG_TAG, "value": DAG_TAG, "source": "AIRFLOW"}]},
+            },
+        },
+        "run": {
+            "runId": TASK_RUN_ID,
+            "facets": {
+                "airflow": facet
+                | {
+                    "dag": dag,
+                    "dagRun": {
+                        "dag_id": "orders",
+                        "run_id": "manual__2026-11-02T19:59:20.204649+00:00",
+                        "run_type": "manual",
+                        "clear_number": 0,
+                        "triggering_user_name": USER,
+                    },
+                    "task": task,
+                    "taskInstance": {
+                        "try_number": 1,
+                        "dag_bundle_name": "dags-folder",
+                        "log_url": "http://airflow.internal.example:8080/dags/orders/runs/x",
+                    },
+                    "taskUuid": TASK_RUN_ID,
+                },
+                "airflowState": facet
+                | {"dagRunState": "success", "tasksState": {"dbt_run": "success"}},
+                "parent": facet
+                | {
+                    "job": {"namespace": "reference-airflow", "name": "orders"},
+                    "run": {"runId": DAG_RUN_ID},
+                    "root": {
+                        "job": {"namespace": "reference-airflow", "name": "orders"},
+                        "run": {"runId": DAG_RUN_ID},
+                    },
+                },
+                "processing_engine": facet
+                | {"name": "Airflow", "version": "3.3.2", "openlineageAdapterVersion": "2.20.1"},
+                "unknownSourceAttribute": facet
+                | {"unknownItems": [{"name": "BashOperator", "properties": task}]},
+            },
+        },
+        "inputs": [],
+        "outputs": [],
+    }
+
+
+def _airflow_dag_event() -> dict[str, Any]:
+    """The DAG run's own event: the same DAG and run facets under `airflowDagRun`."""
+    task_event = _airflow_task_event()
+    airflow = task_event["run"]["facets"]["airflow"]
+    facet = {key: airflow[key] for key in ("_producer", "_schemaURL")}
+    return task_event | {
+        "eventType": "COMPLETE",
+        "job": {"namespace": "reference-airflow", "name": "orders", "facets": {}},
+        "run": {
+            "runId": DAG_RUN_ID,
+            "facets": {
+                "airflowDagRun": facet | {"dag": airflow["dag"], "dagRun": airflow["dagRun"]},
+                "nominalTime": facet | {"nominalStartTime": "2026-11-02T00:00:00Z"},
+            },
+        },
+    }
+
+
+@pytest.fixture
+def airflow_anonymized(outputs: tuple[Path, Path]) -> tuple[dict[str, Any], dict[str, int], str]:
+    source, target = outputs
+    events = [_airflow_task_event(), _airflow_dag_event()]
+    (source / "openlineage/airflow-events.jsonl").write_text(
+        "".join(json.dumps(e) + "\n" for e in events), encoding="utf-8"
+    )
+    summary = anonymizer.anonymize_workload_outputs(source, target, SECRET)
+    text = (target / "openlineage/airflow-events.jsonl").read_text(encoding="utf-8")
+    return json.loads(text.splitlines()[0]), summary, text
+
+
+def test_airflow_structure_and_run_identity_are_kept(
+    airflow_anonymized: tuple[dict[str, Any], dict[str, int], str],
+) -> None:
+    event, _, _ = airflow_anonymized
+    run = event["run"]["facets"]
+    assert (event["run"]["runId"], run["parent"]["run"]["runId"]) == (TASK_RUN_ID, DAG_RUN_ID)
+    assert run["parent"]["root"]["run"]["runId"] == DAG_RUN_ID
+    task = run["airflow"]["task"]
+    assert (task["task_id"], task["operator_class"], task["retries"]) == (
+        "dbt_run",
+        "BashOperator",
+        0,
+    )
+    assert run["airflow"]["dagRun"]["run_type"] == "manual"
+    assert run["airflow"]["taskInstance"]["try_number"] == 1
+    assert run["airflowState"]["tasksState"] == {"dbt_run": "success"}
+    assert run["processing_engine"]["version"] == "3.3.2"
+    job_task = event["job"]["facets"]["airflow"]["tasks"]["dbt_run"]
+    assert job_task == {
+        "operator": "airflow.providers.standard.operators.bash.BashOperator",
+        "emits_ol_events": True,
+        "is_setup": False,
+        "is_teardown": False,
+    }
+
+
+def test_airflow_people_paths_code_and_tags_do_not_survive(
+    airflow_anonymized: tuple[dict[str, Any], dict[str, int], str],
+) -> None:
+    event, summary, text = airflow_anonymized
+    assert not any(value in text for value in AIRFLOW_PRIVATE)
+    assert "airflow.internal.example" not in text
+    assert summary["dropped openlineage[].run.facets.unknownSourceAttribute"] == 1
+    assert "ui_color" not in text
+
+
+def test_the_dag_run_event_keeps_its_identity_and_nominal_time(
+    airflow_anonymized: tuple[dict[str, Any], dict[str, int], str],
+) -> None:
+    _, _, text = airflow_anonymized
+    dag_event = json.loads(text.splitlines()[1])
+    facets = dag_event["run"]["facets"]
+    assert facets["airflowDagRun"]["dagRun"]["run_type"] == "manual"
+    assert facets["airflowDagRun"]["dag"]["dag_id"] == "orders"
+    assert facets["nominalTime"]["nominalStartTime"] == "2026-11-02T00:00:00Z"

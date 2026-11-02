@@ -1,9 +1,10 @@
 """Field allowlists for the workload anonymizer (#36): dbt artifacts and OpenLineage events.
 
 Each spec maps a known field to how its value is treated; any other field, and any value
-whose shape does not match its spec, is dropped and counted. Built from dbt-core 1.12.6 and
-openlineage-dbt 1.54.0 output plus the documented dbt node, source and test fields; a new
-upstream field is dropped until it is reviewed here.
+whose shape does not match its spec, is dropped and counted. Built from dbt-core 1.12.6,
+openlineage-dbt 1.54.0 and apache-airflow-providers-openlineage 2.20.1 (Airflow 3.3.2) output
+plus the documented dbt node, source and test fields; a new upstream field is dropped until it
+is reviewed here.
 - KEEP: kept, strings still pass the bucket, account and path rules;
 - TEXT: free text; strings become pseudonyms, maps and lists of maps are emptied;
 - SQL: cut to a dbt comment and the statement's leading keywords;
@@ -298,7 +299,64 @@ RUN_RESULTS = {
     "results": Items(RUN_RESULT),
 }
 
+# Airflow provider facets (#76). Kept: DAG, task and run identity, operator classes, run
+# types, times, states and retry settings. Pseudonymized as free text: owners and triggering
+# users (names or emails), DAG file locations, DAG tags, inlets and outlets (dataset strings).
+# Dropped: UI colours and labels, and `unknownSourceAttribute`, which repeats the task.
+# Kept although an operator can choose them: run IDs (`airflow dags trigger --run-id`), the
+# DAG bundle and the queue name; they identify runs and routing, like dbt node names.
+AIRFLOW_DAG = _keep(
+    "dag_id", "start_date", "timetable_summary", fileloc=TEXT, owner=TEXT, tags=TEXT
+)
+AIRFLOW_DAG_RUN = _keep(
+    "clear_number",
+    "dag_bundle_name",
+    "dag_id",
+    "dag_version_id",
+    "dag_version_number",
+    "duration",
+    "end_date",
+    "run_after",
+    "run_id",
+    "run_type",
+    "start_date",
+    "triggered_by",
+    triggering_user_name=TEXT,
+)
+AIRFLOW_TASK = _keep(
+    "depends_on_past",
+    "downstream_task_ids",
+    "ignore_first_depends_on_past",
+    "mapped",
+    "multiple_outputs",
+    "operator_class",
+    "operator_class_path",
+    "operator_provider_version",
+    "priority_weight",
+    "queue",
+    "retries",
+    "retry_exponential_backoff",
+    "task_id",
+    "trigger_rule",
+    "upstream_task_ids",
+    "wait_for_downstream",
+    "wait_for_past_depends_before_skipping",
+    inlets=TEXT,
+    outlets=TEXT,
+    owner=TEXT,
+)
+
 RUN_FACETS = {
+    "airflow": _facet(
+        dag=AIRFLOW_DAG,
+        dagRun=AIRFLOW_DAG_RUN,
+        task=AIRFLOW_TASK,
+        taskInstance=_keep("dag_bundle_name", "try_number", log_url=URI),
+        taskUuid=KEEP,
+    ),
+    "airflowDagRun": _facet(dag=AIRFLOW_DAG, dagRun=AIRFLOW_DAG_RUN),
+    "airflowState": _facet(dagRunState=KEEP, tasksDuration=Each(KEEP), tasksState=Each(KEEP)),
+    "nominalTime": _facet(nominalEndTime=KEEP, nominalStartTime=KEEP),
     "dbt_run": _facet(
         dbt_runtime=KEEP,
         invocation_id=KEEP,
@@ -314,6 +372,11 @@ RUN_FACETS = {
 }
 
 JOB_FACETS = {
+    "airflow": _facet(tasks=Each(_keep("emits_ol_events", "is_setup", "is_teardown", "operator"))),
+    "ownership": _facet(owners=Items({"name": TEXT, "type": KEEP})),
+    "sourceCode": _facet(language=KEEP, sourceCode=TEXT),
+    # The Airflow provider writes each DAG tag as both key and value, so neither is a label.
+    "tags": _facet(tags=Items({"key": TEXT, "source": KEEP, "value": TEXT})),
     "dbt_node": _facet(
         alias=KEEP, database=KEEP, original_file_path=KEEP, schema=KEEP, unique_id=KEEP
     ),
