@@ -214,3 +214,190 @@ def test_a_link_is_present_exactly_when_the_outcome_is_linked(
     )
     with pytest.raises(ValidationError):
         LinkResolution(outcome=outcome, link=link if with_link else None)
+
+
+QUERIES = FIXTURES / "athena" / "query-executions.json"
+OUTCOMES = FIXTURES / "athena" / "link-outcomes.json"
+RESTATED = FIXTURES / "athena" / "link-outcomes-restated.json"
+ACCOUNT, REGION = "123456789012", "us-east-1"
+
+
+def _query_store(store: WorkloadStore, *paths: Path) -> WorkloadStore:
+    for path in paths:
+        if path.parent.name == "athena":
+            store.ingest_query_history(path, account_id=ACCOUNT, region=REGION)
+        else:
+            store.ingest_dbt_artifact(path)
+    return store
+
+
+def _outcome(store: WorkloadStore, query_id: str) -> LinkOutcome | None:
+    resolution = store.model_execution_of_query(ACCOUNT, REGION, query_id)
+    return resolution.outcome if resolution else None
+
+
+def test_a_query_links_to_the_model_execution_its_trusted_query_comment_names(
+    store: WorkloadStore,
+) -> None:
+    _query_store(store, QUERIES, RUN_RESULTS)
+    resolution = store.model_execution_of_query(ACCOUNT, REGION, "q-001")
+    assert resolution is not None and resolution.link is not None
+    link = resolution.link
+    assert (link.source_type, link.source_id) == (
+        "query_execution",
+        f'["{ACCOUNT}","{REGION}","q-001"]',
+    )
+    assert (link.target_type, link.target_id) == (
+        "model_execution",
+        '["inv-001","model.demo.orders"]',
+    )
+    assert link.evidence_type == "trusted_query_comment"
+    assert json.loads(link.evidence_value) == {
+        "invocation_id": "inv-001",
+        "node_id": "model.demo.orders",
+    }
+
+
+def test_query_outcomes_on_the_hand_written_fixtures(store: WorkloadStore) -> None:
+    _query_store(store, QUERIES, OUTCOMES, RESTATED, RUN_RESULTS)
+    assert {q: _outcome(store, q) for q in ("q-001", "q-002", "q-003", "q-004", "q-x")} == {
+        "q-001": LinkOutcome.LINKED,
+        "q-002": LinkOutcome.LINKED,
+        "q-003": LinkOutcome.UNMATCHED,
+        "q-004": LinkOutcome.AMBIGUOUS,
+        "q-x": None,
+    }
+
+
+def test_the_query_execution_carries_only_the_comment_identifiers(store: WorkloadStore) -> None:
+    _query_store(store, QUERIES)
+    query = store.query_execution(ACCOUNT, REGION, "q-001")
+    assert query is not None and query.correlation is not None
+    assert (query.correlation.invocation_id, query.correlation.node_id) == (
+        "inv-001",
+        "model.demo.orders",
+    )
+    (stored,) = store.stored_query_executions(ACCOUNT, REGION, "q-001")
+    assert "dbt_version" not in stored and "raw_orders" not in stored
+
+
+def test_the_query_executions_of_a_model_execution(store: WorkloadStore) -> None:
+    _query_store(store, QUERIES, RUN_RESULTS)
+    queries = store.query_executions_of_model_execution("inv-001", "model.demo.orders")
+    assert [q.query_execution_id for q in queries] == ["q-001", "q-002"]
+
+
+def test_links_do_not_depend_on_arrival_order(tmp_path: Path) -> None:
+    answers = []
+    files = (QUERIES, OUTCOMES, RESTATED, RUN_RESULTS)
+    for name, order in (("a", files), ("b", files[::-1])):
+        with WorkloadStore(tmp_path / f"{name}.sqlite") as store:
+            _query_store(store, *order)
+            ids = ("q-001", "q-002", "q-003", "q-004")
+            answers.append(
+                (
+                    [store.model_execution_of_query(ACCOUNT, REGION, q) for q in ids],
+                    store.query_executions_of_model_execution("inv-001", "model.demo.orders"),
+                )
+            )
+    assert answers[0] == answers[1]
+
+
+def _history(tmp_path: Path, *queries: str) -> Path:
+    entries = [
+        {
+            "QueryExecutionId": f"q-{index}",
+            "Query": text,
+            "Status": {"State": "SUCCEEDED", "SubmissionDateTime": "2026-10-01T01:00:00Z"},
+        }
+        for index, text in enumerate(queries)
+    ]
+    path = tmp_path / "history.json"
+    path.write_text(json.dumps({"QueryExecutions": entries}), encoding="utf-8")
+    return path
+
+
+COMMENT = '{"app": "dbt", "invocation_id": "inv-001", "node_id": "model.demo.orders"}'
+
+
+@pytest.mark.parametrize(
+    ("text", "outcome"),
+    [
+        (f"-- /* {COMMENT} */\ncreate table t as select 1", LinkOutcome.LINKED),
+        (f"/* {COMMENT} */\nselect 1", LinkOutcome.LINKED),
+        (f"/* {COMMENT} */ select 1", LinkOutcome.LINKED),
+        (f"select 1 /* {COMMENT} */", LinkOutcome.NO_EVIDENCE),
+        (f"select 1\n-- /* {COMMENT} */", LinkOutcome.NO_EVIDENCE),
+        (f"  /* {COMMENT} */\nselect 1", LinkOutcome.NO_EVIDENCE),
+        (f"{COMMENT} */\nselect 1", LinkOutcome.NO_EVIDENCE),
+        (f"/* {COMMENT.replace(', ', ',\n')} */\nselect 1", LinkOutcome.NO_EVIDENCE),
+        (f"/* {COMMENT.replace('dbt', 'other')} */\nselect 1", LinkOutcome.NO_EVIDENCE),
+        ('/* {"app": "dbt", "node_id": "model.demo.orders"} */\nselect 1', LinkOutcome.NO_EVIDENCE),
+        (
+            '/* {"app": "dbt", "invocation_id": "", "node_id": "model.demo.orders"} */\nselect 1',
+            LinkOutcome.NO_EVIDENCE,
+        ),
+        (
+            '/* {"app": "dbt", "invocation_id": 1, "node_id": "n"} */\nselect 1',
+            LinkOutcome.NO_EVIDENCE,
+        ),
+        (f"/* {COMMENT}\nselect 1 */", LinkOutcome.NO_EVIDENCE),
+        ("/* [1, 2] */\nselect 1", LinkOutcome.NO_EVIDENCE),
+        ("/* {not json} */\nselect 1", LinkOutcome.NO_EVIDENCE),
+        ("alter table t add columns (c int)", LinkOutcome.NO_EVIDENCE),
+        (
+            '/* {"app": "dbt", "invocation_id": "inv-001",'
+            ' "node_id": "model.demo.orders */ select 1 /* "} */\nselect 1',
+            LinkOutcome.NO_EVIDENCE,
+        ),
+        (
+            '/* {"app": "other", "app": "dbt", "invocation_id": "inv-001",'
+            ' "node_id": "model.demo.orders"} */\nselect 1',
+            LinkOutcome.NO_EVIDENCE,
+        ),
+        (
+            '/* {"app": "dbt", "invocation_id": " ", "node_id": "n"} */\nselect 1',
+            LinkOutcome.NO_EVIDENCE,
+        ),
+        (f"/* {COMMENT} */ select '{'x' * 10_000}'", LinkOutcome.LINKED),
+        (f'/* {COMMENT[:-1]}, "pad": "{"x" * 5_000}"}} */\nselect 1', LinkOutcome.NO_EVIDENCE),
+    ],
+)
+def test_only_a_trusted_query_comment_is_evidence(
+    store: WorkloadStore, tmp_path: Path, text: str, outcome: LinkOutcome
+) -> None:
+    store.ingest_dbt_artifact(RUN_RESULTS)
+    store.ingest_query_history(_history(tmp_path, text), account_id=ACCOUNT, region=REGION)
+    assert _outcome(store, "q-0") == outcome
+
+
+def test_a_query_reported_once_with_and_once_without_a_comment_is_ambiguous(
+    store: WorkloadStore, tmp_path: Path
+) -> None:
+    store.ingest_dbt_artifact(RUN_RESULTS)
+    for name, text in (("a", f"/* {COMMENT} */\nselect 1"), ("b", "select 1")):
+        path = _history(tmp_path, text).rename(tmp_path / f"{name}.json")
+        store.ingest_query_history(path, account_id=ACCOUNT, region=REGION)
+    assert _outcome(store, "q-0") == LinkOutcome.AMBIGUOUS
+
+
+def test_every_reference_workload_query_has_its_observed_outcome(store: WorkloadStore) -> None:
+    history = SAMPLE / "athena" / "query-executions.json"
+    store.ingest_query_history(history, account_id="111122223333", region=REGION)
+    for step in ("1-seed", "2-run", "3-run"):
+        store.ingest_dbt_artifact(SAMPLE / "dbt" / step / "run_results.json")
+    ids = [q["QueryExecutionId"] for q in json.loads(history.read_text())["QueryExecutions"]]
+    outcomes = [
+        resolution.outcome
+        for resolution in (
+            store.model_execution_of_query("111122223333", REGION, query_id) for query_id in ids
+        )
+        if resolution
+    ]
+    assert len(outcomes) == 20
+    assert outcomes.count(LinkOutcome.LINKED) == 17
+    assert outcomes.count(LinkOutcome.NO_EVIDENCE) == 3
+    daily = store.query_executions_of_model_execution(
+        "0d9fc611-0f9f-43ea-81bb-ba7bc63be72f", "model.reference_workload.daily_orders"
+    )
+    assert len(daily) == 3

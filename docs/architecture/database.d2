@@ -88,6 +88,8 @@ workload: Workload store {
     "submitted_us": INTEGER {constraint: [not_null]}
     "completed_us": INTEGER
     "scanned_bytes": INTEGER
+    "invocation_id": TEXT
+    "node_id": TEXT
     "entry_json": TEXT {constraint: [not_null]}
   }
 }
