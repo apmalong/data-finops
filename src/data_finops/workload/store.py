@@ -628,17 +628,22 @@ class WorkloadStore:
         return resolve_model_run(run_id, claims, self._reported_model_executions(claims))
 
     def _reported_model_executions(
-        self, keys: Iterable[ModelExecutionKey]
-    ) -> set[ModelExecutionKey]:
-        return {
-            key
-            for key in keys
-            if self._connection.execute(
-                "SELECT 1 FROM workload_model_execution WHERE invocation_id = ? AND node_id = ?"
-                " LIMIT 1",
-                key,
-            ).fetchone()
-        }
+        self, claims: set[ModelExecutionKey]
+    ) -> dict[ModelExecutionKey, int]:
+        """For a single claim, how many different versions run results reported of it.
+
+        Changed copies of a run-results file that agree on this node count once. Several
+        claims are ambiguous whatever was reported, so they are not looked up.
+        """
+        if len(claims) != 1:
+            return {}
+        (key,) = claims
+        (versions,) = self._connection.execute(
+            "SELECT COUNT(*) FROM (SELECT DISTINCT status, started_us, completed_us"
+            " FROM workload_model_execution WHERE invocation_id = ? AND node_id = ?)",
+            key,
+        ).fetchone()
+        return {key: versions}
 
     def _store_edges(self, key: _EventKey, digest: str, event: RunEvent) -> None:
         """Edges from the event's inputs and outputs, names kept exactly as reported."""
@@ -683,7 +688,7 @@ def _model_run_claim(event_json: str) -> ModelExecutionKey | None:
     node = event.get("job", {}).get("facets", {}).get("dbt_node", {}).get("unique_id")
     invocation = event.get("run", {}).get("facets", {}).get("dbt_run", {}).get("invocation_id")
     if isinstance(node, str) and node and isinstance(invocation, str) and invocation:
-        return (invocation, node)
+        return ModelExecutionKey(invocation_id=invocation, node_id=node)
     return None
 
 

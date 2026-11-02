@@ -1,8 +1,9 @@
 """Workload identity and lineage contracts (spec 02). Populated from M2 onwards."""
 
 from enum import StrEnum
+from typing import Self
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from data_finops.contracts.types import UtcDatetime
 
@@ -166,7 +167,9 @@ class LinkOutcome(StrEnum):
     """What became of an attempt to link a workload identity (GLOSSARY: Link Outcome)."""
 
     LINKED = "linked"
+    """Exactly one counterpart; the only outcome that makes an Identity Link."""
     NO_EVIDENCE = "no_evidence"
+    """Nothing explicit names a counterpart; nothing is inferred (ADR 0006)."""
     UNMATCHED = "unmatched"
     """The Evidence names a counterpart nobody reported; no link is made."""
     AMBIGUOUS = "ambiguous"
@@ -180,3 +183,9 @@ class LinkResolution(BaseModel):
 
     outcome: LinkOutcome
     link: IdentityLink | None = None
+
+    @model_validator(mode="after")
+    def _link_only_when_linked(self) -> Self:
+        if (self.link is not None) != (self.outcome == LinkOutcome.LINKED):
+            raise ValueError("an Identity Link is present exactly when the outcome is linked")
+        return self

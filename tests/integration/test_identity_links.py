@@ -6,8 +6,9 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from pydantic import ValidationError
 
-from data_finops.contracts.workload import LinkOutcome
+from data_finops.contracts.workload import IdentityLink, LinkOutcome, LinkResolution
 from data_finops.workload.store import WorkloadStore
 
 FIXTURES = Path(__file__).resolve().parents[2] / "fixtures"
@@ -85,7 +86,8 @@ def test_every_reference_workload_model_run_links_to_its_model_execution(
     targets = set()
     for run_id in model_runs:
         resolution = store.model_execution_of_run(run_id)
-        assert resolution is not None and resolution.link is not None
+        assert resolution is not None and resolution.outcome == LinkOutcome.LINKED
+        assert resolution.link is not None
         targets.add(resolution.link.target_id)
     assert targets == {
         f'["{invocation}","model.reference_workload.{model}"]'
@@ -162,3 +164,53 @@ def test_the_same_node_reported_in_another_invocation_does_not_match(
     store.ingest_events(_write_events(tmp_path / "e.jsonl", [event]))
     resolution = store.model_execution_of_run(MODEL_RUN)
     assert resolution is not None and resolution.outcome == LinkOutcome.UNMATCHED
+
+
+def _run_results_copy(tmp_path: Path, status: str, other_status: str) -> Path:
+    """A changed copy of the hand-written run results: one node's and another's status set."""
+    document = json.loads(RUN_RESULTS.read_text(encoding="utf-8"))
+    for result in document["results"]:
+        result["status"] = status if result["unique_id"] == "model.demo.orders" else other_status
+    path = tmp_path / "run_results.json"
+    path.write_text(json.dumps(document), encoding="utf-8")
+    return path
+
+
+def test_run_results_that_disagree_about_the_model_execution_make_it_ambiguous(
+    store: WorkloadStore, tmp_path: Path
+) -> None:
+    store.ingest_events(EVENTS)
+    store.ingest_dbt_artifact(RUN_RESULTS)
+    store.ingest_dbt_artifact(_run_results_copy(tmp_path, "error", "success"))
+    resolution = store.model_execution_of_run(MODEL_RUN)
+    assert resolution is not None and resolution.outcome == LinkOutcome.AMBIGUOUS
+
+
+def test_run_results_that_agree_about_the_model_execution_still_link(
+    store: WorkloadStore, tmp_path: Path
+) -> None:
+    store.ingest_events(EVENTS)
+    store.ingest_dbt_artifact(RUN_RESULTS)
+    store.ingest_dbt_artifact(_run_results_copy(tmp_path, "success", "error"))
+    resolution = store.model_execution_of_run(MODEL_RUN)
+    assert resolution is not None and resolution.outcome == LinkOutcome.LINKED
+
+
+@pytest.mark.parametrize(
+    ("outcome", "with_link"),
+    [(LinkOutcome.LINKED, False), (LinkOutcome.UNMATCHED, True)],
+)
+def test_a_link_is_present_exactly_when_the_outcome_is_linked(
+    outcome: LinkOutcome, with_link: bool
+) -> None:
+    link = IdentityLink(
+        source_type="workload_run",
+        source_id=MODEL_RUN,
+        target_type="model_execution",
+        target_id='["inv-001","model.demo.orders"]',
+        evidence_type="dbt_ol_facets",
+        evidence_value="{}",
+        policy_version="identity-links/1",
+    )
+    with pytest.raises(ValidationError):
+        LinkResolution(outcome=outcome, link=link if with_link else None)

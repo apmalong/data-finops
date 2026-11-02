@@ -12,7 +12,7 @@ Typed Pydantic models in `src/data_finops` are the source of truth for contracts
 - `QueryExecution`: provider, account/project, region, query_execution_id, start/end, status, scan_bytes, Billable Usage (computed by the versioned provider policy), workgroup, correlation comment (extracted; see spec 04 data protection), reservation_id, workload metadata.
 - `DataAsset`: namespace and name following the OpenLineage dataset naming convention, kind, metadata.
 - `LineageEdge`: upstream/downstream, relation type, observed_at, provenance.
-- `IdentityLink`: source, target, evidence_type, evidence_value, deterministic policy version. Ambiguous or conflicting links are recorded and never used for allocation.
+- `IdentityLink`: source, target, evidence_type, evidence_value, deterministic policy version. Ambiguous or conflicting links are recorded and never used for allocation. Links are derived when asked and returned with their Link Outcome; a Model Execution target is identified as the compact JSON array `["<invocation_id>","<node_id>"]`, and evidence values are sorted-key compact JSON objects naming the facet fields they come from (M3).
 - `Allocation`: billing_line_ref, pool_id, target_type/id (Query Execution, `idle` or `unallocated`; ADR 0016), amount Decimal, currency, cost basis, category (direct/shared/idle/unallocated), method, confidence (direct_verified/metered_estimate/heuristic_estimate; absent when category is unallocated), coverage (for metered shares), policy_version, calculation_run_id, evidence_refs, as_of.
 - `AllocationSnapshot`: calculation_run_id, policy_version, input digest (Export Snapshots and telemetry), created_at, is_current.
 
