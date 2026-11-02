@@ -1,6 +1,7 @@
 """Athena on-demand billing policy (spec 03, M4 structure 8; ADR 0017).
 
-Provider pricing, never core logic: how much of a Query Execution Athena bills. The
+Provider pricing, never core logic: how much of a Query Execution Athena bills, and which
+Billing Line it is billed in (billing scope, ADR 0023). The
 engine in `attribution` takes the result as given; every Allocation built from it
 records `POLICY_VERSION`.
 
@@ -16,6 +17,7 @@ for the data scanned. Provisional, to be checked against a real FOCUS export (#9
 
 from decimal import Decimal
 
+from data_finops.contracts.billing import FocusBillingLine
 from data_finops.contracts.workload import QueryExecution
 
 POLICY_VERSION = "athena-billable-usage/1"
@@ -52,3 +54,32 @@ def bytes_in_consumed_unit(billable: int, consumed_unit: str) -> Decimal:
     if consumed_unit not in _BYTES_PER_UNIT:
         raise ValueError(f"unknown Athena ConsumedUnit {consumed_unit!r}")
     return Decimal(billable) / _BYTES_PER_UNIT[consumed_unit]
+
+
+def in_billing_scope(query: QueryExecution, line: FocusBillingLine) -> bool:
+    """Whether `query` falls in the scope Athena billed `line` for (ADR 0023).
+
+    Accounting scope, never Evidence: the query ran in the line's usage account (FOCUS
+    SubAccountId, not the paying BillingAccountId) and region, in the line's workgroup if
+    the line names one, and completed within the line's charge period, start inclusive.
+    A query that has not completed is not yet billed. Provisional until #91: completion
+    time is the timestamp Athena bills by, and a line names its workgroup by a workgroup
+    ARN in ResourceId; a line naming none does not restrict by workgroup.
+    """
+    workgroup = _workgroup(line.ResourceId)
+    return (
+        query.account_id == line.SubAccountId
+        and query.region == line.RegionId
+        and (workgroup is None or query.workgroup == workgroup)
+        and query.completed_at is not None
+        and line.ChargePeriodStart <= query.completed_at < line.ChargePeriodEnd
+    )
+
+
+def _workgroup(resource_id: str | None) -> str | None:
+    """The workgroup named by an Athena workgroup ARN, e.g. `...:workgroup/demo`."""
+    fields = (resource_id or "").split(":", 5)
+    if len(fields) < 6 or fields[0] != "arn" or fields[2] != "athena":
+        return None
+    kind, _, name = fields[5].partition("/")
+    return name if kind == "workgroup" and name else None
