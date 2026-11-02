@@ -11,7 +11,7 @@ import hashlib
 import json
 import sqlite3
 from collections import Counter
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -22,15 +22,16 @@ from typing import Any, Self
 
 from data_finops.contracts.workload import (
     DataAsset,
+    DbtNode,
+    DbtObservationFlag,
     LineageDirection,
     LineageEdge,
     ModelExecution,
-    ModelExecutionFlag,
     WorkloadRun,
     WorkloadRunFlag,
     WorkloadRunStatus,
 )
-from data_finops.dbt.artifacts import ArtifactKind, Timing, screen_run_results
+from data_finops.dbt.artifacts import Manifest, RunResults, Timing, screen_dbt_artifact
 from data_finops.lineage.openlineage import RunEvent
 from data_finops.lineage.validation import Rejection, RejectionKind, screen_events
 
@@ -76,6 +77,18 @@ CREATE TABLE IF NOT EXISTS workload_model_execution (
     status TEXT NOT NULL,
     started_us INTEGER,
     completed_us INTEGER,
+    PRIMARY KEY (invocation_id, node_id, artifact_digest)
+);
+CREATE TABLE IF NOT EXISTS workload_manifest_node (
+    invocation_id TEXT NOT NULL,
+    node_id TEXT NOT NULL,
+    artifact_digest TEXT NOT NULL,
+    resource_type TEXT NOT NULL,
+    name TEXT NOT NULL,
+    package_name TEXT,
+    relation_name TEXT,
+    materialized TEXT,
+    depends_on TEXT NOT NULL,
     PRIMARY KEY (invocation_id, node_id, artifact_digest)
 );
 """
@@ -302,37 +315,100 @@ class WorkloadStore:
         return [run for run in runs if run is not None and run.parent_run_id == run_id]
 
     def ingest_dbt_artifact(self, path: Path) -> ArtifactIngestResult:
-        """Store a dbt run-results file (v6) as Model Executions, keyed by invocation and hash.
+        """Store a dbt run-results (v6) or manifest (v12) file, keyed by invocation and hash.
 
-        Re-ingesting the same file is a duplicate; another file for the same invocation is
+        Run results become Model Executions; a manifest becomes per-node catalog entries and
+        their `depends_on.nodes` (no SQL, descriptions, columns or macros). Re-ingesting the
+        same file is a duplicate; another file of the same kind for the same invocation is
         kept beside the first and reported as a changed copy. Unacceptable content is rejected
-        with a fixed reason (see `screen_run_results`); a missing path raises as usual.
+        with a fixed reason (see `screen_dbt_artifact`); a missing path raises as usual.
         """
-        screened = screen_run_results(path)
+        screened = screen_dbt_artifact(path)
         if isinstance(screened, str):
             return ArtifactIngestResult(ArtifactOutcome.REJECTED, reason=screened)
-        invocation, digest, results = screened.invocation_id, screened.digest, screened.results
+        invocation, digest, kind = screened.invocation_id, screened.digest, screened.kind
         with self._write_transaction():
             others = self._connection.execute(
                 "SELECT digest FROM workload_dbt_artifact WHERE invocation_id = ? AND kind = ?",
-                (invocation, ArtifactKind.RUN_RESULTS),
+                (invocation, kind),
             ).fetchall()
             if (digest,) in others:
                 return ArtifactIngestResult(ArtifactOutcome.DUPLICATE, invocation)
             self._connection.execute(
                 "INSERT INTO workload_dbt_artifact (invocation_id, kind, digest) VALUES (?, ?, ?)",
-                (invocation, ArtifactKind.RUN_RESULTS, digest),
+                (invocation, kind, digest),
             )
-            self._connection.executemany(
-                "INSERT OR IGNORE INTO workload_model_execution (invocation_id, node_id,"
-                " artifact_digest, status, started_us, completed_us) VALUES (?, ?, ?, ?, ?, ?)",
-                [
-                    (invocation, result.unique_id, digest, result.status, *_span(result.timing))
-                    for result in results.results
-                ],
-            )
+            if isinstance(screened.artifact, RunResults):
+                self._store_model_executions(invocation, digest, screened.artifact)
+            else:
+                self._store_manifest_nodes(invocation, digest, screened.artifact)
         outcome = ArtifactOutcome.CHANGED_COPY if others else ArtifactOutcome.STORED
         return ArtifactIngestResult(outcome, invocation)
+
+    def _store_model_executions(self, invocation: str, digest: str, results: RunResults) -> None:
+        self._connection.executemany(
+            "INSERT INTO workload_model_execution (invocation_id, node_id,"
+            " artifact_digest, status, started_us, completed_us) VALUES (?, ?, ?, ?, ?, ?)",
+            [
+                (invocation, result.unique_id, digest, result.status, *_span(result.timing))
+                for result in results.results
+            ],
+        )
+
+    def _store_manifest_nodes(self, invocation: str, digest: str, manifest: Manifest) -> None:
+        self._connection.executemany(
+            "INSERT INTO workload_manifest_node (invocation_id, node_id, artifact_digest,"
+            " resource_type, name, package_name, relation_name, materialized, depends_on)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            [
+                (
+                    invocation,
+                    node.unique_id,
+                    digest,
+                    node.resource_type,
+                    node.name,
+                    node.package_name,
+                    node.relation_name,
+                    node.config.materialized,
+                    json.dumps(sorted(node.depends_on.nodes)),
+                )
+                for node in manifest.nodes.values()
+            ],
+        )
+
+    def manifest_nodes(self, invocation_id: str) -> list[DbtNode]:
+        """The invocation's manifest nodes and dependencies, by node; a changed copy adds rows."""
+        rows = self._connection.execute(
+            "SELECT node_id, resource_type, name, package_name, relation_name, materialized,"
+            " depends_on, artifact_digest FROM workload_manifest_node WHERE invocation_id = ?"
+            " ORDER BY node_id, artifact_digest",
+            (invocation_id,),
+        ).fetchall()
+        flags = _artifact_flags(row[7] for row in rows)
+        return [
+            DbtNode(
+                node_id=node_id,
+                invocation_id=invocation_id,
+                resource_type=resource_type,
+                name=name,
+                package_name=package,
+                relation_name=relation,
+                materialized=materialized,
+                depends_on=tuple(json.loads(depends_on)),
+                provenance=digest,
+                flags=flags,
+            )
+            for (
+                node_id,
+                resource_type,
+                name,
+                package,
+                relation,
+                materialized,
+                depends_on,
+                digest,
+            ) in rows
+        ]
 
     def model_executions(self, invocation_id: str) -> list[ModelExecution]:
         """The invocation's Model Executions, by node; a changed copy adds its own rows."""
@@ -342,7 +418,7 @@ class WorkloadStore:
             " ORDER BY node_id, artifact_digest",
             (invocation_id,),
         ).fetchall()
-        changed = len({row[4] for row in rows}) > 1
+        flags = _artifact_flags(row[4] for row in rows)
         return [
             ModelExecution(
                 node_id=node_id,
@@ -351,7 +427,7 @@ class WorkloadStore:
                 started_at=_moment(started) if started is not None else None,
                 completed_at=_moment(completed) if completed is not None else None,
                 provenance=digest,
-                flags=(ModelExecutionFlag.CONFLICTING_OBSERVATIONS,) if changed else (),
+                flags=flags,
             )
             for node_id, status, started, completed, digest in rows
         ]
@@ -451,6 +527,11 @@ def _span(timing: list[Timing]) -> tuple[int | None, int | None]:
     starts = [_microseconds(step.started_at) for step in timing if step.started_at]
     ends = [_microseconds(step.completed_at) for step in timing if step.completed_at]
     return (min(starts) if starts else None, max(ends) if ends else None)
+
+
+def _artifact_flags(digests: Iterable[str]) -> tuple[DbtObservationFlag, ...]:
+    """Flag every row of an invocation's artifact kind when more than one file was ingested."""
+    return (DbtObservationFlag.CONFLICTING_OBSERVATIONS,) if len(set(digests)) > 1 else ()
 
 
 def _canonical(document: dict[str, Any]) -> str:

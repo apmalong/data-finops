@@ -33,9 +33,9 @@ class QueryExecution(BaseModel):
     correlation: QueryCorrelation | None = None
 
 
-class ModelExecutionFlag(StrEnum):
+class DbtObservationFlag(StrEnum):
     CONFLICTING_OBSERVATIONS = "conflicting_observations"
-    """More than one run-results file was ingested for the invocation."""
+    """More than one file of this artifact kind was ingested for the invocation."""
 
 
 class ModelExecution(BaseModel):
@@ -51,7 +51,25 @@ class ModelExecution(BaseModel):
     completed_at: UtcDatetime | None = None
     provenance: str | None = None
     """The SHA-256 of the run-results file that reported this execution."""
-    flags: tuple[ModelExecutionFlag, ...] = ()
+    flags: tuple[DbtObservationFlag, ...] = ()
+
+
+class DbtNode(BaseModel):
+    """A node of one invocation's dbt manifest: catalog entry and static dependencies."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    node_id: str
+    invocation_id: str
+    resource_type: str
+    name: str
+    package_name: str | None = None
+    relation_name: str | None = None
+    materialized: str | None = None
+    depends_on: tuple[str, ...] = ()
+    provenance: str | None = None
+    """The SHA-256 of the manifest file that reported this node."""
+    flags: tuple[DbtObservationFlag, ...] = ()
 
 
 class WorkloadRunStatus(StrEnum):
