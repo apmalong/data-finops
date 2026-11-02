@@ -303,6 +303,8 @@ RUN_RESULTS = {
 # types, times, states and retry settings. Pseudonymized as free text: owners and triggering
 # users (names or emails), DAG file locations, DAG tags, inlets and outlets (dataset strings).
 # Dropped: UI colours and labels, and `unknownSourceAttribute`, which repeats the task.
+# Kept although an operator can choose them: run IDs (`airflow dags trigger --run-id`), the
+# DAG bundle and the queue name; they identify runs and routing, like dbt node names.
 AIRFLOW_DAG = _keep(
     "dag_id", "start_date", "timetable_summary", fileloc=TEXT, owner=TEXT, tags=TEXT
 )
@@ -373,7 +375,8 @@ JOB_FACETS = {
     "airflow": _facet(tasks=Each(_keep("emits_ol_events", "is_setup", "is_teardown", "operator"))),
     "ownership": _facet(owners=Items({"name": TEXT, "type": KEEP})),
     "sourceCode": _facet(language=KEEP, sourceCode=TEXT),
-    "tags": _facet(tags=Items({"key": KEEP, "source": KEEP, "value": TEXT})),
+    # The Airflow provider writes each DAG tag as both key and value, so neither is a label.
+    "tags": _facet(tags=Items({"key": TEXT, "source": KEEP, "value": TEXT})),
     "dbt_node": _facet(
         alias=KEEP, database=KEEP, original_file_path=KEEP, schema=KEEP, unique_id=KEEP
     ),

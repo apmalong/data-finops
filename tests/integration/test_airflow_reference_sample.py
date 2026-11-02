@@ -57,6 +57,10 @@ def test_the_invocation_reaches_the_airflow_task_and_dag_run(
         "dbt-run-reference_workload",
     )
     assert (dbt_run.parent_run_id, dbt_run.root_run_id) == (TASK_RUN, DAG_RUN)
+    assert (dbt_run.parent_job_name, dbt_run.root_job_name) == (
+        "reference_workload.dbt_run",
+        "reference_workload",
+    )
     task = store.workload_run(TASK_RUN)
     dag = store.workload_run(DAG_RUN)
     assert task is not None and dag is not None
@@ -77,7 +81,10 @@ def test_the_invocation_reaches_the_airflow_task_and_dag_run(
 def test_each_model_run_links_to_its_model_execution(
     store: WorkloadStore, ingested: dict[str, tuple[int, int]]
 ) -> None:
-    targets = {_linked(store.model_execution_of_run(run.run_id)) for run in store.children(DBT_RUN)}
+    model_runs = store.children(DBT_RUN)
+    # Model runs keep dbt-ol's default namespace; only the invocation run took Airflow's.
+    assert {(run.job_namespace, run.root_run_id) for run in model_runs} == {("dbt", DAG_RUN)}
+    targets = {_linked(store.model_execution_of_run(run.run_id)) for run in model_runs}
     assert targets == {
         f'["{INVOCATION}","model.reference_workload.{name}"]'
         for name in ("daily_orders", "revenue_by_region", "stg_customers", "stg_orders")
