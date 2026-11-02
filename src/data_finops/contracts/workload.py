@@ -16,6 +16,11 @@ class QueryCorrelation(BaseModel):
     invocation_id: str
 
 
+class QueryExecutionFlag(StrEnum):
+    CONFLICTING_OBSERVATIONS = "conflicting_observations"
+    """The provider reported this Query Execution more than once with different content."""
+
+
 class QueryExecution(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
@@ -28,9 +33,14 @@ class QueryExecution(BaseModel):
     state: str
     submitted_at: UtcDatetime
     completed_at: UtcDatetime | None = None
-    scanned_bytes: int = Field(ge=0)
+    scanned_bytes: int | None = Field(default=None, ge=0)
+    """As reported; absent when the provider reported no statistics."""
     billable_bytes: int | None = Field(default=None, ge=0)
+    """Set only by the versioned provider policy (M4, ADR 0017)."""
     correlation: QueryCorrelation | None = None
+    provenance: str | None = None
+    """The digest of the stored observation these fields come from."""
+    flags: tuple[QueryExecutionFlag, ...] = ()
 
 
 class DbtObservationFlag(StrEnum):

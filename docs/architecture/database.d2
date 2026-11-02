@@ -76,6 +76,20 @@ workload: Workload store {
     "materialized": TEXT
     "depends_on": TEXT {constraint: [not_null]}
   }
+  workload_query_execution: {
+    shape: sql_table
+    "account_id": TEXT {constraint: [primary_key]}
+    "region": TEXT {constraint: [primary_key]}
+    "query_execution_id": TEXT {constraint: [primary_key]}
+    "digest": TEXT {constraint: [primary_key]}
+    "workgroup": TEXT
+    "statement_type": TEXT
+    "state": TEXT {constraint: [not_null]}
+    "submitted_us": INTEGER {constraint: [not_null]}
+    "completed_us": INTEGER
+    "scanned_bytes": INTEGER
+    "entry_json": TEXT {constraint: [not_null]}
+  }
 }
 
 ledger.billing_line."snapshot_id" -> ledger.export_snapshot."snapshot_id"
