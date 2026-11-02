@@ -20,18 +20,17 @@ from pathlib import Path
 from types import TracebackType
 from typing import Any, Self
 
-from pydantic import ValidationError
-
 from data_finops.contracts.workload import (
     DataAsset,
     LineageDirection,
     LineageEdge,
     ModelExecution,
+    ModelExecutionFlag,
     WorkloadRun,
     WorkloadRunFlag,
     WorkloadRunStatus,
 )
-from data_finops.dbt.artifacts import RunResults, Timing
+from data_finops.dbt.artifacts import ArtifactKind, Timing, screen_run_results
 from data_finops.lineage.openlineage import RunEvent
 from data_finops.lineage.validation import Rejection, RejectionKind, screen_events
 
@@ -88,8 +87,6 @@ _TERMINAL = {
     "ABORT": WorkloadRunStatus.ABORTED,
 }
 _SYSTEM = "openlineage"
-_RUN_RESULTS_V6 = "/run-results/v6.json"
-MAX_ARTIFACT_BYTES = 512 * 1024 * 1024
 _EPOCH = datetime(1970, 1, 1, tzinfo=UTC)
 
 
@@ -308,40 +305,23 @@ class WorkloadStore:
         """Store a dbt run-results file (v6) as Model Executions, keyed by invocation and hash.
 
         Re-ingesting the same file is a duplicate; another file for the same invocation is
-        kept beside the first and reported as a changed copy. Other versions, files over
-        MAX_ARTIFACT_BYTES and files without an invocation ID are rejected with a reason.
+        kept beside the first and reported as a changed copy. Unacceptable content is rejected
+        with a fixed reason (see `screen_run_results`); a missing path raises as usual.
         """
-        if path.stat().st_size > MAX_ARTIFACT_BYTES:
-            return ArtifactIngestResult(ArtifactOutcome.REJECTED, reason="too large")
-        data = path.read_bytes()
-        try:
-            document = json.loads(data.decode("utf-8-sig"))
-            version = str(document["metadata"]["dbt_schema_version"])
-        except (ValueError, KeyError, TypeError):
-            return ArtifactIngestResult(ArtifactOutcome.REJECTED, reason="not a dbt artifact")
-        if not version.endswith(_RUN_RESULTS_V6):
-            kind = version.rsplit("/dbt/", 1)[-1].removesuffix(".json")
-            return ArtifactIngestResult(ArtifactOutcome.REJECTED, reason=f"unsupported {kind}")
-        try:
-            results = RunResults.model_validate(document)
-        except ValidationError:
-            return ArtifactIngestResult(
-                ArtifactOutcome.REJECTED, reason="does not match run-results v6"
-            )
-        invocation = results.metadata.invocation_id
-        if not invocation:
-            return ArtifactIngestResult(ArtifactOutcome.REJECTED, reason="no invocation_id")
-        digest = hashlib.sha256(data).hexdigest()
+        screened = screen_run_results(path)
+        if isinstance(screened, str):
+            return ArtifactIngestResult(ArtifactOutcome.REJECTED, reason=screened)
+        invocation, digest, results = screened.invocation_id, screened.digest, screened.results
         with self._write_transaction():
             others = self._connection.execute(
                 "SELECT digest FROM workload_dbt_artifact WHERE invocation_id = ? AND kind = ?",
-                (invocation, "run_results"),
+                (invocation, ArtifactKind.RUN_RESULTS),
             ).fetchall()
             if (digest,) in others:
                 return ArtifactIngestResult(ArtifactOutcome.DUPLICATE, invocation)
             self._connection.execute(
                 "INSERT INTO workload_dbt_artifact (invocation_id, kind, digest) VALUES (?, ?, ?)",
-                (invocation, "run_results", digest),
+                (invocation, ArtifactKind.RUN_RESULTS, digest),
             )
             self._connection.executemany(
                 "INSERT OR IGNORE INTO workload_model_execution (invocation_id, node_id,"
@@ -362,6 +342,7 @@ class WorkloadStore:
             " ORDER BY node_id, artifact_digest",
             (invocation_id,),
         ).fetchall()
+        changed = len({row[4] for row in rows}) > 1
         return [
             ModelExecution(
                 node_id=node_id,
@@ -370,6 +351,7 @@ class WorkloadStore:
                 started_at=_moment(started) if started is not None else None,
                 completed_at=_moment(completed) if completed is not None else None,
                 provenance=digest,
+                flags=(ModelExecutionFlag.CONFLICTING_OBSERVATIONS,) if changed else (),
             )
             for node_id, status, started, completed, digest in rows
         ]

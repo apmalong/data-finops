@@ -8,10 +8,15 @@ from typing import Any
 
 import pytest
 
-from data_finops.contracts.workload import LineageDirection, WorkloadRunFlag, WorkloadRunStatus
+from data_finops.contracts.workload import (
+    LineageDirection,
+    ModelExecutionFlag,
+    WorkloadRunFlag,
+    WorkloadRunStatus,
+)
+from data_finops.dbt import artifacts as dbt_artifacts
 from data_finops.ledger import Ledger
 from data_finops.lineage.validation import RejectionKind
-from data_finops.workload import store as store_module
 from data_finops.workload.store import ArtifactOutcome, WorkloadStore
 
 FIXTURES = Path(__file__).resolve().parents[2] / "fixtures"
@@ -644,7 +649,7 @@ SAMPLE_DBT = FIXTURES / "reference-workload" / "dbt"
 FIRST_RUN_INVOCATION = "d54e1d8c-43cb-42f4-a6ab-a055ab074a79"
 
 
-def _changed_copy(source: Path, target: Path, change: Any) -> Path:
+def _edited_copy(source: Path, target: Path, change: Any) -> Path:
     document = json.loads(source.read_text(encoding="utf-8"))
     change(document)
     target.write_text(json.dumps(document), encoding="utf-8")
@@ -700,10 +705,11 @@ def test_a_changed_file_for_the_same_invocation_is_kept_and_flagged(
         document["results"][0]["status"] = "error"
 
     store.ingest_dbt_artifact(original)
-    changed = _changed_copy(original, tmp_path / "run_results.json", failed)
+    changed = _edited_copy(original, tmp_path / "run_results.json", failed)
     assert store.ingest_dbt_artifact(changed).outcome == ArtifactOutcome.CHANGED_COPY
     executions = store.model_executions(FIRST_RUN_INVOCATION)
     assert len(executions) == 8 and len({e.provenance for e in executions}) == 2
+    assert all(ModelExecutionFlag.CONFLICTING_OBSERVATIONS in e.flags for e in executions)
 
 
 def test_other_run_results_versions_are_rejected(store: WorkloadStore, tmp_path: Path) -> None:
@@ -712,16 +718,19 @@ def test_other_run_results_versions_are_rejected(store: WorkloadStore, tmp_path:
             "https://schemas.getdbt.com/dbt/run-results/v5.json"
         )
 
-    path = _changed_copy(SAMPLE_DBT / "2-run" / "run_results.json", tmp_path / "rr.json", older)
+    path = _edited_copy(SAMPLE_DBT / "2-run" / "run_results.json", tmp_path / "rr.json", older)
     result = store.ingest_dbt_artifact(path)
-    assert result.outcome == ArtifactOutcome.REJECTED and "run-results/v5" in (result.reason or "")
+    assert (result.outcome, result.reason) == (
+        ArtifactOutcome.REJECTED,
+        "unsupported run-results v5",
+    )
     assert store.model_executions(FIRST_RUN_INVOCATION) == []
 
 
 def test_an_oversized_artifact_is_rejected(
     store: WorkloadStore, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(store_module, "MAX_ARTIFACT_BYTES", 1024)
+    monkeypatch.setattr(dbt_artifacts, "MAX_ARTIFACT_BYTES", 1024)
     result = store.ingest_dbt_artifact(SAMPLE_DBT / "2-run" / "run_results.json")
     assert (result.outcome, result.reason) == (ArtifactOutcome.REJECTED, "too large")
 
@@ -732,5 +741,39 @@ def test_run_results_without_an_invocation_are_rejected(
     def anonymous(document: dict[str, Any]) -> None:
         document["metadata"]["invocation_id"] = None
 
-    path = _changed_copy(SAMPLE_DBT / "2-run" / "run_results.json", tmp_path / "rr.json", anonymous)
+    path = _edited_copy(SAMPLE_DBT / "2-run" / "run_results.json", tmp_path / "rr.json", anonymous)
     assert store.ingest_dbt_artifact(path).outcome == ArtifactOutcome.REJECTED
+
+
+@pytest.mark.parametrize(
+    ("change", "reason"),
+    [
+        (
+            lambda d: d["metadata"].update(dbt_schema_version="AKIA_SECRET_VALUE"),
+            "not a dbt artifact",
+        ),
+        (
+            lambda d: d["results"][0]["timing"][0].update(started_at="2026-11-01T21:19:00"),
+            "does not match run-results v6",
+        ),
+        (lambda d: d["results"].append(dict(d["results"][0])), "a node appears more than once"),
+    ],
+)
+def test_bad_run_results_are_rejected_with_a_fixed_reason(
+    store: WorkloadStore, tmp_path: Path, change: Any, reason: str
+) -> None:
+    path = _edited_copy(SAMPLE_DBT / "2-run" / "run_results.json", tmp_path / "rr.json", change)
+    result = store.ingest_dbt_artifact(path)
+    assert (result.outcome, result.reason) == (ArtifactOutcome.REJECTED, reason)
+    assert store.model_executions(FIRST_RUN_INVOCATION) == []
+
+
+def test_deeply_nested_json_is_rejected(store: WorkloadStore, tmp_path: Path) -> None:
+    path = tmp_path / "rr.json"
+    path.write_bytes(b"[" * 100_000 + b"]" * 100_000)
+    assert store.ingest_dbt_artifact(path).reason == "not a dbt artifact"
+
+
+def test_a_single_run_results_file_raises_no_flag(store: WorkloadStore) -> None:
+    store.ingest_dbt_artifact(SAMPLE_DBT / "2-run" / "run_results.json")
+    assert all(e.flags == () for e in store.model_executions(FIRST_RUN_INVOCATION))
