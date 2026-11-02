@@ -1,7 +1,7 @@
 """dbt `manifest.json` (v12) and `run_results.json` (v6), reading only what M2 needs.
 
 Full validation against the pinned dbt schemas runs in `scripts/verify_upstream.py`.
-`screen_run_results` is the ingest path: it never raises on bad content, and its reasons
+`screen_dbt_artifact` is the ingest path: it never raises on bad content, and its reasons
 come from a fixed set, so nothing from the file is echoed.
 """
 
@@ -27,10 +27,22 @@ class ArtifactMetadata(_Artifact):
     invocation_id: str | None = None
 
 
+class NodeConfig(_Artifact):
+    materialized: str | None = None
+
+
+class DependsOn(_Artifact):
+    nodes: list[str] = []
+
+
 class ManifestNode(_Artifact):
     unique_id: str
     resource_type: str
     name: str
+    package_name: str | None = None
+    relation_name: str | None = None
+    config: NodeConfig = NodeConfig()
+    depends_on: DependsOn = DependsOn()
 
 
 class Manifest(_Artifact):
@@ -61,12 +73,20 @@ class ArtifactKind(StrEnum):
     MANIFEST = "manifest"
 
 
+# Supported dbt schemas: (schema name, major version) -> (model, kind).
+_SUPPORTED: dict[tuple[str, str], tuple[type[RunResults] | type[Manifest], ArtifactKind]] = {
+    ("run-results", "6"): (RunResults, ArtifactKind.RUN_RESULTS),
+    ("manifest", "12"): (Manifest, ArtifactKind.MANIFEST),
+}
+
+
 @dataclass(frozen=True)
-class ScreenedRunResults:
-    results: RunResults
+class ScreenedArtifact:
+    kind: ArtifactKind
+    artifact: RunResults | Manifest
     invocation_id: str
     digest: str
-    """SHA-256 of the file's bytes: with the invocation, the artifact's identity."""
+    """SHA-256 of the file's bytes: with the invocation and kind, the artifact's identity."""
 
 
 def load_manifest(path: Path) -> Manifest:
@@ -77,11 +97,12 @@ def load_run_results(path: Path) -> RunResults:
     return RunResults.model_validate_json(path.read_text(encoding="utf-8"))
 
 
-def screen_run_results(path: Path) -> ScreenedRunResults | str:
-    """The run-results file if it is acceptable, otherwise the reason it is not.
+def screen_dbt_artifact(path: Path) -> ScreenedArtifact | str:
+    """The artifact if it is acceptable, otherwise the reason it is not.
 
-    Accepts run-results v6 only, at most MAX_ARTIFACT_BYTES, with an invocation ID, aware
-    timestamps and each node at most once. Extra fields are allowed (OQ-23).
+    Accepts manifest v12 and run-results v6, at most MAX_ARTIFACT_BYTES, with an invocation
+    ID; run results need aware timestamps and each node at most once, and every manifest
+    node must sit under its own unique ID. Extra fields are allowed (OQ-23).
     """
     if path.stat().st_size > MAX_ARTIFACT_BYTES:
         return "too large"
@@ -94,19 +115,26 @@ def screen_run_results(path: Path) -> ScreenedRunResults | str:
     known = _DBT_SCHEMA.fullmatch(version) if isinstance(version, str) else None
     if known is None:
         return "not a dbt artifact"
-    if known.groups() != ("run-results", "6"):
-        return f"unsupported {known[1]} v{known[2]}"
+    name, major = known.groups()
+    if (name, major) not in _SUPPORTED:
+        return f"unsupported {name} v{major}"
+    model, kind = _SUPPORTED[(name, major)]
     try:
-        results = RunResults.model_validate(document)
+        artifact = model.model_validate(document)
     except (ValidationError, RecursionError):
-        return "does not match run-results v6"
-    if not results.metadata.invocation_id:
+        return f"does not match {name} v{major}"
+    invocation = artifact.metadata.invocation_id
+    if not invocation:
         return "no invocation_id"
-    nodes = [result.unique_id for result in results.results]
-    if len(nodes) != len(set(nodes)):
-        return "a node appears more than once"
-    return ScreenedRunResults(
-        results=results,
-        invocation_id=results.metadata.invocation_id,
+    if isinstance(artifact, RunResults):
+        nodes = [result.unique_id for result in artifact.results]
+        if len(nodes) != len(set(nodes)):
+            return "a node appears more than once"
+    elif any(key != node.unique_id for key, node in artifact.nodes.items()):
+        return "a node key differs from its unique_id"
+    return ScreenedArtifact(
+        kind=kind,
+        artifact=artifact,
+        invocation_id=invocation,
         digest=hashlib.sha256(data).hexdigest(),
     )

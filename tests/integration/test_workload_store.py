@@ -9,8 +9,8 @@ from typing import Any
 import pytest
 
 from data_finops.contracts.workload import (
+    DbtObservationFlag,
     LineageDirection,
-    ModelExecutionFlag,
     WorkloadRunFlag,
     WorkloadRunStatus,
 )
@@ -709,7 +709,7 @@ def test_a_changed_file_for_the_same_invocation_is_kept_and_flagged(
     assert store.ingest_dbt_artifact(changed).outcome == ArtifactOutcome.CHANGED_COPY
     executions = store.model_executions(FIRST_RUN_INVOCATION)
     assert len(executions) == 8 and len({e.provenance for e in executions}) == 2
-    assert all(ModelExecutionFlag.CONFLICTING_OBSERVATIONS in e.flags for e in executions)
+    assert all(DbtObservationFlag.CONFLICTING_OBSERVATIONS in e.flags for e in executions)
 
 
 def test_other_run_results_versions_are_rejected(store: WorkloadStore, tmp_path: Path) -> None:
@@ -777,3 +777,123 @@ def test_deeply_nested_json_is_rejected(store: WorkloadStore, tmp_path: Path) ->
 def test_a_single_run_results_file_raises_no_flag(store: WorkloadStore) -> None:
     store.ingest_dbt_artifact(SAMPLE_DBT / "2-run" / "run_results.json")
     assert all(e.flags == () for e in store.model_executions(FIRST_RUN_INVOCATION))
+
+
+# dbt manifest: model catalog and dependencies (#47)
+
+SECOND_RUN_INVOCATION = "0d9fc611-0f9f-43ea-81bb-ba7bc63be72f"
+SAMPLE_MANIFEST = SAMPLE_DBT / "3-run" / "manifest.json"
+
+
+def test_the_manifest_records_each_node_and_its_dependencies(store: WorkloadStore) -> None:
+    result = store.ingest_dbt_artifact(SAMPLE_MANIFEST)
+    assert (result.outcome, result.invocation_id) == (ArtifactOutcome.STORED, SECOND_RUN_INVOCATION)
+    nodes = {n.node_id: n for n in store.manifest_nodes(SECOND_RUN_INVOCATION)}
+    assert sorted(nodes) == [
+        "model.reference_workload.daily_orders",
+        "model.reference_workload.revenue_by_region",
+        "model.reference_workload.stg_customers",
+        "model.reference_workload.stg_orders",
+        "seed.reference_workload.raw_customers",
+        "seed.reference_workload.raw_orders",
+    ]
+    daily = nodes["model.reference_workload.daily_orders"]
+    assert (daily.resource_type, daily.name, daily.package_name, daily.materialized) == (
+        "model",
+        "daily_orders",
+        "reference_workload",
+        "incremental",
+    )
+    assert daily.relation_name == '"awsdatacatalog"."reference_workload"."daily_orders"'
+    assert daily.depends_on == ("model.reference_workload.stg_orders",)
+    assert nodes["model.reference_workload.revenue_by_region"].depends_on == (
+        "model.reference_workload.stg_customers",
+        "model.reference_workload.stg_orders",
+    )
+    assert nodes["seed.reference_workload.raw_orders"].depends_on == ()
+
+
+def test_the_hand_written_manifest_has_optional_fields_absent(store: WorkloadStore) -> None:
+    store.ingest_dbt_artifact(FIXTURES / "dbt" / "manifest.json")
+    nodes = {n.node_id: n for n in store.manifest_nodes("inv-001")}
+    customers = nodes["model.demo.customers"]
+    assert (customers.relation_name, customers.materialized) == (None, None)
+    assert customers.depends_on == ("model.demo.orders",)
+
+
+def test_no_sql_descriptions_or_macros_are_kept(store: WorkloadStore) -> None:
+    store.ingest_dbt_artifact(SAMPLE_MANIFEST)
+    nodes = store.manifest_nodes(SECOND_RUN_INVOCATION)
+    stored = json.dumps([n.model_dump(mode="json") for n in nodes])
+    manifest = json.loads(SAMPLE_MANIFEST.read_text(encoding="utf-8"))
+    code = [
+        n[k] for n in manifest["nodes"].values() for k in ("raw_code", "compiled_code") if n.get(k)
+    ]
+    assert code and not any(snippet in stored for snippet in code)
+    assert "macro." not in stored and "description" not in stored
+
+
+def test_reingesting_a_manifest_is_a_duplicate_and_a_change_is_flagged(
+    store: WorkloadStore, tmp_path: Path
+) -> None:
+    store.ingest_dbt_artifact(SAMPLE_MANIFEST)
+    assert store.ingest_dbt_artifact(SAMPLE_MANIFEST).outcome == ArtifactOutcome.DUPLICATE
+
+    def renamed(document: dict[str, Any]) -> None:
+        document["nodes"]["model.reference_workload.daily_orders"]["name"] = "daily_orders_v2"
+
+    changed = _edited_copy(SAMPLE_MANIFEST, tmp_path / "manifest.json", renamed)
+    assert store.ingest_dbt_artifact(changed).outcome == ArtifactOutcome.CHANGED_COPY
+    nodes = store.manifest_nodes(SECOND_RUN_INVOCATION)
+    assert len(nodes) == 12
+    assert all(DbtObservationFlag.CONFLICTING_OBSERVATIONS in n.flags for n in nodes)
+
+
+def test_a_manifest_and_run_results_of_one_invocation_are_separate_artifacts(
+    store: WorkloadStore,
+) -> None:
+    store.ingest_dbt_artifact(SAMPLE_DBT / "3-run" / "run_results.json")
+    assert store.ingest_dbt_artifact(SAMPLE_MANIFEST).outcome == ArtifactOutcome.STORED
+    assert all(e.flags == () for e in store.model_executions(SECOND_RUN_INVOCATION))
+
+
+def test_other_manifest_versions_are_rejected(store: WorkloadStore, tmp_path: Path) -> None:
+    def older(document: dict[str, Any]) -> None:
+        document["metadata"]["dbt_schema_version"] = (
+            "https://schemas.getdbt.com/dbt/manifest/v11.json"
+        )
+
+    path = _edited_copy(SAMPLE_MANIFEST, tmp_path / "manifest.json", older)
+    result = store.ingest_dbt_artifact(path)
+    assert (result.outcome, result.reason) == (ArtifactOutcome.REJECTED, "unsupported manifest v11")
+    assert store.manifest_nodes(SECOND_RUN_INVOCATION) == []
+
+
+def test_a_manifest_node_under_another_key_is_rejected(
+    store: WorkloadStore, tmp_path: Path
+) -> None:
+    def misfiled(document: dict[str, Any]) -> None:
+        nodes = document["nodes"]
+        nodes["model.reference_workload.copy"] = dict(
+            nodes["model.reference_workload.daily_orders"]
+        )
+
+    path = _edited_copy(SAMPLE_MANIFEST, tmp_path / "manifest.json", misfiled)
+    result = store.ingest_dbt_artifact(path)
+    assert (result.outcome, result.reason) == (
+        ArtifactOutcome.REJECTED,
+        "a node key differs from its unique_id",
+    )
+    assert store.manifest_nodes(SECOND_RUN_INVOCATION) == []
+
+
+def test_repeated_dependencies_are_listed_once(store: WorkloadStore, tmp_path: Path) -> None:
+    def repeated(document: dict[str, Any]) -> None:
+        node = document["nodes"]["model.reference_workload.daily_orders"]
+        node["depends_on"]["nodes"] *= 2
+
+    store.ingest_dbt_artifact(_edited_copy(SAMPLE_MANIFEST, tmp_path / "m.json", repeated))
+    nodes = {n.node_id: n for n in store.manifest_nodes(SECOND_RUN_INVOCATION)}
+    assert nodes["model.reference_workload.daily_orders"].depends_on == (
+        "model.reference_workload.stg_orders",
+    )
