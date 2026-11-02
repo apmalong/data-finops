@@ -3,7 +3,8 @@
 Shares the installation's database file with the Ledger but owns its own tables and imports
 nothing from billing. OpenLineage runs are stored as reported, one row per distinct event
 observation (ADR 0022); Workload Run status and times are derived from those observations
-when read, so they never depend on arrival order. Parent and root runs come with #43.
+when read, so they never depend on arrival order. Parent and root runs come only from the
+ParentRunFacet.
 """
 
 import hashlib
@@ -30,9 +31,17 @@ CREATE TABLE IF NOT EXISTS workload_lineage_event (
     digest TEXT NOT NULL,
     job_namespace TEXT NOT NULL,
     job_name TEXT NOT NULL,
+    parent_run_id TEXT,
+    parent_job_namespace TEXT,
+    parent_job_name TEXT,
+    root_run_id TEXT,
+    root_job_namespace TEXT,
+    root_job_name TEXT,
     event_json TEXT NOT NULL,
     PRIMARY KEY (run_id, event_type_key, event_time_us, digest)
 );
+CREATE INDEX IF NOT EXISTS workload_lineage_event_parent
+    ON workload_lineage_event (parent_run_id);
 """
 
 _START = "START"
@@ -62,11 +71,28 @@ class IngestResult:
 
 
 @dataclass(frozen=True)
+class _RunRef:
+    """A run and its job as a ParentRunFacet names them (direct parent or root)."""
+
+    run_id: str
+    job_namespace: str | None
+    job_name: str | None
+
+
+@dataclass(frozen=True)
 class _Observation:
     event_type: str | None
     event_time_us: int
     job_namespace: str
     job_name: str
+    parent: _RunRef | None
+    root: _RunRef | None
+
+    @classmethod
+    def from_row(cls, row: tuple[Any, ...]) -> "_Observation":
+        event_type, time, namespace, name, *refs = row
+        parent, root = (_RunRef(*refs[i : i + 3]) if refs[i] else None for i in (0, 3))
+        return cls(event_type, time, namespace, name, parent, root)
 
 
 class WorkloadStore:
@@ -108,7 +134,10 @@ class WorkloadStore:
                 }
                 stored_json = _canonical(document)
                 stored = self._connection.execute(
-                    "INSERT OR IGNORE INTO workload_lineage_event VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                    "INSERT OR IGNORE INTO workload_lineage_event (run_id, event_type_key,"
+                    " event_type, event_time_us, digest, job_namespace, job_name, parent_run_id,"
+                    " parent_job_namespace, parent_job_name, root_run_id, root_job_namespace,"
+                    " root_job_name, event_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     (
                         event.run.runId,
                         json.dumps(event.eventType),  # keeps an absent type apart from ""
@@ -117,6 +146,7 @@ class WorkloadStore:
                         hashlib.sha256(stored_json.encode("utf-8")).hexdigest(),
                         event.job.namespace,
                         event.job.name,
+                        *_parent_and_root(event.run.facets.get("parent")),
                         stored_json,
                     ),
                 ).rowcount
@@ -135,11 +165,15 @@ class WorkloadStore:
         Status comes from the terminal events (`conflicting` when they disagree); start is
         the earliest START, end the latest terminal event. If events name different jobs for
         one run, the earliest event's job is used, ties broken by job, so the answer is stable.
+        The direct parent comes from the earliest event carrying a ParentRunFacet, the root
+        from the earliest event naming one.
         """
         observations = [
-            _Observation(*row)
+            _Observation.from_row(row)
             for row in self._connection.execute(
-                "SELECT event_type, event_time_us, job_namespace, job_name"
+                "SELECT event_type, event_time_us, job_namespace, job_name, parent_run_id,"
+                " parent_job_namespace, parent_job_name, root_run_id, root_job_namespace,"
+                " root_job_name"
                 " FROM workload_lineage_event WHERE run_id = ?"
                 " ORDER BY event_time_us, job_namespace, job_name",
                 (run_id,),
@@ -157,15 +191,37 @@ class WorkloadStore:
         else:
             status = WorkloadRunStatus.CONFLICTING
         first = observations[0]
+        parent = next((o.parent for o in observations if o.parent), None)
+        root = next((o.root for o in observations if o.root), None)
         return WorkloadRun(
             system=_SYSTEM,
             job_namespace=first.job_namespace,
             job_name=first.job_name,
             run_id=run_id,
+            parent_run_id=parent.run_id if parent else None,
+            parent_job_namespace=parent.job_namespace if parent else None,
+            parent_job_name=parent.job_name if parent else None,
+            root_run_id=root.run_id if root else None,
+            root_job_namespace=root.job_namespace if root else None,
+            root_job_name=root.job_name if root else None,
             status=status,
             started_at=_moment(min(starts)) if starts else None,
             ended_at=_moment(max(o.event_time_us for o in terminals)) if terminals else None,
         )
+
+    def children(self, run_id: str) -> list[WorkloadRun]:
+        """Runs whose direct parent, as `workload_run` reports it, is `run_id`; by run ID.
+
+        One level only. Producers can report cycles across runs (A names B, B names A), so
+        anything walking the chain must guard against revisiting a run.
+        """
+        candidates = self._connection.execute(
+            "SELECT DISTINCT run_id FROM workload_lineage_event WHERE parent_run_id = ?"
+            " ORDER BY run_id",
+            (run_id,),
+        ).fetchall()
+        runs = (self.workload_run(candidate) for (candidate,) in candidates)
+        return [run for run in runs if run is not None and run.parent_run_id == run_id]
 
     @contextmanager
     def _write_transaction(self) -> Iterator[None]:
@@ -192,3 +248,14 @@ def _microseconds(moment: datetime) -> int:
 
 def _moment(microseconds: int) -> datetime:
     return _EPOCH + timedelta(microseconds=microseconds)
+
+
+def _parent_and_root(facet: Any) -> tuple[str | None, ...]:
+    """Parent and root run and job from a ParentRunFacet (validated at screening), or Nones."""
+    if not facet:
+        return (None,) * 6
+    root = facet.get("root")
+    parent = (facet["run"]["runId"], facet["job"]["namespace"], facet["job"]["name"])
+    if not root:
+        return (*parent, None, None, None)
+    return (*parent, root["run"]["runId"], root["job"]["namespace"], root["job"]["name"])
