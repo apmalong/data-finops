@@ -144,6 +144,10 @@ def _check(position: int, item: Any) -> RunEvent | Rejection:
         parent = item["run"].get("facets", {}).get("parent")
         if parent is not None and (detail := _first_error(validators["ParentRunFacet"], parent)):
             return Rejection(position, RejectionKind.INVALID_PARENT_FACET, detail)
+        if parent is not None and parent["run"]["runId"] == item["run"]["runId"]:
+            return Rejection(
+                position, RejectionKind.INVALID_PARENT_FACET, "run/runId (names the run itself)"
+            )
         return RunEvent.model_validate(item)
     except RecursionError:
         return Rejection(position, RejectionKind.TOO_DEEP)

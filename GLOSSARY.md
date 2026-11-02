@@ -50,7 +50,7 @@ One run of a dbt node within one dbt invocation. A dbt node ID alone never ident
 _Avoid_: model run, dbt job
 
 **Workload Run**:
-One orchestrated execution reported by an orchestrator or lineage producer, such as an Airflow task run, possibly with a parent run.
+One orchestrated execution reported by an orchestrator or lineage producer, such as an Airflow task run, possibly with a parent run (the run that directly contains it) and a root run (the top of its chain, such as the DAG run).
 _Avoid_: job, task (alone), pipeline run
 
 **Identity Link**:

@@ -352,3 +352,49 @@ def test_children_are_ordered_by_run_id(store: WorkloadStore) -> None:
     store.ingest_events(SAMPLE_EVENTS)
     ids = [run.run_id for run in store.children(SECOND_RUN)]
     assert len(ids) == 4 and ids == sorted(ids)
+
+
+def _with_parent(event: dict[str, Any], parent: str, root: str | None = None) -> dict[str, Any]:
+    facet: dict[str, Any] = {
+        "_producer": "https://example.invalid/producer",
+        "_schemaURL": "https://openlineage.io/spec/facets/1-1-0/ParentRunFacet.json#/$defs/ParentRunFacet",
+        "run": {"runId": parent},
+        "job": {"namespace": "demo", "name": "parent-job"},
+    }
+    if root:
+        facet["root"] = {"run": {"runId": root}, "job": {"namespace": "demo", "name": "root-job"}}
+    event["run"]["facets"]["parent"] = facet
+    return event
+
+
+OTHER_PARENT = "00000000-0000-4000-8000-0000000000c2"
+
+
+def test_children_agree_with_the_parent_a_run_reports(store: WorkloadStore, tmp_path: Path) -> None:
+    start = _with_parent(_event(RUN, "START", "2026-11-01T21:19:00Z"), DAG_RUN)
+    complete = _with_parent(_event(RUN, "COMPLETE", "2026-11-01T21:19:30Z"), OTHER_PARENT)
+    store.ingest_events(_write(tmp_path / "events.jsonl", [start, complete]))
+    run = store.workload_run(RUN)
+    assert run is not None and run.parent_run_id == DAG_RUN
+    assert [r.run_id for r in store.children(DAG_RUN)] == [RUN]
+    assert store.children(OTHER_PARENT) == []
+
+
+def test_the_root_may_arrive_on_a_later_event(store: WorkloadStore, tmp_path: Path) -> None:
+    start = _with_parent(_event(RUN, "START", "2026-11-01T21:19:00Z"), DAG_RUN)
+    complete = _with_parent(_event(RUN, "COMPLETE", "2026-11-01T21:19:30Z"), DAG_RUN, OTHER_PARENT)
+    store.ingest_events(_write(tmp_path / "events.jsonl", [start, complete]))
+    run = store.workload_run(RUN)
+    assert run is not None and run.root_run_id == OTHER_PARENT
+
+
+def test_a_run_naming_itself_as_parent_is_rejected(store: WorkloadStore, tmp_path: Path) -> None:
+    event = _with_parent(_event(RUN, "START", "2026-11-01T21:19:00Z"), RUN)
+    result = store.ingest_events(_write(tmp_path / "events.jsonl", [event]))
+    assert [r.kind for r in result.rejected] == [RejectionKind.INVALID_PARENT_FACET]
+    assert store.children(RUN) == []
+
+
+def test_children_of_a_run_that_sent_no_events(store: WorkloadStore) -> None:
+    store.ingest_events(EVENTS)
+    assert [run.run_id for run in store.children(DAG_RUN)] == [AIRFLOW_TASK]
