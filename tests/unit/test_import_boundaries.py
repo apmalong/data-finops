@@ -11,6 +11,8 @@ FORBIDDEN_IMPORTS = {
     "contracts": ("data_finops.",),
     "attribution": (
         "data_finops.providers",
+        "data_finops.ledger",
+        "data_finops.workload",
         "data_finops.api",
         "boto3",
         "botocore",
