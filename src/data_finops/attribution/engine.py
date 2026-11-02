@@ -1,8 +1,8 @@
 """The allocation engine (spec 03, ADRs 0016 and 0017): Billing Lines in, Allocations out.
 
 Pure: no I/O, clock or provider knowledge. Callers classify each Billing Line as a
-metered Cost Pool or Ineligible and give each Query Execution's Billable Usage in the
-line's own unit; the engine only splits money.
+metered Cost Pool, Ineligible or an Adjustment and give each Query Execution's Billable
+Usage in the line's own unit; the engine only splits money.
 """
 
 from collections.abc import Iterable, Mapping
@@ -106,7 +106,7 @@ def allocate(
         context = _LineContext(
             pooled.ref, pool.pool_id, line.BillingCurrency, policy_version, calculation_run_id
         )
-        if not isinstance(pool, MeteredCostPool):
+        if isinstance(pool, Ineligible | Adjustment):
             allocations += [
                 context.unallocated(basis, line.cost(basis), pool.reason) for basis in CostBasis
             ]

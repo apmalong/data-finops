@@ -29,7 +29,7 @@ Which FOCUS cost column a figure is taken from (for example BilledCost or Effect
 _Avoid_: cost type, price
 
 **Adjustment**:
-A Billing Line whose charge category is not usage, such as a credit, refund or discount. Adjustments are their own lines, signed, and may be negative.
+A Billing Line that corrects or reduces charges: a credit, refund or discount (FOCUS ChargeCategory `Credit` or `Adjustment`). Adjustments are their own lines, signed, and may be negative. Tax and purchase lines are not Adjustments.
 _Avoid_: rebate (unless the provider uses that term), negative cost
 
 **Cost Pool**:

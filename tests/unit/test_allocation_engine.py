@@ -402,6 +402,8 @@ def test_an_ineligible_line_stays_unallocated_in_every_cost_basis() -> None:
 
 
 def test_negative_adjustment_golden_scenario() -> None:
+    # The oracle states BilledCost; `_line` puts -1.00 in all four cost columns. The
+    # category is for realism only: the caller classifies the line as an Adjustment.
     credit = _line("-1.00").model_copy(update={"ChargeCategory": FocusChargeCategory.CREDIT})
     allocations = allocate(
         [PooledLine("credit#0", credit, Adjustment("adjustments"))],
@@ -450,11 +452,15 @@ def test_lines_in_several_currencies_each_reconcile_in_their_own() -> None:
         PooledLine("line#2", _line("-0.500", currency="KWD"), Adjustment("adjustments")),
     ]
     allocations = allocate(lines, policy_version="p", calculation_run_id="r")
-    billed = [a for a in allocations if a.cost_basis == CostBasis.BILLED_COST]
-    assert sorted((a.billing_line_ref, a.currency, a.target_id, str(a.amount)) for a in billed) == [
-        ("line#0", "USD", "q_a", "0.33"),
-        ("line#0", "USD", "q_b", "0.67"),
-        ("line#1", "JPY", "q_a", "33"),
-        ("line#1", "JPY", "q_b", "67"),
-        ("line#2", "KWD", "unallocated", "-0.500"),
-    ]
+    # `_line` puts the same amount in all four cost columns, so every basis splits alike.
+    for basis in CostBasis:
+        in_basis = [a for a in allocations if a.cost_basis == basis]
+        assert sorted(
+            (a.billing_line_ref, a.currency, a.target_id, str(a.amount)) for a in in_basis
+        ) == [
+            ("line#0", "USD", "q_a", "0.33"),
+            ("line#0", "USD", "q_b", "0.67"),
+            ("line#1", "JPY", "q_a", "33"),
+            ("line#1", "JPY", "q_b", "67"),
+            ("line#2", "KWD", "unallocated", "-0.500"),
+        ], basis
