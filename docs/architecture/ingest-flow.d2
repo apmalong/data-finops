@@ -131,9 +131,10 @@ queries: {
 workload_queries: Workload store: Athena {
   workload_query_execution {class: table}
 }
-links: Identity Links, derived when asked\nlinked · no_evidence · unmatched · ambiguous\n(query → Model Execution) {class: step}
+links: Identity Links, derived when asked\nlinked · no_evidence · unmatched · ambiguous\nquery → Model Execution · dbt-ol model run → Model Execution\ndbt invocation → Workload Run (→ parent Airflow run) {class: step}
 athena -> queries.screen
 queries.stored -> workload_queries
 queries.changed -> workload_queries
 workload_queries -> links
 workload_dbt -> links
+workload_events -> links

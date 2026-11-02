@@ -38,6 +38,8 @@ workload: Workload store {
     "root_run_id": TEXT
     "root_job_namespace": TEXT
     "root_job_name": TEXT
+    "dbt_invocation_id": TEXT
+    "dbt_node_id": TEXT
     "event_json": TEXT {constraint: [not_null]}
   }
   workload_lineage_edge: {
