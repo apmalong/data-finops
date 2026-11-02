@@ -16,7 +16,6 @@ from pydantic import AwareDatetime, BaseModel, ConfigDict, ValidationError
 
 MAX_ARTIFACT_BYTES = 512 * 1024 * 1024
 _DBT_SCHEMA = re.compile(r"https://schemas\.getdbt\.com/dbt/(manifest|run-results)/v(\d+)\.json")
-_SUPPORTED = {("manifest", "12"), ("run-results", "6")}
 
 
 class _Artifact(BaseModel):
@@ -74,6 +73,13 @@ class ArtifactKind(StrEnum):
     MANIFEST = "manifest"
 
 
+# Supported dbt schemas: (schema name, major version) -> (model, kind).
+_SUPPORTED: dict[tuple[str, str], tuple[type[RunResults] | type[Manifest], ArtifactKind]] = {
+    ("run-results", "6"): (RunResults, ArtifactKind.RUN_RESULTS),
+    ("manifest", "12"): (Manifest, ArtifactKind.MANIFEST),
+}
+
+
 @dataclass(frozen=True)
 class ScreenedArtifact:
     kind: ArtifactKind
@@ -95,8 +101,8 @@ def screen_dbt_artifact(path: Path) -> ScreenedArtifact | str:
     """The artifact if it is acceptable, otherwise the reason it is not.
 
     Accepts manifest v12 and run-results v6, at most MAX_ARTIFACT_BYTES, with an invocation
-    ID; run results need aware timestamps and each node at most once. Extra fields are
-    allowed (OQ-23).
+    ID; run results need aware timestamps and each node at most once, and every manifest
+    node must sit under its own unique ID. Extra fields are allowed (OQ-23).
     """
     if path.stat().st_size > MAX_ARTIFACT_BYTES:
         return "too large"
@@ -112,7 +118,7 @@ def screen_dbt_artifact(path: Path) -> ScreenedArtifact | str:
     name, major = known.groups()
     if (name, major) not in _SUPPORTED:
         return f"unsupported {name} v{major}"
-    model: type[RunResults] | type[Manifest] = RunResults if name == "run-results" else Manifest
+    model, kind = _SUPPORTED[(name, major)]
     try:
         artifact = model.model_validate(document)
     except (ValidationError, RecursionError):
@@ -124,8 +130,10 @@ def screen_dbt_artifact(path: Path) -> ScreenedArtifact | str:
         nodes = [result.unique_id for result in artifact.results]
         if len(nodes) != len(set(nodes)):
             return "a node appears more than once"
+    elif any(key != node.unique_id for key, node in artifact.nodes.items()):
+        return "a node key differs from its unique_id"
     return ScreenedArtifact(
-        kind=ArtifactKind.RUN_RESULTS if name == "run-results" else ArtifactKind.MANIFEST,
+        kind=kind,
         artifact=artifact,
         invocation_id=invocation,
         digest=hashlib.sha256(data).hexdigest(),

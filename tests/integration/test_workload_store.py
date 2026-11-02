@@ -824,8 +824,13 @@ def test_the_hand_written_manifest_has_optional_fields_absent(store: WorkloadSto
 def test_no_sql_descriptions_or_macros_are_kept(store: WorkloadStore) -> None:
     store.ingest_dbt_artifact(SAMPLE_MANIFEST)
     nodes = store.manifest_nodes(SECOND_RUN_INVOCATION)
-    text = json.dumps([n.model_dump(mode="json") for n in nodes]).lower()
-    assert "select" not in text and "macro." not in text and "description" not in text
+    stored = json.dumps([n.model_dump(mode="json") for n in nodes])
+    manifest = json.loads(SAMPLE_MANIFEST.read_text(encoding="utf-8"))
+    code = [
+        n[k] for n in manifest["nodes"].values() for k in ("raw_code", "compiled_code") if n.get(k)
+    ]
+    assert code and not any(snippet in stored for snippet in code)
+    assert "macro." not in stored and "description" not in stored
 
 
 def test_reingesting_a_manifest_is_a_duplicate_and_a_change_is_flagged(
@@ -862,3 +867,33 @@ def test_other_manifest_versions_are_rejected(store: WorkloadStore, tmp_path: Pa
     result = store.ingest_dbt_artifact(path)
     assert (result.outcome, result.reason) == (ArtifactOutcome.REJECTED, "unsupported manifest v11")
     assert store.manifest_nodes(SECOND_RUN_INVOCATION) == []
+
+
+def test_a_manifest_node_under_another_key_is_rejected(
+    store: WorkloadStore, tmp_path: Path
+) -> None:
+    def misfiled(document: dict[str, Any]) -> None:
+        nodes = document["nodes"]
+        nodes["model.reference_workload.copy"] = dict(
+            nodes["model.reference_workload.daily_orders"]
+        )
+
+    path = _edited_copy(SAMPLE_MANIFEST, tmp_path / "manifest.json", misfiled)
+    result = store.ingest_dbt_artifact(path)
+    assert (result.outcome, result.reason) == (
+        ArtifactOutcome.REJECTED,
+        "a node key differs from its unique_id",
+    )
+    assert store.manifest_nodes(SECOND_RUN_INVOCATION) == []
+
+
+def test_repeated_dependencies_are_listed_once(store: WorkloadStore, tmp_path: Path) -> None:
+    def repeated(document: dict[str, Any]) -> None:
+        node = document["nodes"]["model.reference_workload.daily_orders"]
+        node["depends_on"]["nodes"] *= 2
+
+    store.ingest_dbt_artifact(_edited_copy(SAMPLE_MANIFEST, tmp_path / "m.json", repeated))
+    nodes = {n.node_id: n for n in store.manifest_nodes(SECOND_RUN_INVOCATION)}
+    assert nodes["model.reference_workload.daily_orders"].depends_on == (
+        "model.reference_workload.stg_orders",
+    )

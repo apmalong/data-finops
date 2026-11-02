@@ -31,7 +31,13 @@ from data_finops.contracts.workload import (
     WorkloadRunFlag,
     WorkloadRunStatus,
 )
-from data_finops.dbt.artifacts import Manifest, RunResults, Timing, screen_dbt_artifact
+from data_finops.dbt.artifacts import (
+    Manifest,
+    RunResults,
+    ScreenedArtifact,
+    Timing,
+    screen_dbt_artifact,
+)
 from data_finops.lineage.openlineage import RunEvent
 from data_finops.lineage.validation import Rejection, RejectionKind, screen_events
 
@@ -339,13 +345,14 @@ class WorkloadStore:
                 (invocation, kind, digest),
             )
             if isinstance(screened.artifact, RunResults):
-                self._store_model_executions(invocation, digest, screened.artifact)
+                self._store_model_executions(screened, screened.artifact)
             else:
-                self._store_manifest_nodes(invocation, digest, screened.artifact)
+                self._store_manifest_nodes(screened, screened.artifact)
         outcome = ArtifactOutcome.CHANGED_COPY if others else ArtifactOutcome.STORED
         return ArtifactIngestResult(outcome, invocation)
 
-    def _store_model_executions(self, invocation: str, digest: str, results: RunResults) -> None:
+    def _store_model_executions(self, screened: ScreenedArtifact, results: RunResults) -> None:
+        invocation, digest = screened.invocation_id, screened.digest
         self._connection.executemany(
             "INSERT INTO workload_model_execution (invocation_id, node_id,"
             " artifact_digest, status, started_us, completed_us) VALUES (?, ?, ?, ?, ?, ?)",
@@ -355,7 +362,8 @@ class WorkloadStore:
             ],
         )
 
-    def _store_manifest_nodes(self, invocation: str, digest: str, manifest: Manifest) -> None:
+    def _store_manifest_nodes(self, screened: ScreenedArtifact, manifest: Manifest) -> None:
+        invocation, digest = screened.invocation_id, screened.digest
         self._connection.executemany(
             "INSERT INTO workload_manifest_node (invocation_id, node_id, artifact_digest,"
             " resource_type, name, package_name, relation_name, materialized, depends_on)"
@@ -370,7 +378,7 @@ class WorkloadStore:
                     node.package_name,
                     node.relation_name,
                     node.config.materialized,
-                    json.dumps(sorted(node.depends_on.nodes)),
+                    json.dumps(sorted(set(node.depends_on.nodes))),
                 )
                 for node in manifest.nodes.values()
             ],

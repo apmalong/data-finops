@@ -49,6 +49,10 @@ _Avoid_: query (alone), job
 One run of a dbt node within one dbt invocation. A dbt node ID alone never identifies an execution.
 _Avoid_: model run, dbt job
 
+**dbt Node**:
+A model, seed, test or other resource declared in a dbt project's manifest, identified by its node ID within one invocation's manifest. A dbt Node is a declaration; its execution in an invocation is a Model Execution.
+_Avoid_: model (alone), dbt object
+
 **Workload Run**:
 One orchestrated execution reported by an orchestrator or lineage producer, such as an Airflow task run, possibly with a parent run (the run that directly contains it) and a root run (the top of its chain, such as the DAG run).
 _Avoid_: job, task (alone), pipeline run
