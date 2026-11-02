@@ -10,7 +10,7 @@ Create `pyproject.toml`, package, CI, format/type/test setup, Pydantic models, J
 Pin the FOCUS release AWS emits (ADR 0015). Load fixture Export Snapshots, retain every cost column and persist to SQLite (ADR 0018); read Parquet exports with pyarrow; no row deduplication (ADR 0019). Build ledger with Decimal and per-line reconciliation. **Exit:** zero delta per Billing Line, replay idempotent, restatement replaces the Export Snapshot and retains the previous one.
 
 ## M2: workload metadata
-Parse dbt manifest/run_results, ingest OpenLineage event files (JSON array or JSON Lines; HTTP moves to M5), build the run/model/asset graph in the workload store (ADR 0018 amendment, ADR 0022). Identity Links wait for M3. **Exit:** expected fixture lineage and statuses; invalid payload rejected.
+Parse dbt manifest/run_results, ingest OpenLineage event files (JSON array or JSON Lines; HTTP moves to M5), build the run/model/asset graph in the workload store (ADR 0018 amendment, ADR 0022). Identity Links wait for M3. **Complete 2026-11-01** (#40, #41–#48; exit criterion recorded in progress.md). **Exit:** expected fixture lineage and statuses; invalid payload rejected.
 
 ## M3: query correlation
 Load Athena query history fixture, link explicit query IDs to dbt model execution and parent Airflow run. **Exit:** exact links match, missing/ambiguous IDs stay unallocated.

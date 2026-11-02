@@ -135,6 +135,7 @@
 - `tests/integration/test_anonymize_workload_outputs.py`
 - `tests/integration/test_focus_parquet.py`
 - `tests/integration/test_ledger.py`
+- `tests/integration/test_m2_exit.py`
 - `tests/integration/test_reader_shapes.py`
 - `tests/integration/test_reconciliation.py`
 - `tests/integration/test_workload_store.py`
