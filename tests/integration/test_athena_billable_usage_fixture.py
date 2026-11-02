@@ -8,10 +8,11 @@ from decimal import Decimal
 from pathlib import Path
 
 from data_finops.billing.focus import load_export
-from data_finops.providers.athena_billing import billable_bytes, in_unit
+from data_finops.providers.athena_billing import billable_bytes, bytes_in_consumed_unit
 from data_finops.workload.store import WorkloadStore
 
 ROOT = Path(__file__).resolve().parents[2]
+ACCOUNT, REGION = "123456789012", "us-east-1"
 
 
 def test_the_fixture_queries_cover_the_golden_athena_line_exactly(tmp_path: Path) -> None:
@@ -20,15 +21,15 @@ def test_the_fixture_queries_cover_the_golden_athena_line_exactly(tmp_path: Path
     with WorkloadStore(tmp_path / "data-finops.sqlite") as store:
         store.ingest_query_history(
             ROOT / "fixtures" / "athena" / "query-executions.json",
-            account_id="123456789012",
-            region="us-east-1",
+            account_id=ACCOUNT,
+            region=REGION,
         )
         usage = {}
         for query_id in ("q-001", "q-002"):
-            query = store.query_execution("123456789012", "us-east-1", query_id)
+            query = store.query_execution(ACCOUNT, REGION, query_id)
             assert query is not None
             billable = billable_bytes(query)
             assert billable is not None
-            usage[query_id] = in_unit(billable, line.ConsumedUnit)
+            usage[query_id] = bytes_in_consumed_unit(billable, line.ConsumedUnit)
     assert usage == {"q-001": Decimal("0.001"), "q-002": 0}  # q-002: DDL, nothing scanned
     assert sum(usage.values()) == line.ConsumedQuantity

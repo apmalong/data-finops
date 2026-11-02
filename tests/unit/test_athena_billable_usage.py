@@ -11,12 +11,14 @@ from decimal import Decimal
 import pytest
 
 from data_finops.contracts.workload import QueryExecution
-from data_finops.providers.athena_billing import POLICY_VERSION, billable_bytes, in_unit
+from data_finops.providers.athena_billing import billable_bytes, bytes_in_consumed_unit
 
 MB = 1_000_000
 
 
-def _query(state: str = "SUCCEEDED", statement_type: str = "DML", scanned: int | None = 0):
+def _query(
+    state: str = "SUCCEEDED", statement_type: str = "DML", scanned: int | None = 0
+) -> QueryExecution:
     return QueryExecution(
         provider="aws.athena",
         account_id="123456789012",
@@ -27,10 +29,6 @@ def _query(state: str = "SUCCEEDED", statement_type: str = "DML", scanned: int |
         submitted_at=datetime(2026, 10, 1, tzinfo=UTC),
         scanned_bytes=scanned,
     )
-
-
-def test_the_policy_is_versioned() -> None:
-    assert POLICY_VERSION == "athena-billable-usage/1"
 
 
 @pytest.mark.parametrize(
@@ -72,17 +70,23 @@ def test_state_and_statement_type(
 
 def test_a_finished_query_without_statistics_has_unknown_billable_usage() -> None:
     assert billable_bytes(_query("SUCCEEDED", scanned=None)) is None
+    assert billable_bytes(_query("SUCCEEDED", "DDL", scanned=None)) is None
     assert billable_bytes(_query("FAILED", scanned=None)) == 0
+
+
+def test_a_state_athena_does_not_document_is_refused() -> None:
+    with pytest.raises(ValueError, match="'succeeded'"):
+        billable_bytes(_query("succeeded"))
 
 
 @pytest.mark.parametrize("unit", ["TB", "Terabytes"])
 def test_billable_bytes_convert_to_the_line_unit_in_decimal_terabytes(unit: str) -> None:
     # The golden fixture: q-001's 1,000,000,000 bytes are the line's 0.001 TB.
-    assert in_unit(1_000_000_000, unit) == Decimal("0.001")
-    assert in_unit(26 * MB, unit) == Decimal("0.000026")
-    assert in_unit(0, unit) == 0
+    assert bytes_in_consumed_unit(1_000_000_000, unit) == Decimal("0.001")
+    assert bytes_in_consumed_unit(26 * MB, unit) == Decimal("0.000026")
+    assert bytes_in_consumed_unit(0, unit) == 0
 
 
 def test_an_unknown_consumed_unit_is_refused() -> None:
     with pytest.raises(ValueError, match="GB"):
-        in_unit(10 * MB, "GB")
+        bytes_in_consumed_unit(10 * MB, "GB")
