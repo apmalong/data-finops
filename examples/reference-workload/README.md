@@ -77,3 +77,45 @@ uv run dbt-ol seed --profiles-dir .
 uv run dbt-ol run --profiles-dir .
 uv run dbt-ol run --profiles-dir .              # second run: daily_orders issues several queries
 ```
+
+## Airflow (`airflow/`, #66)
+
+Runs the dbt project as a task of an Airflow 3 DAG, so the OpenLineage events show how Airflow hands its run to dbt-ol (OQ-2). One container runs `airflow standalone` (SQLite, one process) from `apache/airflow:3.3.2-python3.12` (released 2026-09-17), pinned by digest, with the OpenLineage provider it bundles (2.20.1).
+
+- **dbt in its own virtualenv.** The image installs dbt-core, dbt-athena and openlineage-dbt from `airflow/requirements-dbt.txt`: hashed, and constrained to the versions in `uv.lock`. The task unsets the image's `PYTHONPATH`, which would otherwise put Airflow's packages ahead of dbt's, and puts the virtualenv first on `PATH`, because dbt-ol starts `dbt` by name.
+- **Parent run.** The DAG `reference_workload` has one task, `dbt_run`. It passes the provider's `lineage_parent_id` and `lineage_root_parent_id` macros to `dbt-ol run` as `OPENLINEAGE_PARENT_ID` and `OPENLINEAGE_ROOT_PARENT_ID` (`namespace/job/run_id`, which openlineage-dbt 1.54.0 reads). Airflow's OpenLineage namespace is `reference-airflow`.
+- **Events.** Airflow appends to `.local/openlineage/airflow-events.jsonl` and dbt-ol to `.local/openlineage/dbt-events.jsonl`, both at the repository root, which is git-ignored.
+- **Mounts.** Only `dbt/` (read-write, for `target/` and `logs/`), `.local/openlineage/` and the DAGs (read-only), not the whole checkout. The container must be able to write them. Docker Desktop bind mounts appear root-owned to the image's `airflow` user (uid 50000 gets "Permission denied"), so set `AIRFLOW_UID=0` there. On Linux, set it to your own uid (`id -u`).
+- **AWS.** `compose.yaml` passes no credentials. A real run adds `compose.aws.yaml`, which takes one profile's short-lived credentials from environment variables (no AWS folder is mounted) and requires the stack's bucket.
+- **DAG-run events.** `airflow dags test` emits the task's events but not the DAG run's START, so a real run goes through the scheduler (`up`, then trigger). Offline, that gives four events: DAG START, task START (with a ParentRunFacet naming the DAG run), task FAIL and DAG FAIL.
+- **`exec` as root.** When the container runs as root, `docker compose exec` skips the entrypoint that sets `PYTHONPATH`, so commands go through `/entrypoint`. In Git Bash, set `MSYS_NO_PATHCONV=1` so `/entrypoint` is not rewritten as a Windows path.
+
+Commands, from `examples/reference-workload/airflow` in bash (Git Bash or WSL):
+
+```bash
+mkdir -p ../../../.local/openlineage
+export AIRFLOW_UID=0                            # Docker Desktop; on Linux: $(id -u)
+export MSYS_NO_PATHCONV=1                       # Git Bash only
+export AIRFLOW_PORT=8080                         # UI on 127.0.0.1; change if 8080 is taken
+docker compose build
+# Offline check (no AWS): the DAG imports, and the task's parent variables render.
+docker compose run --rm airflow bash -c "airflow db migrate && airflow dags list-import-errors \
+  && airflow tasks render reference_workload dbt_run 2026-11-02T00:00:00+00:00"
+# Real run (#75, owner approval required): one profile's short-lived credentials.
+eval "$(aws configure export-credentials --profile <your profile> --format env)"
+export REFERENCE_WORKLOAD_BUCKET=<bucket output of the stack>
+docker compose -f compose.yaml -f compose.aws.yaml up -d
+docker compose exec airflow /entrypoint airflow dags unpause reference_workload
+docker compose exec airflow /entrypoint airflow dags trigger reference_workload
+docker compose exec airflow /entrypoint airflow dags list-runs reference_workload  # until success
+docker compose -f compose.yaml -f compose.aws.yaml down
+```
+
+To regenerate `requirements-dbt.txt` after changing the pins, from `examples/reference-workload`:
+
+```bash
+uv export --frozen --no-dev --no-hashes --no-emit-project -o airflow/.lock-constraints.txt
+uv pip compile airflow/requirements-dbt.in --universal --python-version 3.12 --generate-hashes \
+  --constraints airflow/.lock-constraints.txt --no-annotate --no-header -o airflow/requirements-dbt.txt
+rm airflow/.lock-constraints.txt
+```

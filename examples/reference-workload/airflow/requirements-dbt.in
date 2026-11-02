@@ -1,0 +1,4 @@
+# dbt for the Airflow image's own virtualenv (#74): the versions #23 pinned.
+dbt-core==1.12.6
+dbt-athena==1.11.1
+openlineage-dbt==1.54.0
