@@ -54,7 +54,10 @@ def _entry(query_id: str = "q-100", **changes: Any) -> dict[str, Any]:
             "CompletionDateTime": "2026-10-01T01:00:01Z",
             "AthenaError": {"ErrorCategory": 2, "ErrorType": 1006, "ErrorMessage": "secret_column"},
         },
-        "Statistics": {"DataScannedInBytes": 0},
+        "Statistics": {"DataScannedInBytes": 0, "DataManifestLocation": "s3://secret-bucket/"},
+        "ExecutionParameters": ["'secret-literal'"],
+        "ResultConfiguration": {"OutputLocation": "s3://secret-bucket/results/"},
+        "SomeFieldAwsAddsLater": "secret",
     }
     return entry | changes
 
@@ -100,13 +103,19 @@ def test_the_answer_does_not_depend_on_arrival_order(tmp_path: Path) -> None:
     assert answers[0] == answers[1]
 
 
-def test_query_text_and_free_text_failure_reasons_are_not_stored(
-    store: WorkloadStore, tmp_path: Path
-) -> None:
+def test_only_allowlisted_metadata_is_stored(store: WorkloadStore, tmp_path: Path) -> None:
     _ingest(store, _write(tmp_path / "h.json", _response(_entry())))
     (stored,) = store.stored_query_executions(ACCOUNT, REGION, "q-100")
-    assert "secret_column" not in stored and "example.com" not in stored
+    assert "secret" not in stored and "example.com" not in stored
     assert '"ErrorType":1006' in stored and '"WorkGroup":"primary"' in stored
+    assert '"DataScannedInBytes":0' in stored
+
+
+def test_a_file_recording_a_null_account_takes_the_one_given(
+    store: WorkloadStore, tmp_path: Path
+) -> None:
+    document = {"account_id": None, "region": REGION, **_response(_entry())}
+    assert _ingest(store, _write(tmp_path / "h.json", document)).accepted == 1
 
 
 def test_entries_differing_only_in_removed_text_are_duplicates(
