@@ -83,7 +83,18 @@
     "schemaURL": "https://openlineage.io/spec/2-0-2/OpenLineage.json#/$defs/RunEvent",
     "job": {
       "namespace": "demo-dbt",
-      "name": "demo.orders"
+      "name": "demo.orders",
+      "facets": {
+        "dbt_node": {
+          "_producer": "https://example.invalid/data-finops-demo/dbt",
+          "_schemaURL": "https://github.com/OpenLineage/OpenLineage/tree/main/integration/common/openlineage/schema/dbt-node-job-facet.json",
+          "unique_id": "model.demo.orders",
+          "alias": "orders",
+          "schema": "demo",
+          "database": "awsdatacatalog",
+          "original_file_path": "models/orders.sql"
+        }
+      }
     },
     "run": {
       "runId": "00000000-0000-4000-8000-000000000003",
@@ -107,6 +118,13 @@
               "name": "daily_orders"
             }
           }
+        },
+        "dbt_run": {
+          "_producer": "https://example.invalid/data-finops-demo/dbt",
+          "_schemaURL": "https://github.com/OpenLineage/OpenLineage/tree/main/integration/common/openlineage/schema/dbt-run-run-facet.json",
+          "invocation_id": "inv-001",
+          "project_name": "demo",
+          "profile_name": "demo"
         }
       }
     },

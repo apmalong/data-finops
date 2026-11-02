@@ -160,3 +160,23 @@ class IdentityLink(BaseModel):
     evidence_type: str
     evidence_value: str
     policy_version: str
+
+
+class LinkOutcome(StrEnum):
+    """What became of an attempt to link a workload identity (GLOSSARY: Link Outcome)."""
+
+    LINKED = "linked"
+    NO_EVIDENCE = "no_evidence"
+    UNMATCHED = "unmatched"
+    """The Evidence names a counterpart nobody reported; no link is made."""
+    AMBIGUOUS = "ambiguous"
+    """The Evidence names more than one counterpart; no link is made."""
+
+
+class LinkResolution(BaseModel):
+    """A Link Outcome, with the Identity Link only when the outcome is `linked`."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    outcome: LinkOutcome
+    link: IdentityLink | None = None
