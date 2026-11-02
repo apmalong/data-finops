@@ -165,7 +165,7 @@
         "currency": "USD",
         "cost_basis": "BilledCost",
         "category": "unallocated",
-        "method": "adjustment_unallocated",
+        "method": "adjustment",
         "policy_version": "golden-v1",
         "calculation_run_id": "golden"
       }
