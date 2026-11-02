@@ -15,6 +15,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from enum import StrEnum
 from pathlib import Path
 from types import TracebackType
 from typing import Any, Self
@@ -23,10 +24,13 @@ from data_finops.contracts.workload import (
     DataAsset,
     LineageDirection,
     LineageEdge,
+    ModelExecution,
+    ModelExecutionFlag,
     WorkloadRun,
     WorkloadRunFlag,
     WorkloadRunStatus,
 )
+from data_finops.dbt.artifacts import ArtifactKind, Timing, screen_run_results
 from data_finops.lineage.openlineage import RunEvent
 from data_finops.lineage.validation import Rejection, RejectionKind, screen_events
 
@@ -59,6 +63,21 @@ CREATE TABLE IF NOT EXISTS workload_lineage_edge (
     name TEXT NOT NULL,
     PRIMARY KEY (run_id, digest, direction, namespace, name)
 );
+CREATE TABLE IF NOT EXISTS workload_dbt_artifact (
+    invocation_id TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    digest TEXT NOT NULL,
+    PRIMARY KEY (invocation_id, kind, digest)
+);
+CREATE TABLE IF NOT EXISTS workload_model_execution (
+    invocation_id TEXT NOT NULL,
+    node_id TEXT NOT NULL,
+    artifact_digest TEXT NOT NULL,
+    status TEXT NOT NULL,
+    started_us INTEGER,
+    completed_us INTEGER,
+    PRIMARY KEY (invocation_id, node_id, artifact_digest)
+);
 """
 
 _START = "START"
@@ -87,6 +106,23 @@ class IngestResult:
     def counts(self) -> Counter[RejectionKind]:
         """Rejected and unsupported events counted by kind."""
         return Counter(r.kind for r in (*self.rejected, *self.unsupported))
+
+
+class ArtifactOutcome(StrEnum):
+    STORED = "stored"
+    DUPLICATE = "duplicate"
+    """The same file for this invocation is already stored; nothing changed."""
+    CHANGED_COPY = "changed_copy"
+    """Another file for this invocation is already stored; this one is kept beside it."""
+    REJECTED = "rejected"
+
+
+@dataclass(frozen=True)
+class ArtifactIngestResult:
+    outcome: ArtifactOutcome
+    invocation_id: str | None = None
+    reason: str | None = None
+    """Why a file was rejected; never content from the file."""
 
 
 @dataclass(frozen=True)
@@ -265,6 +301,61 @@ class WorkloadStore:
         runs = (self.workload_run(candidate) for (candidate,) in candidates)
         return [run for run in runs if run is not None and run.parent_run_id == run_id]
 
+    def ingest_dbt_artifact(self, path: Path) -> ArtifactIngestResult:
+        """Store a dbt run-results file (v6) as Model Executions, keyed by invocation and hash.
+
+        Re-ingesting the same file is a duplicate; another file for the same invocation is
+        kept beside the first and reported as a changed copy. Unacceptable content is rejected
+        with a fixed reason (see `screen_run_results`); a missing path raises as usual.
+        """
+        screened = screen_run_results(path)
+        if isinstance(screened, str):
+            return ArtifactIngestResult(ArtifactOutcome.REJECTED, reason=screened)
+        invocation, digest, results = screened.invocation_id, screened.digest, screened.results
+        with self._write_transaction():
+            others = self._connection.execute(
+                "SELECT digest FROM workload_dbt_artifact WHERE invocation_id = ? AND kind = ?",
+                (invocation, ArtifactKind.RUN_RESULTS),
+            ).fetchall()
+            if (digest,) in others:
+                return ArtifactIngestResult(ArtifactOutcome.DUPLICATE, invocation)
+            self._connection.execute(
+                "INSERT INTO workload_dbt_artifact (invocation_id, kind, digest) VALUES (?, ?, ?)",
+                (invocation, ArtifactKind.RUN_RESULTS, digest),
+            )
+            self._connection.executemany(
+                "INSERT OR IGNORE INTO workload_model_execution (invocation_id, node_id,"
+                " artifact_digest, status, started_us, completed_us) VALUES (?, ?, ?, ?, ?, ?)",
+                [
+                    (invocation, result.unique_id, digest, result.status, *_span(result.timing))
+                    for result in results.results
+                ],
+            )
+        outcome = ArtifactOutcome.CHANGED_COPY if others else ArtifactOutcome.STORED
+        return ArtifactIngestResult(outcome, invocation)
+
+    def model_executions(self, invocation_id: str) -> list[ModelExecution]:
+        """The invocation's Model Executions, by node; a changed copy adds its own rows."""
+        rows = self._connection.execute(
+            "SELECT node_id, status, started_us, completed_us, artifact_digest"
+            " FROM workload_model_execution WHERE invocation_id = ?"
+            " ORDER BY node_id, artifact_digest",
+            (invocation_id,),
+        ).fetchall()
+        changed = len({row[4] for row in rows}) > 1
+        return [
+            ModelExecution(
+                node_id=node_id,
+                invocation_id=invocation_id,
+                status=status,
+                started_at=_moment(started) if started is not None else None,
+                completed_at=_moment(completed) if completed is not None else None,
+                provenance=digest,
+                flags=(ModelExecutionFlag.CONFLICTING_OBSERVATIONS,) if changed else (),
+            )
+            for node_id, status, started, completed, digest in rows
+        ]
+
     def data_assets(self, run_id: str) -> list[DataAsset]:
         """The Data Assets the run read or wrote, as OpenLineage names them; by namespace, name."""
         rows = self._connection.execute(
@@ -353,6 +444,13 @@ def _flags(observations: list[_Observation]) -> tuple[WorkloadRunFlag, ...]:
     if len({o.parent for o in observations if o.parent}) > 1:
         flags.append(WorkloadRunFlag.CONFLICTING_PARENTS)
     return tuple(flags)
+
+
+def _span(timing: list[Timing]) -> tuple[int | None, int | None]:
+    """Earliest start and latest completion across dbt's timing steps, as UTC microseconds."""
+    starts = [_microseconds(step.started_at) for step in timing if step.started_at]
+    ends = [_microseconds(step.completed_at) for step in timing if step.completed_at]
+    return (min(starts) if starts else None, max(ends) if ends else None)
 
 
 def _canonical(document: dict[str, Any]) -> str:

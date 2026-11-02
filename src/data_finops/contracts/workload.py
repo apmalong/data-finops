@@ -33,6 +33,11 @@ class QueryExecution(BaseModel):
     correlation: QueryCorrelation | None = None
 
 
+class ModelExecutionFlag(StrEnum):
+    CONFLICTING_OBSERVATIONS = "conflicting_observations"
+    """More than one run-results file was ingested for the invocation."""
+
+
 class ModelExecution(BaseModel):
     """One run of a dbt node within one invocation."""
 
@@ -41,8 +46,12 @@ class ModelExecution(BaseModel):
     node_id: str
     invocation_id: str
     status: str
+    """dbt's own status value as reported (success, error, skipped, fail, warn, pass, ...)."""
     started_at: UtcDatetime | None = None
     completed_at: UtcDatetime | None = None
+    provenance: str | None = None
+    """The SHA-256 of the run-results file that reported this execution."""
+    flags: tuple[ModelExecutionFlag, ...] = ()
 
 
 class WorkloadRunStatus(StrEnum):
