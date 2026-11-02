@@ -1,9 +1,9 @@
 """Athena on-demand billing policy (spec 03, M4 structure 8; ADR 0017).
 
-Provider pricing, never core logic: how much of a Query Execution Athena bills, and which
-Billing Line it is billed in (billing scope, ADR 0023). The
-engine in `attribution` takes the result as given; every Allocation built from it
-records `POLICY_VERSION`.
+Provider policy, never core logic, in two independently versioned parts: how much of a
+Query Execution Athena bills (`POLICY_VERSION`), and which Billing Line it is billed in
+(billing scope, ADR 0023; `SCOPE_POLICY_VERSION`). The engine in `attribution` takes
+both results as given; a Calculation Run records both versions (#88).
 
 Documented by AWS: data scanned is rounded up to the nearest megabyte with a 10 MB
 minimum per query; failed queries and DDL are not charged; cancelled queries are charged
@@ -21,6 +21,7 @@ from data_finops.contracts.billing import FocusBillingLine
 from data_finops.contracts.workload import QueryExecution
 
 POLICY_VERSION = "athena-billable-usage/1"
+SCOPE_POLICY_VERSION = "athena-billing-scope/1"
 
 _MB = 1_000_000
 _MINIMUM = 10 * _MB
@@ -62,7 +63,8 @@ def in_billing_scope(query: QueryExecution, line: FocusBillingLine) -> bool:
     Accounting scope, never Evidence: the query ran in the line's usage account (FOCUS
     SubAccountId, not the paying BillingAccountId) and region, in the line's workgroup if
     the line names one, and completed within the line's charge period, start inclusive.
-    A query that has not completed is not yet billed. Provisional until #91: completion
+    A query that has not completed is not yet billed. Link Outcomes are not an input:
+    linked and unlinked queries are scoped alike. Provisional until #91: completion
     time is the timestamp Athena bills by, and a line names its workgroup by a workgroup
     ARN in ResourceId; a line naming none does not restrict by workgroup.
     """
