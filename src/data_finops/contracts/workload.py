@@ -109,6 +109,8 @@ class LineageEdge(BaseModel):
     asset: DataAsset
     direction: LineageDirection
     observed_at: UtcDatetime
+    provenance: str | None = None
+    """The digest of the stored event observation that reported this edge."""
 
 
 class IdentityLink(BaseModel):

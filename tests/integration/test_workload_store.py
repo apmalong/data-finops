@@ -8,7 +8,7 @@ from typing import Any
 
 import pytest
 
-from data_finops.contracts.workload import WorkloadRunFlag, WorkloadRunStatus
+from data_finops.contracts.workload import LineageDirection, WorkloadRunFlag, WorkloadRunStatus
 from data_finops.ledger import Ledger
 from data_finops.lineage.validation import RejectionKind
 from data_finops.workload.store import WorkloadStore
@@ -542,3 +542,96 @@ def test_a_parent_named_with_two_jobs_is_flagged(store: WorkloadStore, tmp_path:
     store.ingest_events(_write(tmp_path / "events.jsonl", [start, other]))
     run = store.workload_run(RUN)
     assert run is not None and WorkloadRunFlag.CONFLICTING_PARENTS in run.flags
+
+
+# Data Assets and Lineage Edges (#45)
+
+DAILY_ORDERS_RUN = "01a198fb-baa3-7325-bbb0-5695a9814454"  # daily_orders in the sample's second run
+ATHENA = "awsathena://athena.us-east-1.amazonaws.com"
+
+
+def test_a_model_run_reads_and_writes_assets_named_exactly(store: WorkloadStore) -> None:
+    store.ingest_events(SAMPLE_EVENTS)
+    assets = store.data_assets(DAILY_ORDERS_RUN)
+    assert [(a.namespace, a.name) for a in assets] == [
+        (ATHENA, "awsdatacatalog.reference_workload.daily_orders"),
+        (ATHENA, "awsdatacatalog.reference_workload.stg_orders"),
+    ]
+
+
+def test_each_observation_records_its_edges(store: WorkloadStore) -> None:
+    store.ingest_events(SAMPLE_EVENTS)
+    edges = store.lineage_edges(DAILY_ORDERS_RUN)
+    assert len(edges) == 4  # START and COMPLETE each report one input and one output
+    assert {(e.direction, e.asset.name) for e in edges} == {
+        (LineageDirection.INPUT, "awsdatacatalog.reference_workload.stg_orders"),
+        (LineageDirection.OUTPUT, "awsdatacatalog.reference_workload.daily_orders"),
+    }
+    assert all(e.run_id == DAILY_ORDERS_RUN for e in edges)
+    assert len({e.observed_at for e in edges}) == 2
+
+
+def test_reingesting_adds_no_edges(store: WorkloadStore) -> None:
+    store.ingest_events(SAMPLE_EVENTS)
+    store.ingest_events(SAMPLE_EVENTS)
+    assert len(store.lineage_edges(DAILY_ORDERS_RUN)) == 4
+
+
+def test_names_are_kept_exactly_as_reported(store: WorkloadStore, tmp_path: Path) -> None:
+    event = _event(RUN, "COMPLETE", "2026-11-01T21:19:30Z")
+    event["outputs"] = [
+        {"namespace": "S3://Mixed-Case/", "name": '"Quoted"."Table" ', "facets": {}}
+    ]
+    store.ingest_events(_write(tmp_path / "events.jsonl", [event]))
+    (asset,) = store.data_assets(RUN)
+    assert (asset.namespace, asset.name) == ("S3://Mixed-Case/", '"Quoted"."Table" ')
+
+
+def test_a_run_without_datasets_has_no_assets(store: WorkloadStore) -> None:
+    store.ingest_events(EVENTS)
+    assert (store.data_assets(AIRFLOW_TASK), store.lineage_edges(AIRFLOW_TASK)) == ([], [])
+
+
+def test_changed_copies_give_edges_told_apart_by_provenance(
+    store: WorkloadStore, tmp_path: Path
+) -> None:
+    def complete(producer: str) -> dict[str, Any]:
+        event = _event(RUN, "COMPLETE", "2026-11-01T21:19:30Z") | {"producer": producer}
+        event["outputs"] = [{"namespace": "demo", "name": "t", "facets": {}}]
+        return event
+
+    store.ingest_events(_write(tmp_path / "a.jsonl", [complete("https://example.invalid/a")]))
+    store.ingest_events(_write(tmp_path / "b.jsonl", [complete("https://example.invalid/b")]))
+    edges = store.lineage_edges(RUN)
+    assert len(edges) == 2 and len({e.provenance for e in edges}) == 2
+    assert len(store.data_assets(RUN)) == 1
+
+
+def test_a_dataset_listed_twice_in_one_event_is_one_edge(
+    store: WorkloadStore, tmp_path: Path
+) -> None:
+    event = _event(RUN, "COMPLETE", "2026-11-01T21:19:30Z")
+    dataset = {"namespace": "demo", "name": "t", "facets": {}}
+    event["inputs"] = [dataset, dict(dataset)]
+    store.ingest_events(_write(tmp_path / "events.jsonl", [event]))
+    assert len(store.lineage_edges(RUN)) == 1
+
+
+def test_dataset_facets_create_no_edges(store: WorkloadStore, tmp_path: Path) -> None:
+    event = _event(RUN, "COMPLETE", "2026-11-01T21:19:30Z")
+    event["outputs"] = [
+        {
+            "namespace": "demo",
+            "name": "t",
+            "facets": {
+                "symlinks": {
+                    "_producer": "x",
+                    "_schemaURL": "x",
+                    "identifiers": [{"namespace": "other", "name": "symlinked", "type": "TABLE"}],
+                }
+            },
+            "outputFacets": {},
+        }
+    ]
+    store.ingest_events(_write(tmp_path / "events.jsonl", [event]))
+    assert [(a.namespace, a.name) for a in store.data_assets(RUN)] == [("demo", "t")]
