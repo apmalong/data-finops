@@ -9,6 +9,7 @@ from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from decimal import ROUND_FLOOR, Decimal, localcontext
 from enum import StrEnum
+from typing import ClassVar
 
 from data_finops.contracts.allocation import (
     Allocation,
@@ -39,6 +40,7 @@ class AllocationMethod(StrEnum):
 
     ESTIMATED_METERED_SHARE = "estimated_metered_share"
     INELIGIBLE = "ineligible"
+    ADJUSTMENT = "adjustment"
     COVERAGE_REMAINDER = "coverage_remainder"
     COVERAGE_EXCEEDED = "coverage_exceeded"
 
@@ -65,6 +67,16 @@ class Ineligible:
     """A line no MVP policy allocates; it stays Unallocated under `pool_id`."""
 
     pool_id: str
+    reason: ClassVar[AllocationMethod] = AllocationMethod.INELIGIBLE
+
+
+@dataclass(frozen=True)
+class Adjustment:
+    """A credit, refund or discount line: Unallocated in the MVP, signed, shown as its own
+    labelled amount (ADR 0017)."""
+
+    pool_id: str
+    reason: ClassVar[AllocationMethod] = AllocationMethod.ADJUSTMENT
 
 
 @dataclass(frozen=True)
@@ -73,7 +85,7 @@ class PooledLine:
 
     ref: str
     line: FocusBillingLine
-    pool: MeteredCostPool | Ineligible
+    pool: MeteredCostPool | Ineligible | Adjustment
 
 
 def allocate(
@@ -81,6 +93,7 @@ def allocate(
 ) -> list[Allocation]:
     """Partition every line, for every Cost Basis, among its Allocation Targets.
 
+    Ineligible and Adjustment lines are wholly Unallocated with that reason, sign kept.
     A metered line is split by Coverage (ADR 0017): its covered fraction among the Query
     Executions by Billable Usage, the rest Unallocated `coverage_remainder`; a line whose
     Coverage exceeds one is wholly Unallocated `coverage_exceeded`, with the Evidence of
@@ -93,10 +106,9 @@ def allocate(
         context = _LineContext(
             pooled.ref, pool.pool_id, line.BillingCurrency, policy_version, calculation_run_id
         )
-        if isinstance(pool, Ineligible):
+        if not isinstance(pool, MeteredCostPool):
             allocations += [
-                context.unallocated(basis, line.cost(basis), AllocationMethod.INELIGIBLE)
-                for basis in CostBasis
+                context.unallocated(basis, line.cost(basis), pool.reason) for basis in CostBasis
             ]
             continue
         metering = _meter(pooled.ref, line, pool)

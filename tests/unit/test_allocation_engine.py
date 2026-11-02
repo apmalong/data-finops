@@ -14,6 +14,7 @@ import pytest
 from jsonschema import Draft202012Validator
 
 from data_finops.attribution.engine import (
+    Adjustment,
     Ineligible,
     MeteredCostPool,
     MeteredUsage,
@@ -22,7 +23,7 @@ from data_finops.attribution.engine import (
 )
 from data_finops.billing.focus import load_export
 from data_finops.contracts.allocation import Allocation
-from data_finops.contracts.billing import CostBasis, FocusBillingLine
+from data_finops.contracts.billing import CostBasis, FocusBillingLine, FocusChargeCategory
 
 ROOT = Path(__file__).resolve().parents[2]
 SCENARIOS = json.loads((ROOT / "fixtures" / "golden" / "scenarios.json").read_text())
@@ -398,3 +399,62 @@ def test_an_ineligible_line_stays_unallocated_in_every_cost_basis() -> None:
     assert {(a.method, a.confidence, a.coverage) for a in allocations} == {
         ("ineligible", None, None)
     }
+
+
+def test_negative_adjustment_golden_scenario() -> None:
+    credit = _line("-1.00").model_copy(update={"ChargeCategory": FocusChargeCategory.CREDIT})
+    allocations = allocate(
+        [PooledLine("credit#0", credit, Adjustment("adjustments"))],
+        policy_version="golden-v1",
+        calculation_run_id="golden",
+    )
+    expected = [
+        Allocation.model_validate(a).model_copy(update={"cost_basis": basis})
+        for a in _scenario("negative-adjustment")["allocations"]
+        for basis in CostBasis
+    ]
+    assert _dumped(allocations) == _dumped(expected)
+
+
+def test_an_adjustment_keeps_each_cost_basis_and_its_sign() -> None:
+    refund = _line(
+        BilledCost="-2.50", EffectiveCost="-2.25", ListCost="0.00", ContractedCost="-2.4999"
+    )
+    allocations = allocate(
+        [PooledLine("refund#0", refund, Adjustment("adjustments"))],
+        policy_version="p",
+        calculation_run_id="r",
+    )
+    assert {basis: _amounts(allocations, basis) for basis in CostBasis} == {
+        CostBasis.BILLED_COST: {"unallocated": "-2.50"},
+        CostBasis.EFFECTIVE_COST: {"unallocated": "-2.25"},
+        CostBasis.LIST_COST: {"unallocated": "0.00"},
+        CostBasis.CONTRACTED_COST: {"unallocated": "-2.4999"},
+    }
+    assert {(a.category, a.method, a.confidence, a.coverage) for a in allocations} == {
+        ("unallocated", "adjustment", None, None)
+    }
+
+
+def test_lines_in_several_currencies_each_reconcile_in_their_own() -> None:
+    lines = [
+        _metered(_line("1.00", ConsumedQuantity="0.003"), q_a="0.001", q_b="0.002"),
+        PooledLine(
+            "line#1",
+            _line("100", currency="JPY", ConsumedQuantity="0.003"),
+            MeteredCostPool(
+                "pool-jpy",
+                (MeteredUsage("q_a", Decimal("0.001")), MeteredUsage("q_b", Decimal("0.002"))),
+            ),
+        ),
+        PooledLine("line#2", _line("-0.500", currency="KWD"), Adjustment("adjustments")),
+    ]
+    allocations = allocate(lines, policy_version="p", calculation_run_id="r")
+    billed = [a for a in allocations if a.cost_basis == CostBasis.BILLED_COST]
+    assert sorted((a.billing_line_ref, a.currency, a.target_id, str(a.amount)) for a in billed) == [
+        ("line#0", "USD", "q_a", "0.33"),
+        ("line#0", "USD", "q_b", "0.67"),
+        ("line#1", "JPY", "q_a", "33"),
+        ("line#1", "JPY", "q_b", "67"),
+        ("line#2", "KWD", "unallocated", "-0.500"),
+    ]
