@@ -77,3 +77,31 @@ uv run dbt-ol seed --profiles-dir .
 uv run dbt-ol run --profiles-dir .
 uv run dbt-ol run --profiles-dir .              # second run: daily_orders issues several queries
 ```
+
+## Airflow (`airflow/`, #66)
+
+Runs the dbt project as a task of an Airflow 3 DAG, so the OpenLineage events show how Airflow hands its run to dbt-ol (OQ-2). One container runs `airflow standalone` (SQLite, one process) from `apache/airflow:3.3.2-python3.12`, pinned by digest, with the OpenLineage provider it bundles (2.20.1).
+
+- **dbt in its own virtualenv.** The image installs dbt-core, dbt-athena and openlineage-dbt from `airflow/requirements-dbt.txt`. Those requirements are hashed and use the versions in `uv.lock`; regenerate them with `uv pip compile airflow/requirements-dbt.in --universal --python-version 3.12 --generate-hashes --constraints <(uv export --frozen --no-dev --no-hashes --no-emit-project) -o airflow/requirements-dbt.txt`. The task unsets the image's `PYTHONPATH`, which would otherwise put Airflow's packages ahead of dbt's, and puts the virtualenv first on `PATH`, because dbt-ol starts `dbt` by name.
+- **Parent run.** The DAG `reference_workload` has one task, `dbt_run`. It passes the provider's `lineage_parent_id` and `lineage_root_parent_id` macros to `dbt-ol run` as `OPENLINEAGE_PARENT_ID` and `OPENLINEAGE_ROOT_PARENT_ID` (`namespace/job/run_id`, which openlineage-dbt 1.54.0 reads). Airflow's OpenLineage namespace is `reference-airflow`.
+- **Events.** Airflow appends to `.local/openlineage/airflow-events.jsonl` and dbt-ol to `.local/openlineage/dbt-events.jsonl`, both at the repository root, which is git-ignored.
+- **Writing the checkout.** The container mounts the repository at `/workspace` and must be able to write it (dbt's `target/`, `.local/`). Docker Desktop bind mounts appear root-owned inside the container, so set `AIRFLOW_UID=0` there. On Linux, set it to your own uid (`id -u`).
+- **AWS.** `compose.yaml` mounts no credentials. A real run adds `compose.aws.yaml`, which mounts your AWS config folder read-only and selects a profile.
+
+```bash
+cd examples/reference-workload/airflow
+mkdir -p ../../../.local/openlineage
+export AIRFLOW_UID=0                            # Docker Desktop; on Linux: $(id -u)
+docker compose build
+# Offline check (no AWS): the DAG imports, and the task's parent variables render.
+docker compose run --rm airflow bash -c "airflow db migrate && airflow dags list-import-errors \
+  && airflow tasks render reference_workload dbt_run 2026-11-02T00:00:00+00:00"
+# Real run (#75, owner approval required):
+export REFERENCE_WORKLOAD_BUCKET=<bucket output of the stack> AWS_PROFILE=<your profile>
+export AWS_CONFIG_DIR=<path to your .aws folder>
+docker compose -f compose.yaml -f compose.aws.yaml run --rm airflow bash -c \
+  "airflow db migrate && airflow dags test reference_workload"
+```
+
+`airflow dags test` runs the DAG once in the container, with the OpenLineage listener active, and needs no web server. `docker compose up` starts the full standalone (UI on `127.0.0.1:8080`; the admin password is printed in its log) if you prefer to trigger it there.
+

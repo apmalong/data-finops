@@ -1,0 +1,23 @@
+# One container: `airflow standalone` (SQLite, one process), not the official multi-service
+# compose (#66). No AWS credentials are mounted here; add compose.aws.yaml for a real run.
+services:
+  airflow:
+    build: .
+    command: standalone
+    # The container must be able to write the checkout (dbt's target/, .local/openlineage/).
+    # Docker Desktop bind mounts appear root-owned, so use 0 there; on Linux, `id -u`.
+    user: "${AIRFLOW_UID:?set AIRFLOW_UID: 0 on Docker Desktop, your uid (id -u) on Linux}:0"
+    ports:
+      - "127.0.0.1:8080:8080"
+    environment:
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+      AIRFLOW__OPENLINEAGE__NAMESPACE: reference-airflow
+      # The same git-ignored folder dbt-ol writes to (dbt/openlineage.yml).
+      AIRFLOW__OPENLINEAGE__TRANSPORT: >-
+        {"type": "file", "log_file_path": "/workspace/.local/openlineage/airflow-events.jsonl",
+        "append": true}
+      REFERENCE_WORKLOAD_BUCKET: ${REFERENCE_WORKLOAD_BUCKET:-}
+    volumes:
+      # The repository checkout: the dbt project, and .local/ for events.
+      - ../../..:/workspace
+      - ./dags:/opt/airflow/dags:ro

@@ -1,0 +1,8 @@
+# Real runs only (#75, owner approval required): mounts your AWS config read-only and picks
+# a profile. Use with: docker compose -f compose.yaml -f compose.aws.yaml up
+services:
+  airflow:
+    environment:
+      AWS_PROFILE: ${AWS_PROFILE:?set AWS_PROFILE}
+    volumes:
+      - ${AWS_CONFIG_DIR:?set AWS_CONFIG_DIR to your .aws folder}:/home/airflow/.aws:ro
