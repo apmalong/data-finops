@@ -31,13 +31,15 @@ classes: {
 focus: FOCUS export\n(JSON fixture, or Parquet files\n+ publication metadata) {class: input}
 billing: {
   label: Billing → Ledger
-  read: billing.focus\nload_export / load_parquet_export\nsha256 per file, decimals kept exact {class: step}
-  import: Ledger.import_snapshot\nscope = account + billing period {class: step}
+  read: billing.focus\nload_export / load_parquet_export\ndecimals kept exact, Parquet: sha256 per file {class: step}
+  import: Ledger.import_snapshot\nSnapshot Scope = account, Billing Period, source {class: step}
   new: new (current) {class: outcome}
   superseded: superseded (history) {class: outcome}
   replay: replay (nothing stored) {class: outcome}
+  invalid: invalid export: validation error\nraised, nothing stored {class: refused}
   conflict: SnapshotConflictError\nsame ID, other content {class: refused}
   read -> import
+  read -> invalid
   import -> new
   import -> superseded
   import -> replay
@@ -55,8 +57,8 @@ billing.superseded -> ledger_tables
 events: OpenLineage events\n(JSON array or JSON Lines) {class: input}
 lineage: {
   label: WorkloadStore.ingest_events
-  screen: lineage.validation.screen_events\nper event, against bundled 2-0-2 schemas {class: step}
-  rejected: rejected by kind, never stored\nnot UTF-8 · not JSON · too large · too deep\ninvalid RunEvent / ParentRunFacet / … {class: refused}
+  screen: lineage.validation.screen_events\nper event, against bundled schemas\n(RunEvent 2-0-2, ParentRunFacet 1-1-0) {class: step}
+  rejected: rejected by kind, never stored\n(an unparseable JSON array: whole file)\nnot UTF-8 · not JSON · too large · too deep\ninvalid RunEvent / ParentRunFacet / … {class: refused}
   unsupported: unsupported, reported\nJobEvent · DatasetEvent {class: outcome}
   clean: remove SQL query text and stack traces\neventTime to UTC · sha256 of stored JSON {class: step}
   key: key = run · event type · time + digest {class: step}
@@ -106,7 +108,7 @@ artifacts.changed -> workload_dbt
 
 # Athena: read, not stored yet
 athena: Athena query history\nBatchGetQueryExecution {class: input}
-athena_read: providers.athena\nload_query_executions\n→ Query Executions {class: step}
-m3: M3: correlate with Model Executions\n(Identity Links) — not built {class: later}
+athena_read: providers.athena\nload_query_executions\n→ Athena query executions {class: step}
+m3: M3: Identity Links to\nModel Executions — not built {class: later}
 athena -> athena_read
 athena_read -> m3: {style.stroke-dash: 4}

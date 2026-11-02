@@ -14,13 +14,19 @@ What M0–M2 built, drawn from the code as it stands. Terms are the ones in [`GL
 
 ![System context](system-context.drawio.svg)
 
-The product reads files today. It makes no AWS calls, and anonymized copies of real outputs become fixtures through `scripts/`. The Ledger is the only cost authority. Lineage and dbt records explain work and never carry money (ADR 0003, ADR 0006).
+The product reads files today. It makes no AWS calls, and anonymized copies of real outputs become fixtures through `scripts/`. The Ledger is the only cost authority. Lineage and dbt records explain work and never carry money (ADR 0003).
 
 ## Ingest flow
 
 ![Ingest flow](ingest-flow.svg)
 
-Each input is screened before anything is written. Billing is all-or-nothing per Export Snapshot. OpenLineage files are screened event by event, so one bad event does not stop the rest. dbt artifacts are accepted or refused as whole files. Nothing is overwritten: a second, different copy is kept next to the first and flagged (ADR 0019, ADR 0022).
+Each input is checked before anything is written.
+
+- **Billing** is all or nothing per Export Snapshot: an invalid export raises a validation error, and a snapshot ID already stored with other content raises `SnapshotConflictError`. A restatement is a new snapshot. It becomes current and the earlier one is kept as history (ADR 0020).
+- **OpenLineage** files are screened event by event, so one bad event does not stop the rest of the file. The exception is a JSON array that cannot be parsed at all, which is rejected as a whole.
+- **dbt** artifacts are accepted or refused as whole files.
+
+For OpenLineage and dbt, nothing is overwritten: a second, different copy is kept next to the first and flagged (ADR 0022).
 
 ## Domain model
 
@@ -28,7 +34,7 @@ Each input is screened before anything is written. Billing is all-or-nothing per
 classDiagram
     direction LR
     class ExportSnapshot["Export Snapshot"] {
-        Snapshot Scope: account + Billing Period
+        Snapshot Scope: account, Billing Period, source
         published at
     }
     class BillingLine["Billing Line"] {
@@ -55,7 +61,7 @@ classDiagram
     }
     class QueryExecution["Query Execution"] {
         execution ID, account, region
-        read, not stored
+        contract only, not stored yet
     }
     class IdentityLink["Identity Link"] {
         <<M3, planned>>
@@ -73,11 +79,11 @@ classDiagram
     IdentityLink ..> QueryExecution
     IdentityLink ..> ModelExecution
     IdentityLink ..> WorkloadRun
-    Allocation ..> BillingLine : splits
-    Allocation ..> IdentityLink : Evidence from
+    Allocation ..> BillingLine : share of its Cost Pool
+    Allocation ..> QueryExecution : Allocation Target
 ```
 
-There are no links between billing records and workload records yet. Identity Links (M3) will connect a Query Execution to the Model Execution and Workload Run that sent it, using only explicit Evidence such as the dbt query comment, never time overlap. Allocation (M4) will split Billing Lines along those links. dbt-ol reports each model as its own Workload Run as well, and M2 keeps that apart from the Model Execution that dbt's run results report (ADR 0022).
+There are no links between billing records and workload records yet. Identity Links (M3) will connect a Query Execution to the Model Execution and Workload Run that sent it, using only explicit Evidence such as the dbt query comment, never time overlap. Allocation (M4) will assign shares of Billing Lines' Cost Pools to Query Executions. Model Executions and Workload Runs then receive cost only as Roll-ups over their Identity Links. dbt-ol reports each model as its own Workload Run as well, and M2 keeps that apart from the Model Execution that dbt's run results report (ADR 0022).
 
 ## Event ingest sequence
 
