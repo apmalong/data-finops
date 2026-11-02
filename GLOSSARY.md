@@ -58,7 +58,7 @@ One orchestrated execution reported by an orchestrator or lineage producer, such
 _Avoid_: job, task (alone), pipeline run
 
 **Identity Link**:
-A recorded assertion that two workload identities (for example a Query Execution and a Model Execution) are the same unit of work, together with the Evidence for it.
+An assertion that two workload identities (for example a Query Execution and a Model Execution) are the same unit of work, together with the Evidence for it.
 _Avoid_: match, correlation (alone), join
 
 **Evidence**:
