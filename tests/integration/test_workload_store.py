@@ -8,7 +8,7 @@ from typing import Any
 
 import pytest
 
-from data_finops.contracts.workload import WorkloadRunStatus
+from data_finops.contracts.workload import WorkloadRunFlag, WorkloadRunStatus
 from data_finops.ledger import Ledger
 from data_finops.lineage.validation import RejectionKind
 from data_finops.workload.store import WorkloadStore
@@ -398,3 +398,98 @@ def test_a_run_naming_itself_as_parent_is_rejected(store: WorkloadStore, tmp_pat
 def test_children_of_a_run_that_sent_no_events(store: WorkloadStore) -> None:
     store.ingest_events(EVENTS)
     assert [run.run_id for run in store.children(DAG_RUN)] == [AIRFLOW_TASK]
+
+
+# Observations, conflicts and sensitive facets (#44)
+
+
+def test_events_in_reverse_order_give_the_same_run(store: WorkloadStore, tmp_path: Path) -> None:
+    start, complete = (
+        _event(RUN, "START", "2026-11-01T21:19:00Z"),
+        _event(RUN, "COMPLETE", "2026-11-01T21:19:30Z"),
+    )
+    store.ingest_events(_write(tmp_path / "complete.jsonl", [complete]))
+    store.ingest_events(_write(tmp_path / "start.jsonl", [start]))
+    reversed_order = store.workload_run(RUN)
+    with WorkloadStore(tmp_path / "normal.sqlite") as normal:
+        normal.ingest_events(_write(tmp_path / "both.jsonl", [start, complete]))
+        assert reversed_order == normal.workload_run(RUN)
+
+
+def test_a_changed_copy_of_an_event_is_kept_and_flagged(
+    store: WorkloadStore, tmp_path: Path
+) -> None:
+    original = _event(RUN, "START", "2026-11-01T21:19:00Z")
+    changed = _event(RUN, "START", "2026-11-01T21:19:00Z") | {
+        "producer": "https://example.invalid/other"
+    }
+    store.ingest_events(_write(tmp_path / "a.jsonl", [original]))
+    result = store.ingest_events(_write(tmp_path / "b.jsonl", [changed, original]))
+    assert (result.accepted, result.duplicates, result.flagged) == (1, 1, 1)
+    run = store.workload_run(RUN)
+    assert run is not None and WorkloadRunFlag.CONFLICTING_OBSERVATIONS in run.flags
+
+
+def test_an_absent_and_an_empty_event_type_are_not_one_key(
+    store: WorkloadStore, tmp_path: Path
+) -> None:
+    absent = _event(RUN, "START", "2026-11-01T21:19:00Z")
+    del absent["eventType"]
+    result = store.ingest_events(
+        _write(tmp_path / "events.jsonl", [absent, _event(RUN, "", "2026-11-01T21:19:00Z")])
+    )
+    assert result.flagged == 0
+    run = store.workload_run(RUN)
+    assert run is not None and run.flags == ()
+
+
+def test_runs_reported_under_two_jobs_or_parents_are_flagged(
+    store: WorkloadStore, tmp_path: Path
+) -> None:
+    later_job = _event(RUN, "COMPLETE", "2026-11-01T21:19:30Z") | {
+        "job": {"namespace": "demo", "name": "zz"}
+    }
+    start = _with_parent(_event(RUN, "START", "2026-11-01T21:19:00Z"), DAG_RUN)
+    other = _with_parent(_event(RUN, "OTHER", "2026-11-01T21:19:10Z"), OTHER_PARENT)
+    store.ingest_events(_write(tmp_path / "events.jsonl", [start, other, later_job]))
+    run = store.workload_run(RUN)
+    assert run is not None
+    assert set(run.flags) == {WorkloadRunFlag.CONFLICTING_JOBS, WorkloadRunFlag.CONFLICTING_PARENTS}
+
+
+def test_sql_text_and_stack_traces_are_not_stored(store: WorkloadStore, tmp_path: Path) -> None:
+    event = _event(RUN, "FAIL", "2026-11-01T21:19:30Z")
+    event["job"]["facets"] = {
+        "sql": {
+            "_producer": "x",
+            "_schemaURL": "x",
+            "query": "select secret_column",
+            "dialect": "athena",
+        }
+    }
+    event["run"]["facets"]["errorMessage"] = {
+        "_producer": "x",
+        "_schemaURL": "x",
+        "message": "boom",
+        "programmingLanguage": "python",
+        "stackTrace": "Traceback: secret_frame",
+    }
+    path = tmp_path / "events.jsonl"
+    store.ingest_events(_write(path, [event]))
+    stored = store.stored_events(RUN)
+    assert len(stored) == 1
+    assert "secret_column" not in stored[0] and "secret_frame" not in stored[0]
+    assert '"dialect":"athena"' in stored[0] and '"message":"boom"' in stored[0]
+
+
+def test_events_differing_only_in_removed_text_are_duplicates(
+    store: WorkloadStore, tmp_path: Path
+) -> None:
+    def failed(query: str) -> dict[str, Any]:
+        event = _event(RUN, "FAIL", "2026-11-01T21:19:30Z")
+        event["job"]["facets"] = {"sql": {"_producer": "x", "_schemaURL": "x", "query": query}}
+        return event
+
+    store.ingest_events(_write(tmp_path / "a.jsonl", [failed("select 1")]))
+    result = store.ingest_events(_write(tmp_path / "b.jsonl", [failed("select 2")]))
+    assert (result.accepted, result.duplicates, result.flagged) == (0, 1, 0)
