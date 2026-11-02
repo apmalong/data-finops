@@ -5,9 +5,9 @@ workgroup or order. Each attempt yields a Link Outcome; only `linked` carries a 
 """
 
 import json
-from collections.abc import Mapping
+from collections.abc import Callable, Collection, Mapping
 from enum import StrEnum
-from typing import NamedTuple
+from typing import NamedTuple, TypeGuard
 
 from data_finops.contracts.workload import IdentityLink, LinkOutcome, LinkResolution
 
@@ -18,12 +18,15 @@ class Identity(StrEnum):
     """The workload identities an Identity Link connects (its source and target types)."""
 
     MODEL_EXECUTION = "model_execution"
+    QUERY_EXECUTION = "query_execution"
     WORKLOAD_RUN = "workload_run"
 
 
 class EvidenceType(StrEnum):
     DBT_OL_FACETS = "dbt_ol_facets"
     """`dbt_node.unique_id` (job facet) with `dbt_run.invocation_id` (run facet), ADR 0022."""
+    TRUSTED_QUERY_COMMENT = "trusted_query_comment"
+    """`invocation_id` and `node_id` from the dbt comment that starts the query text."""
 
 
 class ModelExecutionKey(NamedTuple):
@@ -37,39 +40,126 @@ class ModelExecutionKey(NamedTuple):
         return json.dumps([self.invocation_id, self.node_id], separators=(",", ":"))
 
 
+class QueryExecutionKey(NamedTuple):
+    """A Query Execution's identity: the provider's ID within an account and region."""
+
+    account_id: str
+    region: str
+    query_execution_id: str
+
+    def source_id(self) -> str:
+        """As an Identity Link source: `["<account>","<region>","<id>"]` (spec 02)."""
+        return json.dumps(list(self), separators=(",", ":"))
+
+
 def resolve_model_run(
     run_id: str,
     claims: set[ModelExecutionKey],
     reported: Mapping[ModelExecutionKey, int],
 ) -> LinkResolution:
-    """Link a dbt-ol model run to the Model Execution its facets name.
+    """Link a dbt-ol model run to the Model Execution its facets name (ADR 0022).
 
     `claims` are the (invocation, node) pairs the run's observations name through
-    `dbt_run.invocation_id` and `dbt_node.unique_id`; `reported` counts, per Model Execution,
-    the distinct versions run results reported of it. More than one claim, or a Model
-    Execution reported in disagreeing versions, is ambiguous (spec 03 step D); a claim nobody
-    reported is unmatched.
+    `dbt_run.invocation_id` and `dbt_node.unique_id`. See `_resolve` for the rules.
     """
-    if not claims:
+    return _resolve(
+        Identity.WORKLOAD_RUN,
+        run_id,
+        EvidenceType.DBT_OL_FACETS,
+        claims,
+        reported,
+        lambda claim: {
+            "dbt_node.unique_id": claim.node_id,
+            "dbt_run.invocation_id": claim.invocation_id,
+        },
+    )
+
+
+def resolve_query(
+    query: QueryExecutionKey,
+    claims: set[ModelExecutionKey | None],
+    reported: Mapping[ModelExecutionKey, int],
+) -> LinkResolution:
+    """Link a Query Execution to the Model Execution its Trusted Query Comment names.
+
+    `claims` holds what each stored observation of the query names, None for an observation
+    without a Trusted Query Comment; observations that disagree, with or without a comment,
+    are ambiguous. See `_resolve` for the rest.
+    """
+    return _resolve(
+        Identity.QUERY_EXECUTION,
+        query.source_id(),
+        EvidenceType.TRUSTED_QUERY_COMMENT,
+        claims,
+        reported,
+        lambda claim: {"invocation_id": claim.invocation_id, "node_id": claim.node_id},
+    )
+
+
+def trusted_query_comment(query: str) -> ModelExecutionKey | None:
+    """The Model Execution a Trusted Query Comment names, or None (GLOSSARY, spec 03 step D).
+
+    Only the first line is read. It must start with `-- /* ` (dbt-athena) or `/* `, followed
+    by a JSON object and ` */`, with `"app": "dbt"` and non-empty string `node_id` and
+    `invocation_id`. Anything else in the comment is ignored; a comment anywhere else in the
+    query is not Evidence, so SQL cannot forge one mid-statement.
+    """
+    line = query.partition("\n")[0]
+    prefix = next((p for p in _COMMENT_PREFIXES if line.startswith(p)), None)
+    if prefix is None:
+        return None
+    try:
+        document, end = _DECODER.raw_decode(line, len(prefix))
+    except ValueError:
+        return None
+    if not line.startswith(" */", end) or not isinstance(document, dict):
+        return None
+    node, invocation = document.get("node_id"), document.get("invocation_id")
+    if document.get("app") != "dbt" or not _identifier(node) or not _identifier(invocation):
+        return None
+    return ModelExecutionKey(invocation_id=invocation, node_id=node)
+
+
+_COMMENT_PREFIXES = ("-- /* ", "/* ")
+_DECODER = json.JSONDecoder()
+
+
+def _identifier(value: object) -> TypeGuard[str]:
+    return isinstance(value, str) and bool(value)
+
+
+def _resolve(
+    source_type: "Identity",
+    source_id: str,
+    evidence_type: "EvidenceType",
+    claims: Collection[ModelExecutionKey | None],
+    reported: Mapping[ModelExecutionKey, int],
+    evidence: Callable[[ModelExecutionKey], dict[str, str]],
+) -> LinkResolution:
+    """The shared rule: no claim is no evidence; several, or a Model Execution reported in
+    disagreeing versions, is ambiguous (spec 03 step D); a claim nobody reported is unmatched.
+
+    `reported` counts, per Model Execution, the distinct versions run results reported of it.
+    """
+    if not {claim for claim in claims if claim is not None}:
         return LinkResolution(outcome=LinkOutcome.NO_EVIDENCE)
     if len(claims) > 1:
         return LinkResolution(outcome=LinkOutcome.AMBIGUOUS)
-    (claim,) = claims
+    claim = next(claim for claim in claims if claim is not None)
     versions = reported.get(claim, 0)
     if versions == 0:
         return LinkResolution(outcome=LinkOutcome.UNMATCHED)
     if versions > 1:
         return LinkResolution(outcome=LinkOutcome.AMBIGUOUS)
-    evidence = {"dbt_node.unique_id": claim.node_id, "dbt_run.invocation_id": claim.invocation_id}
     return LinkResolution(
         outcome=LinkOutcome.LINKED,
         link=IdentityLink(
-            source_type=Identity.WORKLOAD_RUN,
-            source_id=run_id,
+            source_type=source_type,
+            source_id=source_id,
             target_type=Identity.MODEL_EXECUTION,
             target_id=claim.target_id(),
-            evidence_type=EvidenceType.DBT_OL_FACETS,
-            evidence_value=json.dumps(evidence, sort_keys=True, separators=(",", ":")),
+            evidence_type=evidence_type,
+            evidence_value=json.dumps(evidence(claim), sort_keys=True, separators=(",", ":")),
             policy_version=POLICY_VERSION,
         ),
     )

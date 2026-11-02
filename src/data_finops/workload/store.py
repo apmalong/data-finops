@@ -28,6 +28,7 @@ from data_finops.contracts.workload import (
     LineageEdge,
     LinkResolution,
     ModelExecution,
+    QueryCorrelation,
     QueryExecution,
     QueryExecutionFlag,
     WorkloadRun,
@@ -41,7 +42,13 @@ from data_finops.dbt.artifacts import (
     Timing,
     screen_dbt_artifact,
 )
-from data_finops.identity.links import ModelExecutionKey, resolve_model_run
+from data_finops.identity.links import (
+    ModelExecutionKey,
+    QueryExecutionKey,
+    resolve_model_run,
+    resolve_query,
+    trusted_query_comment,
+)
 from data_finops.lineage.openlineage import RunEvent
 from data_finops.lineage.validation import Rejection, RejectionKind, screen_events
 from data_finops.providers.athena import EntryRejection, screen_query_history
@@ -113,9 +120,13 @@ CREATE TABLE IF NOT EXISTS workload_query_execution (
     submitted_us INTEGER NOT NULL,
     completed_us INTEGER,
     scanned_bytes INTEGER,
+    invocation_id TEXT,
+    node_id TEXT,
     entry_json TEXT NOT NULL,
     PRIMARY KEY (account_id, region, query_execution_id, digest)
 );
+CREATE INDEX IF NOT EXISTS workload_query_execution_model
+    ON workload_query_execution (invocation_id, node_id);
 """
 
 _START = "START"
@@ -126,6 +137,8 @@ _TERMINAL = {
 }
 _SYSTEM = "openlineage"
 _ATHENA = "aws_athena"
+_COMMENT_KEY = "dbt_query_comment"
+"""Where a stored Query Execution keeps its Trusted Query Comment's identifiers."""
 _EPOCH = datetime(1970, 1, 1, tzinfo=UTC)
 
 
@@ -402,7 +415,12 @@ class WorkloadStore:
         accepted = changed_copies = 0
         with self._write_transaction():
             for screened in screening.entries:
-                stored_json = _canonical(screened.stored)
+                claim = trusted_query_comment(screened.parsed.Query)
+                # The comment's identifiers are part of the observation, so reports of one
+                # query naming different Model Executions are kept apart (spec 03 step D).
+                stored_json = _canonical(
+                    screened.stored | ({_COMMENT_KEY: claim._asdict()} if claim else {})
+                )
                 digest = hashlib.sha256(stored_json.encode("utf-8")).hexdigest()
                 key = (account_id, region, screened.parsed.QueryExecutionId)
                 others = self._connection.execute(
@@ -415,8 +433,8 @@ class WorkloadStore:
                 stored = self._connection.execute(
                     "INSERT OR IGNORE INTO workload_query_execution (account_id, region,"
                     " query_execution_id, digest, workgroup, statement_type, state,"
-                    " submitted_us, completed_us, scanned_bytes, entry_json)"
-                    " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    " submitted_us, completed_us, scanned_bytes, invocation_id, node_id,"
+                    " entry_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     (
                         *key,
                         digest,
@@ -426,6 +444,7 @@ class WorkloadStore:
                         _microseconds(entry.Status.SubmissionDateTime),
                         _microseconds(completed) if completed else None,
                         entry.Statistics.DataScannedInBytes if entry.Statistics else None,
+                        *(claim or (None, None)),
                         stored_json,
                     ),
                 ).rowcount
@@ -450,7 +469,8 @@ class WorkloadStore:
         rows = self._query_observations(account_id, region, query_execution_id)
         if not rows:
             return None
-        digest, workgroup, statement_type, state, submitted, completed, scanned, _ = rows[0]
+        digest, workgroup, statement_type, state, submitted, completed, scanned = rows[0][:7]
+        invocation, node = rows[0][7:9]
         return QueryExecution(
             provider=_ATHENA,
             account_id=account_id,
@@ -462,6 +482,11 @@ class WorkloadStore:
             submitted_at=_moment(submitted),
             completed_at=_moment(completed) if completed is not None else None,
             scanned_bytes=scanned,
+            correlation=(
+                QueryCorrelation(node_id=node, invocation_id=invocation)
+                if invocation is not None
+                else None
+            ),
             provenance=digest,
             flags=(QueryExecutionFlag.CONFLICTING_OBSERVATIONS,) if len(rows) > 1 else (),
         )
@@ -479,7 +504,8 @@ class WorkloadStore:
         """A Query Execution's stored observations by digest, `entry_json` last."""
         return self._connection.execute(
             "SELECT digest, workgroup, statement_type, state, submitted_us, completed_us,"
-            " scanned_bytes, entry_json FROM workload_query_execution WHERE account_id = ?"
+            " scanned_bytes, invocation_id, node_id, entry_json"
+            " FROM workload_query_execution WHERE account_id = ?"
             " AND region = ? AND query_execution_id = ? ORDER BY digest",
             (account_id, region, query_execution_id),
         ).fetchall()
@@ -627,6 +653,51 @@ class WorkloadStore:
         claims = {claim for claim in map(_model_run_claim, events) if claim}
         return resolve_model_run(run_id, claims, self._reported_model_executions(claims))
 
+    def model_execution_of_query(
+        self, account_id: str, region: str, query_execution_id: str
+    ) -> LinkResolution | None:
+        """The Model Execution a Query Execution's Trusted Query Comment names, as a Link Outcome.
+
+        Every stored observation of the query counts: if they name different Model Executions,
+        or one carries the comment and another does not, the outcome is ambiguous. None if the
+        query is unknown. Derived when asked, so arrival order does not matter.
+        """
+        rows = self._query_observations(account_id, region, query_execution_id)
+        if not rows:
+            return None
+        claims = {
+            ModelExecutionKey(invocation_id=row[7], node_id=row[8]) if row[7] is not None else None
+            for row in rows
+        }
+        known = {claim for claim in claims if claim is not None}
+        return resolve_query(
+            QueryExecutionKey(account_id, region, query_execution_id),
+            claims,
+            self._reported_model_executions(known),
+        )
+
+    def query_executions_of_model_execution(
+        self, invocation_id: str, node_id: str
+    ) -> list[QueryExecution]:
+        """The Query Executions linked to this Model Execution, by submission time and ID.
+
+        Queries whose comment names it but whose Link Outcome is not `linked` (for example
+        ambiguous) are left out.
+        """
+        target = ModelExecutionKey(invocation_id=invocation_id, node_id=node_id).target_id()
+        candidates = self._connection.execute(
+            "SELECT DISTINCT account_id, region, query_execution_id"
+            " FROM workload_query_execution WHERE invocation_id = ? AND node_id = ?",
+            (invocation_id, node_id),
+        ).fetchall()
+        linked = [
+            query
+            for key in candidates
+            if _links_to(self.model_execution_of_query(*key), target)
+            and (query := self.query_execution(*key)) is not None
+        ]
+        return sorted(linked, key=lambda q: (q.submitted_at, q.query_execution_id))
+
     def _reported_model_executions(
         self, claims: set[ModelExecutionKey]
     ) -> dict[ModelExecutionKey, int]:
@@ -680,6 +751,10 @@ class WorkloadStore:
             self._connection.execute("ROLLBACK")
             raise
         self._connection.execute("COMMIT")
+
+
+def _links_to(resolution: LinkResolution | None, target_id: str) -> bool:
+    return bool(resolution and resolution.link and resolution.link.target_id == target_id)
 
 
 def _model_run_claim(event_json: str) -> ModelExecutionKey | None:

@@ -33,8 +33,8 @@ def test_focus_rows_preserve_provider_extension_columns():
 def test_athena_history_is_provider_native_and_carries_query_comments():
     history = load_query_executions(FIXTURES / "athena" / "query-executions.json")
     by_id = {q.QueryExecutionId: q for q in history.QueryExecutions}
-    assert set(by_id) == {"q-001", "q-002"}
-    for q in by_id.values():
+    assert set(by_id) == {"q-001", "q-002", "q-003", "q-004"}
+    for q in (by_id["q-001"], by_id["q-002"]):
         assert '"node_id": "model.demo.orders"' in q.Query
         assert '"invocation_id": "inv-001"' in q.Query
     assert by_id["q-002"].StatementType == "DDL"

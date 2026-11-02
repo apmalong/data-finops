@@ -106,29 +106,23 @@ dbt -> artifacts.screen
 artifacts.stored -> workload_dbt
 artifacts.changed -> workload_dbt
 
-# Athena: Query Executions
-athena: Athena query history
-BatchGetQueryExecution
-+ account and region {class: input}
+# Athena: Query Executions and Identity Links
+athena: Athena query history\nBatchGetQueryExecution\n+ account and region {class: input}
 queries: {
   label: WorkloadStore.ingest_query_history
-  screen: providers.athena.screen_query_history
-per entry, at most 512 MiB {class: step}
-  refused: whole file refused, nothing stored
-too large · not a BatchGetQueryExecution response
-account or region disagrees {class: refused}
-  rejected: rejected by position and field,
-never stored or echoed {class: refused}
-  clean: remove query text and free-text
-failure reasons · sha256 of stored JSON {class: step}
+  screen: providers.athena.screen_query_history\nper entry, at most 512 MiB {class: step}
+  refused: whole file refused, nothing stored\ntoo large · not a BatchGetQueryExecution response\naccount or region disagrees {class: refused}
+  rejected: rejected by position and field,\nnever stored or echoed {class: refused}
+  comment: identity.trusted_query_comment\nfirst line only: invocation_id, node_id {class: step}
+  clean: keep allowlisted metadata + comment IDs\n(no query text) · sha256 of stored JSON {class: step}
   key: key = account · region · query ID + digest {class: step}
   stored: stored {class: outcome}
   duplicate: duplicate (nothing stored) {class: outcome}
-  changed: changed copy, kept beside
-and flagged {class: outcome}
+  changed: changed copy, kept beside\nand flagged {class: outcome}
   screen -> refused
   screen -> rejected
-  screen -> clean: valid entry
+  screen -> comment: valid entry
+  comment -> clean
   clean -> key
   key -> stored
   key -> duplicate
@@ -137,9 +131,9 @@ and flagged {class: outcome}
 workload_queries: Workload store: Athena {
   workload_query_execution {class: table}
 }
-m3: M3: Identity Links to
-Model Executions (#63) {class: later}
+links: Identity Links, derived when asked\nlinked · no_evidence · unmatched · ambiguous\n(query → Model Execution) {class: step}
 athena -> queries.screen
 queries.stored -> workload_queries
 queries.changed -> workload_queries
-workload_queries -> m3: {style.stroke-dash: 4}
+workload_queries -> links
+workload_dbt -> links
