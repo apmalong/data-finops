@@ -590,3 +590,48 @@ def test_names_are_kept_exactly_as_reported(store: WorkloadStore, tmp_path: Path
 def test_a_run_without_datasets_has_no_assets(store: WorkloadStore) -> None:
     store.ingest_events(EVENTS)
     assert (store.data_assets(AIRFLOW_TASK), store.lineage_edges(AIRFLOW_TASK)) == ([], [])
+
+
+def test_changed_copies_give_edges_told_apart_by_provenance(
+    store: WorkloadStore, tmp_path: Path
+) -> None:
+    def complete(producer: str) -> dict[str, Any]:
+        event = _event(RUN, "COMPLETE", "2026-11-01T21:19:30Z") | {"producer": producer}
+        event["outputs"] = [{"namespace": "demo", "name": "t", "facets": {}}]
+        return event
+
+    store.ingest_events(_write(tmp_path / "a.jsonl", [complete("https://example.invalid/a")]))
+    store.ingest_events(_write(tmp_path / "b.jsonl", [complete("https://example.invalid/b")]))
+    edges = store.lineage_edges(RUN)
+    assert len(edges) == 2 and len({e.provenance for e in edges}) == 2
+    assert len(store.data_assets(RUN)) == 1
+
+
+def test_a_dataset_listed_twice_in_one_event_is_one_edge(
+    store: WorkloadStore, tmp_path: Path
+) -> None:
+    event = _event(RUN, "COMPLETE", "2026-11-01T21:19:30Z")
+    dataset = {"namespace": "demo", "name": "t", "facets": {}}
+    event["inputs"] = [dataset, dict(dataset)]
+    store.ingest_events(_write(tmp_path / "events.jsonl", [event]))
+    assert len(store.lineage_edges(RUN)) == 1
+
+
+def test_dataset_facets_create_no_edges(store: WorkloadStore, tmp_path: Path) -> None:
+    event = _event(RUN, "COMPLETE", "2026-11-01T21:19:30Z")
+    event["outputs"] = [
+        {
+            "namespace": "demo",
+            "name": "t",
+            "facets": {
+                "symlinks": {
+                    "_producer": "x",
+                    "_schemaURL": "x",
+                    "identifiers": [{"namespace": "other", "name": "symlinked", "type": "TABLE"}],
+                }
+            },
+            "outputFacets": {},
+        }
+    ]
+    store.ingest_events(_write(tmp_path / "events.jsonl", [event]))
+    assert [(a.namespace, a.name) for a in store.data_assets(RUN)] == [("demo", "t")]

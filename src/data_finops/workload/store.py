@@ -52,12 +52,12 @@ CREATE INDEX IF NOT EXISTS workload_lineage_event_parent
     ON workload_lineage_event (parent_run_id);
 CREATE TABLE IF NOT EXISTS workload_lineage_edge (
     run_id TEXT NOT NULL,
-    event_digest TEXT NOT NULL,
+    digest TEXT NOT NULL,
     event_time_us INTEGER NOT NULL,
     direction TEXT NOT NULL,
     namespace TEXT NOT NULL,
     name TEXT NOT NULL,
-    PRIMARY KEY (run_id, event_digest, direction, namespace, name)
+    PRIMARY KEY (run_id, digest, direction, namespace, name)
 );
 """
 
@@ -275,10 +275,14 @@ class WorkloadStore:
         return [DataAsset(namespace=namespace, name=name) for namespace, name in rows]
 
     def lineage_edges(self, run_id: str) -> list[LineageEdge]:
-        """One edge per stored event, Data Asset and direction, ordered by observation time."""
+        """One edge per stored event, Data Asset and direction, ordered by observation time.
+
+        Each edge's provenance is the digest of the event observation that reported it, so the
+        edges of two changed copies of one event can be told apart.
+        """
         rows = self._connection.execute(
-            "SELECT direction, namespace, name, event_time_us FROM workload_lineage_edge"
-            " WHERE run_id = ? ORDER BY event_time_us, direction, namespace, name",
+            "SELECT direction, namespace, name, event_time_us, digest FROM workload_lineage_edge"
+            " WHERE run_id = ? ORDER BY event_time_us, direction, namespace, name, digest",
             (run_id,),
         ).fetchall()
         return [
@@ -286,9 +290,10 @@ class WorkloadStore:
                 run_id=run_id,
                 asset=DataAsset(namespace=namespace, name=name),
                 direction=LineageDirection(direction),
-                observed_at=_moment(time),
+                observed_at=_moment(event_time_us),
+                provenance=digest,
             )
-            for direction, namespace, name, time in rows
+            for direction, namespace, name, event_time_us, digest in rows
         ]
 
     def stored_events(self, run_id: str) -> list[str]:
@@ -303,7 +308,9 @@ class WorkloadStore:
     def _store_edges(self, key: _EventKey, digest: str, event: RunEvent) -> None:
         """Edges from the event's inputs and outputs, names kept exactly as reported."""
         self._connection.executemany(
-            "INSERT OR IGNORE INTO workload_lineage_edge VALUES (?, ?, ?, ?, ?, ?)",
+            "INSERT OR IGNORE INTO workload_lineage_edge"
+            " (run_id, digest, event_time_us, direction, namespace, name)"
+            " VALUES (?, ?, ?, ?, ?, ?)",
             [
                 (key.run_id, digest, key.event_time_us, direction, dataset.namespace, dataset.name)
                 for direction, datasets in (
