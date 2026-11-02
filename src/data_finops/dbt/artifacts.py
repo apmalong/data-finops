@@ -3,6 +3,7 @@
 Full validation against the pinned dbt schemas runs in `scripts/verify_upstream.py`.
 """
 
+from datetime import datetime
 from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict
@@ -28,10 +29,17 @@ class Manifest(_Artifact):
     nodes: dict[str, ManifestNode]
 
 
+class Timing(_Artifact):
+    name: str
+    started_at: datetime | None = None
+    completed_at: datetime | None = None
+
+
 class RunResult(_Artifact):
     unique_id: str
     status: str
     execution_time: float
+    timing: list[Timing] = []
 
 
 class RunResults(_Artifact):

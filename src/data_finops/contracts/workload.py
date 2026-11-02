@@ -41,8 +41,11 @@ class ModelExecution(BaseModel):
     node_id: str
     invocation_id: str
     status: str
+    """dbt's own status value as reported (success, error, skipped, fail, warn, pass, ...)."""
     started_at: UtcDatetime | None = None
     completed_at: UtcDatetime | None = None
+    provenance: str | None = None
+    """The SHA-256 of the run-results file that reported this execution."""
 
 
 class WorkloadRunStatus(StrEnum):
