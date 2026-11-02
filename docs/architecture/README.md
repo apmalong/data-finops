@@ -1,6 +1,6 @@
 # Architecture diagrams
 
-What M0–M2 built, drawn from the code as it stands. Terms are the ones in [`GLOSSARY.md`](../../GLOSSARY.md); decisions are in [`docs/adr/`](../adr/). Anything not built yet is drawn dashed and grey, with the milestone that brings it.
+What M0–M3 built, drawn from the code as it stands. Terms are the ones in [`GLOSSARY.md`](../../GLOSSARY.md); decisions are in [`docs/adr/`](../adr/). Anything not built yet is drawn dashed and grey, with the milestone that brings it.
 
 | Diagram | Answers | Tool |
 |---|---|---|
@@ -62,11 +62,11 @@ classDiagram
     }
     class QueryExecution["Query Execution"] {
         execution ID, account, region
-        contract only, not stored yet
+        allowlisted metadata, comment IDs
     }
     class IdentityLink["Identity Link"] {
-        <<M3, planned>>
-        Evidence, policy version
+        derived when asked, never stored
+        Link Outcome, Evidence, policy version
     }
     class Allocation {
         <<M4, planned>>
@@ -77,14 +77,22 @@ classDiagram
     WorkloadRun "1" --> "many" LineageEdge : reports
     LineageEdge "many" --> "1" DataAsset
     ModelExecution "many" --> "1" DbtNode : runs, same invocation
-    IdentityLink ..> QueryExecution
-    IdentityLink ..> ModelExecution
-    IdentityLink ..> WorkloadRun
+    IdentityLink --> QueryExecution : Trusted Query Comment
+    IdentityLink --> ModelExecution
+    IdentityLink --> WorkloadRun : dbt-ol facets
     Allocation ..> BillingLine : share of its Cost Pool
     Allocation ..> QueryExecution : Allocation Target
 ```
 
-There are no links between billing records and workload records yet. Identity Links (M3) will connect a Query Execution to the Model Execution and Workload Run that sent it, using only explicit Evidence such as the dbt query comment, never time overlap. Allocation (M4) will assign shares of Billing Lines' Cost Pools to Query Executions. Model Executions and Workload Runs then receive cost only as Roll-ups over their Identity Links. dbt-ol reports each model as its own Workload Run as well, and M2 keeps that apart from the Model Execution that dbt's run results report (ADR 0022).
+Identity Links (M3) connect workload records using only explicit Evidence, never time overlap (ADR 0006):
+
+- a Query Execution to the Model Execution its Trusted Query Comment names;
+- a dbt-ol model run to the Model Execution it reports (ADR 0022);
+- a dbt invocation to the Workload Run that reported it, whose parent and root lead to the Airflow run.
+
+Links are derived from stored observations when asked, so arrival order does not matter. Each attempt has a Link Outcome, and only `linked` makes a link: missing Evidence is `no_evidence`, Evidence naming something nobody reported is `unmatched`, and disagreeing reports are `ambiguous`.
+
+There are still no links between billing records and workload records. Allocation (M4) will assign shares of Billing Lines' Cost Pools to Query Executions, and Model Executions and Workload Runs then receive cost only as Roll-ups over their Identity Links.
 
 ## Event ingest sequence
 
