@@ -17,6 +17,7 @@ POLICY_VERSION = "identity-links/1"
 class Identity(StrEnum):
     """The workload identities an Identity Link connects (its source and target types)."""
 
+    DBT_INVOCATION = "dbt_invocation"
     MODEL_EXECUTION = "model_execution"
     QUERY_EXECUTION = "query_execution"
     WORKLOAD_RUN = "workload_run"
@@ -25,6 +26,8 @@ class Identity(StrEnum):
 class EvidenceType(StrEnum):
     DBT_OL_FACETS = "dbt_ol_facets"
     """`dbt_node.unique_id` (job facet) with `dbt_run.invocation_id` (run facet), ADR 0022."""
+    DBT_RUN_FACET = "dbt_run_facet"
+    """`dbt_run.invocation_id` on a run without a `dbt_node` job facet: the invocation's run."""
     TRUSTED_QUERY_COMMENT = "trusted_query_comment"
     """`invocation_id` and `node_id` from the dbt comment that starts the query text."""
 
@@ -96,6 +99,32 @@ def resolve_query(
     )
 
 
+def resolve_invocation(invocation_id: str, runs: set[str]) -> LinkResolution:
+    """Link a dbt invocation to the Workload Run that reported it (ADR 0022).
+
+    `runs` are the runs whose events carry `dbt_run.invocation_id` for this invocation but no
+    `dbt_node` job facet (dbt-ol's per-model runs carry both). None is unmatched, for example
+    `dbt-ol seed`, which emits no `dbt_run` facet; several are ambiguous.
+    """
+    if not runs:
+        return LinkResolution(outcome=LinkOutcome.UNMATCHED)
+    if len(runs) > 1:
+        return LinkResolution(outcome=LinkOutcome.AMBIGUOUS)
+    (run_id,) = runs
+    return LinkResolution(
+        outcome=LinkOutcome.LINKED,
+        link=IdentityLink(
+            source_type=Identity.DBT_INVOCATION,
+            source_id=invocation_id,
+            target_type=Identity.WORKLOAD_RUN,
+            target_id=run_id,
+            evidence_type=EvidenceType.DBT_RUN_FACET,
+            evidence_value=_compact({"dbt_run.invocation_id": invocation_id}),
+            policy_version=POLICY_VERSION,
+        ),
+    )
+
+
 def trusted_query_comment(query: str) -> ModelExecutionKey | None:
     """The Model Execution a Trusted Query Comment names, or None (GLOSSARY, spec 03 step D).
 
@@ -140,6 +169,10 @@ def _unique_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
 _DECODER = json.JSONDecoder(object_pairs_hook=_unique_keys)
 
 
+def _compact(document: dict[str, str]) -> str:
+    return json.dumps(document, sort_keys=True, separators=(",", ":"))
+
+
 def _identifier(value: object) -> TypeGuard[str]:
     return isinstance(value, str) and bool(value.strip())
 
@@ -179,7 +212,7 @@ def _resolve(
             target_type=Identity.MODEL_EXECUTION,
             target_id=claim.target_id(),
             evidence_type=evidence_type,
-            evidence_value=json.dumps(evidence(claim), sort_keys=True, separators=(",", ":")),
+            evidence_value=_compact(evidence(claim)),
             policy_version=POLICY_VERSION,
         ),
     )

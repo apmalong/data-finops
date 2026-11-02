@@ -45,6 +45,7 @@ from data_finops.dbt.artifacts import (
 from data_finops.identity.links import (
     ModelExecutionKey,
     QueryExecutionKey,
+    resolve_invocation,
     resolve_model_run,
     resolve_query,
     trusted_query_comment,
@@ -68,9 +69,13 @@ CREATE TABLE IF NOT EXISTS workload_lineage_event (
     root_run_id TEXT,
     root_job_namespace TEXT,
     root_job_name TEXT,
+    dbt_invocation_id TEXT,
+    dbt_node_id TEXT,
     event_json TEXT NOT NULL,
     PRIMARY KEY (run_id, event_type_key, event_time_us, digest)
 );
+CREATE INDEX IF NOT EXISTS workload_lineage_event_invocation
+    ON workload_lineage_event (dbt_invocation_id);
 CREATE INDEX IF NOT EXISTS workload_lineage_event_parent
     ON workload_lineage_event (parent_run_id);
 CREATE TABLE IF NOT EXISTS workload_lineage_edge (
@@ -295,7 +300,8 @@ class WorkloadStore:
                     "INSERT OR IGNORE INTO workload_lineage_event (run_id, event_type_key,"
                     " event_type, event_time_us, digest, job_namespace, job_name, parent_run_id,"
                     " parent_job_namespace, parent_job_name, root_run_id, root_job_namespace,"
-                    " root_job_name, event_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    " root_job_name, dbt_invocation_id, dbt_node_id, event_json)"
+                    " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     (
                         key.run_id,
                         key.event_type_key,
@@ -305,6 +311,7 @@ class WorkloadStore:
                         event.job.namespace,
                         event.job.name,
                         *_parent_and_root(event.run.facets.get("parent")),
+                        *_dbt_ol_identifiers(document),
                         stored_json,
                     ),
                 ).rowcount
@@ -670,11 +677,47 @@ class WorkloadStore:
         evidence; None if the run is unknown. Derived when asked, so arrival order of events
         and run results does not matter.
         """
-        events = self.stored_events(run_id)
-        if not events:
+        rows = self._connection.execute(
+            "SELECT dbt_invocation_id, dbt_node_id FROM workload_lineage_event WHERE run_id = ?",
+            (run_id,),
+        ).fetchall()
+        if not rows:
             return None
-        claims = {claim for claim in map(_model_run_claim, events) if claim}
+        claims = {
+            ModelExecutionKey(invocation_id=invocation, node_id=node)
+            for invocation, node in rows
+            if invocation is not None and node is not None
+        }
         return resolve_model_run(run_id, claims, self._reported_model_executions(claims))
+
+    def workload_run_of_invocation(self, invocation_id: str) -> LinkResolution | None:
+        """The Workload Run that reported this dbt invocation, as a Link Outcome (ADR 0022).
+
+        That is a run whose events carry `dbt_run.invocation_id` and never a `dbt_node` job
+        facet. None if neither run results nor any event know the invocation. Its parent and
+        root (for example the Airflow task) are then `workload_run`'s answer for that run.
+        """
+        runs = {
+            run_id
+            for (run_id,) in self._connection.execute(
+                "SELECT DISTINCT run_id FROM workload_lineage_event WHERE dbt_invocation_id = ?"
+                " AND run_id NOT IN (SELECT run_id FROM workload_lineage_event"
+                " WHERE dbt_node_id IS NOT NULL)",
+                (invocation_id,),
+            )
+        }
+        if not runs and not self._invocation_known(invocation_id):
+            return None
+        return resolve_invocation(invocation_id, runs)
+
+    def _invocation_known(self, invocation_id: str) -> bool:
+        found = self._connection.execute(
+            "SELECT 1 FROM workload_dbt_artifact WHERE invocation_id = ?"
+            " UNION ALL SELECT 1 FROM workload_lineage_event WHERE dbt_invocation_id = ?"
+            " LIMIT 1",
+            (invocation_id, invocation_id),
+        ).fetchone()
+        return found is not None
 
     def model_execution_of_query(
         self, account_id: str, region: str, query_execution_id: str
@@ -776,14 +819,19 @@ def _links_to(resolution: LinkResolution | None, target_id: str) -> bool:
     return bool(resolution and resolution.link and resolution.link.target_id == target_id)
 
 
-def _model_run_claim(event_json: str) -> ModelExecutionKey | None:
-    """(invocation, node) from one stored event's dbt-ol facets, if it carries both."""
-    event = json.loads(event_json)
-    node = event.get("job", {}).get("facets", {}).get("dbt_node", {}).get("unique_id")
-    invocation = event.get("run", {}).get("facets", {}).get("dbt_run", {}).get("invocation_id")
-    if isinstance(node, str) and node and isinstance(invocation, str) and invocation:
-        return ModelExecutionKey(invocation_id=invocation, node_id=node)
-    return None
+def _dbt_ol_identifiers(event: dict[str, Any]) -> tuple[str | None, str | None]:
+    """`dbt_run.invocation_id` (run facet) and `dbt_node.unique_id` (job facet), if present."""
+
+    def facet_field(facets: Any, facet: str, field: str) -> str | None:
+        value = facets.get(facet, {}).get(field) if isinstance(facets, dict) else None
+        return value if isinstance(value, str) and value else None
+
+    run_facets = event.get("run", {}).get("facets")
+    job_facets = event.get("job", {}).get("facets")
+    return (
+        facet_field(run_facets, "dbt_run", "invocation_id"),
+        facet_field(job_facets, "dbt_node", "unique_id"),
+    )
 
 
 def _flags(observations: list[_Observation]) -> tuple[WorkloadRunFlag, ...]:

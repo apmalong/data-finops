@@ -401,3 +401,122 @@ def test_every_reference_workload_query_has_its_observed_outcome(store: Workload
         "0d9fc611-0f9f-43ea-81bb-ba7bc63be72f", "model.reference_workload.daily_orders"
     )
     assert len(daily) == 3
+
+
+AIRFLOW_TASK = "00000000-0000-4000-8000-000000000001"
+SEED_INVOCATION = "ba26dcbd-17ed-4270-82ad-8d8dd8075b81"
+RUN_INVOCATIONS = ("d54e1d8c-43cb-42f4-a6ab-a055ab074a79", "0d9fc611-0f9f-43ea-81bb-ba7bc63be72f")
+
+
+def test_a_dbt_invocation_links_to_the_workload_run_that_reported_it(
+    store: WorkloadStore,
+) -> None:
+    store.ingest_events(EVENTS)
+    store.ingest_dbt_artifact(RUN_RESULTS)
+    resolution = store.workload_run_of_invocation("inv-001")
+    assert resolution is not None and resolution.link is not None
+    link = resolution.link
+    assert (link.source_type, link.source_id) == ("dbt_invocation", "inv-001")
+    assert (link.target_type, link.target_id) == ("workload_run", DBT_RUN)
+    assert link.evidence_type == "dbt_run_facet"
+    assert json.loads(link.evidence_value) == {"dbt_run.invocation_id": "inv-001"}
+
+
+def test_the_invocation_s_workload_run_leads_to_its_airflow_run(store: WorkloadStore) -> None:
+    store.ingest_events(EVENTS)
+    store.ingest_dbt_artifact(RUN_RESULTS)
+    resolution = store.workload_run_of_invocation("inv-001")
+    assert resolution is not None and resolution.link is not None
+    dbt_run = store.workload_run(resolution.link.target_id)
+    assert dbt_run is not None and dbt_run.parent_run_id == AIRFLOW_TASK
+    airflow = store.workload_run(AIRFLOW_TASK)
+    assert airflow is not None
+    assert (airflow.job_namespace, airflow.job_name) == ("demo-airflow", "daily_orders.dbt_run")
+
+
+def _reference_store(store: WorkloadStore) -> WorkloadStore:
+    store.ingest_events(SAMPLE / "openlineage" / "dbt-events.jsonl")
+    for step in ("1-seed", "2-run", "3-run"):
+        store.ingest_dbt_artifact(SAMPLE / "dbt" / step / "run_results.json")
+    return store
+
+
+def test_reference_workload_invocations_link_to_their_dbt_runs(store: WorkloadStore) -> None:
+    _reference_store(store)
+    for invocation in RUN_INVOCATIONS:
+        resolution = store.workload_run_of_invocation(invocation)
+        assert resolution is not None and resolution.link is not None
+        run = store.workload_run(resolution.link.target_id)
+        assert run is not None and run.job_name == "dbt-run-reference_workload"
+
+
+def test_an_invocation_no_workload_run_reported_is_unmatched(store: WorkloadStore) -> None:
+    _reference_store(store)
+    resolution = store.workload_run_of_invocation(SEED_INVOCATION)
+    assert resolution is not None
+    assert (resolution.outcome, resolution.link) == (LinkOutcome.UNMATCHED, None)
+
+
+def test_model_runs_are_not_mistaken_for_the_invocation_s_run(store: WorkloadStore) -> None:
+    store.ingest_events(SAMPLE / "openlineage" / "dbt-events.jsonl")
+    resolution = store.workload_run_of_invocation(RUN_INVOCATIONS[0])
+    assert resolution is not None and resolution.outcome == LinkOutcome.LINKED
+
+
+def _invocation_event(run_id: str, invocation: str) -> dict[str, Any]:
+    facet = {"_producer": "https://example.invalid/p", "_schemaURL": "https://example.invalid/s"}
+    return {
+        "eventType": "START",
+        "eventTime": "2026-10-01T01:00:00Z",
+        "producer": "https://example.invalid/producer",
+        "schemaURL": "https://openlineage.io/spec/2-0-2/OpenLineage.json#/$defs/RunEvent",
+        "job": {"namespace": "dbt", "name": "dbt-run-demo"},
+        "run": {"runId": run_id, "facets": {"dbt_run": facet | {"invocation_id": invocation}}},
+    }
+
+
+def test_an_invocation_reported_by_several_workload_runs_is_ambiguous(
+    store: WorkloadStore, tmp_path: Path
+) -> None:
+    store.ingest_dbt_artifact(RUN_RESULTS)
+    other = "00000000-0000-4000-8000-0000000000aa"
+    events = [_invocation_event(DBT_RUN, "inv-001"), _invocation_event(other, "inv-001")]
+    store.ingest_events(_write_events(tmp_path / "e.jsonl", events))
+    resolution = store.workload_run_of_invocation("inv-001")
+    assert resolution is not None
+    assert (resolution.outcome, resolution.link) == (LinkOutcome.AMBIGUOUS, None)
+
+
+def test_an_invocation_known_only_from_events_still_links(
+    store: WorkloadStore, tmp_path: Path
+) -> None:
+    store.ingest_events(_write_events(tmp_path / "e.jsonl", [_invocation_event(DBT_RUN, "inv-9")]))
+    resolution = store.workload_run_of_invocation("inv-9")
+    assert resolution is not None and resolution.outcome == LinkOutcome.LINKED
+
+
+def test_an_unknown_invocation_has_no_resolution(store: WorkloadStore) -> None:
+    store.ingest_events(EVENTS)
+    assert store.workload_run_of_invocation("inv-unknown") is None
+
+
+def test_invocation_links_do_not_depend_on_arrival_order(tmp_path: Path) -> None:
+    answers = []
+    for name, events_first in (("a", True), ("b", False)):
+        with WorkloadStore(tmp_path / f"{name}.sqlite") as store:
+            if events_first:
+                store.ingest_events(EVENTS)
+            store.ingest_dbt_artifact(RUN_RESULTS)
+            if not events_first:
+                store.ingest_events(EVENTS)
+            answers.append(store.workload_run_of_invocation("inv-001"))
+    assert answers[0] == answers[1]
+
+
+def test_an_invocation_known_only_from_its_model_runs_is_unmatched(
+    store: WorkloadStore, tmp_path: Path
+) -> None:
+    event = _model_event("COMPLETE", "2026-10-01T01:00:09Z", "model.demo.orders", "inv-7")
+    store.ingest_events(_write_events(tmp_path / "e.jsonl", [event]))
+    resolution = store.workload_run_of_invocation("inv-7")
+    assert resolution is not None and resolution.outcome == LinkOutcome.UNMATCHED
