@@ -286,3 +286,69 @@ def test_a_schema_failure_before_an_unreadable_line_keeps_file_order(
     path = tmp_path / "events.jsonl"
     path.write_bytes(_line({"eventTime": "nope"}) + b"{not json\n")
     assert [r.position for r in store.ingest_events(path).rejected] == [1, 2]
+
+
+# Run graph (#43)
+
+SAMPLE_EVENTS = FIXTURES / "reference-workload" / "openlineage" / "dbt-events.jsonl"
+DAG_RUN = "00000000-0000-4000-8000-000000000000"
+SECOND_RUN = "01a198fb-5bd3-79d5-8157-42a7993bce14"  # the sample's second dbt-ol run
+
+
+def test_parent_and_root_come_from_the_parent_run_facet(store: WorkloadStore) -> None:
+    store.ingest_events(EVENTS)
+    dbt_run = store.workload_run(DBT_RUN)
+    assert dbt_run is not None
+    assert (dbt_run.parent_run_id, dbt_run.parent_job_namespace, dbt_run.parent_job_name) == (
+        AIRFLOW_TASK,
+        "demo-airflow",
+        "daily_orders.dbt_run",
+    )
+    assert (dbt_run.root_run_id, dbt_run.root_job_name) == (DAG_RUN, "daily_orders")
+
+
+def test_a_run_whose_parent_sent_no_events_still_records_it(store: WorkloadStore) -> None:
+    store.ingest_events(EVENTS)
+    task = store.workload_run(AIRFLOW_TASK)  # its START names the DAG run; its COMPLETE does not
+    assert task is not None and task.parent_run_id == DAG_RUN and task.root_run_id is None
+    assert store.workload_run(DAG_RUN) is None
+
+
+def test_children_walk_from_the_airflow_task_to_the_model_runs(store: WorkloadStore) -> None:
+    store.ingest_events(EVENTS)
+    assert [run.run_id for run in store.children(AIRFLOW_TASK)] == [DBT_RUN]
+    assert [run.run_id for run in store.children(DBT_RUN)] == [MODEL_RUN]
+    assert store.children(MODEL_RUN) == []
+
+
+def test_each_dbt_run_in_the_sample_has_its_four_model_runs(store: WorkloadStore) -> None:
+    store.ingest_events(SAMPLE_EVENTS)
+    model_runs = store.children(SECOND_RUN)
+    assert sorted(run.job_name.rsplit(".", 1)[1] for run in model_runs) == [
+        "daily_orders",
+        "revenue_by_region",
+        "stg_customers",
+        "stg_orders",
+    ]
+    assert all(run.root_run_id == run.parent_run_id for run in model_runs)
+
+
+def test_the_parent_may_arrive_on_a_later_event(store: WorkloadStore, tmp_path: Path) -> None:
+    complete = _event(RUN, "COMPLETE", "2026-11-01T21:19:30Z")
+    complete["run"]["facets"]["parent"] = {
+        "_producer": "https://example.invalid/producer",
+        "_schemaURL": "https://openlineage.io/spec/facets/1-1-0/ParentRunFacet.json#/$defs/ParentRunFacet",
+        "run": {"runId": DAG_RUN},
+        "job": {"namespace": "demo", "name": "parent-job"},
+    }
+    store.ingest_events(
+        _write(tmp_path / "events.jsonl", [_event(RUN, "START", "2026-11-01T21:19:00Z"), complete])
+    )
+    run = store.workload_run(RUN)
+    assert run is not None and (run.parent_run_id, run.parent_job_name) == (DAG_RUN, "parent-job")
+
+
+def test_children_are_ordered_by_run_id(store: WorkloadStore) -> None:
+    store.ingest_events(SAMPLE_EVENTS)
+    ids = [run.run_id for run in store.children(SECOND_RUN)]
+    assert len(ids) == 4 and ids == sorted(ids)

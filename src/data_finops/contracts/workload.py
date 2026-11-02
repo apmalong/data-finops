@@ -68,6 +68,9 @@ class WorkloadRun(BaseModel):
     parent_run_id: str | None = None
     parent_job_namespace: str | None = None
     parent_job_name: str | None = None
+    root_run_id: str | None = None
+    root_job_namespace: str | None = None
+    root_job_name: str | None = None
     status: WorkloadRunStatus
     started_at: UtcDatetime | None = None
     ended_at: UtcDatetime | None = None

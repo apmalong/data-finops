@@ -3,7 +3,8 @@
 Shares the installation's database file with the Ledger but owns its own tables and imports
 nothing from billing. OpenLineage runs are stored as reported, one row per distinct event
 observation (ADR 0022); Workload Run status and times are derived from those observations
-when read, so they never depend on arrival order. Parent and root runs come with #43.
+when read, so they never depend on arrival order. Parent and root runs come only from the
+ParentRunFacet.
 """
 
 import hashlib
@@ -30,9 +31,17 @@ CREATE TABLE IF NOT EXISTS workload_lineage_event (
     digest TEXT NOT NULL,
     job_namespace TEXT NOT NULL,
     job_name TEXT NOT NULL,
+    parent_run_id TEXT,
+    parent_job_namespace TEXT,
+    parent_job_name TEXT,
+    root_run_id TEXT,
+    root_job_namespace TEXT,
+    root_job_name TEXT,
     event_json TEXT NOT NULL,
     PRIMARY KEY (run_id, event_type_key, event_time_us, digest)
 );
+CREATE INDEX IF NOT EXISTS workload_lineage_event_parent
+    ON workload_lineage_event (parent_run_id);
 """
 
 _START = "START"
@@ -67,6 +76,12 @@ class _Observation:
     event_time_us: int
     job_namespace: str
     job_name: str
+    parent_run_id: str | None
+    parent_job_namespace: str | None
+    parent_job_name: str | None
+    root_run_id: str | None
+    root_job_namespace: str | None
+    root_job_name: str | None
 
 
 class WorkloadStore:
@@ -108,7 +123,8 @@ class WorkloadStore:
                 }
                 stored_json = _canonical(document)
                 stored = self._connection.execute(
-                    "INSERT OR IGNORE INTO workload_lineage_event VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                    "INSERT OR IGNORE INTO workload_lineage_event"
+                    " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     (
                         event.run.runId,
                         json.dumps(event.eventType),  # keeps an absent type apart from ""
@@ -117,6 +133,7 @@ class WorkloadStore:
                         hashlib.sha256(stored_json.encode("utf-8")).hexdigest(),
                         event.job.namespace,
                         event.job.name,
+                        *_parent_and_root(event.run.facets.get("parent")),
                         stored_json,
                     ),
                 ).rowcount
@@ -139,7 +156,9 @@ class WorkloadStore:
         observations = [
             _Observation(*row)
             for row in self._connection.execute(
-                "SELECT event_type, event_time_us, job_namespace, job_name"
+                "SELECT event_type, event_time_us, job_namespace, job_name, parent_run_id,"
+                " parent_job_namespace, parent_job_name, root_run_id, root_job_namespace,"
+                " root_job_name"
                 " FROM workload_lineage_event WHERE run_id = ?"
                 " ORDER BY event_time_us, job_namespace, job_name",
                 (run_id,),
@@ -157,15 +176,33 @@ class WorkloadStore:
         else:
             status = WorkloadRunStatus.CONFLICTING
         first = observations[0]
+        # The earliest event carrying a ParentRunFacet names both parent and root.
+        parented = next((o for o in observations if o.parent_run_id), first)
         return WorkloadRun(
             system=_SYSTEM,
             job_namespace=first.job_namespace,
             job_name=first.job_name,
             run_id=run_id,
+            parent_run_id=parented.parent_run_id,
+            parent_job_namespace=parented.parent_job_namespace,
+            parent_job_name=parented.parent_job_name,
+            root_run_id=parented.root_run_id,
+            root_job_namespace=parented.root_job_namespace,
+            root_job_name=parented.root_job_name,
             status=status,
             started_at=_moment(min(starts)) if starts else None,
             ended_at=_moment(max(o.event_time_us for o in terminals)) if terminals else None,
         )
+
+    def children(self, run_id: str) -> list[WorkloadRun]:
+        """Runs whose events name `run_id` as their direct parent, ordered by run ID."""
+        child_ids = self._connection.execute(
+            "SELECT DISTINCT run_id FROM workload_lineage_event WHERE parent_run_id = ?"
+            " ORDER BY run_id",
+            (run_id,),
+        ).fetchall()
+        runs = (self.workload_run(child_id) for (child_id,) in child_ids)
+        return [run for run in runs if run is not None]
 
     @contextmanager
     def _write_transaction(self) -> Iterator[None]:
@@ -192,3 +229,18 @@ def _microseconds(moment: datetime) -> int:
 
 def _moment(microseconds: int) -> datetime:
     return _EPOCH + timedelta(microseconds=microseconds)
+
+
+def _parent_and_root(facet: Any) -> tuple[str | None, ...]:
+    """Parent and root run and job from a ParentRunFacet (validated at screening), or Nones."""
+    if not facet:
+        return (None,) * 6
+    root = facet.get("root") or {}
+    return (
+        facet["run"]["runId"],
+        facet["job"]["namespace"],
+        facet["job"]["name"],
+        root.get("run", {}).get("runId"),
+        root.get("job", {}).get("namespace"),
+        root.get("job", {}).get("name"),
+    )
