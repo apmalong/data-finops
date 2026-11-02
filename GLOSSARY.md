@@ -110,7 +110,7 @@ The quantity a provider charges a Query Execution for, after the provider's mini
 _Avoid_: scanned bytes (unless that is what is billed)
 
 **Coverage**:
-The fraction of a Billing Line's billed usage quantity accounted for by the Billable Usage of known Query Executions. Only the covered fraction can become Metered Shares.
+The fraction of a Billing Line's billed usage quantity accounted for by the Billable Usage of known Query Executions in the line's billing scope (account, region, workgroup if billed, charge period), linked or not. Only the covered fraction can become Metered Shares. Scope is accounting scope, not Evidence (ADR 0023).
 _Avoid_: match rate, completeness percentage
 
 **Query-history Completeness**:
