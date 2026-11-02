@@ -17,6 +17,15 @@ F. For shared pool, allocate by documented nonnegative weights over aligned time
 G. Quantize each line's allocations at that line's own decimal scale, never coarser than the currency minor unit, using largest remainder with a deterministic tie-break by stable target ID. For a negative amount, apply this to the absolute value and restore the sign. Enforce sum of allocations == line amount for every Billing Line, including negative adjustments.
 H. Materialize an Allocation Snapshot atomically under policy/input version and move the current pointer; replay with identical inputs and policy reproduces the identical snapshot rather than appending duplicate financial allocations. Earlier snapshots are retained.
 
+## M4 structure (decided 2026-11-02)
+1. **Pools.** Athena on-demand lines are metered by Coverage (step E). Adjustments are Unallocated (step B). Every other line is Unallocated as `ineligible`. Shared, direct and idle pools are explicit inputs to the engine, used by the golden synthetic scenario; nothing in the MVP produces them automatically from billing.
+2. **Shape.** The engine in `attribution` is pure: Billing Lines, Query Executions with Billable Usage, pools and policy in; Allocations out, no I/O. Billable Usage is a versioned provider policy in `providers.athena`. A thin Calculation Run reads the Ledger and the workload store, calls the engine and stores the result.
+3. **Scope.** Which Query Executions count toward a line's Coverage is the line's billing scope: accounting scope, not Evidence (ADR 0023). Unlinked Query Executions count and receive Metered Shares. The exact scope keys wait for a real export (#25).
+4. **Storage.** The `ledger` module stores Allocation Snapshots in the same SQLite file (ADR 0018) with an `input_digest` over the Export Snapshot, the Query Executions used and the policy versions. A Calculation Run with an identical digest creates nothing; new inputs create a new snapshot and move the current pointer (step H).
+5. **Cost columns.** Every FOCUS cost column (BilledCost, EffectiveCost, ListCost, ContractedCost) is allocated with the same weights, and each Cost Basis reconciles on its own.
+6. **Roll-ups.** Roll-ups to Model Executions and Workload Runs are pure sums over M3's Identity Links in `attribution`, never Allocations. An unlinked Query Execution rolls up to nothing.
+7. **Test seams.** The pure engine (golden scenarios and accounting invariants) and the Calculation Run on a temporary SQLite file.
+
 ## Pseudocode
 ```
 for pool in eligible_cost_pools:
