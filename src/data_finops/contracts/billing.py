@@ -5,6 +5,7 @@ declared; every other column, including provider `x_` extensions, is preserved.
 This is not a claim of full FOCUS conformance (see the standards matrix).
 """
 
+from decimal import Decimal
 from enum import StrEnum
 from typing import Any
 
@@ -67,6 +68,15 @@ class FocusBillingLine(BaseModel):
     """Provenance, not a FOCUS column (spec 02, OQ-21): the provider's raw double for
     every amount converted to a decimal, as its exact repr() string, keyed by column
     path (`column`, `column.field`, `column[index]`). Never compute with these."""
+
+    def cost(self, basis: CostBasis) -> Decimal:
+        """The line's amount in the given cost column."""
+        return {
+            CostBasis.BILLED_COST: self.BilledCost,
+            CostBasis.EFFECTIVE_COST: self.EffectiveCost,
+            CostBasis.LIST_COST: self.ListCost,
+            CostBasis.CONTRACTED_COST: self.ContractedCost,
+        }[basis]
 
     @model_validator(mode="after")
     def _periods_are_ordered(self) -> "FocusBillingLine":

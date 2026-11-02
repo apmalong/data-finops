@@ -6,19 +6,12 @@ compared with amounts in the same currency.
 """
 
 from collections import defaultdict
-from collections.abc import Callable, Mapping
+from collections.abc import Mapping
 from dataclasses import dataclass
 from decimal import Decimal
 from itertools import zip_longest
 
 from data_finops.contracts.billing import CostBasis, FocusBillingLine, FocusExport
-
-_COST_COLUMN: Mapping[CostBasis, Callable[[FocusBillingLine], Decimal]] = {
-    CostBasis.BILLED_COST: lambda line: line.BilledCost,
-    CostBasis.EFFECTIVE_COST: lambda line: line.EffectiveCost,
-    CostBasis.LIST_COST: lambda line: line.ListCost,
-    CostBasis.CONTRACTED_COST: lambda line: line.ContractedCost,
-}
 
 
 @dataclass(frozen=True)
@@ -75,10 +68,8 @@ class ReconciliationReport:
 def reconcile(
     source: FocusExport, stored: FocusExport, cost_basis: CostBasis
 ) -> ReconciliationReport:
-    column = _COST_COLUMN[cost_basis]
-
     def money(line: FocusBillingLine | None) -> Money | None:
-        return None if line is None else Money(column(line), line.BillingCurrency)
+        return None if line is None else Money(line.cost(cost_basis), line.BillingCurrency)
 
     # Lines pair by position; a line present on only one side shows as unbalanced.
     lines = tuple(
