@@ -37,7 +37,8 @@ class QueryExecution(BaseModel):
     scanned_bytes: int | None = Field(default=None, ge=0)
     """As reported; absent when the provider reported no statistics."""
     billable_bytes: int | None = Field(default=None, ge=0)
-    """Set only by the versioned provider policy (M4, ADR 0017)."""
+    """Set only from the versioned provider policy (ADR 0017), by the Calculation Run (#88);
+    for Athena, `providers.athena_billing.billable_bytes`."""
     correlation: QueryCorrelation | None = None
     provenance: str | None = None
     """The digest of the stored observation these fields come from."""
