@@ -26,6 +26,7 @@ from data_finops.contracts.workload import (
     DbtObservationFlag,
     LineageDirection,
     LineageEdge,
+    LinkResolution,
     ModelExecution,
     QueryExecution,
     QueryExecutionFlag,
@@ -40,6 +41,7 @@ from data_finops.dbt.artifacts import (
     Timing,
     screen_dbt_artifact,
 )
+from data_finops.identity.links import ModelExecutionKey, resolve_model_run
 from data_finops.lineage.openlineage import RunEvent
 from data_finops.lineage.validation import Rejection, RejectionKind, screen_events
 from data_finops.providers.athena import EntryRejection, screen_query_history
@@ -611,6 +613,38 @@ class WorkloadStore:
         ).fetchall()
         return [row[0] for row in rows]
 
+    def model_execution_of_run(self, run_id: str) -> LinkResolution | None:
+        """The Model Execution a dbt-ol model run reports, as a Link Outcome (ADR 0022).
+
+        Evidence is the `dbt_node.unique_id` job facet with the `dbt_run.invocation_id` run
+        facet, taken from every stored observation of the run. A run without them has no
+        evidence; None if the run is unknown. Derived when asked, so arrival order of events
+        and run results does not matter.
+        """
+        events = self.stored_events(run_id)
+        if not events:
+            return None
+        claims = {claim for claim in map(_model_run_claim, events) if claim}
+        return resolve_model_run(run_id, claims, self._reported_model_executions(claims))
+
+    def _reported_model_executions(
+        self, claims: set[ModelExecutionKey]
+    ) -> dict[ModelExecutionKey, int]:
+        """For a single claim, how many different versions run results reported of it.
+
+        Changed copies of a run-results file that agree on this node count once. Several
+        claims are ambiguous whatever was reported, so they are not looked up.
+        """
+        if len(claims) != 1:
+            return {}
+        (key,) = claims
+        (versions,) = self._connection.execute(
+            "SELECT COUNT(*) FROM (SELECT DISTINCT status, started_us, completed_us"
+            " FROM workload_model_execution WHERE invocation_id = ? AND node_id = ?)",
+            key,
+        ).fetchone()
+        return {key: versions}
+
     def _store_edges(self, key: _EventKey, digest: str, event: RunEvent) -> None:
         """Edges from the event's inputs and outputs, names kept exactly as reported."""
         self._connection.executemany(
@@ -646,6 +680,16 @@ class WorkloadStore:
             self._connection.execute("ROLLBACK")
             raise
         self._connection.execute("COMMIT")
+
+
+def _model_run_claim(event_json: str) -> ModelExecutionKey | None:
+    """(invocation, node) from one stored event's dbt-ol facets, if it carries both."""
+    event = json.loads(event_json)
+    node = event.get("job", {}).get("facets", {}).get("dbt_node", {}).get("unique_id")
+    invocation = event.get("run", {}).get("facets", {}).get("dbt_run", {}).get("invocation_id")
+    if isinstance(node, str) and node and isinstance(invocation, str) and invocation:
+        return ModelExecutionKey(invocation_id=invocation, node_id=node)
+    return None
 
 
 def _flags(observations: list[_Observation]) -> tuple[WorkloadRunFlag, ...]:
