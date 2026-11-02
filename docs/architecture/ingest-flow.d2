@@ -1,0 +1,112 @@
+# How each input reaches the shared SQLite file (M1–M2).
+# Render: d2 --layout elk docs/architecture/ingest-flow.d2 docs/architecture/ingest-flow.svg
+direction: right
+
+classes: {
+  input: {
+    shape: page
+    style: {fill: "#eef2ff"; stroke: "#4338ca"}
+  }
+  step: {
+    style: {fill: "#ffffff"; stroke: "#334155"; border-radius: 6}
+  }
+  outcome: {
+    shape: oval
+    style: {fill: "#f0fdf4"; stroke: "#15803d"; font-size: 13}
+  }
+  refused: {
+    shape: rectangle
+    style: {fill: "#fef2f2"; stroke: "#b91c1c"; font-size: 13; border-radius: 6}
+  }
+  table: {
+    shape: cylinder
+    style: {fill: "#f8fafc"; stroke: "#475569"; font-size: 13}
+  }
+  later: {
+    style: {stroke-dash: 4; fill: "#ffffff"; stroke: "#94a3b8"; font-color: "#64748b"}
+  }
+}
+
+# Billing: authoritative cost
+focus: FOCUS export\n(JSON fixture, or Parquet files\n+ publication metadata) {class: input}
+billing: {
+  label: Billing → Ledger
+  read: billing.focus\nload_export / load_parquet_export\nsha256 per file, decimals kept exact {class: step}
+  import: Ledger.import_snapshot\nscope = account + billing period {class: step}
+  new: new (current) {class: outcome}
+  superseded: superseded (history) {class: outcome}
+  replay: replay (nothing stored) {class: outcome}
+  conflict: SnapshotConflictError\nsame ID, other content {class: refused}
+  read -> import
+  import -> new
+  import -> superseded
+  import -> replay
+  import -> conflict
+}
+ledger_tables: Ledger tables {
+  export_snapshot {class: table}
+  billing_line {class: table}
+}
+focus -> billing.read
+billing.new -> ledger_tables
+billing.superseded -> ledger_tables
+
+# OpenLineage: Workload Runs and lineage
+events: OpenLineage events\n(JSON array or JSON Lines) {class: input}
+lineage: {
+  label: WorkloadStore.ingest_events
+  screen: lineage.validation.screen_events\nper event, against bundled 2-0-2 schemas {class: step}
+  rejected: rejected by kind, never stored\nnot UTF-8 · not JSON · too large · too deep\ninvalid RunEvent / ParentRunFacet / … {class: refused}
+  unsupported: unsupported, reported\nJobEvent · DatasetEvent {class: outcome}
+  clean: remove SQL query text and stack traces\neventTime to UTC · sha256 of stored JSON {class: step}
+  key: key = run · event type · time + digest {class: step}
+  stored: stored {class: outcome}
+  duplicate: duplicate (nothing stored) {class: outcome}
+  changed: changed copy, kept beside\nand flagged on the run {class: outcome}
+  screen -> rejected
+  screen -> unsupported
+  screen -> clean: valid RunEvent
+  clean -> key
+  key -> stored
+  key -> duplicate
+  key -> changed
+}
+workload_events: Workload store: OpenLineage {
+  workload_lineage_event {class: table}
+  workload_lineage_edge {class: table}
+}
+events -> lineage.screen
+lineage.stored -> workload_events
+lineage.changed -> workload_events
+
+# dbt: Model Executions and dbt Nodes
+dbt: dbt artifacts\nrun_results.json v6 · manifest.json v12 {class: input}
+artifacts: {
+  label: WorkloadStore.ingest_dbt_artifact
+  screen: dbt.artifacts.screen_dbt_artifact\nwhole file, extra fields allowed {class: step}
+  rejected: rejected with a fixed reason\ntoo large · not a dbt artifact · unsupported version\ndoes not match · no invocation_id · node repeated or misfiled {class: refused}
+  key: key = invocation · kind · file sha256 {class: step}
+  stored: stored {class: outcome}
+  duplicate: duplicate (nothing stored) {class: outcome}
+  changed: changed copy, kept beside\nand flagged {class: outcome}
+  screen -> rejected
+  screen -> key
+  key -> stored
+  key -> duplicate
+  key -> changed
+}
+workload_dbt: Workload store: dbt {
+  workload_dbt_artifact {class: table}
+  workload_model_execution: workload_model_execution\n(run results) {class: table}
+  workload_manifest_node: workload_manifest_node\n(manifest: no SQL, docs or macros) {class: table}
+}
+dbt -> artifacts.screen
+artifacts.stored -> workload_dbt
+artifacts.changed -> workload_dbt
+
+# Athena: read, not stored yet
+athena: Athena query history\nBatchGetQueryExecution {class: input}
+athena_read: providers.athena\nload_query_executions\n→ Query Executions {class: step}
+m3: M3: correlate with Model Executions\n(Identity Links) — not built {class: later}
+athena -> athena_read
+athena_read -> m3: {style.stroke-dash: 4}
