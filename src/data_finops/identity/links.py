@@ -62,8 +62,8 @@ def resolve_model_run(
 ) -> LinkResolution:
     """Link a dbt-ol model run to the Model Execution its facets name (ADR 0022).
 
-    `claims` are the (invocation, node) pairs the run's observations name through
-    `dbt_run.invocation_id` and `dbt_node.unique_id`. See `_resolve` for the rules.
+    `claims` pair every `dbt_run.invocation_id` with every `dbt_node.unique_id` the run's
+    observations carry, so the two may come from different events of the run. See `_resolve`.
     """
     return _resolve(
         Identity.WORKLOAD_RUN,
@@ -99,13 +99,15 @@ def resolve_query(
     )
 
 
-def resolve_invocation(invocation_id: str, runs: set[str]) -> LinkResolution:
-    """Link a dbt invocation to the Workload Run that reported it (ADR 0022).
+def resolve_invocation(invocation_id: str, reporters: Mapping[str, bool]) -> LinkResolution:
+    """Link a dbt invocation to the Workload Run that reported it (spec 03 step D).
 
-    `runs` are the runs whose events carry `dbt_run.invocation_id` for this invocation but no
-    `dbt_node` job facet (dbt-ol's per-model runs carry both). None is unmatched, for example
-    `dbt-ol seed`, which emits no `dbt_run` facet; several are ambiguous.
+    `reporters` maps each run whose events carry `dbt_run.invocation_id` for this invocation
+    to whether any of its events also carries a `dbt_node` job facet. Those are dbt-ol's
+    per-model runs, not the invocation's own run. No such run is unmatched (for example
+    `dbt-ol seed`, which emits no `dbt_run` facet); several are ambiguous.
     """
+    runs = {run_id for run_id, is_model_run in reporters.items() if not is_model_run}
     if not runs:
         return LinkResolution(outcome=LinkOutcome.UNMATCHED)
     if len(runs) > 1:
@@ -171,6 +173,11 @@ _DECODER = json.JSONDecoder(object_pairs_hook=_unique_keys)
 
 def _compact(document: dict[str, str]) -> str:
     return json.dumps(document, sort_keys=True, separators=(",", ":"))
+
+
+def is_identifier(value: object) -> TypeGuard[str]:
+    """A string with something other than whitespace: the least an identifier in Evidence is."""
+    return _identifier(value)
 
 
 def _identifier(value: object) -> TypeGuard[str]:

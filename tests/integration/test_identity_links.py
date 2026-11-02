@@ -1,6 +1,7 @@
 """Identity Links through the workload store's public interface (M3 seam, #60)."""
 
 import json
+import sqlite3
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
@@ -520,3 +521,41 @@ def test_an_invocation_known_only_from_its_model_runs_is_unmatched(
     store.ingest_events(_write_events(tmp_path / "e.jsonl", [event]))
     resolution = store.workload_run_of_invocation("inv-7")
     assert resolution is not None and resolution.outcome == LinkOutcome.UNMATCHED
+
+
+def test_a_model_run_whose_facets_arrive_on_different_events_still_links(
+    store: WorkloadStore, tmp_path: Path
+) -> None:
+    store.ingest_dbt_artifact(RUN_RESULTS)
+    start = _model_event("START", "2026-10-01T01:00:00Z", "model.demo.orders", "inv-001")
+    del start["job"]["facets"]["dbt_node"]
+    end = _model_event("COMPLETE", "2026-10-01T01:00:09Z", "model.demo.orders", "inv-001")
+    del end["run"]["facets"]["dbt_run"]
+    store.ingest_events(_write_events(tmp_path / "e.jsonl", [start, end]))
+    resolution = store.model_execution_of_run(MODEL_RUN)
+    assert resolution is not None and resolution.outcome == LinkOutcome.LINKED
+    assert store.workload_run_of_invocation("inv-001") == LinkResolution(
+        outcome=LinkOutcome.UNMATCHED
+    )
+
+
+def test_a_blank_dbt_node_is_not_evidence(store: WorkloadStore, tmp_path: Path) -> None:
+    store.ingest_dbt_artifact(RUN_RESULTS)
+    event = _model_event("COMPLETE", "2026-10-01T01:00:09Z", " ", "inv-001")
+    store.ingest_events(_write_events(tmp_path / "e.jsonl", [event]))
+    resolution = store.model_execution_of_run(MODEL_RUN)
+    assert resolution is not None and resolution.outcome == LinkOutcome.NO_EVIDENCE
+
+
+def test_a_database_file_from_before_the_m3_columns_is_refused(tmp_path: Path) -> None:
+    path = tmp_path / "old.sqlite"
+    connection = sqlite3.connect(path)
+    connection.execute(
+        "CREATE TABLE workload_lineage_event (run_id TEXT, event_type_key TEXT,"
+        " event_type TEXT, event_time_us INTEGER, digest TEXT, job_namespace TEXT,"
+        " job_name TEXT, parent_run_id TEXT, parent_job_namespace TEXT, parent_job_name TEXT,"
+        " root_run_id TEXT, root_job_namespace TEXT, root_job_name TEXT, event_json TEXT)"
+    )
+    connection.close()
+    with pytest.raises(RuntimeError, match="dbt_invocation_id, dbt_node_id"):
+        WorkloadStore(path)

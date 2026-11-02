@@ -45,6 +45,7 @@ from data_finops.dbt.artifacts import (
 from data_finops.identity.links import (
     ModelExecutionKey,
     QueryExecutionKey,
+    is_identifier,
     resolve_invocation,
     resolve_model_run,
     resolve_query,
@@ -133,6 +134,12 @@ CREATE TABLE IF NOT EXISTS workload_query_execution (
 CREATE INDEX IF NOT EXISTS workload_query_execution_model
     ON workload_query_execution (invocation_id, node_id);
 """
+
+_REQUIRED_COLUMNS = {
+    "workload_lineage_event": {"dbt_invocation_id", "dbt_node_id"},
+    "workload_query_execution": {"invocation_id", "node_id"},
+}
+"""Columns added after a table was first released (M3); checked when a store is opened."""
 
 _START = "START"
 _TERMINAL = {
@@ -258,7 +265,25 @@ class WorkloadStore:
     def __init__(self, path: Path) -> None:
         self._connection = sqlite3.connect(path, isolation_level=None)
         self._connection.execute("PRAGMA journal_mode=WAL")
+        self._require_current_schema()
         self._connection.executescript(_SCHEMA)
+
+    def _require_current_schema(self) -> None:
+        """Refuse a database file whose workload tables predate columns this code reads.
+
+        Runs before the schema script, whose indexes need those columns. `CREATE TABLE IF NOT
+        EXISTS` never adds columns to an existing table, and there are
+        no migrations yet, so such a file is reported rather than half-used.
+        """
+        for table, columns in _REQUIRED_COLUMNS.items():
+            present = {row[1] for row in self._connection.execute(f"PRAGMA table_info({table})")}
+            missing = columns - present
+            if present and missing:
+                self._connection.close()
+                raise RuntimeError(
+                    f"{table} lacks {', '.join(sorted(missing))}: this database file predates"
+                    " the current workload schema; recreate it and re-ingest"
+                )
 
     def close(self) -> None:
         self._connection.close()
@@ -683,32 +708,35 @@ class WorkloadStore:
         ).fetchall()
         if not rows:
             return None
+        invocations = {invocation for invocation, _ in rows if invocation is not None}
+        nodes = {node for _, node in rows if node is not None}
         claims = {
             ModelExecutionKey(invocation_id=invocation, node_id=node)
-            for invocation, node in rows
-            if invocation is not None and node is not None
+            for invocation in invocations
+            for node in nodes
         }
         return resolve_model_run(run_id, claims, self._reported_model_executions(claims))
 
     def workload_run_of_invocation(self, invocation_id: str) -> LinkResolution | None:
-        """The Workload Run that reported this dbt invocation, as a Link Outcome (ADR 0022).
+        """The Workload Run that reported this dbt invocation, as a Link Outcome.
 
-        That is a run whose events carry `dbt_run.invocation_id` and never a `dbt_node` job
-        facet. None if neither run results nor any event know the invocation. Its parent and
-        root (for example the Airflow task) are then `workload_run`'s answer for that run.
+        Spec 03 step D. None if neither run results nor any event know the invocation. The
+        linked run's parent and root (for example the Airflow task) are then `workload_run`'s
+        answer for that run.
         """
-        runs = {
-            run_id
-            for (run_id,) in self._connection.execute(
-                "SELECT DISTINCT run_id FROM workload_lineage_event WHERE dbt_invocation_id = ?"
-                " AND run_id NOT IN (SELECT run_id FROM workload_lineage_event"
-                " WHERE dbt_node_id IS NOT NULL)",
+        reporters = dict(
+            self._connection.execute(
+                "SELECT run_id, MAX(dbt_node_id IS NOT NULL) FROM workload_lineage_event"
+                " WHERE run_id IN (SELECT run_id FROM workload_lineage_event"
+                " WHERE dbt_invocation_id = ?) GROUP BY run_id",
                 (invocation_id,),
-            )
-        }
-        if not runs and not self._invocation_known(invocation_id):
+            ).fetchall()
+        )
+        if not reporters and not self._invocation_known(invocation_id):
             return None
-        return resolve_invocation(invocation_id, runs)
+        return resolve_invocation(
+            invocation_id, {run_id: bool(model) for run_id, model in reporters.items()}
+        )
 
     def _invocation_known(self, invocation_id: str) -> bool:
         found = self._connection.execute(
@@ -824,7 +852,7 @@ def _dbt_ol_identifiers(event: dict[str, Any]) -> tuple[str | None, str | None]:
 
     def facet_field(facets: Any, facet: str, field: str) -> str | None:
         value = facets.get(facet, {}).get(field) if isinstance(facets, dict) else None
-        return value if isinstance(value, str) and value else None
+        return value if is_identifier(value) else None
 
     run_facets = event.get("run", {}).get("facets")
     job_facets = event.get("job", {}).get("facets")
