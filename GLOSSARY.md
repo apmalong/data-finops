@@ -65,6 +65,14 @@ _Avoid_: match, correlation (alone), join
 The explicit identifier or trusted metadata that justifies an Identity Link or an Allocation. Time overlap alone is never Evidence.
 _Avoid_: signal, heuristic
 
+**Trusted Query Comment**:
+The dbt comment at the very start of a query's text that names the dbt Node and invocation that issued it. A comment anywhere else in the text is not Evidence.
+_Avoid_: query tag, query header
+
+**Link Outcome**:
+What became of an attempt to link a workload identity: linked (exactly one counterpart), no evidence, unmatched (Evidence names a counterpart nobody reported) or ambiguous (more than one candidate). Only linked makes an Identity Link.
+_Avoid_: match status, correlation result
+
 ## Lineage
 
 **Data Asset**:
