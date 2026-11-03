@@ -19,6 +19,7 @@ from data_finops.identity.links import ModelExecutionKey
 
 _TRUSTED_QUERY_COMMENT = "dbt-query-comment"
 _OPENLINEAGE_RUN = "openlineage-run"
+_ATHENA_QUERY = "athena"
 
 
 @dataclass(frozen=True, order=True)
@@ -26,6 +27,20 @@ class RollupTotal:
     currency: str
     cost_basis: CostBasis
     amount: Decimal
+
+
+def query_execution_evidence(query_execution_id: str) -> str:
+    """The Evidence an Allocation to an Athena Query Execution carries for the query itself."""
+    return f"{_ATHENA_QUERY}:{query_execution_id}"
+
+
+def query_execution_of(allocation: Allocation) -> str | None:
+    """The Athena Query Execution an Allocation's Evidence names, or None."""
+    for ref in allocation.evidence_refs:
+        kind, _, query_execution_id = ref.partition(":")
+        if kind == _ATHENA_QUERY and query_execution_id:
+            return query_execution_id
+    return None
 
 
 def model_execution_evidence(model_execution: ModelExecutionKey) -> str:

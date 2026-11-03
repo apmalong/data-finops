@@ -171,3 +171,9 @@ class FocusExport(BaseModel):
 def snapshot_id_of(line_ref: str) -> str:
     """The Export Snapshot a Billing Line reference (`<snapshot_id>#<position>`) points into."""
     return line_ref.rpartition("#")[0]
+
+
+def parse_line_ref(line_ref: str) -> tuple[str, int] | None:
+    """A Billing Line reference's Export Snapshot and position, or None if malformed."""
+    snapshot_id, _, position = line_ref.rpartition("#")
+    return (snapshot_id, int(position)) if snapshot_id and position.isdigit() else None

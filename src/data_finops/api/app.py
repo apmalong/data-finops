@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Annotated, Any, Literal
 
 from fastapi import Depends, FastAPI, Query, Request, Response
+from fastapi import Path as PathParameter
 from fastapi.exceptions import RequestValidationError
 from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse
@@ -23,6 +24,7 @@ from data_finops.reporting import (
     AllocationPage,
     AmbiguousScope,
     ConflictingFilters,
+    CostExplanation,
     CostSummaries,
     DatabaseUnavailable,
     NotFound,
@@ -99,6 +101,11 @@ _PAGE_PROBLEMS: dict[int | str, dict[str, Any]] = {
 _HEALTH_RESPONSES: dict[int | str, dict[str, Any]] = {
     401: _READ_PROBLEMS[401],
     503: {"model": Health, "description": "The database cannot be opened."},
+}
+
+_EXPLANATION_PROBLEMS: dict[int | str, dict[str, Any]] = {
+    **_READ_PROBLEMS,
+    404: _problem_doc("No such Allocation."),
 }
 
 _RECEIVER_RESPONSES: dict[int | str, dict[str, Any]] = {
@@ -195,6 +202,15 @@ def create_app(db: Path, *, token: str | None = None) -> FastAPI:
             limit=limit,
             offset=offset,
         )
+
+    @app.get("/v1/allocations/{ref}/explanation", responses=_EXPLANATION_PROBLEMS)
+    def explanation(
+        read_model: Annotated[Reporting, Depends(reporting)],
+        ref: Annotated[str, PathParameter(max_length=256)],
+    ) -> CostExplanation:
+        """The Cost Explanation of one Allocation, addressed `<calculation_run_id>#<position>`
+        (the `#` sent as `%23`): Billing Line, Allocation, Evidence resolved, Roll-ups."""
+        return read_model.explanation(ref)
 
     @app.exception_handler(NotFound)
     def not_found(request: Request, error: NotFound) -> JSONResponse:

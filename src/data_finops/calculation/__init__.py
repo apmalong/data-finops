@@ -23,7 +23,11 @@ from data_finops.attribution.engine import (
     PooledLine,
     allocate,
 )
-from data_finops.attribution.rollups import model_execution_evidence, workload_run_evidence
+from data_finops.attribution.rollups import (
+    model_execution_evidence,
+    query_execution_evidence,
+    workload_run_evidence,
+)
 from data_finops.contracts.billing import (
     FocusBillingLine,
     FocusChargeCategory,
@@ -146,7 +150,7 @@ def _evidence(query: QueryExecution, store: WorkloadStore) -> tuple[str, ...]:
     and every Workload Run that invocation was reported under (the invocation's run, its
     parents and its root), so Roll-ups read them from the stored snapshot."""
     # A LinkResolution carries a link exactly when its outcome is `linked` (contract).
-    refs = [f"athena:{query.query_execution_id}"]
+    refs = [query_execution_evidence(query.query_execution_id)]
     resolution = store.model_execution_of_query(
         query.account_id, query.region, query.query_execution_id
     )

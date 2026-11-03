@@ -9,6 +9,8 @@ from data_finops.attribution.rollups import (
     RollupTotal,
     model_execution_evidence,
     model_execution_rollups,
+    query_execution_evidence,
+    query_execution_of,
     roll_up,
     workload_run_evidence,
     workload_run_rollups,
@@ -149,3 +151,12 @@ def test_only_well_formed_model_execution_evidence_links() -> None:
         _share("q-3", "1.00", "dbt-query-comment::model.demo.orders"),
     ]
     assert model_execution_rollups(allocations) == {}
+
+
+def test_the_query_execution_is_read_from_its_own_evidence_wherever_it_is_recorded() -> None:
+    assert query_execution_evidence("q-9") == "athena:q-9"
+    reordered = _share("q-9", "1.00").model_copy(
+        update={"evidence_refs": [model_execution_evidence(ORDERS), "athena:q-9"]}
+    )
+    assert query_execution_of(reordered) == "q-9"
+    assert query_execution_of(_unallocated("1.00")) is None
