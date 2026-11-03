@@ -10,7 +10,11 @@ from data_finops.contracts.allocation import Allocation, AllocationCategory, Con
 from data_finops.contracts.billing import CostBasis, FocusBillingLine, SnapshotScope
 from data_finops.contracts.types import CurrencyCode, DecimalString, UtcDatetime
 from data_finops.contracts.workload import (
+    DataAsset,
     DbtNode,
+    LineageEdge,
+    LinkOutcome,
+    LinkResolution,
     ModelExecution,
     QueryExecution,
     WorkloadRun,
@@ -231,6 +235,52 @@ class CostExplanation(_Response):
     workload_runs: list[ExplainedWorkloadRun]
     """Nearest first, then parents, then the root, as the Evidence records them."""
     rollups: list[ExplainedRollup]
+
+
+class RootRunPage(_Response):
+    """The topmost Workload Runs, reported or only named as another run's parent or root."""
+
+    total: int
+    limit: int
+    offset: int
+    items: list[ExplainedWorkloadRun]
+
+
+class QueryLink(_Response):
+    """A Query Execution whose Trusted Query Comment names a Model Execution, and what became
+    of that claim (its Link Outcome): only `linked` makes an Identity Link."""
+
+    query_execution: QueryExecution
+    outcome: LinkOutcome
+
+
+class LineageModelExecution(_Response):
+    """A Model Execution in a run's lineage, with the Query Executions that claim it."""
+
+    invocation_id: str
+    node_id: str
+    execution: ModelExecution | None
+    queries: list[QueryLink]
+
+
+class RunLineage(_Response):
+    """One Workload Run and what surrounds it: its family, Data Assets, and the Identity
+    Links that reach its Model Executions and their Query Executions (ADR 0022)."""
+
+    run_id: str
+    run: WorkloadRun | None
+    """None for a run known only as another run's parent or root."""
+    ancestors: list[ExplainedWorkloadRun]
+    """Nearest first, then the root."""
+    children: list[WorkloadRun]
+    data_assets: list[DataAsset]
+    lineage_edges: list[LineageEdge]
+    invocation_id: str | None
+    """The dbt invocation this run reported as its own, if any."""
+    model_run_link: LinkResolution | None
+    """For a dbt-ol model run: the Link Outcome to its Model Execution (ADR 0022)."""
+    model_executions: list[LineageModelExecution]
+    """The invocation's Model Executions, or the model run's linked one."""
 
 
 class CostSummaries(_Response):

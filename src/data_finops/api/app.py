@@ -33,6 +33,8 @@ from data_finops.reporting import (
     Reporting,
     RollupLevel,
     RollupPage,
+    RootRunPage,
+    RunLineage,
 )
 from data_finops.workload.store import IngestResult, UnusableDatabaseError, WorkloadStore
 
@@ -110,6 +112,11 @@ _HEALTH_RESPONSES: dict[int | str, dict[str, Any]] = {
 _EXPLANATION_PROBLEMS: dict[int | str, dict[str, Any]] = {
     **_READ_PROBLEMS,
     404: _problem_doc("No such Allocation."),
+}
+
+_LINEAGE_PROBLEMS: dict[int | str, dict[str, Any]] = {
+    **_READ_PROBLEMS,
+    404: _problem_doc("No event reports or names that Workload Run."),
 }
 
 _RECEIVER_RESPONSES: dict[int | str, dict[str, Any]] = {
@@ -269,6 +276,20 @@ def create_app(db: Path, *, token: str | None = None) -> FastAPI:
             billing_period=billing_period,
             source=source,
         )
+
+    @app.get("/v1/lineage", responses=_LINEAGE_PROBLEMS)
+    def lineage(
+        read_model: Annotated[Reporting, Depends(reporting)],
+        run_id: Annotated[str | None, Query(max_length=256)] = None,
+        limit: Annotated[int, Query(ge=1, le=MAX_PAGE_SIZE)] = 100,
+        offset: Annotated[int, Query(ge=0)] = 0,
+    ) -> RootRunPage | RunLineage:
+        """Without `run_id`, the topmost Workload Runs (paged); with it, that run's lineage:
+        its family, Data Assets, Lineage Edges and the Identity Links that reach its Model
+        Executions and their Query Executions, each with its Link Outcome."""
+        if run_id is None:
+            return read_model.root_runs(limit=limit, offset=offset)
+        return read_model.lineage(run_id)
 
     @app.get("/v1/allocations/{ref}/explanation", responses=_EXPLANATION_PROBLEMS)
     def explanation(

@@ -1,5 +1,6 @@
 """Answers from the Ledger for the API (spec 06), opened per request on a database file."""
 
+import json
 import sqlite3
 from collections import defaultdict
 from collections.abc import Callable
@@ -49,11 +50,15 @@ from data_finops.reporting.models import (
     ExplainedRollup,
     ExplainedWorkloadRun,
     ExportSnapshotRead,
+    LineageModelExecution,
     Provenance,
+    QueryLink,
     RollupAmount,
     RollupEntry,
     RollupLevel,
     RollupPage,
+    RootRunPage,
+    RunLineage,
     ServedSnapshot,
     UnallocatedAmount,
 )
@@ -322,6 +327,72 @@ class Reporting:
             return None
         later = runs[runs.index(calculation_run_id) + 1 :]
         return later[0] if later else None
+
+    def root_runs(self, *, limit: int = 100, offset: int = 0) -> RootRunPage:
+        """The topmost Workload Runs: each reported run's last ancestor, or the run itself if
+        it has none, by run ID. A root known only from a ParentRunFacet is listed too."""
+        _check_page(limit, offset)
+        roots = sorted(
+            {(self._store.ancestors(run_id) or [run_id])[-1] for run_id in self._store.run_ids()}
+        )
+        return RootRunPage(
+            total=len(roots),
+            limit=limit,
+            offset=offset,
+            items=[
+                ExplainedWorkloadRun(run_id=run_id, run=self._store.workload_run(run_id))
+                for run_id in roots[offset : offset + limit]
+            ],
+        )
+
+    def lineage(self, run_id: str) -> RunLineage:
+        """One Workload Run's lineage; NotFound if no event reports or names it."""
+        run = self._store.workload_run(run_id)
+        children = self._store.children(run_id)
+        if run is None and not children:
+            raise NotFound("no such Workload Run")
+        invocation_id = self._store.invocation_of_run(run_id)
+        model_run_link = (
+            self._store.model_execution_of_run(run_id) if invocation_id is None else None
+        )
+        if invocation_id is not None:
+            keys = [
+                (m.invocation_id, m.node_id) for m in self._store.model_executions(invocation_id)
+            ]
+        elif model_run_link is not None and model_run_link.link is not None:
+            keys = [tuple(json.loads(model_run_link.link.target_id))]
+        else:
+            keys = []
+        return RunLineage(
+            run_id=run_id,
+            run=run,
+            ancestors=[
+                ExplainedWorkloadRun(run_id=a, run=self._store.workload_run(a))
+                for a in self._store.ancestors(run_id)
+            ],
+            children=children,
+            data_assets=self._store.data_assets(run_id),
+            lineage_edges=self._store.lineage_edges(run_id),
+            invocation_id=invocation_id,
+            model_run_link=model_run_link,
+            model_executions=[self._lineage_model_execution(*key) for key in keys],
+        )
+
+    def _lineage_model_execution(self, invocation_id: str, node_id: str) -> LineageModelExecution:
+        return LineageModelExecution(
+            invocation_id=invocation_id,
+            node_id=node_id,
+            execution=next(
+                (m for m in self._store.model_executions(invocation_id) if m.node_id == node_id),
+                None,
+            ),
+            queries=[
+                QueryLink(query_execution=query, outcome=resolution.outcome)
+                for query, resolution in self._store.query_links_of_model_execution(
+                    invocation_id, node_id
+                )
+            ],
+        )
 
     def explanation(self, ref: str) -> CostExplanation:
         """The Cost Explanation of the Allocation at `ref` (`<calculation_run_id>#<position>`),
