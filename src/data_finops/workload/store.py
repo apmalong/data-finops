@@ -420,6 +420,28 @@ class WorkloadStore:
         runs = (self.workload_run(candidate) for (candidate,) in candidates)
         return [run for run in runs if run is not None and run.parent_run_id == run_id]
 
+    def ancestors(self, run_id: str) -> list[str]:
+        """The runs above `run_id`: its reported parents, nearest first, then the root any
+        of them names, if not already among them. A parent or root known only from a
+        ParentRunFacet is included; reported cycles are walked once.
+        """
+        found: list[str] = []
+        roots: list[str] = []
+        current: str | None = run_id
+        while current is not None:
+            run = self.workload_run(current)
+            if run is None:
+                break
+            if run.root_run_id is not None:
+                roots.append(run.root_run_id)
+            current = run.parent_run_id
+            if current in found or current == run_id:
+                break
+            if current is not None:
+                found.append(current)
+        found += [root for root in dict.fromkeys(roots) if root != run_id and root not in found]
+        return found
+
     def ingest_dbt_artifact(self, path: Path) -> ArtifactIngestResult:
         """Store a dbt run-results (v6) or manifest (v12) file, keyed by invocation and hash.
 

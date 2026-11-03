@@ -23,12 +23,14 @@ from data_finops.attribution.engine import (
     PooledLine,
     allocate,
 )
+from data_finops.attribution.rollups import model_execution_evidence, workload_run_evidence
 from data_finops.contracts.billing import (
     FocusBillingLine,
     FocusChargeCategory,
     SnapshotScope,
 )
-from data_finops.contracts.workload import LinkOutcome, QueryExecution
+from data_finops.contracts.workload import QueryExecution
+from data_finops.identity.links import ModelExecutionKey
 from data_finops.ledger import AllocationStoreOutcome, Ledger
 from data_finops.providers import athena_billing
 from data_finops.workload.store import WorkloadStore
@@ -139,14 +141,22 @@ def _pool(
 
 
 def _evidence(query: QueryExecution, store: WorkloadStore) -> tuple[str, ...]:
-    """The query itself, and the Model Execution its Identity Link names, if linked."""
+    """The query itself and, through M3's Identity Links, the Model Execution it belongs to
+    and every Workload Run that invocation was reported under (the invocation's run, its
+    parents and its root), so Roll-ups read them from the stored snapshot."""
+    # A LinkResolution carries a link exactly when its outcome is `linked` (contract).
     refs = [f"athena:{query.query_execution_id}"]
     resolution = store.model_execution_of_query(
         query.account_id, query.region, query.query_execution_id
     )
-    if resolution is not None and resolution.outcome == LinkOutcome.LINKED and resolution.link:
-        invocation_id, node_id = json.loads(resolution.link.target_id)
-        refs.append(f"dbt-query-comment:{invocation_id}:{node_id}")
+    if resolution is None or resolution.link is None:
+        return tuple(refs)
+    model_execution = ModelExecutionKey(*json.loads(resolution.link.target_id))
+    refs.append(model_execution_evidence(model_execution))
+    run = store.workload_run_of_invocation(model_execution.invocation_id)
+    if run is not None and run.link is not None:
+        runs = [run.link.target_id, *store.ancestors(run.link.target_id)]
+        refs += [workload_run_evidence(run_id) for run_id in runs]
     return tuple(refs)
 
 
