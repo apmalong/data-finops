@@ -1,0 +1,511 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "data-finops",
+    "summary": "Where the cloud bill went.",
+    "version": "v1"
+  },
+  "paths": {
+    "/health": {
+      "get": {
+        "summary": "Health",
+        "description": "Whether the database opens as a current data-finops database.",
+        "operationId": "health_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Health"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Health"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/costs/summary": {
+      "get": {
+        "summary": "Cost Summary",
+        "description": "One Cost Summary per Snapshot Scope, for the scope's current Allocation Snapshot.",
+        "operationId": "cost_summary_v1_costs_summary_get",
+        "parameters": [
+          {
+            "name": "cost_basis",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/CostBasis",
+              "default": "BilledCost"
+            }
+          },
+          {
+            "name": "billing_account_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 128
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Billing Account Id"
+            }
+          },
+          {
+            "name": "billing_period",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Billing Period"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CostSummaries"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request: the detail names the fields, never their values.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "description": "An RFC 9457 Problem Details body.",
+                  "properties": {
+                    "type": {
+                      "default": "about:blank",
+                      "title": "Type",
+                      "type": "string"
+                    },
+                    "title": {
+                      "title": "Title",
+                      "type": "string"
+                    },
+                    "status": {
+                      "title": "Status",
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "title": "Detail",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "title",
+                    "status",
+                    "detail"
+                  ],
+                  "title": "Problem",
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An unexpected failure; the detail reveals nothing about it.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "description": "An RFC 9457 Problem Details body.",
+                  "properties": {
+                    "type": {
+                      "default": "about:blank",
+                      "title": "Type",
+                      "type": "string"
+                    },
+                    "title": {
+                      "title": "Title",
+                      "type": "string"
+                    },
+                    "status": {
+                      "title": "Status",
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "title": "Detail",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "title",
+                    "status",
+                    "detail"
+                  ],
+                  "title": "Problem",
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The database cannot be opened as a current data-finops database.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "description": "An RFC 9457 Problem Details body.",
+                  "properties": {
+                    "type": {
+                      "default": "about:blank",
+                      "title": "Type",
+                      "type": "string"
+                    },
+                    "title": {
+                      "title": "Title",
+                      "type": "string"
+                    },
+                    "status": {
+                      "title": "Status",
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "title": "Detail",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "title",
+                    "status",
+                    "detail"
+                  ],
+                  "title": "Problem",
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AllocatedAmount": {
+        "properties": {
+          "category": {
+            "$ref": "#/components/schemas/AllocationCategory"
+          },
+          "confidence": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Confidence"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "amount": {
+            "type": "string",
+            "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+            "title": "Amount"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "category",
+          "confidence",
+          "amount"
+        ],
+        "title": "AllocatedAmount",
+        "description": "Allocations of one Allocation Category and Confidence (none for Idle)."
+      },
+      "AllocationCategory": {
+        "type": "string",
+        "enum": [
+          "direct",
+          "shared",
+          "idle",
+          "unallocated"
+        ],
+        "title": "AllocationCategory"
+      },
+      "AllocationMethod": {
+        "type": "string",
+        "enum": [
+          "estimated_metered_share",
+          "provider_line_match",
+          "weighted_share",
+          "no_observed_activity",
+          "ineligible",
+          "adjustment",
+          "coverage_remainder",
+          "coverage_exceeded",
+          "no_evidence"
+        ],
+        "title": "AllocationMethod",
+        "description": "How an amount was allocated; for Unallocated amounts, why (spec 03, M4 structure 10)."
+      },
+      "Confidence": {
+        "type": "string",
+        "enum": [
+          "direct_verified",
+          "metered_estimate",
+          "heuristic_estimate"
+        ],
+        "title": "Confidence"
+      },
+      "CostBasis": {
+        "type": "string",
+        "enum": [
+          "BilledCost",
+          "EffectiveCost",
+          "ListCost",
+          "ContractedCost"
+        ],
+        "title": "CostBasis",
+        "description": "The FOCUS cost column a figure is taken from; bases are never added together."
+      },
+      "CostSummaries": {
+        "properties": {
+          "summaries": {
+            "items": {
+              "$ref": "#/components/schemas/CostSummary"
+            },
+            "type": "array",
+            "title": "Summaries"
+          },
+          "uncalculated_scopes": {
+            "items": {
+              "$ref": "#/components/schemas/SnapshotScope"
+            },
+            "type": "array",
+            "title": "Uncalculated Scopes"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "summaries",
+          "uncalculated_scopes"
+        ],
+        "title": "CostSummaries",
+        "description": "The Cost Summary of each matching Snapshot Scope's current Allocation Snapshot."
+      },
+      "CostSummary": {
+        "properties": {
+          "scope": {
+            "$ref": "#/components/schemas/SnapshotScope"
+          },
+          "cost_basis": {
+            "$ref": "#/components/schemas/CostBasis"
+          },
+          "snapshot": {
+            "$ref": "#/components/schemas/ServedSnapshot"
+          },
+          "currencies": {
+            "items": {
+              "$ref": "#/components/schemas/CurrencySummary"
+            },
+            "type": "array",
+            "title": "Currencies"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "scope",
+          "cost_basis",
+          "snapshot",
+          "currencies"
+        ],
+        "title": "CostSummary",
+        "description": "Where one Allocation Snapshot put its Snapshot Scope's bill, for one Cost Basis."
+      },
+      "CurrencySummary": {
+        "properties": {
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "title": "Currency"
+          },
+          "billed": {
+            "type": "string",
+            "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+            "title": "Billed"
+          },
+          "allocated": {
+            "items": {
+              "$ref": "#/components/schemas/AllocatedAmount"
+            },
+            "type": "array",
+            "title": "Allocated"
+          },
+          "unallocated": {
+            "items": {
+              "$ref": "#/components/schemas/UnallocatedAmount"
+            },
+            "type": "array",
+            "title": "Unallocated"
+          },
+          "adjustments": {
+            "type": "string",
+            "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+            "title": "Adjustments"
+          },
+          "reconciliation_delta": {
+            "type": "string",
+            "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+            "title": "Reconciliation Delta"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "currency",
+          "billed",
+          "allocated",
+          "unallocated",
+          "adjustments",
+          "reconciliation_delta"
+        ],
+        "title": "CurrencySummary",
+        "description": "One currency's part of a Cost Summary; never added to another currency's."
+      },
+      "Health": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "unavailable"
+            ],
+            "title": "Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "title": "Health",
+        "description": "Whether the database opens as a current data-finops database; a status, not an error."
+      },
+      "ServedSnapshot": {
+        "properties": {
+          "calculation_run_id": {
+            "type": "string",
+            "title": "Calculation Run Id"
+          },
+          "policy_version": {
+            "type": "string",
+            "title": "Policy Version"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "is_current": {
+            "type": "boolean",
+            "title": "Is Current"
+          },
+          "export_snapshot_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Export Snapshot Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "calculation_run_id",
+          "policy_version",
+          "created_at",
+          "is_current",
+          "export_snapshot_id"
+        ],
+        "title": "ServedSnapshot",
+        "description": "The Allocation Snapshot a read served, and the Calculation Run that made it."
+      },
+      "SnapshotScope": {
+        "properties": {
+          "billing_account_id": {
+            "type": "string",
+            "title": "Billing Account Id"
+          },
+          "billing_period_start": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Billing Period Start"
+          },
+          "billing_period_end": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Billing Period End"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "billing_account_id",
+          "billing_period_start",
+          "billing_period_end",
+          "source"
+        ],
+        "title": "SnapshotScope",
+        "description": "What an Export Snapshot covers; a restatement replaces the snapshot for its scope."
+      },
+      "UnallocatedAmount": {
+        "properties": {
+          "reason": {
+            "$ref": "#/components/schemas/AllocationMethod"
+          },
+          "amount": {
+            "type": "string",
+            "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+            "title": "Amount"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "reason",
+          "amount"
+        ],
+        "title": "UnallocatedAmount",
+        "description": "Unallocated amounts for one reason (the Allocation's method), Adjustments aside."
+      }
+    }
+  }
+}

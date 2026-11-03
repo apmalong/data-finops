@@ -15,5 +15,10 @@ def test_committed_schemas_match_models():
 
 
 def test_no_unpublished_schema_files():
-    on_disk = {p.name.removesuffix(".schema.json") for p in (ROOT / "schemas").glob("*.json")}
+    # openapi.json is the API's document, kept current by test_openapi_up_to_date.py.
+    on_disk = {
+        p.name.removesuffix(".schema.json")
+        for p in (ROOT / "schemas").glob("*.json")
+        if p.name != "openapi.json"
+    }
     assert on_disk == set(PUBLISHED)

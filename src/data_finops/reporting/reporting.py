@@ -1,5 +1,6 @@
 """Answers from the Ledger for the API (spec 06), opened per request on a database file."""
 
+import sqlite3
 from collections import defaultdict
 from datetime import date
 from decimal import Decimal
@@ -19,15 +20,35 @@ from data_finops.reporting.models import (
     ServedSnapshot,
     UnallocatedAmount,
 )
+from data_finops.workload.store import StaleDatabaseError, WorkloadStore
+
+
+class DatabaseUnavailable(Exception):
+    """The file cannot be opened as a current data-finops database; never names the file."""
 
 
 class Reporting:
     """The read model over one database file."""
 
     def __init__(self, path: Path) -> None:
-        self._ledger = Ledger(path)
+        """Open both stores on an existing file; raises DatabaseUnavailable if there is no
+        file or either store refuses it, so a wrong path is reported rather than created."""
+        if not path.is_file():
+            raise DatabaseUnavailable
+        try:
+            self._ledger = Ledger(path)
+        except sqlite3.DatabaseError:
+            raise DatabaseUnavailable from None
+        try:
+            # Held open from the start, so a stale workload schema is reported here, by
+            # `/health`, rather than by the first read that needs the store.
+            self._store = WorkloadStore(path)
+        except (sqlite3.DatabaseError, StaleDatabaseError):
+            self._ledger.close()
+            raise DatabaseUnavailable from None
 
     def close(self) -> None:
+        self._store.close()
         self._ledger.close()
 
     def __enter__(self) -> Self:

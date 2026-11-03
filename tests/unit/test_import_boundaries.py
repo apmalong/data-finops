@@ -27,9 +27,18 @@ FORBIDDEN_IMPORTS = {
     "lineage": ("data_finops.billing", "data_finops.ledger", "data_finops.attribution"),
     "dbt": ("data_finops.billing", "data_finops.ledger", "data_finops.attribution"),
     "workload": ("data_finops.billing", "data_finops.ledger", "data_finops.attribution"),
-    # The read model answers from the stores' public interfaces only: no SQL of its own,
-    # nothing from the HTTP or command-line layers above it (spec 06).
-    "reporting": ("sqlite3", "data_finops.api", "data_finops.cli", "data_finops.providers"),
+    # The read model answers from the stores' public interfaces only (no SQL of its own:
+    # `test_the_read_model_writes_no_sql`), nothing from the layers above it (spec 06).
+    "reporting": ("data_finops.api", "data_finops.cli", "data_finops.providers"),
+    # The HTTP adapter reads only through the read model (spec 06).
+    "api": (
+        "sqlite3",
+        "data_finops.ledger",
+        "data_finops.calculation",
+        "data_finops.attribution",
+        "data_finops.providers",
+        "data_finops.cli",
+    ),
 }
 ALLOWED = {"contracts": ("data_finops.contracts",)}
 CLOCK_CALLS = {("datetime", "now"), ("datetime", "utcnow"), ("time", "time")}

@@ -16,10 +16,16 @@ dependencies = [
 data-finops = "data_finops.cli:main"
 
 [project.optional-dependencies]
-dev = ["pytest>=8,<10", "pytest-cov>=5,<8", "hypothesis>=6,<7", "ruff>=0.9,<1", "mypy>=1.14,<2", "pip-audit>=2,<3", "pre-commit>=4,<5", "bandit>=1.8,<2", "build>=1,<2", "types-jsonschema>=4.23,<5"]
+# The HTTP API and dashboard (spec 06). Exact pins: the newest releases at least two weeks
+# old when added (build-vs-reuse register); starlette is pinned because fastapi leaves it open.
+api = ["fastapi==0.156.4", "starlette==1.9.0", "uvicorn==0.54.0"]
+dev = ["httpx==0.28.1", "pytest>=8,<10", "pytest-cov>=5,<8", "hypothesis>=6,<7", "ruff>=0.9,<1", "mypy>=1.14,<2", "pip-audit>=2,<3", "pre-commit>=4,<5", "bandit>=1.8,<2", "build>=1,<2", "types-jsonschema>=4.23,<5"]
 [tool.hatch.build.targets.wheel]
 packages = ["src/data_finops"]
 [tool.pytest.ini_options]
+# Starlette 1.9 suggests httpx2 for its test client; httpx 0.28.1 is the vetted choice
+# (build-vs-reuse register) until httpx2 is reviewed.
+filterwarnings = ["ignore:Using `httpx` with `starlette.testclient` is deprecated"]
 testpaths = ["tests"]
 addopts = "-ra"
 [tool.ruff]
