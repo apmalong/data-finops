@@ -32,13 +32,16 @@ from data_finops.reporting.models import (
     AllocatedAmount,
     AllocationEntry,
     AllocationPage,
+    AllocationReconciliation,
     CostExplanation,
     CostSummaries,
     CostSummary,
+    CurrencyReconciliation,
     CurrencySummary,
     ExplainedModelExecution,
     ExplainedRollup,
     ExplainedWorkloadRun,
+    LineReconciliation,
     RollupLevel,
     ServedSnapshot,
     UnallocatedAmount,
@@ -144,8 +147,7 @@ class Reporting:
         NotFound if none is calculated, AmbiguousScope if several are. `limit` is 1 to
         MAX_PAGE_SIZE and `offset` at least 0, else ValueError.
         """
-        if not 1 <= limit <= MAX_PAGE_SIZE or offset < 0:
-            raise ValueError(f"limit must be 1 to {MAX_PAGE_SIZE} and offset at least 0")
+        _check_page(limit, offset)
         stored = self._served(calculation_run_id, billing_account_id, billing_period, source)
         run_id = stored.snapshot.calculation_run_id
         matching = [
@@ -162,6 +164,67 @@ class Reporting:
             limit=limit,
             offset=offset,
             items=matching[offset : offset + limit],
+        )
+
+    def reconciliation(
+        self,
+        *,
+        calculation_run_id: str | None = None,
+        billing_account_id: str | None = None,
+        billing_period: date | None = None,
+        source: str | None = None,
+        cost_basis: CostBasis | None = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> AllocationReconciliation:
+        """Allocations against the bill they partition, per Billing Line and Cost Basis, with
+        per-currency totals over every line; one page of the lines (GLOSSARY Reconciliation).
+
+        The snapshot is chosen as for `allocations`. Every line of the Export Snapshot the
+        run read appears, allocated or not, so nothing missing can hide.
+        """
+        _check_page(limit, offset)
+        stored = self._served(calculation_run_id, billing_account_id, billing_period, source)
+        allocated: dict[tuple[str, str], Decimal] = defaultdict(Decimal)
+        for allocation in stored.allocations:
+            allocated[(allocation.billing_line_ref, allocation.cost_basis)] += allocation.amount
+        bases = [cost_basis] if cost_basis is not None else list(CostBasis)
+        lines = [
+            LineReconciliation(
+                billing_line_ref=ref,
+                currency=line.BillingCurrency,
+                cost_basis=basis,
+                billed=line.cost(basis),
+                allocated=allocated[(ref, basis)],
+                delta=line.cost(basis) - allocated[(ref, basis)],
+            )
+            for ref, line in self._bill(stored)
+            for basis in bases
+        ]
+        totals: dict[tuple[str, CostBasis], list[Decimal]] = defaultdict(
+            lambda: [Decimal(0), Decimal(0)]
+        )
+        for entry in lines:
+            pair = totals[(entry.currency, entry.cost_basis)]
+            pair[0] += entry.billed
+            pair[1] += entry.allocated
+        return AllocationReconciliation(
+            calculation_run_id=stored.snapshot.calculation_run_id,
+            export_snapshot_id=stored.snapshot.export_snapshot_id,
+            totals=[
+                CurrencyReconciliation(
+                    currency=currency,
+                    cost_basis=basis,
+                    billed=billed,
+                    allocated=held,
+                    delta=billed - held,
+                )
+                for (currency, basis), (billed, held) in sorted(totals.items())
+            ],
+            total=len(lines),
+            limit=limit,
+            offset=offset,
+            lines=lines[offset : offset + limit],
         )
 
     def explanation(self, ref: str) -> CostExplanation:
@@ -291,22 +354,32 @@ class Reporting:
         )
 
     def _billed(self, stored: StoredAllocations, basis: CostBasis) -> dict[str, Decimal]:
-        """The bill the snapshot partitions: every line of the Export Snapshot its run read.
+        billed: dict[str, Decimal] = defaultdict(Decimal)
+        for _, line in self._bill(stored):
+            billed[line.BillingCurrency] += line.cost(basis)
+        return billed
 
-        Snapshots stored before M5 record none; their Allocations' line references name it.
-        """
+    def _bill(self, stored: StoredAllocations) -> list[tuple[str, FocusBillingLine]]:
+        """The Billing Lines the snapshot partitions, by reference: every line of the Export
+        Snapshot its run read. Snapshots stored before M5 record none; their Allocations'
+        line references name it."""
         recorded = stored.snapshot.export_snapshot_id
         snapshot_ids = (
             {recorded}
             if recorded is not None
             else {snapshot_id_of(a.billing_line_ref) for a in stored.allocations}
         )
-        billed: dict[str, Decimal] = defaultdict(Decimal)
+        bill = []
         for snapshot_id in sorted(snapshot_ids):
             export = self._ledger.snapshot(snapshot_id)
-            for line in export.lines if export is not None else []:
-                billed[line.BillingCurrency] += line.cost(basis)
-        return billed
+            if export is not None:
+                bill += [(export.line_ref(i), line) for i, line in enumerate(export.lines)]
+        return bill
+
+
+def _check_page(limit: int, offset: int) -> None:
+    if not 1 <= limit <= MAX_PAGE_SIZE or offset < 0:
+        raise ValueError(f"limit must be 1 to {MAX_PAGE_SIZE} and offset at least 0")
 
 
 def _allocation_ref(calculation_run_id: str, position: int) -> str:
