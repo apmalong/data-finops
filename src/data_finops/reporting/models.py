@@ -4,7 +4,7 @@ and never summed across currencies."""
 from pydantic import BaseModel, ConfigDict
 
 from data_finops.attribution.engine import AllocationMethod
-from data_finops.contracts.allocation import AllocationCategory, Confidence
+from data_finops.contracts.allocation import Allocation, AllocationCategory, Confidence
 from data_finops.contracts.billing import CostBasis, SnapshotScope
 from data_finops.contracts.types import CurrencyCode, DecimalString, UtcDatetime
 
@@ -60,6 +60,25 @@ class CostSummary(_Response):
     cost_basis: CostBasis
     snapshot: ServedSnapshot
     currencies: list[CurrencySummary]
+
+
+class AllocationEntry(_Response):
+    """One Allocation and its address, `<calculation_run_id>#<position>` (spec 06)."""
+
+    ref: str
+    allocation: Allocation
+
+
+class AllocationPage(_Response):
+    """One page of a single Allocation Snapshot's Allocations; offsets are stable because
+    the snapshot never changes."""
+
+    calculation_run_id: str
+    total: int
+    """Allocations matching the filters, across every page."""
+    limit: int
+    offset: int
+    items: list[AllocationEntry]
 
 
 class CostSummaries(_Response):

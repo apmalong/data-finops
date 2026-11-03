@@ -341,32 +341,56 @@ class Ledger:
 
     def allocation_snapshot(self, calculation_run_id: str) -> StoredAllocations | None:
         """Any stored Allocation Snapshot, current or superseded."""
-        row = self._connection.execute(
-            "SELECT s.input_digest, s.policy_version, s.created_at_us,"
-            " c.calculation_run_id IS NOT NULL, s.export_snapshot_id FROM allocation_snapshot s"
-            " LEFT JOIN current_allocation_snapshot c"
-            " ON c.calculation_run_id = s.calculation_run_id"
-            " WHERE s.calculation_run_id = ?",
-            (calculation_run_id,),
-        ).fetchone()
-        if row is None:
+        found = self._snapshot_metadata(calculation_run_id=calculation_run_id)
+        if not found:
             return None
-        input_digest, policy_version, created_at_us, is_current, export_snapshot_id = row
         rows = self._connection.execute(
             "SELECT allocation_json FROM allocation WHERE calculation_run_id = ? ORDER BY position",
             (calculation_run_id,),
         ).fetchall()
         return StoredAllocations(
-            snapshot=AllocationSnapshot(
-                calculation_run_id=calculation_run_id,
-                policy_version=policy_version,
-                input_digest=input_digest,
-                created_at=_EPOCH + timedelta(microseconds=created_at_us),
-                is_current=bool(is_current),
-                export_snapshot_id=export_snapshot_id,
-            ),
+            snapshot=found[0],
             allocations=[Allocation.model_validate_json(stored) for (stored,) in rows],
         )
+
+    def allocation_snapshots(self, scope: SnapshotScope) -> list[AllocationSnapshot]:
+        """Every Allocation Snapshot stored for `scope`, oldest first, without Allocations."""
+        return self._snapshot_metadata(scope=scope)
+
+    def _snapshot_metadata(
+        self, *, calculation_run_id: str | None = None, scope: SnapshotScope | None = None
+    ) -> list[AllocationSnapshot]:
+        """Allocation Snapshots by Calculation Run or by scope (one of the two), oldest first."""
+        account, start, end, source = _scope_key(scope) if scope else (None, None, None, None)
+        rows = self._connection.execute(
+            "SELECT s.calculation_run_id, s.input_digest, s.policy_version, s.created_at_us,"
+            " c.calculation_run_id IS NOT NULL, s.export_snapshot_id FROM allocation_snapshot s"
+            " LEFT JOIN current_allocation_snapshot c"
+            " ON c.calculation_run_id = s.calculation_run_id"
+            " WHERE (:run IS NULL OR s.calculation_run_id = :run)"
+            " AND (:account IS NULL OR (s.billing_account_id = :account"
+            " AND s.billing_period_start = :start AND s.billing_period_end = :end"
+            " AND s.source = :source))"
+            " ORDER BY s.created_at_us, s.calculation_run_id",
+            {
+                "run": calculation_run_id,
+                "account": account,
+                "start": start,
+                "end": end,
+                "source": source,
+            },
+        ).fetchall()
+        return [
+            AllocationSnapshot(
+                calculation_run_id=run_id,
+                policy_version=policy,
+                input_digest=digest,
+                created_at=_EPOCH + timedelta(microseconds=created_us),
+                is_current=bool(current),
+                export_snapshot_id=export_id,
+            )
+            for run_id, digest, policy, created_us, current, export_id in rows
+        ]
 
     def _current_allocation_run(self, scope: SnapshotScope) -> str | None:
         row = self._connection.execute(

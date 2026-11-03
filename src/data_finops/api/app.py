@@ -13,9 +13,19 @@ from pydantic import BaseModel
 from starlette.concurrency import run_in_threadpool
 from starlette.exceptions import HTTPException
 
+from data_finops.contracts.allocation import AllocationCategory
 from data_finops.contracts.billing import CostBasis
 from data_finops.lineage.validation import MAX_EVENT_BYTES
-from data_finops.reporting import CostSummaries, DatabaseUnavailable, Reporting
+from data_finops.reporting import (
+    MAX_PAGE_SIZE,
+    AllocationPage,
+    AmbiguousScope,
+    ConflictingFilters,
+    CostSummaries,
+    DatabaseUnavailable,
+    NotFound,
+    Reporting,
+)
 from data_finops.workload.store import IngestResult, UnusableDatabaseError, WorkloadStore
 
 PROBLEM = "application/problem+json"
@@ -75,6 +85,14 @@ _READ_PROBLEMS: dict[int | str, dict[str, Any]] = {
     503: _problem_doc("The database cannot be opened as a current data-finops database."),
 }
 
+_PAGE_PROBLEMS: dict[int | str, dict[str, Any]] = {
+    **_READ_PROBLEMS,
+    400: _problem_doc(
+        "Invalid request, or filters matching several Snapshot Scopes: the detail names the"
+        " fields to give, never their values."
+    ),
+    404: _problem_doc("No such Calculation Run, or no calculated Snapshot Scope matches."),
+}
 _RECEIVER_RESPONSES: dict[int | str, dict[str, Any]] = {
     201: {"model": LineageReceipt, "description": "Stored, or already stored (a duplicate)."},
     202: {"model": LineageUnsupported, "description": "A JobEvent or DatasetEvent: not stored."},
@@ -117,6 +135,57 @@ def create_app(db: Path) -> FastAPI:
             cost_basis=cost_basis,
             billing_account_id=billing_account_id,
             billing_period=billing_period,
+        )
+
+    @app.get("/v1/allocations", responses=_PAGE_PROBLEMS)
+    def allocations(
+        read_model: Annotated[Reporting, Depends(reporting)],
+        calculation_run_id: Annotated[str | None, Query(max_length=128)] = None,
+        billing_account_id: Annotated[str | None, Query(max_length=128)] = None,
+        billing_period: date | None = None,
+        source: Annotated[str | None, Query(max_length=256)] = None,
+        target_id: Annotated[str | None, Query(max_length=256)] = None,
+        category: AllocationCategory | None = None,
+        billing_line_ref: Annotated[str | None, Query(max_length=256)] = None,
+        cost_basis: CostBasis | None = None,
+        limit: Annotated[int, Query(ge=1, le=MAX_PAGE_SIZE)] = 100,
+        offset: Annotated[int, Query(ge=0)] = 0,
+    ) -> AllocationPage:
+        """One page of one Allocation Snapshot: a named Calculation Run's, or else the current
+        one of the single Snapshot Scope that `billing_account_id`, `billing_period` and `source`
+        select."""
+        return read_model.allocations(
+            calculation_run_id=calculation_run_id,
+            billing_account_id=billing_account_id,
+            billing_period=billing_period,
+            source=source,
+            target_id=target_id,
+            category=category,
+            billing_line_ref=billing_line_ref,
+            cost_basis=cost_basis,
+            limit=limit,
+            offset=offset,
+        )
+
+    @app.exception_handler(NotFound)
+    def not_found(request: Request, error: NotFound) -> JSONResponse:
+        return _problem_json(404, "Not found", "Nothing matches the request.")
+
+    @app.exception_handler(AmbiguousScope)
+    def ambiguous_scope(request: Request, error: AmbiguousScope) -> JSONResponse:
+        return _problem_json(
+            400,
+            "Several Snapshot Scopes match",
+            "Narrow with billing_account_id, billing_period and source, or give"
+            " calculation_run_id.",
+        )
+
+    @app.exception_handler(ConflictingFilters)
+    def conflicting_filters(request: Request, error: ConflictingFilters) -> JSONResponse:
+        return _problem_json(
+            400,
+            "Conflicting filters",
+            "Give calculation_run_id or billing_account_id, billing_period and source, not both.",
         )
 
     @app.post(

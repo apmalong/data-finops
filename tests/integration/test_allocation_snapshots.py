@@ -199,3 +199,20 @@ def test_snapshots_are_read_back_exactly_after_reopening(tmp_path: Path) -> None
     assert current.snapshot.created_at == created
     # Amounts keep their scale, not just their value.
     assert current.allocations[0].model_dump(mode="json")["amount"] == "6.000"
+
+
+def test_a_scopes_snapshots_are_listed_oldest_first_without_their_allocations(
+    tmp_path: Path,
+) -> None:
+    times = iter(datetime(2026, 11, 3, hour, tzinfo=UTC) for hour in range(1, 10))
+    with Ledger(tmp_path / "data-finops.sqlite", clock=lambda: next(times)) as ledger:
+        _store(ledger, "run-b", "digest-1")
+        _store(ledger, "run-a", "digest-2")
+        _store(ledger, "run-other", "digest-3", scope=OTHER_SCOPE)
+        listed = ledger.allocation_snapshots(SCOPE)
+        assert ledger.allocation_snapshots(SCOPE.model_copy(update={"source": "x"})) == []
+    assert [(s.calculation_run_id, s.is_current) for s in listed] == [
+        ("run-b", False),
+        ("run-a", True),
+    ]
+    assert [s.created_at.hour for s in listed] == [1, 2]
