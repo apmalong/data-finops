@@ -7,7 +7,8 @@ stored: errors say what is wrong with it, not what it is.
 from collections.abc import Mapping
 from pathlib import Path
 
-TOKEN_VARIABLE = "DATA_FINOPS_TOKEN"  # nosec B105: the variable's name, not a token
+# The environment variable's name, not a token (bandit B105 is a false positive here).
+TOKEN_VARIABLE = "DATA_FINOPS_TOKEN"  # nosec B105
 MIN_TOKEN_LENGTH = 16
 
 
