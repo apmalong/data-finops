@@ -15,14 +15,18 @@ from jsonschema import Draft202012Validator
 
 from data_finops.attribution.engine import (
     Adjustment,
+    DirectPool,
+    IdleCapacity,
     Ineligible,
     MeteredCostPool,
     MeteredUsage,
     PooledLine,
+    SharedCostPool,
+    SharedWeight,
     allocate,
 )
 from data_finops.billing.focus import load_export
-from data_finops.contracts.allocation import Allocation
+from data_finops.contracts.allocation import Allocation, Confidence
 from data_finops.contracts.billing import CostBasis, FocusBillingLine, FocusChargeCategory
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -464,3 +468,124 @@ def test_lines_in_several_currencies_each_reconcile_in_their_own() -> None:
             ("line#1", "JPY", "q_b", "67"),
             ("line#2", "KWD", "unallocated", "-0.500"),
         ], basis
+
+
+def test_explicit_synthetic_cost_pools_golden_scenario() -> None:
+    weights = (
+        SharedWeight("q-synthetic-orders", Decimal("5")),
+        SharedWeight("q-synthetic-customers", Decimal("3")),
+    )
+    lines = [
+        PooledLine(
+            "synthetic#0",
+            _line("3.00"),
+            DirectPool(
+                "synthetic-direct",
+                "q-synthetic-orders",
+                Confidence.DIRECT_VERIFIED,
+                ("explicit-demo-price-001",),
+            ),
+        ),
+        PooledLine(
+            "synthetic#1",
+            _line("2.00"),
+            SharedCostPool(
+                "synthetic-shared", weights, Confidence.METERED_ESTIMATE, ("synthetic-weight-001",)
+            ),
+        ),
+        PooledLine("synthetic#2", _line("1.00"), IdleCapacity("synthetic-idle")),
+        # Nothing evidences a split: a shared pool with no positive weight.
+        PooledLine(
+            "synthetic#3",
+            _line("4.00"),
+            SharedCostPool("synthetic-unknown", (), Confidence.METERED_ESTIMATE),
+        ),
+    ]
+    allocations = allocate(lines, policy_version="golden-v1", calculation_run_id="golden")
+    # The oracle states BilledCost; `_line` puts the same amount in all four cost columns.
+    expected = [
+        Allocation.model_validate(a).model_copy(update={"cost_basis": basis})
+        for a in _scenario("explicit-synthetic-cost-pools")["allocations"]
+        for basis in CostBasis
+    ]
+    assert _dumped(allocations) == _dumped(expected)
+
+
+def _shared(*weights: tuple[str, str], evidence: tuple[str, ...] = ()) -> SharedCostPool:
+    return SharedCostPool(
+        "shared",
+        tuple(SharedWeight(query, Decimal(weight)) for query, weight in weights),
+        Confidence.HEURISTIC_ESTIMATE,
+        evidence,
+    )
+
+
+def test_zero_total_weights_go_to_unallocated_not_divided() -> None:
+    allocations = allocate(
+        [PooledLine("line#0", _line("1.00"), _shared(("q_a", "0"), ("q_b", "0"), evidence=("w",)))],
+        policy_version="p",
+        calculation_run_id="r",
+    )
+    assert {
+        (a.target_id, str(a.amount), a.method, tuple(a.evidence_refs)) for a in allocations
+    } == {("unallocated", "1.00", "no_evidence", ("w",))}
+
+
+def test_a_zero_weight_receives_nothing_and_the_pool_confidence_is_kept() -> None:
+    allocations = allocate(
+        [PooledLine("line#0", _line("1.00"), _shared(("q_a", "1"), ("q_b", "0"), ("q_c", "3")))],
+        policy_version="p",
+        calculation_run_id="r",
+    )
+    assert _amounts(allocations, CostBasis.BILLED_COST) == {"q_a": "0.25", "q_c": "0.75"}
+    assert {(a.category, a.method, a.confidence) for a in allocations} == {
+        ("shared", "weighted_share", "heuristic_estimate")
+    }
+
+
+def test_a_negative_shared_weight_is_refused() -> None:
+    with pytest.raises(ValueError, match="nonnegative"):
+        allocate(
+            [PooledLine("line#0", _line("1.00"), _shared(("q_a", "2"), ("q_b", "-1")))],
+            policy_version="p",
+            calculation_run_id="r",
+        )
+
+
+def test_explicit_pools_partition_every_cost_basis_exactly() -> None:
+    line = _line(BilledCost="1.00", EffectiveCost="-0.10", ListCost="0.01", ContractedCost="0.999")
+    lines = [
+        # A direct pool keeps the confidence its caller gives.
+        PooledLine("direct#0", line, DirectPool("d", "q_a", Confidence.METERED_ESTIMATE)),
+        PooledLine("shared#0", line, _shared(("q_a", "1"), ("q_b", "2"))),
+        PooledLine("idle#0", line, IdleCapacity("i")),
+    ]
+    allocations = allocate(lines, policy_version="p", calculation_run_id="r")
+    table = {(a.billing_line_ref, a.cost_basis, a.target_id): str(a.amount) for a in allocations}
+    assert table == {
+        ("direct#0", "BilledCost", "q_a"): "1.00",
+        ("direct#0", "EffectiveCost", "q_a"): "-0.10",
+        ("direct#0", "ListCost", "q_a"): "0.01",
+        ("direct#0", "ContractedCost", "q_a"): "0.999",
+        # 1:2 of 1.00, -0.10, 0.01 and 0.999 (0.333 / 0.666 exactly).
+        ("shared#0", "BilledCost", "q_a"): "0.33",
+        ("shared#0", "BilledCost", "q_b"): "0.67",
+        ("shared#0", "EffectiveCost", "q_a"): "-0.03",
+        ("shared#0", "EffectiveCost", "q_b"): "-0.07",
+        ("shared#0", "ListCost", "q_a"): "0.00",
+        ("shared#0", "ListCost", "q_b"): "0.01",
+        ("shared#0", "ContractedCost", "q_a"): "0.333",
+        ("shared#0", "ContractedCost", "q_b"): "0.666",
+        ("idle#0", "BilledCost", "idle"): "1.00",
+        ("idle#0", "EffectiveCost", "idle"): "-0.10",
+        ("idle#0", "ListCost", "idle"): "0.01",
+        ("idle#0", "ContractedCost", "idle"): "0.999",
+    }
+    direct = [a for a in allocations if a.billing_line_ref == "direct#0"]
+    assert {(a.category, a.method, a.confidence) for a in direct} == {
+        ("direct", "provider_line_match", "metered_estimate")
+    }
+    idle = [a for a in allocations if a.target_id == "idle"]
+    assert {(a.category, a.method, a.confidence, a.coverage) for a in idle} == {
+        ("idle", "no_observed_activity", None, None)
+    }

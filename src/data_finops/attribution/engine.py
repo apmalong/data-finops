@@ -1,15 +1,15 @@
 """The allocation engine (spec 03, ADRs 0016 and 0017): Billing Lines in, Allocations out.
 
-Pure: no I/O, clock or provider knowledge. Callers classify each Billing Line as a
-metered Cost Pool, Ineligible or an Adjustment and give each Query Execution's Billable
-Usage in the line's own unit; the engine only splits money.
+Pure: no I/O, clock or provider knowledge. Callers classify each Billing Line into a pool
+(metered, direct, shared, idle, Ineligible or Adjustment) and give each Query Execution's
+Billable Usage in the line's own unit; the engine only splits money.
 """
 
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from decimal import ROUND_FLOOR, Decimal, localcontext
 from enum import StrEnum
-from typing import ClassVar
+from typing import assert_never
 
 from data_finops.contracts.allocation import (
     Allocation,
@@ -33,16 +33,21 @@ _MINOR_UNITS = {
 # apart from any Query Execution, whatever its ID.
 _Target = tuple[TargetType, str]
 _UNALLOCATED: _Target = (TargetType.UNALLOCATED, TargetType.UNALLOCATED.value)
+_IDLE: _Target = (TargetType.IDLE, TargetType.IDLE.value)
 
 
 class AllocationMethod(StrEnum):
     """How an amount was allocated; for Unallocated amounts, why (spec 03, M4 structure 10)."""
 
     ESTIMATED_METERED_SHARE = "estimated_metered_share"
+    PROVIDER_LINE_MATCH = "provider_line_match"
+    WEIGHTED_SHARE = "weighted_share"
+    NO_OBSERVED_ACTIVITY = "no_observed_activity"
     INELIGIBLE = "ineligible"
     ADJUSTMENT = "adjustment"
     COVERAGE_REMAINDER = "coverage_remainder"
     COVERAGE_EXCEEDED = "coverage_exceeded"
+    NO_EVIDENCE = "no_evidence"
 
 
 @dataclass(frozen=True)
@@ -63,11 +68,45 @@ class MeteredCostPool:
 
 
 @dataclass(frozen=True)
+class DirectPool:
+    """A line the provider bills to exactly one Query Execution."""
+
+    pool_id: str
+    query_execution_id: str
+    confidence: Confidence
+    evidence_refs: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class SharedWeight:
+    """One Query Execution's documented, nonnegative weight in a shared Cost Pool."""
+
+    query_execution_id: str
+    weight: Decimal
+
+
+@dataclass(frozen=True)
+class SharedCostPool:
+    """A line shared among Query Executions by explicit weights (spec 03 step F)."""
+
+    pool_id: str
+    weights: tuple[SharedWeight, ...]
+    confidence: Confidence
+    evidence_refs: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class IdleCapacity:
+    """A line paying for capacity with no observed activity."""
+
+    pool_id: str
+
+
+@dataclass(frozen=True)
 class Ineligible:
     """A line no MVP policy allocates; it stays Unallocated under `pool_id`."""
 
     pool_id: str
-    reason: ClassVar[AllocationMethod] = AllocationMethod.INELIGIBLE
 
 
 @dataclass(frozen=True)
@@ -76,7 +115,9 @@ class Adjustment:
     labelled amount (ADR 0017)."""
 
     pool_id: str
-    reason: ClassVar[AllocationMethod] = AllocationMethod.ADJUSTMENT
+
+
+Pool = MeteredCostPool | DirectPool | SharedCostPool | IdleCapacity | Ineligible | Adjustment
 
 
 @dataclass(frozen=True)
@@ -85,7 +126,7 @@ class PooledLine:
 
     ref: str
     line: FocusBillingLine
-    pool: MeteredCostPool | Ineligible | Adjustment
+    pool: Pool
 
 
 def allocate(
@@ -93,120 +134,136 @@ def allocate(
 ) -> list[Allocation]:
     """Partition every line, for every Cost Basis, among its Allocation Targets.
 
-    Ineligible and Adjustment lines are wholly Unallocated with that reason, sign kept.
-    A metered line is split by Coverage (ADR 0017): its covered fraction among the Query
-    Executions by Billable Usage, the rest Unallocated `coverage_remainder`; a line whose
-    Coverage exceeds one is wholly Unallocated `coverage_exceeded`, with the Evidence of
-    the Query Executions that conflict. Every Allocation of a metered line records its
-    Coverage. Raises ValueError for a metered line without a positive ConsumedQuantity.
+    Every pool kind becomes weighted shares, split by largest remainder per Cost Basis:
+    - metered, by Coverage (ADR 0017): the covered fraction among the Query Executions by
+      Billable Usage, the rest Unallocated `coverage_remainder`; Coverage above one makes
+      the whole line Unallocated `coverage_exceeded`, with the conflicting Evidence. Every
+      Allocation of a metered line records its Coverage;
+    - direct: the whole line to its Query Execution;
+    - shared: by explicit weights; with no positive weight, Unallocated `no_evidence`;
+    - idle: the whole line to Idle;
+    - Ineligible and Adjustment: wholly Unallocated with that reason, sign kept.
+
+    Raises ValueError for a metered line without a positive ConsumedQuantity, or a
+    negative shared weight.
     """
     allocations: list[Allocation] = []
     for pooled in lines:
-        line, pool = pooled.line, pooled.pool
-        context = _LineContext(
-            pooled.ref, pool.pool_id, line.BillingCurrency, policy_version, calculation_run_id
-        )
-        if isinstance(pool, Ineligible | Adjustment):
-            allocations += [
-                context.unallocated(basis, line.cost(basis), pool.reason) for basis in CostBasis
-            ]
-            continue
-        metering = _meter(pooled.ref, line, pool)
+        line = pooled.line
+        shares = _shares(pooled)
+        weights = {share.target: share.weight for share in shares}
         for basis in CostBasis:
             amount = line.cost(basis)
-            shares = _split(amount, metering.weights, _scale(amount, line.BillingCurrency))
+            parts = _split(amount, weights, _scale(amount, line.BillingCurrency))
             allocations += [
-                context.metered_share(
-                    basis,
-                    shares[(TargetType.QUERY_EXECUTION, u.query_execution_id)],
-                    u,
-                    metering.coverage,
+                Allocation(
+                    billing_line_ref=pooled.ref,
+                    pool_id=pooled.pool.pool_id,
+                    target_type=share.target[0],
+                    target_id=share.target[1],
+                    amount=parts[share.target],
+                    currency=line.BillingCurrency,
+                    cost_basis=basis,
+                    category=share.category,
+                    method=share.method,
+                    confidence=share.confidence,
+                    coverage=share.coverage,
+                    policy_version=policy_version,
+                    calculation_run_id=calculation_run_id,
+                    evidence_refs=list(share.evidence_refs),
                 )
-                for u in pool.usages
-                if (TargetType.QUERY_EXECUTION, u.query_execution_id) in shares
+                for share in shares
             ]
-            if _UNALLOCATED in shares:
-                allocations.append(
-                    context.unallocated(
-                        basis,
-                        shares[_UNALLOCATED],
-                        metering.unallocated_reason,
-                        coverage=metering.coverage,
-                        evidence_refs=metering.unallocated_evidence,
-                    )
-                )
     return allocations
 
 
 @dataclass(frozen=True)
-class _LineContext:
-    """What every Allocation of one line shares."""
+class _Share:
+    """One Allocation Target's weight in a line, and how its Allocations are described."""
 
-    ref: str
-    pool_id: str
-    currency: str
-    policy_version: str
-    calculation_run_id: str
+    target: _Target
+    weight: Decimal
+    category: AllocationCategory
+    method: AllocationMethod
+    confidence: Confidence | None = None
+    coverage: Decimal | None = None
+    evidence_refs: tuple[str, ...] = ()
 
-    def metered_share(
-        self, basis: CostBasis, amount: Decimal, usage: MeteredUsage, coverage: Decimal
-    ) -> Allocation:
-        return Allocation(
-            billing_line_ref=self.ref,
-            pool_id=self.pool_id,
-            target_type=TargetType.QUERY_EXECUTION,
-            target_id=usage.query_execution_id,
-            amount=amount,
-            currency=self.currency,
-            cost_basis=basis,
-            category=AllocationCategory.DIRECT,
-            method=AllocationMethod.ESTIMATED_METERED_SHARE,
-            confidence=Confidence.METERED_ESTIMATE,
-            coverage=coverage,
-            policy_version=self.policy_version,
-            calculation_run_id=self.calculation_run_id,
-            evidence_refs=list(usage.evidence_refs),
+
+def _unallocated(
+    reason: AllocationMethod,
+    weight: Decimal = Decimal(1),
+    *,
+    coverage: Decimal | None = None,
+    evidence_refs: tuple[str, ...] = (),
+) -> _Share:
+    return _Share(
+        _UNALLOCATED,
+        weight,
+        AllocationCategory.UNALLOCATED,
+        reason,
+        coverage=coverage,
+        evidence_refs=evidence_refs,
+    )
+
+
+def _shares(pooled: PooledLine) -> list[_Share]:
+    pool = pooled.pool
+    match pool:
+        case MeteredCostPool():
+            return _metered_shares(pooled.ref, pooled.line, pool)
+        case DirectPool():
+            return [
+                _Share(
+                    (TargetType.QUERY_EXECUTION, pool.query_execution_id),
+                    Decimal(1),
+                    AllocationCategory.DIRECT,
+                    AllocationMethod.PROVIDER_LINE_MATCH,
+                    pool.confidence,
+                    evidence_refs=pool.evidence_refs,
+                )
+            ]
+        case SharedCostPool():
+            return _weighted_shares(pooled.ref, pool)
+        case IdleCapacity():
+            return [
+                _Share(
+                    _IDLE,
+                    Decimal(1),
+                    AllocationCategory.IDLE,
+                    AllocationMethod.NO_OBSERVED_ACTIVITY,
+                )
+            ]
+        case Ineligible():
+            return [_unallocated(AllocationMethod.INELIGIBLE)]
+        case Adjustment():
+            return [_unallocated(AllocationMethod.ADJUSTMENT)]
+    assert_never(pool)
+
+
+def _weighted_shares(ref: str, pool: SharedCostPool) -> list[_Share]:
+    """Shares by explicit nonnegative weights; zero weights receive nothing, and a pool with
+    no positive weight is Unallocated `no_evidence`, never divided."""
+    if any(w.weight < 0 for w in pool.weights):
+        raise ValueError(f"{ref}: shared weights must be nonnegative")
+    positive = [w for w in pool.weights if w.weight > 0]
+    if not positive:
+        return [_unallocated(AllocationMethod.NO_EVIDENCE, evidence_refs=pool.evidence_refs)]
+    return [
+        _Share(
+            (TargetType.QUERY_EXECUTION, w.query_execution_id),
+            w.weight,
+            AllocationCategory.SHARED,
+            AllocationMethod.WEIGHTED_SHARE,
+            pool.confidence,
+            evidence_refs=pool.evidence_refs,
         )
-
-    def unallocated(
-        self,
-        basis: CostBasis,
-        amount: Decimal,
-        reason: AllocationMethod,
-        *,
-        coverage: Decimal | None = None,
-        evidence_refs: tuple[str, ...] = (),
-    ) -> Allocation:
-        return Allocation(
-            billing_line_ref=self.ref,
-            pool_id=self.pool_id,
-            target_type=TargetType.UNALLOCATED,
-            target_id=TargetType.UNALLOCATED.value,
-            amount=amount,
-            currency=self.currency,
-            cost_basis=basis,
-            category=AllocationCategory.UNALLOCATED,
-            method=reason,
-            coverage=coverage,
-            policy_version=self.policy_version,
-            calculation_run_id=self.calculation_run_id,
-            evidence_refs=list(evidence_refs),
-        )
+        for w in positive
+    ]
 
 
-@dataclass(frozen=True)
-class _Metering:
-    """A metered line's Coverage, the weights its amount is split by, and why any part is
-    Unallocated."""
-
-    coverage: Decimal
-    weights: dict[_Target, Decimal]
-    unallocated_reason: AllocationMethod = AllocationMethod.COVERAGE_REMAINDER
-    unallocated_evidence: tuple[str, ...] = ()
-
-
-def _meter(ref: str, line: FocusBillingLine, pool: MeteredCostPool) -> _Metering:
-    """Coverage and weights for a metered line (ADR 0017).
+def _metered_shares(ref: str, line: FocusBillingLine, pool: MeteredCostPool) -> list[_Share]:
+    """Shares of a metered line by Coverage (ADR 0017).
 
     Coverage is known over billed usage in the line's unit, to 28 significant digits, and
     counts as exactly 1 within half a unit in the last digit ConsumedQuantity was exported
@@ -218,19 +275,37 @@ def _meter(ref: str, line: FocusBillingLine, pool: MeteredCostPool) -> _Metering
     if billed is None or billed <= 0:
         raise ValueError(f"{ref}: a metered line needs a positive ConsumedQuantity for Coverage")
     usages = [u for u in pool.usages if u.quantity > 0]
-    weights = {(TargetType.QUERY_EXECUTION, u.query_execution_id): u.quantity for u in usages}
-    known = sum(weights.values(), Decimal(0))
+    known = sum((u.quantity for u in usages), Decimal(0))
     if abs(known - billed) <= Decimal(5).scaleb(-_places(billed) - 1):
-        return _Metering(Decimal(1), weights)
-    with localcontext() as context:
-        context.prec = 28
-        coverage = known / billed
+        coverage = Decimal(1)
+    else:
+        with localcontext() as context:
+            context.prec = 28
+            coverage = known / billed
     if coverage > 1:
         evidence = tuple(dict.fromkeys(ref for u in usages for ref in u.evidence_refs))
-        return _Metering(
-            coverage, {_UNALLOCATED: Decimal(1)}, AllocationMethod.COVERAGE_EXCEEDED, evidence
+        return [
+            _unallocated(
+                AllocationMethod.COVERAGE_EXCEEDED, coverage=coverage, evidence_refs=evidence
+            )
+        ]
+    shares = [
+        _Share(
+            (TargetType.QUERY_EXECUTION, u.query_execution_id),
+            u.quantity,
+            AllocationCategory.DIRECT,
+            AllocationMethod.ESTIMATED_METERED_SHARE,
+            Confidence.METERED_ESTIMATE,
+            coverage,
+            u.evidence_refs,
         )
-    return _Metering(coverage, weights | {_UNALLOCATED: billed - known})
+        for u in usages
+    ]
+    if coverage < 1:
+        shares.append(
+            _unallocated(AllocationMethod.COVERAGE_REMAINDER, billed - known, coverage=coverage)
+        )
+    return shares
 
 
 def _scale(amount: Decimal, currency: str) -> int:
