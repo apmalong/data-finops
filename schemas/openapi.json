@@ -528,6 +528,225 @@
           }
         }
       }
+    },
+    "/api/v1/lineage": {
+      "post": {
+        "summary": "Receive Lineage",
+        "description": "Store one OpenLineage RunEvent, the default endpoint of OpenLineage's HTTP transport\n(spec 04). Screened exactly as one item of an event file.\n\nThe one async endpoint (spec 06): it streams the body so an oversized one is refused\nat the cap instead of buffered (ADR 0024), then ingests in the thread pool.",
+        "operationId": "receive_lineage_api_v1_lineage_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Stored, or already stored (a duplicate).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LineageReceipt"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "A JobEvent or DatasetEvent: not stored.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LineageUnsupported"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Rejected: the detail gives the kind and failing field, never content.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "title": "Type",
+                      "default": "about:blank"
+                    },
+                    "title": {
+                      "type": "string",
+                      "title": "Title"
+                    },
+                    "status": {
+                      "type": "integer",
+                      "title": "Status"
+                    },
+                    "detail": {
+                      "type": "string",
+                      "title": "Detail"
+                    }
+                  },
+                  "type": "object",
+                  "required": [
+                    "title",
+                    "status",
+                    "detail"
+                  ],
+                  "title": "Problem",
+                  "description": "An RFC 9457 Problem Details body."
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The body is larger than one event may be (1 MiB).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "title": "Type",
+                      "default": "about:blank"
+                    },
+                    "title": {
+                      "type": "string",
+                      "title": "Title"
+                    },
+                    "status": {
+                      "type": "integer",
+                      "title": "Status"
+                    },
+                    "detail": {
+                      "type": "string",
+                      "title": "Detail"
+                    }
+                  },
+                  "type": "object",
+                  "required": [
+                    "title",
+                    "status",
+                    "detail"
+                  ],
+                  "title": "Problem",
+                  "description": "An RFC 9457 Problem Details body."
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "The body has a Content-Encoding; send the event uncompressed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "title": "Type",
+                      "default": "about:blank"
+                    },
+                    "title": {
+                      "type": "string",
+                      "title": "Title"
+                    },
+                    "status": {
+                      "type": "integer",
+                      "title": "Status"
+                    },
+                    "detail": {
+                      "type": "string",
+                      "title": "Detail"
+                    }
+                  },
+                  "type": "object",
+                  "required": [
+                    "title",
+                    "status",
+                    "detail"
+                  ],
+                  "title": "Problem",
+                  "description": "An RFC 9457 Problem Details body."
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An unexpected failure; the detail reveals nothing about it.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "title": "Type",
+                      "default": "about:blank"
+                    },
+                    "title": {
+                      "type": "string",
+                      "title": "Title"
+                    },
+                    "status": {
+                      "type": "integer",
+                      "title": "Status"
+                    },
+                    "detail": {
+                      "type": "string",
+                      "title": "Detail"
+                    }
+                  },
+                  "type": "object",
+                  "required": [
+                    "title",
+                    "status",
+                    "detail"
+                  ],
+                  "title": "Problem",
+                  "description": "An RFC 9457 Problem Details body."
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The database cannot be opened as a current data-finops database.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "title": "Type",
+                      "default": "about:blank"
+                    },
+                    "title": {
+                      "type": "string",
+                      "title": "Title"
+                    },
+                    "status": {
+                      "type": "integer",
+                      "title": "Status"
+                    },
+                    "detail": {
+                      "type": "string",
+                      "title": "Detail"
+                    }
+                  },
+                  "type": "object",
+                  "required": [
+                    "title",
+                    "status",
+                    "detail"
+                  ],
+                  "title": "Problem",
+                  "description": "An RFC 9457 Problem Details body."
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -968,6 +1187,44 @@
         ],
         "title": "Health",
         "description": "Whether the database opens as a current data-finops database; a status, not an error."
+      },
+      "LineageReceipt": {
+        "properties": {
+          "accepted": {
+            "type": "integer",
+            "title": "Accepted"
+          },
+          "duplicates": {
+            "type": "integer",
+            "title": "Duplicates"
+          },
+          "changed_copies": {
+            "type": "integer",
+            "title": "Changed Copies"
+          }
+        },
+        "type": "object",
+        "required": [
+          "accepted",
+          "duplicates",
+          "changed_copies"
+        ],
+        "title": "LineageReceipt",
+        "description": "What storing one RunEvent changed, as the workload store's ingest result counts it."
+      },
+      "LineageUnsupported": {
+        "properties": {
+          "unsupported": {
+            "type": "string",
+            "title": "Unsupported"
+          }
+        },
+        "type": "object",
+        "required": [
+          "unsupported"
+        ],
+        "title": "LineageUnsupported",
+        "description": "A valid JobEvent or DatasetEvent: received, not stored (spec 04)."
       },
       "ServedSnapshot": {
         "properties": {

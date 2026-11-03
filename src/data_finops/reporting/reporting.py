@@ -22,7 +22,7 @@ from data_finops.reporting.models import (
     ServedSnapshot,
     UnallocatedAmount,
 )
-from data_finops.workload.store import StaleDatabaseError, WorkloadStore
+from data_finops.workload.store import UnusableDatabaseError, WorkloadStore
 
 MAX_PAGE_SIZE = 1000
 """The largest page a read serves (spec 06)."""
@@ -59,8 +59,8 @@ class Reporting:
         try:
             # Held open from the start, so a stale workload schema is reported here, by
             # `/health`, rather than by the first read that needs the store.
-            self._store = WorkloadStore(path)
-        except (sqlite3.DatabaseError, StaleDatabaseError):
+            self._store = WorkloadStore.open_existing(path)
+        except UnusableDatabaseError:
             self._ledger.close()
             raise DatabaseUnavailable from None
 

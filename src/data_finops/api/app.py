@@ -10,10 +10,12 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
+from starlette.concurrency import run_in_threadpool
 from starlette.exceptions import HTTPException
 
 from data_finops.contracts.allocation import AllocationCategory
 from data_finops.contracts.billing import CostBasis
+from data_finops.lineage.validation import MAX_EVENT_BYTES
 from data_finops.reporting import (
     MAX_PAGE_SIZE,
     AllocationPage,
@@ -24,6 +26,7 @@ from data_finops.reporting import (
     NotFound,
     Reporting,
 )
+from data_finops.workload.store import IngestResult, UnusableDatabaseError, WorkloadStore
 
 PROBLEM = "application/problem+json"
 
@@ -35,6 +38,31 @@ class Problem(BaseModel):
     title: str
     status: int
     detail: str
+
+
+class LineageReceipt(BaseModel):
+    """What storing one RunEvent changed, as the workload store's ingest result counts it."""
+
+    accepted: int
+    duplicates: int
+    changed_copies: int
+
+
+class LineageUnsupported(BaseModel):
+    """A valid JobEvent or DatasetEvent: received, not stored (spec 04)."""
+
+    unsupported: str
+
+
+class _TooLarge(Exception):
+    """A request body above the per-event cap."""
+
+
+class _Encoded(Exception):
+    """A request body with a Content-Encoding: compressed bodies are not accepted (#103)."""
+
+
+_EVENT_CAP = f"{MAX_EVENT_BYTES // 2**20} MiB"
 
 
 class Health(BaseModel):
@@ -65,6 +93,16 @@ _PAGE_PROBLEMS: dict[int | str, dict[str, Any]] = {
     ),
     404: _problem_doc("No such Calculation Run, or no calculated Snapshot Scope matches."),
 }
+_RECEIVER_RESPONSES: dict[int | str, dict[str, Any]] = {
+    201: {"model": LineageReceipt, "description": "Stored, or already stored (a duplicate)."},
+    202: {"model": LineageUnsupported, "description": "A JobEvent or DatasetEvent: not stored."},
+    400: _problem_doc("Rejected: the detail gives the kind and failing field, never content."),
+    413: _problem_doc(f"The body is larger than one event may be ({_EVENT_CAP})."),
+    415: _problem_doc("The body has a Content-Encoding; send the event uncompressed."),
+    500: _READ_PROBLEMS[500],
+    503: _READ_PROBLEMS[503],
+}
+_ONE_EVENT = {"required": True, "content": {"application/json": {"schema": {"type": "object"}}}}
 
 
 def create_app(db: Path) -> FastAPI:
@@ -150,6 +188,40 @@ def create_app(db: Path) -> FastAPI:
             "Give calculation_run_id or billing_account_id, billing_period and source, not both.",
         )
 
+    @app.post(
+        "/api/v1/lineage",
+        status_code=201,
+        response_model=LineageReceipt,
+        responses=_RECEIVER_RESPONSES,
+        openapi_extra={"requestBody": _ONE_EVENT},
+    )
+    async def receive_lineage(request: Request) -> Any:
+        """Store one OpenLineage RunEvent, the default endpoint of OpenLineage's HTTP transport
+        (spec 04). Screened exactly as one item of an event file.
+
+        The one async endpoint (spec 06): it streams the body so an oversized one is refused
+        at the cap instead of buffered (ADR 0024), then ingests in the thread pool."""
+        body = await _body_within_cap(request)
+        result = await run_in_threadpool(_ingest_event, db, body)
+        if result.rejected:
+            return _problem_json(400, "Rejected event", result.rejected[0].reason)
+        if result.unsupported:
+            unsupported = LineageUnsupported(unsupported=result.unsupported[0].reason)
+            return JSONResponse(unsupported.model_dump(), status_code=202)
+        return LineageReceipt(
+            accepted=result.accepted,
+            duplicates=result.duplicates,
+            changed_copies=result.changed_copies,
+        )
+
+    @app.exception_handler(_TooLarge)
+    def too_large(request: Request, error: _TooLarge) -> JSONResponse:
+        return _problem_json(413, "Event too large", f"One event may be at most {_EVENT_CAP}.")
+
+    @app.exception_handler(_Encoded)
+    def encoded(request: Request, error: _Encoded) -> JSONResponse:
+        return _problem_json(415, "Unsupported encoding", "Send the event uncompressed.")
+
     @app.exception_handler(RequestValidationError)
     def invalid_request(request: Request, error: RequestValidationError) -> JSONResponse:
         fields = sorted(
@@ -166,7 +238,8 @@ def create_app(db: Path) -> FastAPI:
         return _problem_json(500, "Internal error", "The request could not be completed.")
 
     @app.exception_handler(DatabaseUnavailable)
-    def unavailable(request: Request, error: DatabaseUnavailable) -> JSONResponse:
+    @app.exception_handler(UnusableDatabaseError)
+    def unavailable(request: Request, error: Exception) -> JSONResponse:
         return _problem_json(503, "Database unavailable", "The database cannot be opened.")
 
     def openapi() -> dict[str, Any]:
@@ -185,6 +258,27 @@ def create_app(db: Path) -> FastAPI:
 
     app.openapi = openapi  # type: ignore[method-assign]
     return app
+
+
+async def _body_within_cap(request: Request) -> bytes:
+    """The request body, refused as soon as it exceeds one event's cap: a declared length is
+    checked before anything is read, and a streamed body is never buffered past the cap."""
+    if request.headers.get("content-encoding", "identity").lower() != "identity":
+        raise _Encoded
+    declared = request.headers.get("content-length", "")
+    if declared.isdigit() and int(declared) > MAX_EVENT_BYTES:
+        raise _TooLarge
+    body = bytearray()
+    async for chunk in request.stream():
+        body += chunk
+        if len(body) > MAX_EVENT_BYTES:
+            raise _TooLarge
+    return bytes(body)
+
+
+def _ingest_event(db: Path, body: bytes) -> IngestResult:
+    with WorkloadStore.open_existing(db) as store:
+        return store.ingest_event(body)
 
 
 def _problem_json(status: int, title: str, detail: str) -> JSONResponse:
