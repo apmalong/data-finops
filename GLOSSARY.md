@@ -97,6 +97,14 @@ _Avoid_: owner, cost center, tenant, data product, consumer (not targets in the 
 The sum of Allocations over the Query Executions linked to a Model Execution, Workload Run or higher grouping. A Roll-up is a view, never a further Allocation.
 _Avoid_: re-allocation, inherited cost
 
+**Cost Summary**:
+Where one Allocation Snapshot put the bill, per currency and for one Cost Basis: the billed total, the allocated amounts by Allocation Category and Confidence, Unallocated amounts by reason, Adjustments, and the Reconciliation Delta.
+_Avoid_: overview, total cost, spend report
+
+**Cost Explanation**:
+The chain behind one Allocation: its Billing Line, the Allocation's method, Confidence and Coverage, its Evidence resolved to Query Execution, Model Execution and Workload Runs, and the Roll-ups it contributes to.
+_Avoid_: drilldown, trace, breakdown, query cost
+
 **Allocation Category**:
 The kind of share an Allocation represents: direct (from the target's own metered usage), shared, idle or unallocated.
 _Avoid_: kind, type
