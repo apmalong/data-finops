@@ -158,3 +158,4 @@ _Avoid_: result, rerun output
 
 - "Query cost" implies an exact per-query price that providers do not bill. Say "Allocation to a Query Execution" and state its Confidence.
 - "Unknown" is used in fixtures as a target name; the domain term is Unallocated.
+- `no_evidence` names two things: a Link Outcome (a Query Execution without a Trusted Query Comment) and an Unallocated reason (a shared pool with no positive weight, #86). They never meet: Link Outcomes describe Identity Links, Unallocated reasons describe money. Say which one you mean.
