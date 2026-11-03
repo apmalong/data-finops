@@ -39,6 +39,7 @@ from data_finops.contracts.allocation import Allocation, AllocationCategory, Con
 from data_finops.contracts.billing import CostBasis, FocusBillingLine, FocusChargeCategory
 from data_finops.identity.links import ModelExecutionKey
 from data_finops.ledger import AllocationStoreOutcome, Ledger
+from data_finops.reporting import MAX_PAGE_SIZE, Reporting
 from data_finops.workload.store import WorkloadStore
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -114,7 +115,7 @@ def _engine(lines: dict[str, FocusBillingLine], pools: dict[str, Any]) -> list[A
 
 
 @pytest.fixture(scope="module")
-def end_to_end(tmp_path_factory: pytest.TempPathFactory) -> Iterator[list[Allocation]]:
+def end_to_end_database(tmp_path_factory: pytest.TempPathFactory) -> Path:
     path = tmp_path_factory.mktemp("m4") / "data-finops.sqlite"
     with Ledger(path) as ledger, WorkloadStore(path) as store:
         ledger.import_snapshot(EXPORT)
@@ -133,6 +134,14 @@ def end_to_end(tmp_path_factory: pytest.TempPathFactory) -> Iterator[list[Alloca
         )
         stored = ledger.current_allocations(EXPORT.snapshot.scope)
         assert stored is not None and stored.snapshot.calculation_run_id == first.calculation_run_id
+    return path
+
+
+@pytest.fixture(scope="module")
+def end_to_end(end_to_end_database: Path) -> Iterator[list[Allocation]]:
+    with Ledger(end_to_end_database) as ledger:
+        stored = ledger.current_allocations(EXPORT.snapshot.scope)
+        assert stored is not None
         yield stored.allocations
 
 
@@ -141,6 +150,19 @@ def test_the_existing_fixtures_scenario_runs_end_to_end(end_to_end: list[Allocat
     _assert_invariants(
         end_to_end, {EXPORT.line_ref(i): line for i, line in enumerate(EXPORT.lines)}
     )
+
+
+def test_the_end_to_end_run_reconciles_every_line_through_the_read_model(
+    end_to_end_database: Path,
+) -> None:
+    # The same partition check as `_assert_invariants`, made by `reporting` (#112) over the
+    # stored snapshot and the Export Snapshot its run read.
+    with Reporting(end_to_end_database) as reporting:
+        report = reporting.reconciliation(billing_account_id=ACCOUNT, limit=MAX_PAGE_SIZE)
+    assert report.total == len(EXPORT.lines) * len(CostBasis)
+    assert len(report.items) == report.total
+    assert all(line.reconciliation_delta == 0 for line in report.items)
+    assert all(total.reconciliation_delta == 0 for total in report.totals)
 
 
 def test_the_synthetic_cost_pools_scenario_is_computed_by_the_engine() -> None:

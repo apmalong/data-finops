@@ -31,8 +31,11 @@ from data_finops.identity.links import ModelExecutionKey
 from data_finops.ledger import Ledger, StoredAllocations
 from data_finops.reporting.models import (
     AllocatedAmount,
+    AllocationCurrencyReconciliation,
     AllocationEntry,
+    AllocationLineReconciliation,
     AllocationPage,
+    AllocationReconciliation,
     CostExplanation,
     CostSummaries,
     CostSummary,
@@ -210,6 +213,60 @@ class Reporting:
             items=entries[offset : offset + limit],
         )
 
+    def reconciliation(
+        self,
+        *,
+        calculation_run_id: str | None = None,
+        billing_account_id: str | None = None,
+        billing_period: date | None = None,
+        source: str | None = None,
+        cost_basis: CostBasis | None = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> AllocationReconciliation:
+        """Allocations against the bill they partition, per Billing Line and Cost Basis, with
+        per-currency totals over every line; one page of the lines (GLOSSARY Reconciliation).
+
+        The snapshot is chosen as for `allocations`. Every line of the Export Snapshot the
+        run read appears, allocated or not, so nothing missing can hide.
+        """
+        _check_page(limit, offset)
+        stored = self._served(calculation_run_id, billing_account_id, billing_period, source)
+        bases = [cost_basis] if cost_basis is not None else list(CostBasis)
+        # Keyed by line, basis and currency, from the bill and from the Allocations alike, so
+        # an amount allocated outside the bill or in another currency is billed zero and shows.
+        billed: dict[tuple[str, CostBasis, str], Decimal] = defaultdict(Decimal)
+        allocated: dict[tuple[str, CostBasis, str], Decimal] = defaultdict(Decimal)
+        for ref, line in self._bill(stored):
+            for basis in bases:
+                billed[(ref, basis, line.BillingCurrency)] += line.cost(basis)
+        for allocation in stored.allocations:
+            basis = CostBasis(allocation.cost_basis)
+            if basis in bases:
+                key = (allocation.billing_line_ref, basis, allocation.currency)
+                allocated[key] += allocation.amount
+        rows = [
+            AllocationLineReconciliation(
+                billing_line_ref=ref,
+                currency=currency,
+                cost_basis=basis,
+                billed=billed[(ref, basis, currency)],
+                allocated_amount=allocated[(ref, basis, currency)],
+                reconciliation_delta=billed[(ref, basis, currency)]
+                - allocated[(ref, basis, currency)],
+            )
+            for ref, basis, currency in sorted(billed.keys() | allocated.keys())
+        ]
+        return AllocationReconciliation(
+            calculation_run_id=stored.snapshot.calculation_run_id,
+            export_snapshot_id=stored.snapshot.export_snapshot_id,
+            totals=_totals(rows),
+            total=len(rows),
+            limit=limit,
+            offset=offset,
+            items=rows[offset : offset + limit],
+        )
+
     def explanation(self, ref: str) -> CostExplanation:
         """The Cost Explanation of the Allocation at `ref` (`<calculation_run_id>#<position>`),
         current or superseded; NotFound for an unknown or malformed reference."""
@@ -337,22 +394,53 @@ class Reporting:
         )
 
     def _billed(self, stored: StoredAllocations, basis: CostBasis) -> dict[str, Decimal]:
-        """The bill the snapshot partitions: every line of the Export Snapshot its run read.
+        billed: dict[str, Decimal] = defaultdict(Decimal)
+        for _, line in self._bill(stored):
+            billed[line.BillingCurrency] += line.cost(basis)
+        return billed
 
-        Snapshots stored before M5 record none; their Allocations' line references name it.
-        """
+    def _bill(self, stored: StoredAllocations) -> list[tuple[str, FocusBillingLine]]:
+        """The Billing Lines the snapshot partitions, by reference: every line of the Export
+        Snapshot its run read. Snapshots stored before M5 record none; their Allocations'
+        line references name it."""
         recorded = stored.snapshot.export_snapshot_id
         snapshot_ids = (
             {recorded}
             if recorded is not None
             else {snapshot_id_of(a.billing_line_ref) for a in stored.allocations}
         )
-        billed: dict[str, Decimal] = defaultdict(Decimal)
+        bill = []
         for snapshot_id in sorted(snapshot_ids):
             export = self._ledger.snapshot(snapshot_id)
-            for line in export.lines if export is not None else []:
-                billed[line.BillingCurrency] += line.cost(basis)
-        return billed
+            if export is not None:
+                bill += [(export.line_ref(i), line) for i, line in enumerate(export.lines)]
+        return bill
+
+
+def _totals(rows: list[AllocationLineReconciliation]) -> list[AllocationCurrencyReconciliation]:
+    """Each currency and Cost Basis over every row; never across currencies."""
+    groups: dict[tuple[str, CostBasis], list[AllocationLineReconciliation]] = defaultdict(list)
+    for row in rows:
+        groups[(row.currency, row.cost_basis)].append(row)
+    totals = []
+    for (currency, basis), group in sorted(groups.items()):
+        billed = sum((row.billed for row in group), Decimal(0))
+        allocated = sum((row.allocated_amount for row in group), Decimal(0))
+        totals.append(
+            AllocationCurrencyReconciliation(
+                currency=currency,
+                cost_basis=basis,
+                billed=billed,
+                allocated_amount=allocated,
+                reconciliation_delta=billed - allocated,
+            )
+        )
+    return totals
+
+
+def _check_page(limit: int, offset: int) -> None:
+    if not 1 <= limit <= MAX_PAGE_SIZE or offset < 0:
+        raise ValueError(f"limit must be 1 to {MAX_PAGE_SIZE} and offset at least 0")
 
 
 _ROLLUPS: dict[RollupLevel, Callable[[list[Allocation]], dict[str, tuple[RollupTotal, ...]]]] = {
@@ -361,11 +449,6 @@ _ROLLUPS: dict[RollupLevel, Callable[[list[Allocation]], dict[str, tuple[RollupT
     },
     "workload_run": workload_run_rollups,
 }
-
-
-def _check_page(limit: int, offset: int) -> None:
-    if not 1 <= limit <= MAX_PAGE_SIZE or offset < 0:
-        raise ValueError(f"limit must be 1 to {MAX_PAGE_SIZE} and offset at least 0")
 
 
 def _allocation_ref(calculation_run_id: str, position: int) -> str:

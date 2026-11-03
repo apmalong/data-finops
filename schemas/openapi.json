@@ -942,6 +942,314 @@
         }
       }
     },
+    "/v1/reconciliation": {
+      "get": {
+        "summary": "Reconciliation",
+        "description": "One Allocation Snapshot's Allocations against the bill they partition: per Billing\nLine and Cost Basis, with per-currency totals over every line.",
+        "operationId": "reconciliation_v1_reconciliation_get",
+        "parameters": [
+          {
+            "name": "calculation_run_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 128
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Calculation Run Id"
+            }
+          },
+          {
+            "name": "billing_account_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 128
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Billing Account Id"
+            }
+          },
+          {
+            "name": "billing_period",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Billing Period"
+            }
+          },
+          {
+            "name": "source",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 256
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Source"
+            }
+          },
+          {
+            "name": "cost_basis",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/CostBasis"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cost Basis"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 1000,
+              "minimum": 1,
+              "default": 100,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AllocationReconciliation"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request, or filters matching several Snapshot Scopes: the detail names the fields to give, never their values.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "description": "An RFC 9457 Problem Details body.",
+                  "properties": {
+                    "type": {
+                      "default": "about:blank",
+                      "title": "Type",
+                      "type": "string"
+                    },
+                    "title": {
+                      "title": "Title",
+                      "type": "string"
+                    },
+                    "status": {
+                      "title": "Status",
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "title": "Detail",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "title",
+                    "status",
+                    "detail"
+                  ],
+                  "title": "Problem",
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "When a token is configured: no valid bearer token (ADR 0024).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "description": "An RFC 9457 Problem Details body.",
+                  "properties": {
+                    "type": {
+                      "default": "about:blank",
+                      "title": "Type",
+                      "type": "string"
+                    },
+                    "title": {
+                      "title": "Title",
+                      "type": "string"
+                    },
+                    "status": {
+                      "title": "Status",
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "title": "Detail",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "title",
+                    "status",
+                    "detail"
+                  ],
+                  "title": "Problem",
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An unexpected failure; the detail reveals nothing about it.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "description": "An RFC 9457 Problem Details body.",
+                  "properties": {
+                    "type": {
+                      "default": "about:blank",
+                      "title": "Type",
+                      "type": "string"
+                    },
+                    "title": {
+                      "title": "Title",
+                      "type": "string"
+                    },
+                    "status": {
+                      "title": "Status",
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "title": "Detail",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "title",
+                    "status",
+                    "detail"
+                  ],
+                  "title": "Problem",
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The database cannot be opened as a current data-finops database.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "description": "An RFC 9457 Problem Details body.",
+                  "properties": {
+                    "type": {
+                      "default": "about:blank",
+                      "title": "Type",
+                      "type": "string"
+                    },
+                    "title": {
+                      "title": "Title",
+                      "type": "string"
+                    },
+                    "status": {
+                      "title": "Status",
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "title": "Detail",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "title",
+                    "status",
+                    "detail"
+                  ],
+                  "title": "Problem",
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such Calculation Run, or no calculated Snapshot Scope matches.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "description": "An RFC 9457 Problem Details body.",
+                  "properties": {
+                    "type": {
+                      "default": "about:blank",
+                      "title": "Type",
+                      "type": "string"
+                    },
+                    "title": {
+                      "title": "Title",
+                      "type": "string"
+                    },
+                    "status": {
+                      "title": "Status",
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "title": "Detail",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "title",
+                    "status",
+                    "detail"
+                  ],
+                  "title": "Problem",
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/allocations/{ref}/explanation": {
       "get": {
         "summary": "Explanation",
@@ -1631,6 +1939,44 @@
         ],
         "title": "AllocationCategory"
       },
+      "AllocationCurrencyReconciliation": {
+        "properties": {
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "title": "Currency"
+          },
+          "cost_basis": {
+            "$ref": "#/components/schemas/CostBasis"
+          },
+          "billed": {
+            "type": "string",
+            "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+            "title": "Billed"
+          },
+          "allocated_amount": {
+            "type": "string",
+            "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+            "title": "Allocated Amount"
+          },
+          "reconciliation_delta": {
+            "type": "string",
+            "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+            "title": "Reconciliation Delta"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "currency",
+          "cost_basis",
+          "billed",
+          "allocated_amount",
+          "reconciliation_delta"
+        ],
+        "title": "AllocationCurrencyReconciliation",
+        "description": "Every line of one currency and Cost Basis; never added to another currency's."
+      },
       "AllocationEntry": {
         "properties": {
           "ref": {
@@ -1649,6 +1995,49 @@
         ],
         "title": "AllocationEntry",
         "description": "One Allocation and its address, `<calculation_run_id>#<position>` (spec 06)."
+      },
+      "AllocationLineReconciliation": {
+        "properties": {
+          "billing_line_ref": {
+            "type": "string",
+            "title": "Billing Line Ref"
+          },
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "title": "Currency"
+          },
+          "cost_basis": {
+            "$ref": "#/components/schemas/CostBasis"
+          },
+          "billed": {
+            "type": "string",
+            "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+            "title": "Billed"
+          },
+          "allocated_amount": {
+            "type": "string",
+            "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+            "title": "Allocated Amount"
+          },
+          "reconciliation_delta": {
+            "type": "string",
+            "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+            "title": "Reconciliation Delta"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "billing_line_ref",
+          "currency",
+          "cost_basis",
+          "billed",
+          "allocated_amount",
+          "reconciliation_delta"
+        ],
+        "title": "AllocationLineReconciliation",
+        "description": "One Billing Line, Cost Basis and currency: what was billed, what the Allocations hold,\nand the Reconciliation Delta between them (zero when Reconciliation holds). A line the bill\nlacks, or a currency other than the line's, is billed zero, so invented amounts show."
       },
       "AllocationMethod": {
         "type": "string",
@@ -1703,6 +2092,64 @@
         ],
         "title": "AllocationPage",
         "description": "One page of a single Allocation Snapshot's Allocations; offsets are stable because\nthe snapshot never changes."
+      },
+      "AllocationReconciliation": {
+        "properties": {
+          "calculation_run_id": {
+            "type": "string",
+            "title": "Calculation Run Id"
+          },
+          "export_snapshot_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Export Snapshot Id"
+          },
+          "totals": {
+            "items": {
+              "$ref": "#/components/schemas/AllocationCurrencyReconciliation"
+            },
+            "type": "array",
+            "title": "Totals"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "limit": {
+            "type": "integer",
+            "title": "Limit"
+          },
+          "offset": {
+            "type": "integer",
+            "title": "Offset"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AllocationLineReconciliation"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "calculation_run_id",
+          "export_snapshot_id",
+          "totals",
+          "total",
+          "limit",
+          "offset",
+          "items"
+        ],
+        "title": "AllocationReconciliation",
+        "description": "One Allocation Snapshot's Allocations against the Export Snapshot its Calculation Run\nread: per-currency totals over every line, and one page of the lines."
       },
       "Confidence": {
         "type": "string",

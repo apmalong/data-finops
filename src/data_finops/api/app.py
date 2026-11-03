@@ -22,6 +22,7 @@ from data_finops.lineage.validation import MAX_EVENT_BYTES
 from data_finops.reporting import (
     MAX_PAGE_SIZE,
     AllocationPage,
+    AllocationReconciliation,
     AmbiguousScope,
     ConflictingFilters,
     CostExplanation,
@@ -224,6 +225,29 @@ def create_app(db: Path, *, token: str | None = None) -> FastAPI:
             billing_account_id=billing_account_id,
             billing_period=billing_period,
             source=source,
+            limit=limit,
+            offset=offset,
+        )
+
+    @app.get("/v1/reconciliation", responses=_PAGE_PROBLEMS)
+    def reconciliation(
+        read_model: Annotated[Reporting, Depends(reporting)],
+        calculation_run_id: Annotated[str | None, Query(max_length=128)] = None,
+        billing_account_id: Annotated[str | None, Query(max_length=128)] = None,
+        billing_period: date | None = None,
+        source: Annotated[str | None, Query(max_length=256)] = None,
+        cost_basis: CostBasis | None = None,
+        limit: Annotated[int, Query(ge=1, le=MAX_PAGE_SIZE)] = 100,
+        offset: Annotated[int, Query(ge=0)] = 0,
+    ) -> AllocationReconciliation:
+        """One Allocation Snapshot's Allocations against the bill they partition: per Billing
+        Line and Cost Basis, with per-currency totals over every line."""
+        return read_model.reconciliation(
+            calculation_run_id=calculation_run_id,
+            billing_account_id=billing_account_id,
+            billing_period=billing_period,
+            source=source,
+            cost_basis=cost_basis,
             limit=limit,
             offset=offset,
         )

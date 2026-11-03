@@ -89,6 +89,43 @@ class AllocationPage(_Response):
     items: list[AllocationEntry]
 
 
+class AllocationLineReconciliation(_Response):
+    """One Billing Line, Cost Basis and currency: what was billed, what the Allocations hold,
+    and the Reconciliation Delta between them (zero when Reconciliation holds). A line the bill
+    lacks, or a currency other than the line's, is billed zero, so invented amounts show."""
+
+    billing_line_ref: str
+    currency: CurrencyCode
+    cost_basis: CostBasis
+    billed: DecimalString
+    allocated_amount: DecimalString
+    reconciliation_delta: DecimalString
+
+
+class AllocationCurrencyReconciliation(_Response):
+    """Every line of one currency and Cost Basis; never added to another currency's."""
+
+    currency: CurrencyCode
+    cost_basis: CostBasis
+    billed: DecimalString
+    allocated_amount: DecimalString
+    reconciliation_delta: DecimalString
+
+
+class AllocationReconciliation(_Response):
+    """One Allocation Snapshot's Allocations against the Export Snapshot its Calculation Run
+    read: per-currency totals over every line, and one page of the lines."""
+
+    calculation_run_id: str
+    export_snapshot_id: str | None
+    totals: list[AllocationCurrencyReconciliation]
+    total: int
+    """Rows (Billing Line, Cost Basis and currency) across every page."""
+    limit: int
+    offset: int
+    items: list[AllocationLineReconciliation]
+
+
 RollupLevel = Literal["model_execution", "workload_run"]
 """What a Roll-up sums to (ADR 0016)."""
 
