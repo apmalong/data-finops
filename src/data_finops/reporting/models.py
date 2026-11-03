@@ -1,12 +1,20 @@
 """Response models of the read model (spec 06). Amounts are Decimal strings, never floats,
 and never summed across currencies."""
 
+from typing import Literal
+
 from pydantic import BaseModel, ConfigDict
 
 from data_finops.attribution.engine import AllocationMethod
 from data_finops.contracts.allocation import Allocation, AllocationCategory, Confidence
-from data_finops.contracts.billing import CostBasis, SnapshotScope
+from data_finops.contracts.billing import CostBasis, FocusBillingLine, SnapshotScope
 from data_finops.contracts.types import CurrencyCode, DecimalString, UtcDatetime
+from data_finops.contracts.workload import (
+    DbtNode,
+    ModelExecution,
+    QueryExecution,
+    WorkloadRun,
+)
 
 
 class _Response(BaseModel):
@@ -79,6 +87,52 @@ class AllocationPage(_Response):
     limit: int
     offset: int
     items: list[AllocationEntry]
+
+
+class ExplainedModelExecution(_Response):
+    """The Model Execution an Allocation's Evidence links, as the workload store holds it;
+    `execution` or `dbt_node` is None when that part was never ingested."""
+
+    invocation_id: str
+    node_id: str
+    execution: ModelExecution | None
+    dbt_node: DbtNode | None
+
+
+class ExplainedWorkloadRun(_Response):
+    """A Workload Run an Allocation's Evidence names; `run` is None if never reported."""
+
+    run_id: str
+    run: WorkloadRun | None
+
+
+class ExplainedRollup(_Response):
+    """A Roll-up the Allocation contributes to, in the Allocation's currency and Cost Basis."""
+
+    level: Literal["model_execution", "workload_run"]
+    key: str
+    """The Model Execution as `["<invocation>","<node>"]`, or the Workload Run's ID."""
+    currency: CurrencyCode
+    cost_basis: CostBasis
+    amount: DecimalString
+
+
+class CostExplanation(_Response):
+    """The chain behind one Allocation (GLOSSARY): its Billing Line, the Allocation, its
+    Evidence resolved, and the Roll-ups it contributes to."""
+
+    ref: str
+    billing_line_ref: str
+    billing_line: FocusBillingLine
+    """Every FOCUS column as exported, with the provider's raw values."""
+    allocation: Allocation
+    unallocated_reason: str | None
+    """Why an Unallocated amount was not allocated (its method); None otherwise."""
+    query_execution: QueryExecution | None
+    model_execution: ExplainedModelExecution | None
+    workload_runs: list[ExplainedWorkloadRun]
+    """Nearest first, then parents, then the root, as the Evidence records them."""
+    rollups: list[ExplainedRollup]
 
 
 class CostSummaries(_Response):

@@ -637,6 +637,217 @@
         }
       }
     },
+    "/v1/allocations/{ref}/explanation": {
+      "get": {
+        "summary": "Explanation",
+        "description": "The Cost Explanation of one Allocation, addressed `<calculation_run_id>#<position>`\n(the `#` sent as `%23`): Billing Line, Allocation, Evidence resolved, Roll-ups.",
+        "operationId": "explanation_v1_allocations__ref__explanation_get",
+        "parameters": [
+          {
+            "name": "ref",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 256,
+              "title": "Ref"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CostExplanation"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request: the detail names the fields, never their values.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "description": "An RFC 9457 Problem Details body.",
+                  "properties": {
+                    "type": {
+                      "default": "about:blank",
+                      "title": "Type",
+                      "type": "string"
+                    },
+                    "title": {
+                      "title": "Title",
+                      "type": "string"
+                    },
+                    "status": {
+                      "title": "Status",
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "title": "Detail",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "title",
+                    "status",
+                    "detail"
+                  ],
+                  "title": "Problem",
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "When a token is configured: no valid bearer token (ADR 0024).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "description": "An RFC 9457 Problem Details body.",
+                  "properties": {
+                    "type": {
+                      "default": "about:blank",
+                      "title": "Type",
+                      "type": "string"
+                    },
+                    "title": {
+                      "title": "Title",
+                      "type": "string"
+                    },
+                    "status": {
+                      "title": "Status",
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "title": "Detail",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "title",
+                    "status",
+                    "detail"
+                  ],
+                  "title": "Problem",
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An unexpected failure; the detail reveals nothing about it.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "description": "An RFC 9457 Problem Details body.",
+                  "properties": {
+                    "type": {
+                      "default": "about:blank",
+                      "title": "Type",
+                      "type": "string"
+                    },
+                    "title": {
+                      "title": "Title",
+                      "type": "string"
+                    },
+                    "status": {
+                      "title": "Status",
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "title": "Detail",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "title",
+                    "status",
+                    "detail"
+                  ],
+                  "title": "Problem",
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The database cannot be opened as a current data-finops database.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "description": "An RFC 9457 Problem Details body.",
+                  "properties": {
+                    "type": {
+                      "default": "about:blank",
+                      "title": "Type",
+                      "type": "string"
+                    },
+                    "title": {
+                      "title": "Title",
+                      "type": "string"
+                    },
+                    "status": {
+                      "title": "Status",
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "title": "Detail",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "title",
+                    "status",
+                    "detail"
+                  ],
+                  "title": "Problem",
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such Allocation.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "description": "An RFC 9457 Problem Details body.",
+                  "properties": {
+                    "type": {
+                      "default": "about:blank",
+                      "title": "Type",
+                      "type": "string"
+                    },
+                    "title": {
+                      "title": "Title",
+                      "type": "string"
+                    },
+                    "status": {
+                      "title": "Status",
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "title": "Detail",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "title",
+                    "status",
+                    "detail"
+                  ],
+                  "title": "Problem",
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/lineage": {
       "post": {
         "summary": "Receive Lineage",
@@ -1208,6 +1419,84 @@
         "title": "CostBasis",
         "description": "The FOCUS cost column a figure is taken from; bases are never added together."
       },
+      "CostExplanation": {
+        "properties": {
+          "ref": {
+            "type": "string",
+            "title": "Ref"
+          },
+          "billing_line_ref": {
+            "type": "string",
+            "title": "Billing Line Ref"
+          },
+          "billing_line": {
+            "$ref": "#/components/schemas/FocusBillingLine"
+          },
+          "allocation": {
+            "$ref": "#/components/schemas/Allocation"
+          },
+          "unallocated_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unallocated Reason"
+          },
+          "query_execution": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/QueryExecution"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "model_execution": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ExplainedModelExecution"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "workload_runs": {
+            "items": {
+              "$ref": "#/components/schemas/ExplainedWorkloadRun"
+            },
+            "type": "array",
+            "title": "Workload Runs"
+          },
+          "rollups": {
+            "items": {
+              "$ref": "#/components/schemas/ExplainedRollup"
+            },
+            "type": "array",
+            "title": "Rollups"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "ref",
+          "billing_line_ref",
+          "billing_line",
+          "allocation",
+          "unallocated_reason",
+          "query_execution",
+          "model_execution",
+          "workload_runs",
+          "rollups"
+        ],
+        "title": "CostExplanation",
+        "description": "The chain behind one Allocation (GLOSSARY): its Billing Line, the Allocation, its\nEvidence resolved, and the Roll-ups it contributes to."
+      },
       "CostSummaries": {
         "properties": {
           "summaries": {
@@ -1314,6 +1603,450 @@
         "title": "CurrencySummary",
         "description": "One currency's part of a Cost Summary; never added to another currency's."
       },
+      "DbtNode": {
+        "properties": {
+          "node_id": {
+            "type": "string",
+            "title": "Node Id"
+          },
+          "invocation_id": {
+            "type": "string",
+            "title": "Invocation Id"
+          },
+          "resource_type": {
+            "type": "string",
+            "title": "Resource Type"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "package_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Package Name"
+          },
+          "relation_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Relation Name"
+          },
+          "materialized": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Materialized"
+          },
+          "depends_on": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Depends On",
+            "default": []
+          },
+          "provenance": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provenance"
+          },
+          "flags": {
+            "items": {
+              "$ref": "#/components/schemas/DbtObservationFlag"
+            },
+            "type": "array",
+            "title": "Flags",
+            "default": []
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "node_id",
+          "invocation_id",
+          "resource_type",
+          "name"
+        ],
+        "title": "DbtNode",
+        "description": "A node of one invocation's dbt manifest: catalog entry and static dependencies."
+      },
+      "DbtObservationFlag": {
+        "type": "string",
+        "enum": [
+          "conflicting_observations"
+        ],
+        "title": "DbtObservationFlag"
+      },
+      "ExplainedModelExecution": {
+        "properties": {
+          "invocation_id": {
+            "type": "string",
+            "title": "Invocation Id"
+          },
+          "node_id": {
+            "type": "string",
+            "title": "Node Id"
+          },
+          "execution": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ModelExecution"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "dbt_node": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DbtNode"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "invocation_id",
+          "node_id",
+          "execution",
+          "dbt_node"
+        ],
+        "title": "ExplainedModelExecution",
+        "description": "The Model Execution an Allocation's Evidence links, as the workload store holds it;\n`execution` or `dbt_node` is None when that part was never ingested."
+      },
+      "ExplainedRollup": {
+        "properties": {
+          "level": {
+            "type": "string",
+            "enum": [
+              "model_execution",
+              "workload_run"
+            ],
+            "title": "Level"
+          },
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "title": "Currency"
+          },
+          "cost_basis": {
+            "$ref": "#/components/schemas/CostBasis"
+          },
+          "amount": {
+            "type": "string",
+            "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+            "title": "Amount"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "level",
+          "key",
+          "currency",
+          "cost_basis",
+          "amount"
+        ],
+        "title": "ExplainedRollup",
+        "description": "A Roll-up the Allocation contributes to, in the Allocation's currency and Cost Basis."
+      },
+      "ExplainedWorkloadRun": {
+        "properties": {
+          "run_id": {
+            "type": "string",
+            "title": "Run Id"
+          },
+          "run": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WorkloadRun"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "run_id",
+          "run"
+        ],
+        "title": "ExplainedWorkloadRun",
+        "description": "A Workload Run an Allocation's Evidence names; `run` is None if never reported."
+      },
+      "FocusBillingLine": {
+        "properties": {
+          "BilledCost": {
+            "type": "string",
+            "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+            "title": "Billedcost"
+          },
+          "EffectiveCost": {
+            "type": "string",
+            "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+            "title": "Effectivecost"
+          },
+          "ListCost": {
+            "type": "string",
+            "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+            "title": "Listcost"
+          },
+          "ContractedCost": {
+            "type": "string",
+            "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+            "title": "Contractedcost"
+          },
+          "BillingAccountId": {
+            "type": "string",
+            "title": "Billingaccountid"
+          },
+          "BillingCurrency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "title": "Billingcurrency"
+          },
+          "BillingPeriodStart": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Billingperiodstart"
+          },
+          "BillingPeriodEnd": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Billingperiodend"
+          },
+          "ChargePeriodStart": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Chargeperiodstart"
+          },
+          "ChargePeriodEnd": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Chargeperiodend"
+          },
+          "ChargeCategory": {
+            "$ref": "#/components/schemas/FocusChargeCategory"
+          },
+          "ChargeClass": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FocusChargeClass"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "ProviderName": {
+            "type": "string",
+            "title": "Providername"
+          },
+          "ServiceName": {
+            "type": "string",
+            "title": "Servicename"
+          },
+          "ServiceCategory": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Servicecategory"
+          },
+          "SkuId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Skuid"
+          },
+          "RegionId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Regionid"
+          },
+          "ResourceId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resourceid"
+          },
+          "SubAccountId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subaccountid"
+          },
+          "ConsumedQuantity": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?[0-9]+(\\.[0-9]+)?$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Consumedquantity"
+          },
+          "ConsumedUnit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Consumedunit"
+          },
+          "PricingQuantity": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?[0-9]+(\\.[0-9]+)?$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pricingquantity"
+          },
+          "PricingUnit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pricingunit"
+          },
+          "Tags": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tags"
+          },
+          "data_finops_raw_values": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data Finops Raw Values"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "BilledCost",
+          "EffectiveCost",
+          "ListCost",
+          "ContractedCost",
+          "BillingAccountId",
+          "BillingCurrency",
+          "BillingPeriodStart",
+          "BillingPeriodEnd",
+          "ChargePeriodStart",
+          "ChargePeriodEnd",
+          "ChargeCategory",
+          "ProviderName",
+          "ServiceName"
+        ],
+        "title": "BillingLine"
+      },
+      "FocusChargeCategory": {
+        "type": "string",
+        "enum": [
+          "Usage",
+          "Purchase",
+          "Tax",
+          "Credit",
+          "Adjustment"
+        ],
+        "title": "FocusChargeCategory"
+      },
+      "FocusChargeClass": {
+        "type": "string",
+        "enum": [
+          "Correction"
+        ],
+        "title": "FocusChargeClass"
+      },
       "Health": {
         "properties": {
           "status": {
@@ -1369,6 +2102,228 @@
         ],
         "title": "LineageUnsupported",
         "description": "A valid JobEvent or DatasetEvent: received, not stored (spec 04)."
+      },
+      "ModelExecution": {
+        "properties": {
+          "node_id": {
+            "type": "string",
+            "title": "Node Id"
+          },
+          "invocation_id": {
+            "type": "string",
+            "title": "Invocation Id"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "completed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "provenance": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provenance"
+          },
+          "flags": {
+            "items": {
+              "$ref": "#/components/schemas/DbtObservationFlag"
+            },
+            "type": "array",
+            "title": "Flags",
+            "default": []
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "node_id",
+          "invocation_id",
+          "status"
+        ],
+        "title": "ModelExecution",
+        "description": "One run of a dbt node within one invocation."
+      },
+      "QueryCorrelation": {
+        "properties": {
+          "node_id": {
+            "type": "string",
+            "title": "Node Id"
+          },
+          "invocation_id": {
+            "type": "string",
+            "title": "Invocation Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "node_id",
+          "invocation_id"
+        ],
+        "title": "QueryCorrelation",
+        "description": "Identifiers extracted from a trusted query comment; the query text is not kept."
+      },
+      "QueryExecution": {
+        "properties": {
+          "provider": {
+            "type": "string",
+            "title": "Provider"
+          },
+          "account_id": {
+            "type": "string",
+            "title": "Account Id"
+          },
+          "region": {
+            "type": "string",
+            "title": "Region"
+          },
+          "query_execution_id": {
+            "type": "string",
+            "title": "Query Execution Id"
+          },
+          "workgroup": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Workgroup"
+          },
+          "statement_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Statement Type"
+          },
+          "state": {
+            "type": "string",
+            "title": "State"
+          },
+          "submitted_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Submitted At"
+          },
+          "completed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "scanned_bytes": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scanned Bytes"
+          },
+          "billable_bytes": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Billable Bytes"
+          },
+          "correlation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/QueryCorrelation"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "provenance": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provenance"
+          },
+          "flags": {
+            "items": {
+              "$ref": "#/components/schemas/QueryExecutionFlag"
+            },
+            "type": "array",
+            "title": "Flags",
+            "default": []
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "provider",
+          "account_id",
+          "region",
+          "query_execution_id",
+          "state",
+          "submitted_at"
+        ],
+        "title": "QueryExecution"
+      },
+      "QueryExecutionFlag": {
+        "type": "string",
+        "enum": [
+          "conflicting_observations"
+        ],
+        "title": "QueryExecutionFlag"
       },
       "ServedSnapshot": {
         "properties": {
@@ -1473,6 +2428,160 @@
         ],
         "title": "UnallocatedAmount",
         "description": "Unallocated amounts for one reason (the Allocation's method), Adjustments aside."
+      },
+      "WorkloadRun": {
+        "properties": {
+          "system": {
+            "type": "string",
+            "title": "System"
+          },
+          "job_namespace": {
+            "type": "string",
+            "title": "Job Namespace"
+          },
+          "job_name": {
+            "type": "string",
+            "title": "Job Name"
+          },
+          "run_id": {
+            "type": "string",
+            "title": "Run Id"
+          },
+          "parent_run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Run Id"
+          },
+          "parent_job_namespace": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Job Namespace"
+          },
+          "parent_job_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Job Name"
+          },
+          "root_run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Root Run Id"
+          },
+          "root_job_namespace": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Root Job Namespace"
+          },
+          "root_job_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Root Job Name"
+          },
+          "status": {
+            "$ref": "#/components/schemas/WorkloadRunStatus"
+          },
+          "flags": {
+            "items": {
+              "$ref": "#/components/schemas/WorkloadRunFlag"
+            },
+            "type": "array",
+            "title": "Flags",
+            "default": []
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "ended_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ended At"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "system",
+          "job_namespace",
+          "job_name",
+          "run_id",
+          "status"
+        ],
+        "title": "WorkloadRun",
+        "description": "One OpenLineage run as reported, including dbt-ol's per-model runs (ADR 0022)."
+      },
+      "WorkloadRunFlag": {
+        "type": "string",
+        "enum": [
+          "conflicting_observations",
+          "conflicting_jobs",
+          "conflicting_parents"
+        ],
+        "title": "WorkloadRunFlag",
+        "description": "Disagreements among a run's stored observations, shown rather than resolved."
+      },
+      "WorkloadRunStatus": {
+        "type": "string",
+        "enum": [
+          "running",
+          "completed",
+          "failed",
+          "aborted",
+          "conflicting"
+        ],
+        "title": "WorkloadRunStatus",
+        "description": "Derived from a run's terminal event, whatever the arrival order (spec 02)."
       }
     }
   }

@@ -6,19 +6,35 @@ from datetime import date
 from decimal import Decimal
 from pathlib import Path
 from types import TracebackType
-from typing import Self
+from typing import Literal, Self
 
 from data_finops.attribution.engine import AllocationMethod
-from data_finops.contracts.allocation import Allocation, AllocationCategory, Confidence
+from data_finops.attribution.rollups import (
+    RollupTotal,
+    model_execution_of,
+    model_execution_rollups,
+    workload_run_rollups,
+    workload_runs_of,
+)
+from data_finops.contracts.allocation import (
+    Allocation,
+    AllocationCategory,
+    Confidence,
+    TargetType,
+)
 from data_finops.contracts.billing import CostBasis, SnapshotScope, snapshot_id_of
 from data_finops.ledger import Ledger, StoredAllocations
 from data_finops.reporting.models import (
     AllocatedAmount,
     AllocationEntry,
     AllocationPage,
+    CostExplanation,
     CostSummaries,
     CostSummary,
     CurrencySummary,
+    ExplainedModelExecution,
+    ExplainedRollup,
+    ExplainedWorkloadRun,
     ServedSnapshot,
     UnallocatedAmount,
 )
@@ -143,6 +159,71 @@ class Reporting:
             items=matching[offset : offset + limit],
         )
 
+    def explanation(self, ref: str) -> CostExplanation:
+        """The Cost Explanation of the Allocation at `ref` (`<calculation_run_id>#<position>`),
+        current or superseded; NotFound for an unknown or malformed reference."""
+        run_id, _, position_text = ref.rpartition("#")
+        stored = self._ledger.allocation_snapshot(run_id) if run_id else None
+        if stored is None or not position_text.isdigit():
+            raise NotFound("no such Allocation")
+        position = int(position_text)
+        if position >= len(stored.allocations):
+            raise NotFound("no such Allocation")
+        allocation = stored.allocations[position]
+        snapshot_id, _, line_position = allocation.billing_line_ref.rpartition("#")
+        export = self._ledger.snapshot(snapshot_id)
+        if export is None:
+            raise NotFound("the Allocation's Billing Line is not stored")
+        line = export.lines[int(line_position)]
+        model = model_execution_of(allocation)
+        runs = workload_runs_of(allocation)
+        return CostExplanation(
+            ref=ref,
+            billing_line_ref=allocation.billing_line_ref,
+            billing_line=line,
+            allocation=allocation,
+            unallocated_reason=(
+                allocation.method if allocation.category is AllocationCategory.UNALLOCATED else None
+            ),
+            query_execution=(
+                self._store.query_execution(
+                    line.SubAccountId or line.BillingAccountId,
+                    line.RegionId or "",
+                    allocation.target_id,
+                )
+                if allocation.target_type is TargetType.QUERY_EXECUTION
+                else None
+            ),
+            model_execution=(
+                None
+                if model is None
+                else ExplainedModelExecution(
+                    invocation_id=model.invocation_id,
+                    node_id=model.node_id,
+                    execution=next(
+                        (
+                            m
+                            for m in self._store.model_executions(model.invocation_id)
+                            if m.node_id == model.node_id
+                        ),
+                        None,
+                    ),
+                    dbt_node=next(
+                        (
+                            n
+                            for n in self._store.manifest_nodes(model.invocation_id)
+                            if n.node_id == model.node_id
+                        ),
+                        None,
+                    ),
+                )
+            ),
+            workload_runs=[
+                ExplainedWorkloadRun(run_id=run, run=self._store.workload_run(run)) for run in runs
+            ],
+            rollups=_rollups_of(allocation, stored.allocations),
+        )
+
     def _served(
         self,
         calculation_run_id: str | None,
@@ -225,6 +306,28 @@ class Reporting:
             for line in export.lines if export is not None else []:
                 billed[line.BillingCurrency] += line.cost(basis)
         return billed
+
+
+def _rollups_of(allocation: Allocation, allocations: list[Allocation]) -> list[ExplainedRollup]:
+    """The Roll-ups `allocation` contributes to, in its own currency and Cost Basis."""
+    model = model_execution_of(allocation)
+    groups: list[
+        tuple[Literal["model_execution", "workload_run"], str, tuple[RollupTotal, ...]]
+    ] = []
+    if model is not None:
+        groups.append(
+            ("model_execution", model.target_id(), model_execution_rollups(allocations)[model])
+        )
+    run_totals = workload_run_rollups(allocations)
+    groups += [("workload_run", run, run_totals[run]) for run in workload_runs_of(allocation)]
+    return [
+        ExplainedRollup(
+            level=level, key=key, currency=t.currency, cost_basis=t.cost_basis, amount=t.amount
+        )
+        for level, key, totals in groups
+        for t in totals
+        if (t.currency, t.cost_basis) == (allocation.currency, allocation.cost_basis)
+    ]
 
 
 def _currency_summary(
