@@ -1,0 +1,117 @@
+/* data-finops dashboard: the Cost Summary and Roll-ups (spec 06; design rules in DESIGN.md). Colours are the dataviz
+   skill's validated reference steps: one series hue for allocated amounts, one highlight
+   for amounts that need attention. Everything else is ink on the surface. */
+
+/* Light and dark each have their own validated steps. The theme follows the system setting;
+   `data-theme` on <html> forces one (the screenshots use it). */
+:root {
+  color-scheme: light;
+  --page: #f9f9f7;
+  --surface: #fcfcfb;
+  --ink: #0b0b0b;
+  --ink-2: #52514e;
+  --ink-3: #75746f;
+  --rule: #e4e3df;
+  --allocated: #2a78d6;
+  --attention: #eb6834;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --page: #0d0d0d;
+    --surface: #1a1a19;
+    --ink: #f0efec;
+    --ink-2: #c3c2b7;
+    --ink-3: #9a998f;
+    --rule: #33332f;
+    --allocated: #3987e5;
+    --attention: #d95926;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --page: #0d0d0d;
+  --surface: #1a1a19;
+  --ink: #f0efec;
+  --ink-2: #c3c2b7;
+  --ink-3: #9a998f;
+  --rule: #33332f;
+  --allocated: #3987e5;
+  --attention: #d95926;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--page);
+  color: var(--ink);
+  font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+main { max-width: 1120px; margin: 0 auto; padding: 24px 16px 48px; }
+h1 { font-size: 1.5rem; margin: 0 0 12px; font-weight: 600; }
+h2 { font-size: 1.05rem; margin: 32px 0 4px; font-weight: 600; }
+h3 { font-size: 0.95rem; margin: 0 0 8px; font-weight: 600; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+
+.filters { display: flex; flex-wrap: wrap; gap: 16px; margin-bottom: 8px; color: var(--ink-2); }
+.filters select {
+  margin-left: 6px; font: inherit; color: var(--ink); background: var(--surface);
+  border: 1px solid var(--rule); border-radius: 4px; padding: 2px 6px;
+}
+.provenance, .hint, .meta { color: var(--ink-3); font-size: 0.8rem; margin: 0; }
+.notice { color: var(--ink-2); border-left: 3px solid var(--attention); padding: 4px 10px; }
+
+.multiples { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; }
+.panel { background: var(--surface); border-radius: 8px; padding: 16px; min-width: 0; }
+
+.headline { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+/* The headline number: proportional figures at hero size (tabular figures are for columns). */
+.hero { font-size: 48px; line-height: 1.1; font-weight: 600; letter-spacing: -0.01em; margin: 0; }
+.delta { font-size: 0.85rem; color: var(--ink-2); }
+.delta.attention { color: var(--ink); }
+.delta.attention::before { content: "⚠ "; color: var(--attention); }
+
+/* Bars: one zero baseline per chart, sorted, labelled directly; <= 24px thick. */
+.bars { list-style: none; margin: 12px 0; padding: 0; }
+.bar-row {
+  display: grid; grid-template-columns: minmax(96px, 32%) 1fr; align-items: center;
+  gap: 10px; min-height: 30px;
+}
+.bar-label { color: var(--ink-2); font-size: 0.85rem; overflow-wrap: anywhere; }
+.bar-label strong { color: var(--ink); font-weight: 500; }
+.bar-label strong.mono { font-weight: 400; }
+.detail { color: var(--ink-3); font-size: 0.75rem; }
+.bar-track { position: relative; height: 20px; }
+.bar-track .zero { position: absolute; top: -4px; bottom: -4px; width: 1px; background: var(--ink-3); }
+.bar {
+  position: absolute; top: 0; height: 20px; background: var(--allocated);
+  border-radius: 0 4px 4px 0;
+}
+.bar.negative { border-radius: 4px 0 0 4px; }
+.bar.attention { background: var(--attention); }
+.bar-value {
+  position: absolute; top: 0; line-height: 20px; font-size: 0.8rem; color: var(--ink);
+  font-variant-numeric: tabular-nums; white-space: nowrap; padding: 0 6px;
+}
+
+/* Tables: exact amounts, right-aligned tabular figures, light rules between groups. */
+table { width: 100%; border-collapse: collapse; font-size: 0.85rem; margin-top: 8px; }
+caption { text-align: left; color: var(--ink-3); font-size: 0.8rem; padding-bottom: 4px; }
+th, td { padding: 4px 6px; text-align: left; }
+th { color: var(--ink-3); font-weight: 500; border-bottom: 1px solid var(--rule); }
+td.amount, th.amount { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+tr.group td { border-top: 1px solid var(--rule); }
+tr.total td { font-weight: 600; border-top: 1px solid var(--ink-3); }
+.mono { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-size: 0.8rem; }
+
+.tooltip {
+  position: fixed; pointer-events: none; background: var(--surface); color: var(--ink);
+  border: 1px solid var(--rule); border-radius: 6px; padding: 6px 8px; font-size: 0.8rem;
+  max-width: 320px;
+}
+
+@media (forced-colors: active) {
+  .bar-track .zero { background: CanvasText; }
+  .bar { background: CanvasText; }
+  .bar.attention { background: Highlight; }
+}

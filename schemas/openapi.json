@@ -2256,6 +2256,30 @@
             "type": "string",
             "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
             "title": "Amount"
+          },
+          "coverage_min": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?[0-9]+(\\.[0-9]+)?$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Coverage Min"
+          },
+          "coverage_max": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?[0-9]+(\\.[0-9]+)?$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Coverage Max"
           }
         },
         "additionalProperties": false,

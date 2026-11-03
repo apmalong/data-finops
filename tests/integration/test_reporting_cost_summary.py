@@ -93,6 +93,7 @@ def test_the_cost_summary_shows_where_the_bill_went(
         ("ineligible", _oracle_total(category="unallocated", method="ineligible"))
     ]
     assert (usd.adjustments, usd.reconciliation_delta) == (Decimal(0), Decimal(0))
+    assert usd.model_dump(mode="json")["adjustments"] == "0.00"  # the bill's own scale
     snapshot = summary.snapshot
     assert (snapshot.calculation_run_id, snapshot.is_current) == (database.calculation_run_id, True)
     assert snapshot.export_snapshot_id == EXPORT.snapshot.snapshot_id
@@ -249,3 +250,14 @@ def test_a_file_the_stores_refuse_is_unavailable(tmp_path: Path) -> None:
         with pytest.raises(DatabaseUnavailable):
             Reporting(path)
     assert not missing.exists()
+
+
+def test_estimates_carry_the_coverage_of_their_allocations(reporting: Reporting) -> None:
+    # spec 06: Metered Shares are labelled with their Confidence and Coverage; the oracle's
+    # q-001 share has Coverage 1, and the Unallocated amount carries none.
+    (summary,) = reporting.cost_summary().summaries
+    (metered,) = summary.currencies[0].allocated
+    coverage = Decimal(
+        next(a for a in ORACLE["allocations"] if a["target_id"] == "q-001")["coverage"]
+    )
+    assert (metered.coverage_min, metered.coverage_max) == (coverage, coverage)

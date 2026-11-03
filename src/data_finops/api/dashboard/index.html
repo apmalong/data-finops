@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>data-finops</title>
+  <link rel="stylesheet" href="dashboard.css">
+</head>
+<body>
+  <main class="viz-root">
+    <header class="masthead">
+      <h1>Where the bill went</h1>
+      <form class="filters" aria-label="What to show">
+        <label>Snapshot Scope <select id="scope"></select></label>
+        <label>Cost Basis
+          <select id="basis">
+            <option value="BilledCost">BilledCost</option>
+            <option value="EffectiveCost">EffectiveCost</option>
+            <option value="ListCost">ListCost</option>
+            <option value="ContractedCost">ContractedCost</option>
+          </select>
+        </label>
+      </form>
+      <p class="provenance" id="provenance"></p>
+    </header>
+
+    <p class="notice" id="notice" hidden></p>
+
+    <section aria-labelledby="summary-title">
+      <h2 id="summary-title" class="visually-hidden">Cost Summary</h2>
+      <div id="currencies" class="multiples"></div>
+    </section>
+
+    <section aria-labelledby="rollups-title">
+      <h2 id="rollups-title">What models and runs cost</h2>
+      <p class="hint">Roll-ups: sums of the Allocations to the Query Executions each one is linked to. A view, never a further Allocation.</p>
+      <div class="multiples">
+        <div id="rollups-model"></div>
+        <div id="rollups-run"></div>
+      </div>
+    </section>
+  </main>
+  <div class="tooltip" id="tooltip" aria-hidden="true" hidden></div>
+  <script src="dashboard.js"></script>
+</body>
+</html>

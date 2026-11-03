@@ -10,7 +10,8 @@ from fastapi import Depends, FastAPI, Query, Request, Response
 from fastapi import Path as PathParameter
 from fastapi.exceptions import RequestValidationError
 from fastapi.openapi.utils import get_openapi
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from starlette.concurrency import run_in_threadpool
 from starlette.exceptions import HTTPException
@@ -39,6 +40,7 @@ from data_finops.reporting import (
 from data_finops.workload.store import IngestResult, UnusableDatabaseError, WorkloadStore
 
 PROBLEM = "application/problem+json"
+DASHBOARD = Path(__file__).resolve().parent / "dashboard"
 
 
 class Problem(BaseModel):
@@ -299,6 +301,13 @@ def create_app(db: Path, *, token: str | None = None) -> FastAPI:
         """The Cost Explanation of one Allocation, addressed `<calculation_run_id>#<position>`
         (the `#` sent as `%23`): Billing Line, Allocation, Evidence resolved, Roll-ups."""
         return read_model.explanation(ref)
+
+    @app.get("/", include_in_schema=False)
+    def root() -> RedirectResponse:
+        return RedirectResponse("/dashboard/", status_code=307)
+
+    # The static dashboard (spec 06): HTML, CSS and JavaScript only, reading this API.
+    app.mount("/dashboard", StaticFiles(directory=DASHBOARD, html=True), name="dashboard")
 
     @app.exception_handler(NotFound)
     def not_found(request: Request, error: NotFound) -> JSONResponse:
