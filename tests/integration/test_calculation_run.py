@@ -52,8 +52,8 @@ def _query_history(tmp_path: Path, query_id: str, **changes: Any) -> Path:
     history = json.loads((FIXTURES / "athena" / "query-executions.json").read_text())
     query = history["QueryExecutions"][0] | {"QueryExecutionId": query_id}
     for path, value in changes.items():
-        section, field = path.split("__")
-        query[section] = query[section] | {field: value}
+        section, _, field = path.partition("__")  # `Status__State` is a nested field
+        query[section] = query[section] | {field: value} if field else value
     history["QueryExecutions"] = [query]
     target = tmp_path / f"{query_id}.json"
     target.write_text(json.dumps(history), encoding="utf-8")
@@ -102,9 +102,11 @@ def test_a_first_run_stores_the_golden_allocations(
     stores: tuple[Ledger, WorkloadStore],
 ) -> None:
     ledger, store = stores
-    result = run_calculation(ledger, store, SCOPE)
-    assert result.outcome == AllocationStoreOutcome.NEW
-    assert _billed(ledger, result.calculation_run_id) == _golden()
+    result = run_calculation(ledger, store, SCOPE, new_run_id=lambda: "calc-1")
+    assert (result.outcome, result.calculation_run_id) == (AllocationStoreOutcome.NEW, "calc-1")
+    assert result.ineligible_lines == ("aws-focus-123456789012-2026-10-v1#1",)
+    assert result.unknown_billable_usage == ()
+    assert _billed(ledger, "calc-1") == _golden()
     current = ledger.current_allocations(SCOPE)
     assert current is not None
     assert current.snapshot.calculation_run_id == result.calculation_run_id
@@ -114,13 +116,15 @@ def test_a_first_run_stores_the_golden_allocations(
 
 def test_the_same_inputs_again_are_a_replay(stores: tuple[Ledger, WorkloadStore]) -> None:
     ledger, store = stores
-    first = run_calculation(ledger, store, SCOPE)
-    again = run_calculation(ledger, store, SCOPE)
+    first = run_calculation(ledger, store, SCOPE, new_run_id=lambda: "calc-1")
+    again = run_calculation(ledger, store, SCOPE, new_run_id=lambda: "calc-2")
+    # The replay reports the snapshot it reproduced, not the ID it was offered.
     assert (again.outcome, again.calculation_run_id, again.input_digest) == (
         AllocationStoreOutcome.REPLAY,
-        first.calculation_run_id,
+        "calc-1",
         first.input_digest,
     )
+    assert ledger.allocation_snapshot("calc-2") is None
 
 
 def test_a_restated_export_snapshot_yields_a_new_snapshot(
@@ -225,9 +229,13 @@ def test_a_query_without_statistics_is_reported_and_left_out_of_known_usage(
     history = json.loads(_query_history(tmp_path, "q-007").read_text())
     del history["QueryExecutions"][0]["Statistics"]
     (tmp_path / "q-007.json").write_text(json.dumps(history), encoding="utf-8")
+    first = run_calculation(ledger, store, SCOPE)
     store.ingest_query_history(tmp_path / "q-007.json", account_id=ACCOUNT, region=REGION)
     result = run_calculation(ledger, store, SCOPE)
     assert result.unknown_billable_usage == ("q-007",)
+    # Nothing to allocate changed, but what the run knows did: a new snapshot.
+    assert result.outcome == AllocationStoreOutcome.NEW
+    assert result.input_digest != first.input_digest
     # q-001 still covers the line exactly; q-007 receives nothing.
     assert _billed(ledger, result.calculation_run_id) == _golden()
 
@@ -244,7 +252,6 @@ def test_a_query_without_statistics_is_reported_and_left_out_of_known_usage(
         ({"ConsumedQuantity": Decimal("0")}, "ineligible"),
         ({"ConsumedUnit": "GB"}, "ineligible"),
         ({"ServiceName": "Amazon Redshift"}, "ineligible"),
-        ({"SubAccountId": None}, "ineligible"),
     ],
     ids=[
         "credit",
@@ -256,7 +263,6 @@ def test_a_query_without_statistics_is_reported_and_left_out_of_known_usage(
         "zero-quantity",
         "unknown-unit",
         "other-service",
-        "no-usage-account",
     ],
 )
 def test_lines_that_are_not_athena_on_demand_usage_stay_unallocated(
@@ -279,3 +285,71 @@ def test_a_scope_without_an_export_snapshot_is_refused(tmp_path: Path) -> None:
         with pytest.raises(LookupError, match="no Export Snapshot"):
             run_calculation(ledger, store, SCOPE)
         assert ledger.current_allocations(SCOPE) is None
+
+
+def test_a_metered_line_without_a_usage_account_is_wholly_a_coverage_remainder(
+    stores: tuple[Ledger, WorkloadStore],
+) -> None:
+    ledger, store = stores
+    ledger.import_snapshot(_export(SubAccountId=None))
+    result = run_calculation(ledger, store, SCOPE)
+    athena = [
+        a
+        for a in _billed(ledger, result.calculation_run_id)
+        if a["billing_line_ref"].endswith("v2#0")
+    ]
+    assert [(a["target_id"], a["method"], a["coverage"]) for a in athena] == [
+        ("unallocated", "coverage_remainder", "0")
+    ]
+
+
+def test_query_states_bill_as_the_athena_policy_says(
+    stores: tuple[Ledger, WorkloadStore], tmp_path: Path
+) -> None:
+    ledger, store = stores
+    # Beside q-001's 1,000 MB: a cancelled query that scanned 25.4 MB bills 26 MB; failed,
+    # still running and a 0-byte DDL bill nothing. 1,026 MB of 1,000 is within the
+    # export's half-unit tolerance, so Coverage is 1 and the $6.00 splits 1000:26.
+    for query_id, changes in {
+        "q-cancelled": {"Status__State": "CANCELLED", "Statistics__DataScannedInBytes": 25_400_000},
+        "q-failed": {"Status__State": "FAILED"},
+        "q-ddl": {"StatementType": "DDL", "Statistics__DataScannedInBytes": 0},
+    }.items():
+        store.ingest_query_history(
+            _query_history(tmp_path, query_id, **changes), account_id=ACCOUNT, region=REGION
+        )
+    running = json.loads(_query_history(tmp_path, "q-running", Status__State="RUNNING").read_text())
+    del running["QueryExecutions"][0]["Status"]["CompletionDateTime"]
+    (tmp_path / "q-running.json").write_text(json.dumps(running), encoding="utf-8")
+    store.ingest_query_history(tmp_path / "q-running.json", account_id=ACCOUNT, region=REGION)
+    result = run_calculation(ledger, store, SCOPE)
+    athena = {
+        a["target_id"]: a["amount"]
+        for a in _billed(ledger, result.calculation_run_id)
+        if a["billing_line_ref"].endswith("v1#0")
+    }
+    assert athena == {"q-001": "5.85", "q-cancelled": "0.15"}
+
+
+def test_allocations_record_every_rule_version_that_shaped_them(
+    stores: tuple[Ledger, WorkloadStore],
+) -> None:
+    ledger, store = stores
+    result = run_calculation(ledger, store, SCOPE)
+    stored = ledger.allocation_snapshot(result.calculation_run_id)
+    assert stored is not None
+    assert stored.snapshot.policy_version == (
+        "allocation-engine/1+line-classification/1+athena-billable-usage/1+athena-billing-scope/1"
+    )
+
+
+def test_a_restatement_to_no_lines_yields_a_new_empty_snapshot(
+    stores: tuple[Ledger, WorkloadStore],
+) -> None:
+    ledger, store = stores
+    run_calculation(ledger, store, SCOPE)
+    ledger.import_snapshot(_export().model_copy(update={"lines": []}))
+    result = run_calculation(ledger, store, SCOPE)
+    assert result.outcome == AllocationStoreOutcome.NEW
+    stored = ledger.allocation_snapshot(result.calculation_run_id)
+    assert stored is not None and stored.allocations == []
