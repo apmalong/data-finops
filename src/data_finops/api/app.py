@@ -29,6 +29,8 @@ from data_finops.reporting import (
     DatabaseUnavailable,
     NotFound,
     Reporting,
+    RollupLevel,
+    RollupPage,
 )
 from data_finops.workload.store import IngestResult, UnusableDatabaseError, WorkloadStore
 
@@ -199,6 +201,29 @@ def create_app(db: Path, *, token: str | None = None) -> FastAPI:
             category=category,
             billing_line_ref=billing_line_ref,
             cost_basis=cost_basis,
+            limit=limit,
+            offset=offset,
+        )
+
+    @app.get("/v1/rollups", responses=_PAGE_PROBLEMS)
+    def rollups(
+        read_model: Annotated[Reporting, Depends(reporting)],
+        level: RollupLevel,
+        calculation_run_id: Annotated[str | None, Query(max_length=128)] = None,
+        billing_account_id: Annotated[str | None, Query(max_length=128)] = None,
+        billing_period: date | None = None,
+        source: Annotated[str | None, Query(max_length=256)] = None,
+        limit: Annotated[int, Query(ge=1, le=MAX_PAGE_SIZE)] = 100,
+        offset: Annotated[int, Query(ge=0)] = 0,
+    ) -> RollupPage:
+        """What each Model Execution or Workload Run cost in one Allocation Snapshot, chosen as
+        for `/v1/allocations`; kept apart because a Roll-up is a view, never an Allocation."""
+        return read_model.rollups(
+            level=level,
+            calculation_run_id=calculation_run_id,
+            billing_account_id=billing_account_id,
+            billing_period=billing_period,
+            source=source,
             limit=limit,
             offset=offset,
         )

@@ -2,11 +2,12 @@
 
 import sqlite3
 from collections import defaultdict
+from collections.abc import Callable
 from datetime import date
 from decimal import Decimal
 from pathlib import Path
 from types import TracebackType
-from typing import Self
+from typing import Self, get_args
 
 from data_finops.attribution.engine import AllocationMethod
 from data_finops.attribution.rollups import (
@@ -39,7 +40,10 @@ from data_finops.reporting.models import (
     ExplainedModelExecution,
     ExplainedRollup,
     ExplainedWorkloadRun,
+    RollupAmount,
+    RollupEntry,
     RollupLevel,
+    RollupPage,
     ServedSnapshot,
     UnallocatedAmount,
 )
@@ -144,8 +148,7 @@ class Reporting:
         NotFound if none is calculated, AmbiguousScope if several are. `limit` is 1 to
         MAX_PAGE_SIZE and `offset` at least 0, else ValueError.
         """
-        if not 1 <= limit <= MAX_PAGE_SIZE or offset < 0:
-            raise ValueError(f"limit must be 1 to {MAX_PAGE_SIZE} and offset at least 0")
+        _check_page(limit, offset)
         stored = self._served(calculation_run_id, billing_account_id, billing_period, source)
         run_id = stored.snapshot.calculation_run_id
         matching = [
@@ -162,6 +165,49 @@ class Reporting:
             limit=limit,
             offset=offset,
             items=matching[offset : offset + limit],
+        )
+
+    def rollups(
+        self,
+        *,
+        level: RollupLevel,
+        calculation_run_id: str | None = None,
+        billing_account_id: str | None = None,
+        billing_period: date | None = None,
+        source: str | None = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> RollupPage:
+        """One page of one Allocation Snapshot's Roll-ups at `level`, ordered by key: what
+        each Model Execution or Workload Run cost, per currency and Cost Basis (ADR 0016).
+
+        The snapshot is chosen as for `allocations`; ValueError for an unknown level or a
+        page out of bounds.
+        """
+        if level not in _ROLLUPS:
+            raise ValueError(f"level must be one of {', '.join(get_args(RollupLevel))}")
+        _check_page(limit, offset)
+        stored = self._served(calculation_run_id, billing_account_id, billing_period, source)
+        entries = sorted(
+            (
+                RollupEntry(
+                    key=key,
+                    totals=[
+                        RollupAmount(currency=t.currency, cost_basis=t.cost_basis, amount=t.amount)
+                        for t in totals
+                    ],
+                )
+                for key, totals in _ROLLUPS[level](stored.allocations).items()
+            ),
+            key=lambda entry: entry.key,
+        )
+        return RollupPage(
+            calculation_run_id=stored.snapshot.calculation_run_id,
+            level=level,
+            total=len(entries),
+            limit=limit,
+            offset=offset,
+            items=entries[offset : offset + limit],
         )
 
     def explanation(self, ref: str) -> CostExplanation:
@@ -309,6 +355,19 @@ class Reporting:
         return billed
 
 
+_ROLLUPS: dict[RollupLevel, Callable[[list[Allocation]], dict[str, tuple[RollupTotal, ...]]]] = {
+    "model_execution": lambda allocations: {
+        key.target_id(): totals for key, totals in model_execution_rollups(allocations).items()
+    },
+    "workload_run": workload_run_rollups,
+}
+
+
+def _check_page(limit: int, offset: int) -> None:
+    if not 1 <= limit <= MAX_PAGE_SIZE or offset < 0:
+        raise ValueError(f"limit must be 1 to {MAX_PAGE_SIZE} and offset at least 0")
+
+
 def _allocation_ref(calculation_run_id: str, position: int) -> str:
     """An Allocation's address, `<calculation_run_id>#<position>` (spec 06)."""
     return f"{calculation_run_id}#{position}"
@@ -326,13 +385,15 @@ def _rollups_of(
     allocations: list[Allocation],
 ) -> list[ExplainedRollup]:
     """The Roll-ups `allocation` contributes to, in its own currency and Cost Basis."""
-    groups: list[tuple[RollupLevel, str, tuple[RollupTotal, ...]]] = []
-    if model is not None:
-        groups.append(
-            ("model_execution", model.target_id(), model_execution_rollups(allocations)[model])
-        )
-    run_totals = workload_run_rollups(allocations)
-    groups += [("workload_run", run, run_totals[run]) for run in runs]
+    keys: dict[RollupLevel, list[str]] = {
+        "model_execution": [] if model is None else [model.target_id()],
+        "workload_run": runs,
+    }
+    groups = [
+        (level, key, _ROLLUPS[level](allocations)[key])
+        for level, level_keys in keys.items()
+        for key in level_keys
+    ]
     return [
         ExplainedRollup(
             level=level, key=key, currency=t.currency, cost_basis=t.cost_basis, amount=t.amount

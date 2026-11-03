@@ -12,6 +12,10 @@ from data_finops.reporting.models import (
     ExplainedModelExecution,
     ExplainedRollup,
     ExplainedWorkloadRun,
+    RollupAmount,
+    RollupEntry,
+    RollupLevel,
+    RollupPage,
     ServedSnapshot,
     UnallocatedAmount,
 )
@@ -41,6 +45,10 @@ __all__ = [
     "ExplainedWorkloadRun",
     "NotFound",
     "Reporting",
+    "RollupAmount",
+    "RollupEntry",
+    "RollupLevel",
+    "RollupPage",
     "ServedSnapshot",
     "UnallocatedAmount",
 ]
