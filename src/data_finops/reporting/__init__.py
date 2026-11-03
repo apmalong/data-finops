@@ -15,6 +15,10 @@ from data_finops.reporting.models import (
     ExplainedModelExecution,
     ExplainedRollup,
     ExplainedWorkloadRun,
+    RollupAmount,
+    RollupEntry,
+    RollupLevel,
+    RollupPage,
     ServedSnapshot,
     UnallocatedAmount,
 )
@@ -47,6 +51,10 @@ __all__ = [
     "AllocationLineReconciliation",
     "NotFound",
     "Reporting",
+    "RollupAmount",
+    "RollupEntry",
+    "RollupLevel",
+    "RollupPage",
     "ServedSnapshot",
     "UnallocatedAmount",
 ]

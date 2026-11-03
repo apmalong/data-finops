@@ -130,6 +130,34 @@ RollupLevel = Literal["model_execution", "workload_run"]
 """What a Roll-up sums to (ADR 0016)."""
 
 
+class RollupAmount(_Response):
+    """One Roll-up total, in one currency and Cost Basis."""
+
+    currency: CurrencyCode
+    cost_basis: CostBasis
+    amount: DecimalString
+
+
+class RollupEntry(_Response):
+    """What one Model Execution or Workload Run cost: a view over Allocations, never an
+    Allocation (GLOSSARY Roll-up)."""
+
+    key: str
+    """The Model Execution as `["<invocation>","<node>"]`, or the Workload Run's ID."""
+    totals: list[RollupAmount]
+
+
+class RollupPage(_Response):
+    """One page of one Allocation Snapshot's Roll-ups at one level, ordered by key."""
+
+    calculation_run_id: str
+    level: RollupLevel
+    total: int
+    limit: int
+    offset: int
+    items: list[RollupEntry]
+
+
 class ExplainedModelExecution(_Response):
     """The Model Execution an Allocation's Evidence links, as the workload store holds it;
     `execution` or `dbt_node` is None when that part was never ingested."""
