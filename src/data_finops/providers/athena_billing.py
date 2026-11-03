@@ -17,7 +17,7 @@ for the data scanned. Provisional, to be checked against a real FOCUS export (#9
 
 from decimal import Decimal
 
-from data_finops.contracts.billing import FocusBillingLine
+from data_finops.contracts.billing import FocusBillingLine, FocusChargeCategory
 from data_finops.contracts.workload import QueryExecution
 
 POLICY_VERSION = "athena-billable-usage/1"
@@ -55,6 +55,31 @@ def bytes_in_consumed_unit(billable: int, consumed_unit: str) -> Decimal:
     if consumed_unit not in _BYTES_PER_UNIT:
         raise ValueError(f"unknown Athena ConsumedUnit {consumed_unit!r}")
     return Decimal(billable) / _BYTES_PER_UNIT[consumed_unit]
+
+
+def is_on_demand_usage(line: FocusBillingLine) -> bool:
+    """Whether `line` bills Athena on-demand scanning, so it can be metered (ADR 0017).
+
+    An Athena usage line, not a correction, whose positive ConsumedQuantity is in a unit
+    `bytes_in_consumed_unit` knows. Provisional until #91: the ServiceName and unit a
+    real export writes.
+    """
+    return (
+        line.ServiceName == "Amazon Athena"
+        and line.ChargeCategory == FocusChargeCategory.USAGE
+        and line.ChargeClass is None
+        and line.ConsumedUnit in _BYTES_PER_UNIT
+        and line.ConsumedQuantity is not None
+        and line.ConsumedQuantity > 0
+    )
+
+
+def pool_id(line: FocusBillingLine) -> str:
+    """The metered Cost Pool a line belongs to: usage account, region, workgroup (`*`
+    when the line names none) and charge period start."""
+    workgroup = _workgroup(line.ResourceId) or "*"
+    day = line.ChargePeriodStart.date().isoformat()
+    return f"athena-on-demand:{line.SubAccountId}:{line.RegionId}:{workgroup}:{day}"
 
 
 def in_billing_scope(query: QueryExecution, line: FocusBillingLine) -> bool:

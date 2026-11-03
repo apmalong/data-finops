@@ -46,6 +46,10 @@ def _query(query_execution_id: str) -> _Target:
     return _Target(TargetType.QUERY_EXECUTION, query_execution_id)
 
 
+ENGINE_VERSION = "allocation-engine/1"
+"""The engine's own rules (spec 03 steps E-G); part of every Allocation's policy version."""
+
+
 class AllocationMethod(StrEnum):
     """How an amount was allocated; for Unallocated amounts, why (spec 03, M4 structure 10)."""
 

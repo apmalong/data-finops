@@ -187,3 +187,18 @@ def test_the_reference_workload_query_history_is_ingested_whole(store: WorkloadS
     path = FIXTURES / "reference-workload" / "athena" / "query-executions.json"
     result = store.ingest_query_history(path, account_id="111122223333", region=REGION)
     assert (result.accepted, result.rejected, result.file_rejection) == (20, (), None)
+
+
+def test_query_executions_lists_one_account_and_region_by_id(
+    store: WorkloadStore, tmp_path: Path
+) -> None:
+    path = _write(tmp_path / "history.json", _response(_entry("q-200"), _entry("q-100")))
+    _ingest(store, path)
+    elsewhere = _write(tmp_path / "elsewhere.json", _response(_entry("q-300")))
+    store.ingest_query_history(elsewhere, account_id="210987654321", region=REGION)
+    store.ingest_query_history(elsewhere, account_id=ACCOUNT, region="eu-west-1")
+    listed = store.query_executions(ACCOUNT, REGION)
+    assert [(q.account_id, q.region, q.query_execution_id) for q in listed] == [
+        (ACCOUNT, REGION, "q-100"),
+        (ACCOUNT, REGION, "q-200"),
+    ]
