@@ -8,7 +8,7 @@ round-trips.
 import hashlib
 import json
 import sqlite3
-from collections.abc import Iterator, Sequence
+from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -133,7 +133,9 @@ class Ledger:
     """The immutable, versioned record of Export Snapshots and the Allocation Snapshots
     computed from them, opened from a database file."""
 
-    def __init__(self, path: Path) -> None:
+    def __init__(self, path: Path, *, clock: Callable[[], datetime] = lambda: datetime.now(UTC)):
+        """Open the Ledger in `path`; `clock` stamps Allocation Snapshots' creation."""
+        self._clock = clock
         self._connection = sqlite3.connect(path, isolation_level=None)
         self._connection.execute("PRAGMA journal_mode=WAL")
         self._connection.execute("PRAGMA foreign_keys=ON")
@@ -245,36 +247,33 @@ class Ledger:
     ) -> AllocationStoreResult:
         """Store a Calculation Run's Allocations as the current snapshot for `scope`.
 
-        The input digest decides identity (spec 03 step H): if the scope already has a
-        snapshot with this digest, nothing is stored and that snapshot becomes current
-        (replay). Otherwise the snapshot is stored atomically and becomes current; every
-        earlier snapshot is retained. Raises AllocationSnapshotConflictError if the run
-        ID is already stored with another digest, and ValueError if an Allocation names
-        another Calculation Run.
+        Unless they replay it: inputs equal to the scope's *current* snapshot (same input
+        digest) store nothing (spec 03 step H). Otherwise the snapshot is stored
+        atomically and becomes current, and every earlier one is retained; as for Export
+        Snapshots (ADR 0020), inputs equal to a superseded snapshot make a new one. Raises
+        AllocationSnapshotConflictError if the run ID is already stored, and ValueError if
+        an Allocation names another Calculation Run or policy version.
         """
         for allocation in allocations:
-            if allocation.calculation_run_id != calculation_run_id:
+            named = (allocation.calculation_run_id, allocation.policy_version)
+            if named != (calculation_run_id, policy_version):
                 raise ValueError(
-                    f"an Allocation names Calculation Run {allocation.calculation_run_id},"
-                    f" not {calculation_run_id}"
+                    f"an Allocation names Calculation Run {named[0]} under policy {named[1]},"
+                    f" not {calculation_run_id} under {policy_version}"
                 )
-        key = _scope_key(scope)
         with self._write_transaction():
-            same_inputs = self._connection.execute(
-                "SELECT calculation_run_id FROM allocation_snapshot WHERE billing_account_id = ?"
-                " AND billing_period_start = ? AND billing_period_end = ? AND source = ?"
-                " AND input_digest = ?",
-                (*key, input_digest),
-            ).fetchone()
-            if same_inputs is not None:
-                self._make_current(key, same_inputs[0])
-                return AllocationStoreResult(AllocationStoreOutcome.REPLAY, same_inputs[0])
+            current = self._current_allocation_run(scope)
+            if current is not None and self._connection.execute(
+                "SELECT input_digest FROM allocation_snapshot WHERE calculation_run_id = ?",
+                (current,),
+            ).fetchone() == (input_digest,):
+                return AllocationStoreResult(AllocationStoreOutcome.REPLAY, current)
             if self._connection.execute(
                 "SELECT 1 FROM allocation_snapshot WHERE calculation_run_id = ?",
                 (calculation_run_id,),
             ).fetchone():
                 raise AllocationSnapshotConflictError(
-                    f"Calculation Run {calculation_run_id} is already stored with other inputs"
+                    f"Calculation Run {calculation_run_id} is already stored"
                 )
             self._connection.execute(
                 "INSERT INTO allocation_snapshot (calculation_run_id, billing_account_id,"
@@ -282,10 +281,10 @@ class Ledger:
                 " policy_version, created_at_us) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     calculation_run_id,
-                    *key,
+                    *_scope_key(scope),
                     input_digest,
                     policy_version,
-                    _microseconds(datetime.now(UTC)),
+                    _microseconds(self._clock()),
                 ),
             )
             self._connection.executemany(
@@ -296,19 +295,23 @@ class Ledger:
                     for position, allocation in enumerate(allocations)
                 ],
             )
-            self._make_current(key, calculation_run_id)
+            self._connection.execute(
+                "INSERT INTO current_allocation_snapshot (billing_account_id,"
+                " billing_period_start, billing_period_end, source, calculation_run_id)"
+                " VALUES (?, ?, ?, ?, ?) ON CONFLICT (billing_account_id,"
+                " billing_period_start, billing_period_end, source)"
+                " DO UPDATE SET calculation_run_id = excluded.calculation_run_id",
+                (*_scope_key(scope), calculation_run_id),
+            )
         return AllocationStoreResult(AllocationStoreOutcome.NEW, calculation_run_id)
 
     def current_allocations(self, scope: SnapshotScope) -> StoredAllocations | None:
-        row = self._connection.execute(
-            "SELECT calculation_run_id FROM current_allocation_snapshot"
-            " WHERE billing_account_id = ? AND billing_period_start = ?"
-            " AND billing_period_end = ? AND source = ?",
-            _scope_key(scope),
-        ).fetchone()
-        return None if row is None else self.allocation_snapshot(row[0])
+        """The scope's current Allocation Snapshot: the latest Calculation Run's."""
+        current = self._current_allocation_run(scope)
+        return None if current is None else self.allocation_snapshot(current)
 
     def allocation_snapshot(self, calculation_run_id: str) -> StoredAllocations | None:
+        """Any stored Allocation Snapshot, current or superseded."""
         row = self._connection.execute(
             "SELECT s.input_digest, s.policy_version, s.created_at_us,"
             " c.calculation_run_id IS NOT NULL FROM allocation_snapshot s"
@@ -335,14 +338,14 @@ class Ledger:
             allocations=[Allocation.model_validate_json(stored) for (stored,) in rows],
         )
 
-    def _make_current(self, key: tuple[str, str, str, str], calculation_run_id: str) -> None:
-        self._connection.execute(
-            "INSERT INTO current_allocation_snapshot (billing_account_id, billing_period_start,"
-            " billing_period_end, source, calculation_run_id) VALUES (?, ?, ?, ?, ?)"
-            " ON CONFLICT (billing_account_id, billing_period_start, billing_period_end, source)"
-            " DO UPDATE SET calculation_run_id = excluded.calculation_run_id",
-            (*key, calculation_run_id),
-        )
+    def _current_allocation_run(self, scope: SnapshotScope) -> str | None:
+        row = self._connection.execute(
+            "SELECT calculation_run_id FROM current_allocation_snapshot"
+            " WHERE billing_account_id = ? AND billing_period_start = ?"
+            " AND billing_period_end = ? AND source = ?",
+            _scope_key(scope),
+        ).fetchone()
+        return None if row is None else str(row[0])
 
     def _load(self, stored: _StoredSnapshot) -> FocusExport:
         lines = self._connection.execute(

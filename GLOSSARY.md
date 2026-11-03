@@ -17,7 +17,7 @@ An Export Snapshot kept as history because a later publication is current for it
 _Avoid_: old version, stale snapshot
 
 **Snapshot Scope**:
-The billing account, Billing Period and source an Export Snapshot covers. At most one Export Snapshot is current for a Snapshot Scope.
+The billing account, Billing Period and source an Export Snapshot covers, and so the Allocation Snapshots computed from it. At most one Export Snapshot and one Allocation Snapshot are current for a Snapshot Scope.
 _Avoid_: partition, key (alone)
 
 **Billing Period**:

@@ -2,7 +2,8 @@
 
 Tested only through the Ledger's public interface on a temporary SQLite file. The
 Calculation Run (#88) supplies the run ID and input digest; the Ledger keeps every
-snapshot and one current snapshot per Snapshot Scope.
+snapshot and one current snapshot per Snapshot Scope. As for Export Snapshots (ADR
+0020), only the current snapshot's inputs are a replay.
 """
 
 from collections.abc import Iterator
@@ -19,7 +20,7 @@ from data_finops.contracts.allocation import (
     TargetType,
 )
 from data_finops.contracts.billing import CostBasis, SnapshotScope
-from data_finops.ledger.ledger import (
+from data_finops.ledger import (
     AllocationSnapshotConflictError,
     AllocationStoreOutcome,
     AllocationStoreResult,
@@ -131,13 +132,14 @@ def test_a_new_digest_moves_the_current_pointer_and_keeps_earlier_snapshots(
     assert later.allocations == _allocations("run-2", "5.00")
 
 
-def test_returning_to_earlier_inputs_makes_their_snapshot_current_again(ledger: Ledger) -> None:
+def test_recalculating_with_earlier_inputs_stores_a_new_snapshot(ledger: Ledger) -> None:
+    # ADR 0020: content equal to a superseded snapshot is new, never a replay of it.
     _store(ledger, "run-1", "digest-1")
     _store(ledger, "run-2", "digest-2")
     result = _store(ledger, "run-3", "digest-1")
-    assert (result.outcome, result.calculation_run_id) == (AllocationStoreOutcome.REPLAY, "run-1")
-    assert _current_run(ledger) == "run-1"
-    assert ledger.allocation_snapshot("run-3") is None
+    assert (result.outcome, _current_run(ledger)) == (AllocationStoreOutcome.NEW, "run-3")
+    for run in ("run-1", "run-2", "run-3"):
+        assert ledger.allocation_snapshot(run) is not None
 
 
 def test_each_scope_has_its_own_current_snapshot(ledger: Ledger) -> None:
@@ -153,36 +155,47 @@ def test_nothing_is_current_for_a_scope_never_calculated(ledger: Ledger) -> None
     assert ledger.allocation_snapshot("run-1") is None
 
 
-def test_a_run_id_stored_with_other_inputs_is_refused(ledger: Ledger) -> None:
+def test_a_run_id_already_stored_is_refused(ledger: Ledger) -> None:
     _store(ledger, "run-1", "digest-1")
-    with pytest.raises(AllocationSnapshotConflictError, match="run-1"):
-        _store(ledger, "run-1", "digest-2")
-    assert ledger.allocation_snapshot("run-1") is not None
+    for scope, digest in ((SCOPE, "digest-2"), (OTHER_SCOPE, "digest-1")):
+        with pytest.raises(AllocationSnapshotConflictError, match="^Calculation Run run-1 is"):
+            _store(ledger, "run-1", digest, scope=scope)
     assert _current_run(ledger) == "run-1"
+    assert ledger.current_allocations(OTHER_SCOPE) is None
 
 
-def test_allocations_naming_another_run_are_refused_and_nothing_is_stored(
-    ledger: Ledger,
+@pytest.mark.parametrize(
+    ("run", "policy_version", "named"),
+    [("run-1", "engine/1", "run-other"), ("run-1", "engine/2", "engine/1")],
+    ids=["another-run", "another-policy"],
+)
+def test_allocations_disagreeing_with_their_snapshot_are_refused_and_nothing_is_stored(
+    ledger: Ledger, run: str, policy_version: str, named: str
 ) -> None:
-    with pytest.raises(ValueError, match="run-other"):
+    allocations = _allocations(run)[:1] + _allocations("run-other")[1:]
+    if policy_version != "engine/1":
+        allocations = _allocations(run)  # their policy is engine/1
+    with pytest.raises(ValueError, match=named):
         ledger.store_allocations(
             SCOPE,
-            calculation_run_id="run-1",
-            policy_version="engine/1",
+            calculation_run_id=run,
+            policy_version=policy_version,
             input_digest="digest-1",
-            allocations=_allocations("run-1")[:1] + _allocations("run-other")[1:],
+            allocations=allocations,
         )
-    assert ledger.allocation_snapshot("run-1") is None
+    assert ledger.allocation_snapshot(run) is None
     assert ledger.current_allocations(SCOPE) is None
 
 
 def test_snapshots_are_read_back_exactly_after_reopening(tmp_path: Path) -> None:
     path = tmp_path / "data-finops.sqlite"
-    with Ledger(path) as ledger:
+    created = datetime(2026, 11, 3, 9, 30, 15, 123456, tzinfo=UTC)
+    with Ledger(path, clock=lambda: created) as ledger:
         _store(ledger, "run-1", "digest-1", amount="6.000")
         stored = ledger.allocation_snapshot("run-1")
     with Ledger(path) as reopened:
         current = reopened.current_allocations(SCOPE)
     assert stored is not None and current == stored
+    assert current.snapshot.created_at == created
     # Amounts keep their scale, not just their value.
     assert current.allocations[0].model_dump(mode="json")["amount"] == "6.000"
