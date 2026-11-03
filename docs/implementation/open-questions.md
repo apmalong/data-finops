@@ -5,7 +5,7 @@
 3. What provider-specific method will reconcile aggregated Athena billing to query-level metering, including minimum charges, discounts and adjustments? — partly decided by ADR 0017 (Coverage); the real billing shape is to be observed with the reference workload (ADR 0021).
 4. Should local storage default to DuckDB only, or SQLite metadata + DuckDB analytics? Benchmark before choosing. — **decided 2026-11-01 (ADR 0018):** SQLite for the Ledger store, pyarrow for Parquet; DuckDB rejected for its single-writer process model. A benchmark remains a revisit trigger, not a prerequisite.
 5. Which deployment topology (Lambda + S3 vs Cloud Run-equivalent patterns) minimizes AWS operational cost at target scale?
-6. What authentication and network ingress patterns will customers require for OpenLineage events? — **moved to M5 (2026-11-01):** M2 ingests event files only; the HTTP receiver and this decision come with the M5 API.
+6. What authentication and network ingress patterns will customers require for OpenLineage events? — **moved to M5 (2026-11-01):** M2 ingests event files only; the HTTP receiver and this decision come with the M5 API. — **decided for local use 2026-11-03 (ADR 0024):** the server binds to loopback by default; one static bearer token, required before binding any other address; production ingress moves to OQ-5 (M6).
 7. Validate current upstream versions, licenses, APIs, exact commits, test suites and FOCUS conversion coverage before integration.
 8. Choose official project name and license after dependency compatibility review.
 

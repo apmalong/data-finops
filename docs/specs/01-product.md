@@ -4,10 +4,10 @@
 Data platform engineer, data reliability engineer, platform owner, FinOps analyst. Customer-managed deployment, no subscription required.
 
 ## MVP user journeys
-1. Launch local demo with one command; inspect total bill, model allocations, unknown/idle remainder, lineage and provenance.
+1. Launch local demo with one command; inspect the Cost Summary, Roll-ups to Model Executions, Unallocated and Idle amounts, lineage and provenance (spec 06).
 2. Import synthetic AWS billing lines and Athena query executions; ingest OpenLineage run events and dbt `manifest.json` / `run_results.json`.
 3. Resolve deterministic query-to-dbt-to-Airflow identity using explicit IDs; present unattributed costs when IDs absent.
-4. Explain any allocation from bill line through query/run/model to product.
+4. Explain any Allocation from Billing Line through Query Execution and Model Execution to Workload Run (the Cost Explanation, spec 06; data products are deferred, ADR 0016).
 5. Re-run same inputs without increasing allocated costs; apply corrected billing snapshot with deterministic replacement.
 6. Configure optional AWS ingestion and deploy via Pulumi after demo passes.
 
