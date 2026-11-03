@@ -9,7 +9,7 @@ store or provider policies (architecture-boundaries.md).
 
 import hashlib
 import json
-from collections.abc import Callable, Iterable
+from collections.abc import Callable
 from dataclasses import asdict, dataclass
 from decimal import Decimal
 from uuid import uuid4
@@ -23,20 +23,14 @@ from data_finops.attribution.engine import (
     PooledLine,
     allocate,
 )
-from data_finops.attribution.rollups import (
-    ModelExecutionRef,
-    RollupTotal,
-    model_execution_evidence,
-    model_execution_of,
-    roll_up,
-)
-from data_finops.contracts.allocation import Allocation
+from data_finops.attribution.rollups import model_execution_evidence, workload_run_evidence
 from data_finops.contracts.billing import (
     FocusBillingLine,
     FocusChargeCategory,
     SnapshotScope,
 )
-from data_finops.contracts.workload import LinkOutcome, QueryExecution
+from data_finops.contracts.workload import QueryExecution
+from data_finops.identity.links import ModelExecutionKey
 from data_finops.ledger import AllocationStoreOutcome, Ledger
 from data_finops.providers import athena_billing
 from data_finops.workload.store import WorkloadStore
@@ -147,53 +141,23 @@ def _pool(
 
 
 def _evidence(query: QueryExecution, store: WorkloadStore) -> tuple[str, ...]:
-    """The query itself, and the Model Execution its Identity Link names, if linked."""
+    """The query itself and, through M3's Identity Links, the Model Execution it belongs to
+    and every Workload Run that invocation was reported under (the invocation's run, its
+    parents and its root), so Roll-ups read them from the stored snapshot."""
+    # A LinkResolution carries a link exactly when its outcome is `linked` (contract).
     refs = [f"athena:{query.query_execution_id}"]
     resolution = store.model_execution_of_query(
         query.account_id, query.region, query.query_execution_id
     )
-    if resolution is not None and resolution.outcome == LinkOutcome.LINKED and resolution.link:
-        invocation_id, node_id = json.loads(resolution.link.target_id)
-        refs.append(model_execution_evidence(ModelExecutionRef(invocation_id, node_id)))
-    return tuple(refs)
-
-
-def workload_run_rollups(
-    allocations: Iterable[Allocation], store: WorkloadStore
-) -> dict[str, tuple[RollupTotal, ...]]:
-    """Each Workload Run's Roll-up (ADR 0016): the Allocations to Query Executions whose
-    Model Execution's invocation is reported by that run or by a run below it.
-
-    The chain is the invocation's Workload Run (M3 Identity Link) and its reported
-    parents, the last of which may be a run known only from a ParentRunFacet. Producers
-    can report cycles, so each run is visited once. dbt-ol's per-model runs are the same
-    work as their Model Execution (ADR 0022) and are not Roll-up targets here.
-    """
-    chains: dict[str, tuple[str, ...]] = {}
-
-    def runs_of(allocation: Allocation) -> tuple[str, ...]:
-        model_execution = model_execution_of(allocation)
-        if model_execution is None:
-            return ()
-        invocation_id = model_execution.invocation_id
-        if invocation_id not in chains:
-            chains[invocation_id] = _run_chain(invocation_id, store)
-        return chains[invocation_id]
-
-    return roll_up(allocations, runs_of)
-
-
-def _run_chain(invocation_id: str, store: WorkloadStore) -> tuple[str, ...]:
-    resolution = store.workload_run_of_invocation(invocation_id)
     if resolution is None or resolution.link is None:
-        return ()
-    chain: list[str] = []
-    run_id: str | None = resolution.link.target_id
-    while run_id is not None and run_id not in chain:
-        chain.append(run_id)
-        run = store.workload_run(run_id)
-        run_id = run.parent_run_id if run is not None else None
-    return tuple(chain)
+        return tuple(refs)
+    model_execution = ModelExecutionKey(*json.loads(resolution.link.target_id))
+    refs.append(model_execution_evidence(model_execution))
+    run = store.workload_run_of_invocation(model_execution.invocation_id)
+    if run is not None and run.link is not None:
+        runs = [run.link.target_id, *store.ancestors(run.link.target_id)]
+        refs += [workload_run_evidence(run_id) for run_id in runs]
+    return tuple(refs)
 
 
 def _input_digest(

@@ -6,11 +6,12 @@ Expected values are worked by hand from the Allocations each test builds.
 from decimal import Decimal
 
 from data_finops.attribution.rollups import (
-    ModelExecutionRef,
     RollupTotal,
     model_execution_evidence,
     model_execution_rollups,
     roll_up,
+    workload_run_evidence,
+    workload_run_rollups,
 )
 from data_finops.contracts.allocation import (
     Allocation,
@@ -19,9 +20,10 @@ from data_finops.contracts.allocation import (
     TargetType,
 )
 from data_finops.contracts.billing import CostBasis
+from data_finops.identity.links import ModelExecutionKey
 
-ORDERS = ModelExecutionRef("inv-001", "model.demo.orders")
-CUSTOMERS = ModelExecutionRef("inv-001", "model.demo.customers")
+ORDERS = ModelExecutionKey("inv-001", "model.demo.orders")
+CUSTOMERS = ModelExecutionKey("inv-001", "model.demo.customers")
 
 
 def _share(
@@ -114,8 +116,26 @@ def test_roll_up_counts_an_allocation_once_per_group() -> None:
     }
 
 
-def test_the_evidence_format_names_the_model_execution() -> None:
+def test_the_evidence_formats_name_the_model_execution_and_runs() -> None:
     assert model_execution_evidence(ORDERS) == "dbt-query-comment:inv-001:model.demo.orders"
+    assert workload_run_evidence("run-a") == "openlineage-run:run-a"
+
+
+def test_a_workload_run_rolls_up_every_allocation_recorded_under_it() -> None:
+    orders, task, dag = (
+        model_execution_evidence(ORDERS),
+        workload_run_evidence("task"),
+        workload_run_evidence("dag"),
+    )
+    allocations = [
+        _share("q-1", "1.00", orders, task, dag),
+        _share("q-2", "2.00", model_execution_evidence(CUSTOMERS), dag, dag),
+        _share("q-3", "4.00", "openlineage-run:"),  # malformed: names no run
+    ]
+    assert workload_run_rollups(allocations) == {
+        "task": (RollupTotal("USD", CostBasis.BILLED_COST, Decimal("1.00")),),
+        "dag": (RollupTotal("USD", CostBasis.BILLED_COST, Decimal("3.00")),),
+    }
 
 
 def test_roll_up_never_groups_synthetic_targets() -> None:
