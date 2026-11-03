@@ -1,26 +1,24 @@
 """Answers from the Ledger for the API (spec 06), opened per request on a database file."""
 
 from collections import defaultdict
-from datetime import datetime
+from datetime import date
 from decimal import Decimal
 from pathlib import Path
 from types import TracebackType
 from typing import Self
 
-from data_finops.contracts.allocation import Allocation, AllocationCategory
-from data_finops.contracts.billing import CostBasis, SnapshotScope
+from data_finops.attribution.engine import AllocationMethod
+from data_finops.contracts.allocation import Allocation, AllocationCategory, Confidence
+from data_finops.contracts.billing import CostBasis, SnapshotScope, snapshot_id_of
 from data_finops.ledger import Ledger, StoredAllocations
 from data_finops.reporting.models import (
     AllocatedAmount,
+    CostSummaries,
     CostSummary,
     CurrencySummary,
     ServedSnapshot,
     UnallocatedAmount,
 )
-
-_ADJUSTMENT = "adjustment"
-"""The Unallocated reason the engine gives Adjustment lines (spec 03)."""
-_ZERO = Decimal("0.00")
 
 
 class Reporting:
@@ -48,94 +46,99 @@ class Reporting:
         *,
         cost_basis: CostBasis = CostBasis.BILLED_COST,
         billing_account_id: str | None = None,
-        billing_period_start: datetime | None = None,
-    ) -> CostSummary:
-        """Where the current Allocation Snapshot of each matching scope put the bill.
+        billing_period: date | None = None,
+    ) -> CostSummaries:
+        """A Cost Summary for the current Allocation Snapshot of each matching scope.
 
-        The Cost Basis is validated at runtime, so an unknown name raises ValueError.
+        `billing_period` is the Billing Period's first day. The Cost Basis is validated at
+        runtime, so an unknown name raises ValueError.
         """
         basis = CostBasis(cost_basis)
-        scopes = [
-            scope
-            for scope in self._ledger.scopes()
-            if billing_account_id in (None, scope.billing_account_id)
-            and billing_period_start in (None, scope.billing_period_start)
-        ]
-        served: list[tuple[SnapshotScope, StoredAllocations]] = []
+        summaries: list[CostSummary] = []
         uncalculated: list[SnapshotScope] = []
-        for scope in scopes:
+        for scope in self._ledger.scopes():
+            if billing_account_id not in (None, scope.billing_account_id) or billing_period not in (
+                None,
+                scope.billing_period_start.date(),
+            ):
+                continue
             stored = self._ledger.current_allocations(scope)
             if stored is None:
                 uncalculated.append(scope)
             else:
-                served.append((scope, stored))
-        allocations = [
-            a for _, stored in served for a in stored.allocations if a.cost_basis == basis
-        ]
-        return CostSummary(
-            cost_basis=basis,
-            currencies=self._by_currency(allocations, basis),
-            snapshots=[
-                ServedSnapshot(
-                    scope=scope,
-                    calculation_run_id=stored.snapshot.calculation_run_id,
-                    policy_version=stored.snapshot.policy_version,
-                    created_at=stored.snapshot.created_at,
-                    is_current=stored.snapshot.is_current,
-                )
-                for scope, stored in served
-            ],
-            uncalculated_scopes=uncalculated,
-        )
+                summaries.append(self._summary(scope, stored, basis))
+        return CostSummaries(summaries=summaries, uncalculated_scopes=uncalculated)
 
-    def _by_currency(
-        self, allocations: list[Allocation], basis: CostBasis
-    ) -> list[CurrencySummary]:
-        billed = self._billed(allocations, basis)
+    def _summary(
+        self, scope: SnapshotScope, stored: StoredAllocations, basis: CostBasis
+    ) -> CostSummary:
+        snapshot = stored.snapshot
+        allocations = [a for a in stored.allocations if a.cost_basis == basis]
+        billed = self._billed(stored, basis)
         by_currency: dict[str, list[Allocation]] = defaultdict(list)
         for allocation in allocations:
             by_currency[allocation.currency].append(allocation)
-        summaries = []
-        for currency in sorted(billed.keys() | by_currency.keys()):
-            allocated: dict[tuple[AllocationCategory, object], Decimal] = defaultdict(lambda: _ZERO)
-            unallocated: dict[str, Decimal] = defaultdict(lambda: _ZERO)
-            adjustments = _ZERO
-            for a in by_currency[currency]:
-                if a.category is not AllocationCategory.UNALLOCATED:
-                    allocated[(a.category, a.confidence)] += a.amount
-                elif a.method == _ADJUSTMENT:
-                    adjustments += a.amount
-                else:
-                    unallocated[a.method] += a.amount
-            total = sum((a.amount for a in by_currency[currency]), _ZERO)
-            summaries.append(
-                CurrencySummary(
-                    currency=currency,
-                    billed=billed.get(currency, _ZERO),
-                    allocated=[
-                        AllocatedAmount(category=category, confidence=confidence, amount=amount)
-                        for (category, confidence), amount in sorted(
-                            allocated.items(), key=lambda item: (item[0][0], str(item[0][1]))
-                        )
-                    ],
-                    unallocated=[
-                        UnallocatedAmount(reason=reason, amount=amount)
-                        for reason, amount in sorted(unallocated.items())
-                    ],
-                    adjustments=adjustments,
-                    reconciliation_delta=billed.get(currency, _ZERO) - total,
-                )
-            )
-        return summaries
+        return CostSummary(
+            scope=scope,
+            cost_basis=basis,
+            snapshot=ServedSnapshot(
+                calculation_run_id=snapshot.calculation_run_id,
+                policy_version=snapshot.policy_version,
+                created_at=snapshot.created_at,
+                is_current=snapshot.is_current,
+                export_snapshot_id=snapshot.export_snapshot_id,
+            ),
+            currencies=[
+                _currency_summary(currency, billed.get(currency, Decimal(0)), by_currency[currency])
+                for currency in sorted(billed.keys() | by_currency.keys())
+            ],
+        )
 
-    def _billed(self, allocations: list[Allocation], basis: CostBasis) -> dict[str, Decimal]:
-        """The bill the Allocations partition: every line of the Export Snapshots they read."""
-        snapshot_ids = {a.billing_line_ref.rpartition("#")[0] for a in allocations}
-        billed: dict[str, Decimal] = defaultdict(lambda: _ZERO)
+    def _billed(self, stored: StoredAllocations, basis: CostBasis) -> dict[str, Decimal]:
+        """The bill the snapshot partitions: every line of the Export Snapshot its run read.
+
+        Snapshots stored before M5 record none; their Allocations' line references name it.
+        """
+        recorded = stored.snapshot.export_snapshot_id
+        snapshot_ids = (
+            {recorded}
+            if recorded is not None
+            else {snapshot_id_of(a.billing_line_ref) for a in stored.allocations}
+        )
+        billed: dict[str, Decimal] = defaultdict(Decimal)
         for snapshot_id in sorted(snapshot_ids):
             export = self._ledger.snapshot(snapshot_id)
-            if export is None:
-                continue
-            for line in export.lines:
+            for line in export.lines if export is not None else []:
                 billed[line.BillingCurrency] += line.cost(basis)
         return billed
+
+
+def _currency_summary(
+    currency: str, billed: Decimal, allocations: list[Allocation]
+) -> CurrencySummary:
+    allocated: dict[tuple[AllocationCategory, Confidence | None], Decimal] = defaultdict(Decimal)
+    unallocated: dict[AllocationMethod, Decimal] = defaultdict(Decimal)
+    adjustments = Decimal(0)
+    for a in allocations:
+        if a.category is not AllocationCategory.UNALLOCATED:
+            allocated[(a.category, a.confidence)] += a.amount
+        elif a.method == AllocationMethod.ADJUSTMENT:
+            adjustments += a.amount
+        else:
+            unallocated[AllocationMethod(a.method)] += a.amount
+    return CurrencySummary(
+        currency=currency,
+        billed=billed,
+        allocated=[
+            AllocatedAmount(category=category, confidence=confidence, amount=amount)
+            for (category, confidence), amount in sorted(
+                allocated.items(), key=lambda item: (item[0][0], item[0][1] or "")
+            )
+        ],
+        unallocated=[
+            UnallocatedAmount(reason=reason, amount=amount)
+            for reason, amount in sorted(unallocated.items())
+        ],
+        adjustments=adjustments,
+        reconciliation_delta=billed - sum((a.amount for a in allocations), Decimal(0)),
+    )

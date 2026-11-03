@@ -3,6 +3,7 @@ and never summed across currencies."""
 
 from pydantic import BaseModel, ConfigDict
 
+from data_finops.attribution.engine import AllocationMethod
 from data_finops.contracts.allocation import AllocationCategory, Confidence
 from data_finops.contracts.billing import CostBasis, SnapshotScope
 from data_finops.contracts.types import CurrencyCode, DecimalString, UtcDatetime
@@ -13,13 +14,14 @@ class _Response(BaseModel):
 
 
 class ServedSnapshot(_Response):
-    """The Allocation Snapshot a read served for one Snapshot Scope."""
+    """The Allocation Snapshot a read served, and the Calculation Run that made it."""
 
-    scope: SnapshotScope
     calculation_run_id: str
     policy_version: str
     created_at: UtcDatetime
     is_current: bool
+    export_snapshot_id: str | None
+    """The Export Snapshot the run read; None for snapshots stored before M5."""
 
 
 class AllocatedAmount(_Response):
@@ -33,11 +35,13 @@ class AllocatedAmount(_Response):
 class UnallocatedAmount(_Response):
     """Unallocated amounts for one reason (the Allocation's method), Adjustments aside."""
 
-    reason: str
+    reason: AllocationMethod
     amount: DecimalString
 
 
 class CurrencySummary(_Response):
+    """One currency's part of a Cost Summary; never added to another currency's."""
+
     currency: CurrencyCode
     billed: DecimalString
     """The Billing Lines' total for the Cost Basis."""
@@ -50,10 +54,17 @@ class CurrencySummary(_Response):
 
 
 class CostSummary(_Response):
-    """Where the served Allocation Snapshots put the bill, for one Cost Basis."""
+    """Where one Allocation Snapshot put its Snapshot Scope's bill, for one Cost Basis."""
 
+    scope: SnapshotScope
     cost_basis: CostBasis
+    snapshot: ServedSnapshot
     currencies: list[CurrencySummary]
-    snapshots: list[ServedSnapshot]
+
+
+class CostSummaries(_Response):
+    """The Cost Summary of each matching Snapshot Scope's current Allocation Snapshot."""
+
+    summaries: list[CostSummary]
     uncalculated_scopes: list[SnapshotScope]
     """Scopes with an Export Snapshot but no Allocation Snapshot yet: their bill is not shown."""

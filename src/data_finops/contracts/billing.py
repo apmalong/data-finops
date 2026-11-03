@@ -166,3 +166,8 @@ class FocusExport(BaseModel):
         if not 0 <= position < len(self.lines):
             raise IndexError(position)
         return f"{self.snapshot.snapshot_id}#{position}"
+
+
+def snapshot_id_of(line_ref: str) -> str:
+    """The Export Snapshot a Billing Line reference (`<snapshot_id>#<position>`) points into."""
+    return line_ref.rpartition("#")[0]

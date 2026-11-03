@@ -1,6 +1,7 @@
 """Enforce docs/implementation/architecture-boundaries.md with a static import scan."""
 
 import ast
+import re
 from pathlib import Path
 
 import pytest
@@ -79,3 +80,14 @@ def test_pyarrow_is_used_only_by_the_focus_reader():
         if path == allowed:
             continue
         assert not any(name.startswith("pyarrow") for name in _imports(path)), path
+
+
+SQL_STATEMENT = re.compile(r"^\s*(SELECT|INSERT|UPDATE|DELETE|CREATE|ALTER|DROP|PRAGMA)\b", re.I)
+
+
+def test_the_read_model_writes_no_sql():
+    # spec 06: `reporting` reads only through the stores' public interfaces.
+    for path in (SRC / "reporting").rglob("*.py"):
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+            if isinstance(node, ast.Constant) and isinstance(node.value, str):
+                assert not SQL_STATEMENT.match(node.value), f"{path}: SQL {node.value[:40]!r}"

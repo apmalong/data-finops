@@ -3,6 +3,7 @@ the Ledger and the workload store's read interfaces. Read-only and free of SQL."
 
 from data_finops.reporting.models import (
     AllocatedAmount,
+    CostSummaries,
     CostSummary,
     CurrencySummary,
     ServedSnapshot,
@@ -12,6 +13,7 @@ from data_finops.reporting.reporting import Reporting
 
 __all__ = [
     "AllocatedAmount",
+    "CostSummaries",
     "CostSummary",
     "CurrencySummary",
     "Reporting",
