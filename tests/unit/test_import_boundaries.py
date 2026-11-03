@@ -55,9 +55,10 @@ def test_package_respects_import_boundaries(package):
 
 
 def test_only_the_calculation_run_and_read_model_bring_the_stores_together():
-    # architecture-boundaries.md: `calculation` and `reporting` are the only places they meet.
+    # architecture-boundaries.md: `calculation` and `reporting` are the only places they meet;
+    # `cli` only opens them and calls their public functions (#115).
     for path in SRC.rglob("*.py"):
-        if path.parent.name in ("calculation", "reporting"):
+        if path.parent.name in ("calculation", "reporting", "cli"):
             continue
         names = _imports(path)
         both = any(n.startswith("data_finops.ledger") for n in names) and any(
