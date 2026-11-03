@@ -35,7 +35,7 @@ Design follows Edward Tufte (*The Visual Display of Quantitative Information*) a
 - Small multiples when the same chart repeats across currencies or Cost Bases, with shared scales within a currency, never across currencies.
 
 ## Running the server
-One uvicorn worker; endpoints are synchronous and run in FastAPI's thread pool. `reporting` opens its own read connections per request (the stores use `check_same_thread`); the receiver writes through `WorkloadStore`'s `BEGIN IMMEDIATE` beside those readers (WAL, ADR 0018). Only `data-finops calculate` and `demo` start a Calculation Run: a received event changes no cost until the next one, and the Cost Summary and provenance show when the served snapshot was calculated.
+One uvicorn worker; endpoints are synchronous and run in FastAPI's thread pool, except the OpenLineage receiver, which reads its body as a stream so a body over the cap is refused at the cap rather than buffered (ADR 0024), then ingests in the thread pool (#107). `reporting` opens its own read connections per request (the stores use `check_same_thread`); the receiver writes through `WorkloadStore`'s `BEGIN IMMEDIATE` beside those readers (WAL, ADR 0018). Only `data-finops calculate` and `demo` start a Calculation Run: a received event changes no cost until the next one, and the Cost Summary and provenance show when the served snapshot was calculated.
 
 ## Testing
 Three seams, each test-first with hand-made mutation checks recorded in the PR:

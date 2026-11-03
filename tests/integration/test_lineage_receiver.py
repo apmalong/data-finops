@@ -12,7 +12,7 @@ from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
-from jsonschema import Draft202012Validator
+from openapi_contract import valid_response
 
 from data_finops.api import create_app
 from data_finops.ledger import Ledger
@@ -21,7 +21,6 @@ from data_finops.workload.store import WorkloadStore
 ROOT = Path(__file__).resolve().parents[2]
 EVENTS = ROOT / "fixtures" / "openlineage" / "events.json"
 INVALID = ROOT / "fixtures" / "openlineage" / "invalid" / "mixed.jsonl"
-OPENAPI = json.loads((ROOT / "schemas" / "openapi.json").read_text(encoding="utf-8"))
 RECEIVER = "/api/v1/lineage"
 PROBLEM = "application/problem+json"
 
@@ -49,19 +48,13 @@ def _invalid_line(number: int) -> bytes:
     return INVALID.read_bytes().split(b"\n")[number - 1]
 
 
-def _valid_response(status: int, body: Any) -> None:
-    content = OPENAPI["paths"][RECEIVER]["post"]["responses"][str(status)]["content"]
-    schema = next(iter(content.values()))["schema"]
-    Draft202012Validator({**schema, "components": OPENAPI["components"]}).validate(body)
-
-
 def test_events_posted_one_by_one_are_stored_as_from_their_file(
     client: TestClient, database: Path, tmp_path: Path
 ) -> None:
     for event in _events():
         response = client.post(RECEIVER, json=event)
         assert (response.status_code, response.json()["accepted"]) == (201, 1)
-        _valid_response(201, response.json())
+        valid_response("post", RECEIVER, 201, response.json())
     with WorkloadStore(tmp_path / "file.sqlite") as from_file:
         from_file.ingest_events(EVENTS)
         with WorkloadStore(database) as received:
@@ -78,12 +71,15 @@ def test_the_same_event_again_is_a_duplicate(client: TestClient) -> None:
     )
 
 
-def test_a_job_event_is_accepted_as_unsupported(client: TestClient) -> None:
+@pytest.mark.parametrize(("line", "kind"), [(6, "JobEvent"), (7, "DatasetEvent")])
+def test_job_and_dataset_events_are_accepted_as_unsupported(
+    client: TestClient, line: int, kind: str
+) -> None:
     response = client.post(
-        RECEIVER, content=_invalid_line(6), headers={"content-type": "application/json"}
+        RECEIVER, content=_invalid_line(line), headers={"content-type": "application/json"}
     )
-    assert (response.status_code, response.json()) == (202, {"unsupported": "unsupported JobEvent"})
-    _valid_response(202, response.json())
+    assert (response.status_code, response.json()) == (202, {"unsupported": f"unsupported {kind}"})
+    valid_response("post", RECEIVER, 202, response.json())
 
 
 @pytest.mark.parametrize(
@@ -99,7 +95,7 @@ def test_a_rejected_event_is_a_problem_giving_its_reason_not_its_content(
     assert (response.status_code, response.headers["content-type"]) == (400, PROBLEM)
     assert response.json()["detail"] == reason
     assert "not-a-uuid-secret-value" not in response.text
-    _valid_response(400, response.json())
+    valid_response("post", RECEIVER, 400, response.json())
 
 
 def _oversized() -> bytes:
@@ -113,7 +109,7 @@ def test_a_body_over_one_mebibyte_is_refused_before_it_is_read(client: TestClien
         RECEIVER, content=_oversized(), headers={"content-type": "application/json"}
     )
     assert (response.status_code, response.headers["content-type"]) == (413, PROBLEM)
-    _valid_response(413, response.json())
+    valid_response("post", RECEIVER, 413, response.json())
 
 
 def test_a_streamed_body_over_one_mebibyte_is_refused(client: TestClient) -> None:
@@ -129,8 +125,7 @@ def test_a_lying_content_length_cannot_slip_a_large_body_past_the_cap(client: Te
         content=_oversized(),
         headers={"content-type": "application/json", "content-length": "10"},
     )
-    assert response.status_code in (400, 413)
-    assert response.status_code != 201
+    assert response.status_code == 413
 
 
 def test_events_are_refused_when_there_is_no_database(tmp_path: Path) -> None:
@@ -159,3 +154,25 @@ def test_a_declared_length_over_the_cap_is_refused_without_reading_the_body(
         headers={"content-type": "application/json", "content-length": str(2**20 + 1)},
     )
     assert response.status_code == 413
+
+
+def test_other_content_under_the_same_key_is_stored_as_a_changed_copy(client: TestClient) -> None:
+    event = _events()[0]
+    client.post(RECEIVER, json=event)
+    event["producer"] = "https://example.invalid/another-producer"
+    response = client.post(RECEIVER, json=event)
+    assert (response.status_code, response.json()) == (
+        201,
+        {"accepted": 1, "duplicates": 0, "changed_copies": 1},
+    )
+
+
+@pytest.mark.parametrize("encoding", ["gzip", "deflate"])
+def test_an_encoded_body_is_refused_as_unsupported_media(client: TestClient, encoding: str) -> None:
+    response = client.post(
+        RECEIVER,
+        content=bytes([0x1F, 0x8B]) + b" compressed",
+        headers={"content-type": "application/json", "content-encoding": encoding},
+    )
+    assert (response.status_code, response.headers["content-type"]) == (415, PROBLEM)
+    valid_response("post", RECEIVER, 415, response.json())

@@ -210,7 +210,7 @@
     "/api/v1/lineage": {
       "post": {
         "summary": "Receive Lineage",
-        "description": "Store one OpenLineage RunEvent, the default endpoint of OpenLineage's HTTP transport\n(spec 04). Screened exactly as one item of an event file.",
+        "description": "Store one OpenLineage RunEvent, the default endpoint of OpenLineage's HTTP transport\n(spec 04). Screened exactly as one item of an event file.\n\nThe one async endpoint (spec 06): it streams the body so an oversized one is refused\nat the cap instead of buffered (ADR 0024), then ingests in the thread pool.",
         "operationId": "receive_lineage_api_v1_lineage_post",
         "requestBody": {
           "content": {
@@ -281,6 +281,42 @@
           },
           "413": {
             "description": "The body is larger than one event may be (1 MiB).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "title": "Type",
+                      "default": "about:blank"
+                    },
+                    "title": {
+                      "type": "string",
+                      "title": "Title"
+                    },
+                    "status": {
+                      "type": "integer",
+                      "title": "Status"
+                    },
+                    "detail": {
+                      "type": "string",
+                      "title": "Detail"
+                    }
+                  },
+                  "type": "object",
+                  "required": [
+                    "title",
+                    "status",
+                    "detail"
+                  ],
+                  "title": "Problem",
+                  "description": "An RFC 9457 Problem Details body."
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "The body has a Content-Encoding; send the event uncompressed.",
             "content": {
               "application/problem+json": {
                 "schema": {

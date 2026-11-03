@@ -4,15 +4,13 @@ No business numbers here: a response must equal what the `reporting` read model 
 which its own tests check against the golden oracle.
 """
 
-import json
 from collections.abc import Iterator
 from datetime import date
 from pathlib import Path
-from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
-from jsonschema import Draft202012Validator
+from openapi_contract import valid_response
 
 from data_finops.api import create_app
 from data_finops.billing.focus import load_export
@@ -26,7 +24,6 @@ ROOT = Path(__file__).resolve().parents[2]
 FIXTURES = ROOT / "fixtures"
 EXPORT = load_export(FIXTURES / "focus" / "export-2026-10.json")
 ACCOUNT, REGION = "123456789012", "us-east-1"
-OPENAPI = json.loads((ROOT / "schemas" / "openapi.json").read_text(encoding="utf-8"))
 PROBLEM = "application/problem+json"
 
 
@@ -52,13 +49,6 @@ def client(database: Path) -> Iterator[TestClient]:
         yield opened
 
 
-def _valid_response(path: str, status: int, body: Any) -> None:
-    """The body validates against the committed OpenAPI document's schema for it."""
-    content = OPENAPI["paths"][path]["get"]["responses"][str(status)]["content"]
-    schema = next(iter(content.values()))["schema"]
-    Draft202012Validator({**schema, "components": OPENAPI["components"]}).validate(body)
-
-
 def test_the_cost_summary_is_served_as_the_read_model_answers_it(
     client: TestClient, database: Path
 ) -> None:
@@ -66,7 +56,7 @@ def test_the_cost_summary_is_served_as_the_read_model_answers_it(
     assert response.status_code == 200
     with Reporting(database) as reporting:
         assert response.json() == reporting.cost_summary().model_dump(mode="json")
-    _valid_response("/v1/costs/summary", 200, response.json())
+    valid_response("get", "/v1/costs/summary", 200, response.json())
 
 
 def test_filters_and_cost_basis_reach_the_read_model(client: TestClient, database: Path) -> None:
@@ -104,7 +94,7 @@ def test_an_invalid_filter_is_a_problem_naming_the_field_only(
     problem = response.json()
     assert (problem["status"], problem["title"]) == (400, "Invalid request")
     assert field in problem["detail"] and "secret" not in response.text
-    _valid_response("/v1/costs/summary", 400, problem)
+    valid_response("get", "/v1/costs/summary", 400, problem)
 
 
 def test_an_unknown_path_is_a_problem(client: TestClient) -> None:
@@ -116,7 +106,7 @@ def test_an_unknown_path_is_a_problem(client: TestClient) -> None:
 def test_health_reports_a_usable_database(client: TestClient) -> None:
     response = client.get("/health")
     assert (response.status_code, response.json()) == (200, {"status": "ok"})
-    _valid_response("/health", 200, response.json())
+    valid_response("get", "/health", 200, response.json())
 
 
 def test_health_reports_a_file_that_is_not_a_database(tmp_path: Path) -> None:
@@ -136,9 +126,9 @@ def test_a_database_path_with_no_file_is_unavailable_and_never_created(tmp_path:
         health = client.get("/health")
         summary = client.get("/v1/costs/summary")
     assert (health.status_code, health.json()) == (503, {"status": "unavailable"})
-    _valid_response("/health", 503, health.json())
+    valid_response("get", "/health", 503, health.json())
     assert summary.status_code == 503
-    _valid_response("/v1/costs/summary", 503, summary.json())
+    valid_response("get", "/v1/costs/summary", 503, summary.json())
     assert not missing.exists()
 
 
