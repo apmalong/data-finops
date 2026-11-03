@@ -1,6 +1,7 @@
-// data-finops dashboard: the Cost Summary and Roll-ups (spec 06; design rules in DESIGN.md).
-// Reads only the JSON API. Amounts arrive as exact decimal strings and are shown exactly as
-// sent; numbers are used only to size bars, never to display, add or divide money.
+// data-finops dashboard: the Cost Summary and Roll-ups, with details on demand (spec 06;
+// design rules in DESIGN.md). Reads only the JSON API. Amounts arrive as exact decimal
+// strings and are shown exactly as sent; numbers are used only to size bars, never to
+// display, add or divide money. API strings reach the page only as text, never as HTML.
 "use strict";
 
 const SUMMARY = "/v1/costs/summary";
@@ -8,6 +9,9 @@ const ROLLUPS = "/v1/rollups";
 const ALLOCATIONS = "/v1/allocations";
 const EXPLANATION = "/v1/allocations/{ref}/explanation";
 const LINEAGE = "/v1/lineage";
+const PAGE_SIZE = 1000;
+// Run statuses that need a reader: failed or aborted work, and two terminal events that
+// disagree (`conflicting`), which is as unresolved as a failure.
 const ATTENTION_STATUSES = new Set(["failed", "aborted", "conflicting"]);
 
 // The bars take this share of their track, leaving room for the direct label at each end
@@ -15,7 +19,7 @@ const ATTENTION_STATUSES = new Set(["failed", "aborted", "conflicting"]);
 const BAR_REACH = 0.75;
 const MIXED_REACH = 0.5;
 
-const state = { scope: 0, basis: "BilledCost", request: 0, summaries: [], deepLinked: false };
+const state = { scope: 0, basis: "BilledCost", summaries: [], request: 0, detailRequest: 0 };
 const byId = (id) => document.getElementById(id);
 
 function element(tag, attributes = {}, ...children) {
@@ -29,8 +33,9 @@ function element(tag, attributes = {}, ...children) {
   return node;
 }
 
-async function getJson(path, params) {
-  const response = await fetch(`${path}?${new URLSearchParams(params)}`);
+async function getJson(path, params = {}) {
+  const query = new URLSearchParams(params).toString();
+  const response = await fetch(query ? `${path}?${query}` : path);
   if (!response.ok) {
     const problem = await response.json().catch(() => ({}));
     throw new Error(problem.detail || `${path} answered ${response.status}`);
@@ -41,12 +46,16 @@ async function getJson(path, params) {
 /** A glossary value as a label: `metered_estimate` → "metered estimate". */
 const asWords = (value) => String(value).replaceAll("_", " ");
 const capitalised = (text) => text.charAt(0).toUpperCase() + text.slice(1);
+const categoryName = (category) => capitalised(asWords(category));
 
-function coverageText(group) {
-  if (group.coverage_min == null) return "";
-  return group.coverage_min === group.coverage_max
-    ? `Coverage ${group.coverage_min}`
-    : `Coverage ${group.coverage_min}–${group.coverage_max}`;
+function coverageText(minimum, maximum = minimum) {
+  if (minimum == null) return "";
+  return minimum === maximum ? `Coverage ${minimum}` : `Coverage ${minimum}–${maximum}`;
+}
+
+/** What makes an amount an estimate or not: its Confidence and Coverage, as words. */
+function estimateText(confidence, coverage) {
+  return [confidence ? asWords(confidence) : "", coverage].filter(Boolean).join(", ");
 }
 
 function scopeParams(scope) {
@@ -56,6 +65,25 @@ function scopeParams(scope) {
     source: scope.source,
   };
 }
+
+function selectedScopeParams() {
+  const summary = state.summaries[state.scope];
+  return summary ? scopeParams(summary.scope) : {};
+}
+
+const needsAttention = (run) => Boolean(run) && ATTENTION_STATUSES.has(run.status);
+const runStatus = (run) => (run ? run.status : "not reported (known only as another run's parent or root)");
+const jobName = (run) => (run ? `${run.job_namespace} / ${run.job_name}` : null);
+const executionStatus = (model) => (model.execution ? model.execution.status : "not in the run results");
+
+/** A real button that opens a detail; the row it sits in keeps its list or table role. */
+function opener(text, open, mono = false) {
+  const button = element("button", { type: "button", class: `opener${mono ? " mono" : ""}`, text });
+  button.addEventListener("click", () => open().catch(fail));
+  return button;
+}
+
+// ---- The Cost Summary and Roll-ups --------------------------------------------------------
 
 /** Positive amounts largest first, then negative ones, largest magnitude first. */
 function bySize(a, b) {
@@ -92,19 +120,25 @@ function barRow(row, zero, range) {
   });
   const track = element("span", { class: "bar-track", "aria-hidden": "true" },
     element("span", { class: "zero", style: `left:${zero}%` }), bar, value);
-  const label = element("span", { class: "bar-label" },
-    element("strong", { class: row.mono ? "mono" : "", text: row.name }));
-  if (row.detail) label.append(element("span", { class: "detail", text: ` · ${row.detail}` }));
   const description = `${row.amount}: ${row.name}${row.detail ? `, ${row.detail}` : ""}`;
-  const item = element("li", { class: "bar-row", tabindex: "0", "aria-label": description }, label, track);
-  attachTooltip(item, description);
-  if (row.open) makeOpenable(item, row.open);
+  const name = row.open
+    ? opener(row.name, row.open, row.mono)
+    : element("strong", { class: row.mono ? "mono" : "", text: row.name });
+  name.setAttribute("aria-label", description);
+  const label = element("span", { class: "bar-label" }, name);
+  if (row.detail) label.append(element("span", { class: "detail", text: ` · ${row.detail}` }));
+  const item = element("li", { class: "bar-row" }, label, track);
+  if (!row.open) {
+    item.setAttribute("tabindex", "0");
+    item.setAttribute("aria-label", description);
+  }
+  attachTooltip(item, description, row.open ? name : item);
   return item;
 }
 
-// Values lead in the tooltip; it repeats the row's accessible name, so it is hidden from
+// Values lead in the tooltip; it repeats the accessible name, so it is hidden from
 // assistive technology, which reads that name on focus instead.
-function attachTooltip(node, text) {
+function attachTooltip(node, text, focusable) {
   const tip = byId("tooltip");
   const show = (x, y) => {
     tip.textContent = text;
@@ -114,11 +148,11 @@ function attachTooltip(node, text) {
   };
   node.addEventListener("mousemove", (e) => show(e.clientX, e.clientY));
   node.addEventListener("mouseleave", () => (tip.hidden = true));
-  node.addEventListener("focus", () => {
+  focusable.addEventListener("focus", () => {
     const box = node.getBoundingClientRect();
     show(box.left, box.bottom);
   });
-  node.addEventListener("blur", () => (tip.hidden = true));
+  focusable.addEventListener("blur", () => (tip.hidden = true));
 }
 
 function amountTable(caption, rows, extraRows = []) {
@@ -136,23 +170,24 @@ function amountTable(caption, rows, extraRows = []) {
 }
 
 function summaryRows(summary) {
+  const currency = summary.currency;
   return [
     ...summary.allocated.map((group) => ({
-      open: () => openAllocations(summary.currency, { category: group.category },
-        (a) => (a.confidence ?? null) === (group.confidence ?? null), capitalised(asWords(group.category))),
-      name: capitalised(asWords(group.category)),
-      detail: [group.confidence ? asWords(group.confidence) : "", coverageText(group)].filter(Boolean).join(", "),
+      name: categoryName(group.category),
+      detail: estimateText(group.confidence, coverageText(group.coverage_min, group.coverage_max)),
       amount: group.amount,
+      open: () => openAllocations(currency, { category: group.category },
+        (a) => (a.confidence ?? null) === (group.confidence ?? null), categoryName(group.category)),
     })),
     ...summary.unallocated.map((u) => ({
-      open: () => openAllocations(summary.currency, { category: "unallocated" }, (a) => a.method === u.reason,
-        `Unallocated · ${asWords(u.reason)}`),
       name: "Unallocated", detail: asWords(u.reason), amount: u.amount, attention: true,
+      open: () => openAllocations(currency, { category: "unallocated" }, (a) => a.method === u.reason,
+        `Unallocated · ${asWords(u.reason)}`),
     })),
     // Adjustments are Unallocated amounts shown apart (OQ-18): always listed, highlighted.
     {
-      open: () => openAllocations(summary.currency, { category: "unallocated" }, (a) => a.method === "adjustment", "Adjustments"),
       name: "Adjustments", detail: "credits, refunds, discounts", amount: summary.adjustments, attention: true,
+      open: () => openAllocations(currency, { category: "unallocated" }, (a) => a.method === "adjustment", "Adjustments"),
     },
   ];
 }
@@ -207,6 +242,21 @@ function rollupPanel(title, page, describe) {
   return panel;
 }
 
+/** Every Workload Run at the top of its family, so a run with no cost (a failed one, say)
+ *  can still be opened. */
+function rootRunsPanel(page) {
+  const panel = element("article", { class: "panel" }, element("h3", { text: "Workload Runs, from the top" }));
+  if (!page.items.length) {
+    panel.append(element("p", { class: "meta", text: "No Workload Run reported yet." }));
+    return panel;
+  }
+  panel.append(element("ul", { class: "runs" }, ...page.items.map((r) => runItem(r.run_id, r.run))));
+  if (page.total > page.items.length) {
+    panel.append(element("p", { class: "meta", text: `Showing ${page.items.length} of ${page.total}.` }));
+  }
+  return panel;
+}
+
 function showNotice(text) {
   const notice = byId("notice");
   notice.hidden = !text;
@@ -239,68 +289,80 @@ async function render() {
     `Calculation Run ${run.calculation_run_id} · ${run.created_at.replace("T", " ").replace("Z", " UTC")} · policy ${run.policy_version}${run.is_current ? "" : " · superseded"}`;
   byId("currencies").replaceChildren(...summary.currencies.map(currencyPanel));
   const params = { ...scopeParams(summary.scope), limit: 50 };
-  const [models, runs] = await Promise.all([
+  const [models, runs, roots] = await Promise.all([
     getJson(ROLLUPS, { ...params, level: "model_execution" }),
     getJson(ROLLUPS, { ...params, level: "workload_run" }),
+    getJson(LINEAGE, { limit: 100 }),
   ]);
   if (!current()) return;
   byId("rollups-model").replaceChildren(rollupPanel("Model Executions", models, modelExecutionName));
   byId("rollups-run").replaceChildren(rollupPanel("Workload Runs", runs,
     (key) => ({ name: key, detail: "", mono: true, open: () => openLineage(key) })));
-  if (!state.deepLinked) {
-    state.deepLinked = true;
-    openFromHash().catch(fail);
-  }
+  byId("runs").replaceChildren(rootRunsPanel(roots));
 }
 
 // ---- Details on demand (#118): the Allocations behind an amount, one Allocation's Cost
-// Explanation, and a Workload Run's lineage, shown under the charts. `#explain=<ref>` and
-// `#run=<id>` open them directly, so a link can be shared.
+// Explanation, a Workload Run's lineage. `#explain=<ref>` and `#run=<id>` open them from a
+// link; the address follows what is shown. A later opener supersedes an earlier one.
 
-function makeOpenable(node, open) {
-  node.classList.add("openable");
-  node.setAttribute("role", "button");
-  node.addEventListener("click", () => open().catch(fail));
-  node.addEventListener("keydown", (e) => {
-    if (e.key === "Enter" || e.key === " ") {
-      e.preventDefault();
-      open().catch(fail);
-    }
-  });
+function beginDetail() {
+  const request = ++state.detailRequest;
+  return () => request === state.detailRequest;
 }
 
-function showDetail(title, ...content) {
+function showDetail(title, hash, ...content) {
+  history.replaceState(null, "", hash || location.pathname + location.search);
   const section = byId("detail");
   section.hidden = false;
   section.replaceChildren(element("h2", { text: title }), ...content);
   section.scrollIntoView({ block: "start" });
 }
 
-function selectedScope() {
-  const summary = state.summaries[state.scope];
-  return summary ? scopeParams(summary.scope) : {};
+function closeDetail() {
+  state.detailRequest++;
+  byId("detail").hidden = true;
+  history.replaceState(null, "", location.pathname + location.search);
+}
+
+async function allPages(path, params) {
+  const items = [];
+  let total = Infinity;
+  let first = null;
+  while (items.length < total) {
+    const page = await getJson(path, { ...params, limit: PAGE_SIZE, offset: items.length });
+    first ??= page;
+    total = page.total;
+    items.push(...page.items);
+    if (page.items.length === 0) break;
+  }
+  return { ...first, items };
 }
 
 async function openAllocations(currency, filters, keep, title) {
-  const page = await getJson(ALLOCATIONS, { ...selectedScope(), ...filters, cost_basis: state.basis, limit: 1000 });
+  const current = beginDetail();
+  const page = await allPages(ALLOCATIONS, { ...selectedScopeParams(), ...filters, cost_basis: state.basis });
+  if (!current()) return;
   const entries = page.items.filter((entry) => entry.allocation.currency === currency && keep(entry.allocation));
+  if (entries.length === 1) {
+    await openExplanation(entries[0].ref);
+    return;
+  }
   const body = element("tbody");
   for (const { ref, allocation } of entries) {
-    const row = element("tr", { tabindex: "0" },
-      element("td", { class: "mono", text: allocation.billing_line_ref }),
+    body.append(element("tr", {},
+      element("td", {}, opener(allocation.billing_line_ref, () => openExplanation(ref), true)),
       element("td", { class: "mono", text: allocation.target_id }),
-      element("td", { text: [asWords(allocation.method), allocation.confidence ? asWords(allocation.confidence) : "",
-        allocation.coverage != null ? `Coverage ${allocation.coverage}` : ""].filter(Boolean).join(", ") }),
-      element("td", { class: "amount", text: allocation.amount }));
-    makeOpenable(row, () => openExplanation(ref));
-    body.append(row);
+      element("td", { text: asWords(allocation.method) }),
+      element("td", { text: estimateText(allocation.confidence, coverageText(allocation.coverage)) }),
+      element("td", { class: "amount", text: allocation.amount })));
   }
   const head = element("tr");
-  for (const [name, amount] of [["Billing Line", false], ["Allocation Target", false], ["How", false], [`Amount, ${currency}`, true]]) {
+  for (const [name, amount] of [["Billing Line", false], ["Allocation Target", false], ["Method", false],
+    ["Confidence, Coverage", false], [`Amount, ${currency}`, true]]) {
     head.append(element("th", { scope: "col", class: amount ? "amount" : "", text: name }));
   }
-  showDetail(`${title}: its Allocations (${state.basis})`,
-    element("p", { class: "meta", text: `Calculation Run ${page.calculation_run_id}. Choose an Allocation for its Cost Explanation.` }),
+  showDetail(`${title}: its Allocations (${state.basis})`, "",
+    element("p", { class: "meta", text: `${entries.length} Allocations in Calculation Run ${page.calculation_run_id}. Choose a Billing Line for its Cost Explanation.` }),
     element("table", {}, element("thead", {}, head), body));
 }
 
@@ -313,117 +375,162 @@ function facts(pairs) {
   return list;
 }
 
-function statusText(run) {
-  if (!run) return "not reported: known only as another run's parent or root";
-  return run.status;
+function runItem(runId, run) {
+  return element("li", { class: needsAttention(run) ? "attention" : "" },
+    opener(runId, () => openLineage(runId), true),
+    element("span", { class: "detail", text: ` · ${[jobName(run), runStatus(run)].filter(Boolean).join(" · ")}` }));
 }
 
-function runButton(runId, run) {
-  const attention = run && ATTENTION_STATUSES.has(run.status);
-  const item = element("li", { class: `run${attention ? " attention" : ""}`, tabindex: "0" },
-    element("span", { class: "mono", text: runId }),
-    element("span", { class: "detail", text: ` · ${run ? `${run.job_namespace} / ${run.job_name} · ` : ""}${statusText(run)}` }));
-  makeOpenable(item, () => openLineage(runId));
-  return item;
-}
-
-async function openExplanation(ref) {
-  const x = await getJson(EXPLANATION.replace("{ref}", encodeURIComponent(ref)), {});
-  history.replaceState(null, "", `#explain=${encodeURIComponent(ref)}`);
-  const a = x.allocation;
-  const line = x.billing_line;
-  const sections = [
+function billingLineSection(explanation) {
+  const line = explanation.billing_line;
+  const basis = explanation.allocation.cost_basis;
+  return [
     element("h3", { text: "1 · Billing Line" }),
-    facts([["Reference", x.billing_line_ref, { mono: true }], ["Service", line.ServiceName], ["Charge", line.ChargeDescription],
-      ["Charge period", `${line.ChargePeriodStart} – ${line.ChargePeriodEnd}`], [a.cost_basis, `${line[a.cost_basis]} ${line.BillingCurrency}`],
+    facts([["Reference", explanation.billing_line_ref, { mono: true }], ["Service", line.ServiceName],
+      ["Charge", line.ChargeDescription], ["Charge period", `${line.ChargePeriodStart} – ${line.ChargePeriodEnd}`],
+      [basis, `${line[basis]} ${line.BillingCurrency}`],
       ["Usage", line.ConsumedQuantity != null ? `${line.ConsumedQuantity} ${line.ConsumedUnit || ""}` : null],
       ["Account, region", [line.SubAccountId, line.RegionId].filter(Boolean).join(", ")]]),
     element("details", {}, element("summary", { text: "Every column as exported" }),
       element("pre", { class: "mono", text: JSON.stringify(line, null, 2) })),
-    element("h3", { text: "2 · Allocation" }),
-    facts([["Amount", `${a.amount} ${a.currency} (${a.cost_basis})`], ["Allocation Category", asWords(a.category)],
-      ["Method", asWords(a.method)], ["Confidence", a.confidence ? asWords(a.confidence) : null],
-      ["Coverage", a.coverage], ["Unallocated because", x.unallocated_reason ? asWords(x.unallocated_reason) : null],
-      ["Policy version", a.policy_version], ["Calculation Run", a.calculation_run_id, { mono: true }]]),
-    element("h3", { text: "3 · Evidence" }),
   ];
-  if (!x.query_execution && !x.model_execution && x.workload_runs.length === 0) {
-    sections.push(element("p", { class: "meta", text: "None: nothing explicit names a Query Execution for this amount (ADR 0006)." }));
+}
+
+function allocationSection(explanation) {
+  const allocation = explanation.allocation;
+  const estimate = estimateText(allocation.confidence, coverageText(allocation.coverage));
+  return [
+    element("h3", { text: "2 · Allocation" }),
+    facts([["Amount", `${allocation.amount} ${allocation.currency} (${allocation.cost_basis})${estimate ? ` · ${estimate}` : ""}`],
+      ["Allocation Category", categoryName(allocation.category)], ["Method", asWords(allocation.method)],
+      ["Unallocated because", explanation.unallocated_reason ? asWords(explanation.unallocated_reason) : null],
+      ["Policy version", allocation.policy_version], ["Calculation Run", allocation.calculation_run_id, { mono: true }]]),
+  ];
+}
+
+function evidenceSection(explanation) {
+  const section = [element("h3", { text: "3 · Evidence" })];
+  const query = explanation.query_execution;
+  const model = explanation.model_execution;
+  if (!query && !model && explanation.workload_runs.length === 0) {
+    section.push(element("p", { class: "meta", text: "None: nothing explicit names a Query Execution for this amount (ADR 0006)." }));
   }
-  if (x.query_execution) {
-    const q = x.query_execution;
-    sections.push(element("h4", { text: "Query Execution" }), facts([["ID", q.query_execution_id, { mono: true }],
-      ["Account, region", `${q.account_id}, ${q.region}`], ["Workgroup", q.workgroup], ["State", q.state],
-      ["Scanned bytes", q.scanned_bytes], ["Billable bytes", q.billable_bytes]]));
+  if (query) {
+    section.push(element("h4", { text: "Query Execution" }), facts([["ID", query.query_execution_id, { mono: true }],
+      ["Account, region", `${query.account_id}, ${query.region}`], ["Workgroup", query.workgroup], ["State", query.state],
+      ["Scanned bytes", query.scanned_bytes], ["Billable bytes", query.billable_bytes]]));
   }
-  if (x.model_execution) {
-    const m = x.model_execution;
-    sections.push(element("h4", { text: "Model Execution" }), facts([["dbt Node", m.node_id, { mono: true }],
-      ["Invocation", m.invocation_id, { mono: true }], ["Status", m.execution ? m.execution.status : "not in the run results"],
-      ["Materialized", m.dbt_node ? m.dbt_node.materialized : null]]));
+  if (model) {
+    section.push(element("h4", { text: "Model Execution" }), facts([["dbt Node", model.node_id, { mono: true }],
+      ["Invocation", model.invocation_id, { mono: true }], ["Status", executionStatus(model)],
+      ["Materialized", model.dbt_node ? model.dbt_node.materialized : null]]));
   }
-  if (x.workload_runs.length) {
-    sections.push(element("h4", { text: "Workload Runs, nearest first" }),
-      element("ul", { class: "runs" }, ...x.workload_runs.map((r) => runButton(r.run_id, r.run))));
+  if (explanation.workload_runs.length) {
+    section.push(element("h4", { text: "Workload Runs, nearest first" }),
+      element("ul", { class: "runs" }, ...explanation.workload_runs.map((r) => runItem(r.run_id, r.run))));
   }
-  sections.push(element("h3", { text: "4 · Roll-ups it contributes to" }));
-  sections.push(x.rollups.length
-    ? facts(x.rollups.map((r) => [r.level === "model_execution" ? `Model Execution ${modelExecutionName(r.key).name}` : `Workload Run ${r.key}`,
-      `${r.amount} ${r.currency} (${r.cost_basis})`]))
-    : element("p", { class: "meta", text: "None: no Identity Link reaches a Model Execution or Workload Run." }));
-  showDetail(`Cost Explanation of ${ref}`, ...sections);
+  return section;
+}
+
+function rollupSection(explanation) {
+  return [
+    element("h3", { text: "4 · Roll-ups it contributes to" }),
+    explanation.rollups.length
+      ? facts(explanation.rollups.map((r) => [
+        r.level === "model_execution" ? `Model Execution ${modelExecutionName(r.key).name}` : `Workload Run ${r.key}`,
+        `${r.amount} ${r.currency} (${r.cost_basis})`]))
+      : element("p", { class: "meta", text: "None: no Identity Link reaches a Model Execution or Workload Run." }),
+  ];
+}
+
+async function openExplanation(ref) {
+  const current = beginDetail();
+  const explanation = await getJson(EXPLANATION.replace("{ref}", encodeURIComponent(ref)));
+  if (!current()) return;
+  showDetail(`Cost Explanation of ${ref}`, `#explain=${encodeURIComponent(ref)}`,
+    ...billingLineSection(explanation), ...allocationSection(explanation),
+    ...evidenceSection(explanation), ...rollupSection(explanation));
 }
 
 function claimsList(claims) {
   if (!claims.length) return element("p", { class: "meta", text: "No query claims it." });
-  return element("ul", { class: "claims" }, ...claims.map((c) => element("li", {},
-    element("span", { class: "mono", text: c.query_execution.query_execution_id }),
-    element("span", { class: "detail", text: ` · ${asWords(c.outcome)}` }))));
+  return element("ul", { class: "claims" }, ...claims.map((claim) => element("li", {},
+    element("span", { class: "mono", text: claim.query_execution.query_execution_id }),
+    element("span", { class: "detail", text: ` · Link Outcome ${asWords(claim.outcome)}` }))));
+}
+
+function identityLinkSection(lineage) {
+  const section = [element("h3", { text: "Identity Links" })];
+  if (lineage.invocation) {
+    section.push(facts([["dbt invocation", lineage.invocation.invocation_id, { mono: true }],
+      ["Link Outcome", asWords(lineage.invocation.outcome)], ["Linked Workload Run", lineage.invocation.linked_run_id, { mono: true }]]));
+  }
+  if (lineage.model_run_link) {
+    section.push(facts([["Identity Link to its Model Execution", `Link Outcome ${asWords(lineage.model_run_link.outcome)}`]]));
+  }
+  for (const model of lineage.model_executions) {
+    section.push(element("h4", { text: model.node_id }), facts([["Status", executionStatus(model)]]), claimsList(model.queries));
+  }
+  if (lineage.unmatched_queries.length) {
+    section.push(element("h4", { text: "Unmatched: queries naming a node this invocation never reported" }),
+      claimsList(lineage.unmatched_queries));
+  }
+  return section;
+}
+
+function dataAssetSection(lineage) {
+  const section = [element("h3", { text: "Data Assets" })];
+  if (!lineage.data_assets.length) return [...section, element("p", { class: "meta", text: "None reported." })];
+  const directions = new Map();
+  for (const edge of lineage.lineage_edges) {
+    const key = `${edge.asset.namespace} / ${edge.asset.name}`;
+    directions.set(key, new Set([...(directions.get(key) || []), asWords(edge.direction)]));
+  }
+  return [...section, facts(lineage.data_assets.map((asset) => {
+    const key = `${asset.namespace} / ${asset.name}`;
+    return [key, [...(directions.get(key) || [])].join(" and ") || "no Lineage Edge"];
+  }))];
 }
 
 async function openLineage(runId) {
-  const l = await getJson(LINEAGE, { run_id: runId });
-  history.replaceState(null, "", `#run=${encodeURIComponent(runId)}`);
-  const run = l.run;
-  const attention = run && ATTENTION_STATUSES.has(run.status);
-  const sections = [
-    element("p", { class: `delta${attention ? " attention" : ""}`, text: `Status: ${statusText(run)}` }),
-    facts([["Job", run ? `${run.job_namespace} / ${run.job_name}` : null], ["Started", run ? run.started_at : null],
-      ["Ended", run ? run.ended_at : null]]),
+  const current = beginDetail();
+  const lineage = await getJson(LINEAGE, { run_id: runId });
+  if (!current()) return;
+  const run = lineage.run;
+  showDetail(`Lineage of Workload Run ${runId}`, `#run=${encodeURIComponent(runId)}`,
+    element("p", { class: `run-status${needsAttention(run) ? " attention" : ""}`, text: `Status: ${runStatus(run)}` }),
+    facts([["Job", jobName(run)], ["Started", run ? run.started_at : null], ["Ended", run ? run.ended_at : null]]),
     element("h3", { text: "Above it, nearest first" }),
-    l.ancestors.length ? element("ul", { class: "runs" }, ...l.ancestors.map((a) => runButton(a.run_id, a.run)))
-      : element("p", { class: "meta", text: "None: a root run." }),
+    lineage.ancestors.length ? element("ul", { class: "runs" }, ...lineage.ancestors.map((a) => runItem(a.run_id, a.run)))
+      : element("p", { class: "meta", text: "None: it is at the top of its family." }),
     element("h3", { text: "Below it" }),
-    l.children.length ? element("ul", { class: "runs" }, ...l.children.map((c) => runButton(c.run_id, c)))
+    lineage.children.length ? element("ul", { class: "runs" }, ...lineage.children.map((c) => runItem(c.run_id, c)))
       : element("p", { class: "meta", text: "None." }),
-    element("h3", { text: "Identity Links" }),
-  ];
-  if (l.invocation) {
-    sections.push(facts([["dbt invocation", l.invocation.invocation_id, { mono: true }],
-      ["Link Outcome", asWords(l.invocation.outcome)], ["Linked run", l.invocation.linked_run_id, { mono: true }]]));
-  }
-  if (l.model_run_link) sections.push(facts([["Model Execution link", asWords(l.model_run_link.outcome)]]));
-  for (const m of l.model_executions) {
-    sections.push(element("h4", { text: `${m.node_id}` }),
-      facts([["Status", m.execution ? m.execution.status : "not in the run results"]]), claimsList(m.queries));
-  }
-  if (l.unmatched_queries.length) {
-    sections.push(element("h4", { text: "Queries naming an unreported node" }), claimsList(l.unmatched_queries));
-  }
-  sections.push(element("h3", { text: "Data Assets" }),
-    l.lineage_edges.length
-      ? facts(l.lineage_edges.map((e) => [asWords(e.direction), `${e.asset.namespace} / ${e.asset.name}`]))
-      : element("p", { class: "meta", text: "None reported." }));
-  showDetail(`Lineage of Workload Run ${runId}`, ...sections);
+    ...identityLinkSection(lineage), ...dataAssetSection(lineage));
 }
 
+/** Open what the address names; a malformed one is reported, not thrown away silently. */
 async function openFromHash() {
-  const [kind, value] = decodeURIComponent(location.hash.slice(1)).split(/=(.*)/s);
+  let fragment;
+  try {
+    fragment = decodeURIComponent(location.hash.slice(1));
+  } catch {
+    throw new Error("the link's #explain= or #run= part is not valid");
+  }
+  const [kind, value] = fragment.split(/=(.*)/s);
   if (kind === "explain" && value) await openExplanation(value);
   else if (kind === "run" && value) await openLineage(value);
 }
 
 const fail = (error) => showNotice(`Could not load: ${error.message}`);
-byId("basis").addEventListener("change", (e) => { state.basis = e.target.value; render().catch(fail); });
-byId("scope").addEventListener("change", (e) => { state.scope = Number(e.target.value); render().catch(fail); });
-render().catch(fail);
+function change(update) {
+  return (e) => {
+    update(e.target.value);
+    closeDetail(); // a detail belongs to the scope and Cost Basis it was opened under
+    render().catch(fail);
+  };
+}
+byId("basis").addEventListener("change", change((value) => (state.basis = value)));
+byId("scope").addEventListener("change", change((value) => (state.scope = Number(value))));
+window.addEventListener("hashchange", () => openFromHash().catch(fail));
+render().then(openFromHash).catch(fail);
