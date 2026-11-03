@@ -8,6 +8,7 @@ never stops the file: every problem becomes a Rejection naming the failing field
 never the value.
 """
 
+import codecs
 import json
 from dataclasses import dataclass
 from enum import StrEnum
@@ -24,8 +25,6 @@ from data_finops.lineage.openlineage import RunEvent
 
 MAX_EVENT_BYTES = 1024 * 1024
 """Per event: the raw line in JSON Lines, the element's compact UTF-8 encoding in an array."""
-
-_BOM = b"\xef\xbb\xbf"
 
 
 class RejectionKind(StrEnum):
@@ -75,7 +74,7 @@ def screen_event(data: bytes) -> Screening:
     The whole body is the event, at position 1: newlines inside it never split it.
     """
     rejected: list[Rejection] = []
-    item = _parse(1, data.removeprefix(_BOM), rejected)
+    item = _parse(1, data.removeprefix(codecs.BOM_UTF8), rejected)
     return _screen([] if item is None else [item], rejected)
 
 
@@ -98,7 +97,7 @@ def _screen(items: list[tuple[int, Any]], rejected: list[Rejection]) -> Screenin
 
 
 def _items(data: bytes, rejected: list[Rejection]) -> list[tuple[int, Any]]:
-    data = data.removeprefix(_BOM)
+    data = data.removeprefix(codecs.BOM_UTF8)
     if data.lstrip().startswith(b"["):
         try:
             elements = _loads(data.decode("utf-8"))
