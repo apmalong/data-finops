@@ -20,7 +20,7 @@ from data_finops.calculation import run_calculation
 from data_finops.contracts.allocation import AllocationCategory, Confidence
 from data_finops.contracts.billing import CostBasis, FocusBillingLine, FocusExport
 from data_finops.ledger import Ledger
-from data_finops.reporting import CostSummary, Reporting
+from data_finops.reporting import CostSummary, DatabaseUnavailable, Reporting
 from data_finops.workload.store import WorkloadStore
 
 FIXTURES = Path(__file__).resolve().parents[2] / "fixtures"
@@ -236,3 +236,14 @@ def test_a_snapshot_stored_before_m5_still_shows_its_bill(tmp_path: Path) -> Non
         Decimal("10.00"),
         Decimal(0),
     )
+
+
+def test_a_file_the_stores_refuse_is_unavailable(tmp_path: Path) -> None:
+    not_a_database = tmp_path / "notes.txt"
+    not_a_database.write_text("not a database", encoding="utf-8")
+    before_m3 = tmp_path / "m2.sqlite"
+    with sqlite3.connect(before_m3) as m2_file:  # M2's table, without the columns M3 added
+        m2_file.execute("CREATE TABLE workload_lineage_event (run_id TEXT)")
+    for path in (not_a_database, before_m3):
+        with pytest.raises(DatabaseUnavailable):
+            Reporting(path)

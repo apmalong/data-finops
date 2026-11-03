@@ -1,5 +1,6 @@
 """Answers from the Ledger for the API (spec 06), opened per request on a database file."""
 
+import sqlite3
 from collections import defaultdict
 from datetime import date
 from decimal import Decimal
@@ -19,15 +20,30 @@ from data_finops.reporting.models import (
     ServedSnapshot,
     UnallocatedAmount,
 )
+from data_finops.workload.store import WorkloadStore
+
+
+class DatabaseUnavailable(Exception):
+    """The file cannot be opened as a current data-finops database; never names the file."""
 
 
 class Reporting:
     """The read model over one database file."""
 
     def __init__(self, path: Path) -> None:
-        self._ledger = Ledger(path)
+        """Open both stores; raises DatabaseUnavailable if either refuses the file."""
+        try:
+            self._ledger = Ledger(path)
+        except sqlite3.DatabaseError:
+            raise DatabaseUnavailable from None
+        try:
+            self._store = WorkloadStore(path)
+        except (sqlite3.DatabaseError, RuntimeError):
+            self._ledger.close()
+            raise DatabaseUnavailable from None
 
     def close(self) -> None:
+        self._store.close()
         self._ledger.close()
 
     def __enter__(self) -> Self:

@@ -1,1 +1,9 @@
-"""Reserved package boundary; implement per milestone acceptance tests."""
+"""The HTTP API (spec 06): a thin FastAPI adapter over the `reporting` read model.
+
+Needs the optional `api` extra. Every read opens the read model for one request; errors are
+RFC 9457 Problem Details that name fields, never input values.
+"""
+
+from data_finops.api.app import create_app
+
+__all__ = ["create_app"]

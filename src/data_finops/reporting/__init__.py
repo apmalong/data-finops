@@ -9,13 +9,14 @@ from data_finops.reporting.models import (
     ServedSnapshot,
     UnallocatedAmount,
 )
-from data_finops.reporting.reporting import Reporting
+from data_finops.reporting.reporting import DatabaseUnavailable, Reporting
 
 __all__ = [
     "AllocatedAmount",
     "CostSummaries",
     "CostSummary",
     "CurrencySummary",
+    "DatabaseUnavailable",
     "Reporting",
     "ServedSnapshot",
     "UnallocatedAmount",
