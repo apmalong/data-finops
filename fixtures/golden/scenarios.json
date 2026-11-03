@@ -1,7 +1,7 @@
 [
   {
     "id": "existing-fixtures-complete-coverage",
-    "description": "ADR 0017. Assumes the Athena line's billed usage quantity (0.001 TB) equals q-001's Billable Usage, so Coverage = 1 and the whole $6 line is a metered estimate to q-001, rolling up to model.demo.orders. q-002 (DDL, no data scanned) receives nothing. The $4 S3 line has no allocator and stays Unallocated. Never inferred from time overlap.",
+    "description": "ADR 0017. Assumes the Athena line's billed usage quantity (0.001 TB) equals q-001's Billable Usage, so Coverage = 1 and the whole $6 line is a metered estimate to q-001, rolling up to model.demo.orders and, through its invocation's run, to the Airflow task and DAG run (#89). q-002 (DDL, no data scanned) receives nothing. The $4 S3 line has no allocator and stays Unallocated. Never inferred from time overlap.",
     "billing_lines": [
       {
         "ref": "aws-focus-123456789012-2026-10-v1#0",
@@ -29,7 +29,13 @@
         "coverage": "1",
         "policy_version": "golden-v1",
         "calculation_run_id": "golden",
-        "evidence_refs": ["athena:q-001", "dbt-query-comment:inv-001:model.demo.orders"]
+        "evidence_refs": [
+          "athena:q-001",
+          "dbt-query-comment:inv-001:model.demo.orders",
+          "openlineage-run:00000000-0000-4000-8000-000000000002",
+          "openlineage-run:00000000-0000-4000-8000-000000000001",
+          "openlineage-run:00000000-0000-4000-8000-000000000000"
+        ]
       },
       {
         "billing_line_ref": "aws-focus-123456789012-2026-10-v1#1",
