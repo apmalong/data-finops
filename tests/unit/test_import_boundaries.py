@@ -26,6 +26,9 @@ FORBIDDEN_IMPORTS = {
     "lineage": ("data_finops.billing", "data_finops.ledger", "data_finops.attribution"),
     "dbt": ("data_finops.billing", "data_finops.ledger", "data_finops.attribution"),
     "workload": ("data_finops.billing", "data_finops.ledger", "data_finops.attribution"),
+    # The read model answers from the stores' public interfaces only: no SQL of its own,
+    # nothing from the HTTP or command-line layers above it (spec 06).
+    "reporting": ("sqlite3", "data_finops.api", "data_finops.cli", "data_finops.providers"),
 }
 ALLOWED = {"contracts": ("data_finops.contracts",)}
 CLOCK_CALLS = {("datetime", "now"), ("datetime", "utcnow"), ("time", "time")}
@@ -50,10 +53,10 @@ def test_package_respects_import_boundaries(package):
             assert not name.startswith(FORBIDDEN_IMPORTS[package]), f"{path}: imports {name}"
 
 
-def test_only_the_calculation_run_brings_the_ledger_and_workload_store_together():
-    # architecture-boundaries.md: `calculation` is the only place they meet.
+def test_only_the_calculation_run_and_read_model_bring_the_stores_together():
+    # architecture-boundaries.md: `calculation` and `reporting` are the only places they meet.
     for path in SRC.rglob("*.py"):
-        if path.parent.name == "calculation":
+        if path.parent.name in ("calculation", "reporting"):
             continue
         names = _imports(path)
         both = any(n.startswith("data_finops.ledger") for n in names) and any(

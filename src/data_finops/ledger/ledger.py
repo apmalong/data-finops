@@ -214,6 +214,22 @@ class Ledger:
         current = self._current(scope)
         return None if current is None else self._load(current)
 
+    def scopes(self) -> list[SnapshotScope]:
+        """Every Snapshot Scope with a stored Export Snapshot, by account, period and source."""
+        rows = self._connection.execute(
+            "SELECT DISTINCT billing_account_id, billing_period_start, billing_period_end, source"
+            " FROM export_snapshot ORDER BY 1, 2, 3, 4"
+        ).fetchall()
+        return [
+            SnapshotScope(
+                billing_account_id=account,
+                billing_period_start=start,
+                billing_period_end=end,
+                source=source,
+            )
+            for account, start, end, source in rows
+        ]
+
     def snapshot(self, snapshot_id: str) -> FocusExport | None:
         """Any stored Export Snapshot, current or superseded."""
         row = self._connection.execute(
