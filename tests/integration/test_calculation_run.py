@@ -44,6 +44,7 @@ def stores(tmp_path: Path) -> Iterator[tuple[Ledger, WorkloadStore]]:
                 FIXTURES / "athena" / name, account_id=ACCOUNT, region=REGION
             )
         store.ingest_dbt_artifact(FIXTURES / "dbt" / "run_results.json")
+        store.ingest_events(FIXTURES / "openlineage" / "events.json")
         yield ledger, store
 
 

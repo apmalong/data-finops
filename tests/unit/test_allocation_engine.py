@@ -83,7 +83,14 @@ def test_existing_fixtures_golden_scenario() -> None:
                     MeteredUsage(
                         "q-001",
                         Decimal("0.001"),
-                        ("athena:q-001", "dbt-query-comment:inv-001:model.demo.orders"),
+                        (
+                            "athena:q-001",
+                            "dbt-query-comment:inv-001:model.demo.orders",
+                            *(
+                                f"openlineage-run:00000000-0000-4000-8000-00000000000{n}"
+                                for n in (2, 1, 0)
+                            ),
+                        ),
                     ),
                     MeteredUsage("q-002", Decimal("0")),  # DDL, nothing scanned
                 ),
