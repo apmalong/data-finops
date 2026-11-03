@@ -5,11 +5,12 @@ Pure: no I/O, clock or provider knowledge. Callers classify each Billing Line in
 Billable Usage in the line's own unit; the engine only splits money.
 """
 
+from collections import Counter
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from decimal import ROUND_FLOOR, Decimal, localcontext
 from enum import StrEnum
-from typing import assert_never
+from typing import NamedTuple, assert_never
 
 from data_finops.contracts.allocation import (
     Allocation,
@@ -29,11 +30,20 @@ _MINOR_UNITS = {
 }
 
 
-# A split target: (target type, target ID). Keying by both keeps the Unallocated remainder
-# apart from any Query Execution, whatever its ID.
-_Target = tuple[TargetType, str]
-_UNALLOCATED: _Target = (TargetType.UNALLOCATED, TargetType.UNALLOCATED.value)
-_IDLE: _Target = (TargetType.IDLE, TargetType.IDLE.value)
+class _Target(NamedTuple):
+    """A split target. Keying by type and ID keeps the synthetic targets apart from any
+    Query Execution, whatever its ID; ties in a split go to the lowest (type, ID)."""
+
+    type: TargetType
+    id: str
+
+
+_UNALLOCATED = _Target(TargetType.UNALLOCATED, TargetType.UNALLOCATED.value)
+_IDLE = _Target(TargetType.IDLE, TargetType.IDLE.value)
+
+
+def _query(query_execution_id: str) -> _Target:
+    return _Target(TargetType.QUERY_EXECUTION, query_execution_id)
 
 
 class AllocationMethod(StrEnum):
@@ -68,7 +78,7 @@ class MeteredCostPool:
 
 
 @dataclass(frozen=True)
-class DirectPool:
+class DirectCostPool:
     """A line the provider bills to exactly one Query Execution."""
 
     pool_id: str
@@ -96,7 +106,7 @@ class SharedCostPool:
 
 
 @dataclass(frozen=True)
-class IdleCapacity:
+class IdleCostPool:
     """A line paying for capacity with no observed activity."""
 
     pool_id: str
@@ -117,7 +127,7 @@ class Adjustment:
     pool_id: str
 
 
-Pool = MeteredCostPool | DirectPool | SharedCostPool | IdleCapacity | Ineligible | Adjustment
+Pool = MeteredCostPool | DirectCostPool | SharedCostPool | IdleCostPool | Ineligible | Adjustment
 
 
 @dataclass(frozen=True)
@@ -144,14 +154,18 @@ def allocate(
     - idle: the whole line to Idle;
     - Ineligible and Adjustment: wholly Unallocated with that reason, sign kept.
 
-    Raises ValueError for a metered line without a positive ConsumedQuantity, or a
-    negative shared weight.
+    Raises ValueError for a metered line without a positive ConsumedQuantity, a negative
+    shared weight, or a pool naming one Query Execution more than once.
     """
     allocations: list[Allocation] = []
     for pooled in lines:
         line = pooled.line
         shares = _shares(pooled)
         weights = {share.target: share.weight for share in shares}
+        if len(weights) != len(shares):
+            counts = Counter(share.target.id for share in shares)
+            repeated = sorted(target for target, count in counts.items() if count > 1)
+            raise ValueError(f"{pooled.ref}: pool names {', '.join(repeated)} more than once")
         for basis in CostBasis:
             amount = line.cost(basis)
             parts = _split(amount, weights, _scale(amount, line.BillingCurrency))
@@ -159,8 +173,8 @@ def allocate(
                 Allocation(
                     billing_line_ref=pooled.ref,
                     pool_id=pooled.pool.pool_id,
-                    target_type=share.target[0],
-                    target_id=share.target[1],
+                    target_type=share.target.type,
+                    target_id=share.target.id,
                     amount=parts[share.target],
                     currency=line.BillingCurrency,
                     cost_basis=basis,
@@ -212,20 +226,20 @@ def _shares(pooled: PooledLine) -> list[_Share]:
     match pool:
         case MeteredCostPool():
             return _metered_shares(pooled.ref, pooled.line, pool)
-        case DirectPool():
+        case DirectCostPool():
             return [
                 _Share(
-                    (TargetType.QUERY_EXECUTION, pool.query_execution_id),
+                    _query(pool.query_execution_id),
                     Decimal(1),
                     AllocationCategory.DIRECT,
                     AllocationMethod.PROVIDER_LINE_MATCH,
-                    pool.confidence,
+                    confidence=pool.confidence,
                     evidence_refs=pool.evidence_refs,
                 )
             ]
         case SharedCostPool():
             return _weighted_shares(pooled.ref, pool)
-        case IdleCapacity():
+        case IdleCostPool():
             return [
                 _Share(
                     _IDLE,
@@ -251,11 +265,11 @@ def _weighted_shares(ref: str, pool: SharedCostPool) -> list[_Share]:
         return [_unallocated(AllocationMethod.NO_EVIDENCE, evidence_refs=pool.evidence_refs)]
     return [
         _Share(
-            (TargetType.QUERY_EXECUTION, w.query_execution_id),
+            _query(w.query_execution_id),
             w.weight,
             AllocationCategory.SHARED,
             AllocationMethod.WEIGHTED_SHARE,
-            pool.confidence,
+            confidence=pool.confidence,
             evidence_refs=pool.evidence_refs,
         )
         for w in positive
@@ -291,13 +305,13 @@ def _metered_shares(ref: str, line: FocusBillingLine, pool: MeteredCostPool) -> 
         ]
     shares = [
         _Share(
-            (TargetType.QUERY_EXECUTION, u.query_execution_id),
+            _query(u.query_execution_id),
             u.quantity,
             AllocationCategory.DIRECT,
             AllocationMethod.ESTIMATED_METERED_SHARE,
-            Confidence.METERED_ESTIMATE,
-            coverage,
-            u.evidence_refs,
+            confidence=Confidence.METERED_ESTIMATE,
+            coverage=coverage,
+            evidence_refs=u.evidence_refs,
         )
         for u in usages
     ]

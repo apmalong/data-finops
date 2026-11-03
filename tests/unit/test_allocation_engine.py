@@ -15,8 +15,8 @@ from jsonschema import Draft202012Validator
 
 from data_finops.attribution.engine import (
     Adjustment,
-    DirectPool,
-    IdleCapacity,
+    DirectCostPool,
+    IdleCostPool,
     Ineligible,
     MeteredCostPool,
     MeteredUsage,
@@ -479,7 +479,7 @@ def test_explicit_synthetic_cost_pools_golden_scenario() -> None:
         PooledLine(
             "synthetic#0",
             _line("3.00"),
-            DirectPool(
+            DirectCostPool(
                 "synthetic-direct",
                 "q-synthetic-orders",
                 Confidence.DIRECT_VERIFIED,
@@ -493,7 +493,7 @@ def test_explicit_synthetic_cost_pools_golden_scenario() -> None:
                 "synthetic-shared", weights, Confidence.METERED_ESTIMATE, ("synthetic-weight-001",)
             ),
         ),
-        PooledLine("synthetic#2", _line("1.00"), IdleCapacity("synthetic-idle")),
+        PooledLine("synthetic#2", _line("1.00"), IdleCostPool("synthetic-idle")),
         # Nothing evidences a split: a shared pool with no positive weight.
         PooledLine(
             "synthetic#3",
@@ -556,9 +556,9 @@ def test_explicit_pools_partition_every_cost_basis_exactly() -> None:
     line = _line(BilledCost="1.00", EffectiveCost="-0.10", ListCost="0.01", ContractedCost="0.999")
     lines = [
         # A direct pool keeps the confidence its caller gives.
-        PooledLine("direct#0", line, DirectPool("d", "q_a", Confidence.METERED_ESTIMATE)),
+        PooledLine("direct#0", line, DirectCostPool("d", "q_a", Confidence.METERED_ESTIMATE)),
         PooledLine("shared#0", line, _shared(("q_a", "1"), ("q_b", "2"))),
-        PooledLine("idle#0", line, IdleCapacity("i")),
+        PooledLine("idle#0", line, IdleCostPool("i")),
     ]
     allocations = allocate(lines, policy_version="p", calculation_run_id="r")
     table = {(a.billing_line_ref, a.cost_basis, a.target_id): str(a.amount) for a in allocations}
@@ -589,3 +589,36 @@ def test_explicit_pools_partition_every_cost_basis_exactly() -> None:
     assert {(a.category, a.method, a.confidence, a.coverage) for a in idle} == {
         ("idle", "no_observed_activity", None, None)
     }
+
+
+@pytest.mark.parametrize(
+    "pool",
+    [
+        SharedCostPool(
+            "shared",
+            (
+                SharedWeight("q_a", Decimal(1)),
+                SharedWeight("q_b", Decimal(1)),
+                SharedWeight("q_a", Decimal(2)),
+            ),
+            Confidence.METERED_ESTIMATE,
+        ),
+        MeteredCostPool(
+            "metered",
+            (
+                MeteredUsage("q_a", Decimal("0.001")),
+                MeteredUsage("q_b", Decimal("0.001")),
+                MeteredUsage("q_a", Decimal("0.001")),
+            ),
+        ),
+    ],
+    ids=["shared", "metered"],
+)
+def test_a_pool_naming_a_query_twice_is_refused(pool: SharedCostPool | MeteredCostPool) -> None:
+    # Two shares for one target would allocate the line twice over.
+    with pytest.raises(ValueError, match=r"^line#0: pool names q_a more than once$"):
+        allocate(
+            [PooledLine("line#0", _line("1.00", ConsumedQuantity="0.003"), pool)],
+            policy_version="p",
+            calculation_run_id="r",
+        )
