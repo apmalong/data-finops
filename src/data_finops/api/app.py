@@ -1,6 +1,7 @@
 """The FastAPI app over one database file (spec 06)."""
 
-from collections.abc import Iterator
+import hmac
+from collections.abc import Awaitable, Callable, Iterator
 from datetime import date
 from pathlib import Path
 from typing import Annotated, Any, Literal
@@ -80,6 +81,7 @@ def _problem_doc(description: str) -> dict[str, Any]:
 
 
 _READ_PROBLEMS: dict[int | str, dict[str, Any]] = {
+    401: _problem_doc("When a token is configured: no valid bearer token (ADR 0024)."),
     400: _problem_doc("Invalid request: the detail names the fields, never their values."),
     500: _problem_doc("An unexpected failure; the detail reveals nothing about it."),
     503: _problem_doc("The database cannot be opened as a current data-finops database."),
@@ -99,21 +101,42 @@ _RECEIVER_RESPONSES: dict[int | str, dict[str, Any]] = {
     400: _problem_doc("Rejected: the detail gives the kind and failing field, never content."),
     413: _problem_doc(f"The body is larger than one event may be ({_EVENT_CAP})."),
     415: _problem_doc("The body has a Content-Encoding; send the event uncompressed."),
+    401: _READ_PROBLEMS[401],
     500: _READ_PROBLEMS[500],
     503: _READ_PROBLEMS[503],
 }
 _ONE_EVENT = {"required": True, "content": {"application/json": {"schema": {"type": "object"}}}}
 
 
-def create_app(db: Path) -> FastAPI:
-    """The API over the database file `db`; nothing is opened until a request needs it."""
+def create_app(db: Path, *, token: str | None = None) -> FastAPI:
+    """The API over the database file `db`; nothing is opened until a request needs it.
+
+    With a `token`, every route, documentation included, needs `Authorization: Bearer
+    <token>` (ADR 0024); without one, every route is open, for a loopback demo.
+    """
     app = FastAPI(title="data-finops", version="v1", summary="Where the cloud bill went.")
+
+    if token is not None:
+        expected = token.encode("utf-8")
+
+        @app.middleware("http")
+        async def require_token(
+            request: Request, call_next: Callable[[Request], Awaitable[Response]]
+        ) -> Response:
+            scheme, _, supplied = request.headers.get("authorization", "").partition(" ")
+            if scheme.lower() != "bearer" or not hmac.compare_digest(
+                supplied.encode("utf-8"), expected
+            ):
+                refused = _problem_json(401, "Unauthorized", "A valid bearer token is required.")
+                refused.headers["WWW-Authenticate"] = "Bearer"
+                return refused
+            return await call_next(request)
 
     def reporting() -> Iterator[Reporting]:
         with Reporting(db) as opened:
             yield opened
 
-    @app.get("/health", responses={503: {"model": Health}})
+    @app.get("/health", responses={401: _READ_PROBLEMS[401], 503: {"model": Health}})
     def health(response: Response) -> Health:
         """Whether the database opens as a current data-finops database."""
         try:
