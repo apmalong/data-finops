@@ -12,6 +12,9 @@ dependencies = [
     "pydantic>=2.10,<3",
     "rfc3339-validator>=0.1.4,<0.2",
 ]
+[project.scripts]
+data-finops = "data_finops.cli:main"
+
 [project.optional-dependencies]
 # The HTTP API and dashboard (spec 06). Exact pins: the newest releases at least two weeks
 # old when added (build-vs-reuse register); starlette is pinned because fastapi leaves it open.
