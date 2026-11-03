@@ -14,6 +14,7 @@ from pydantic import BaseModel
 from starlette.concurrency import run_in_threadpool
 from starlette.exceptions import HTTPException
 
+from data_finops.api.token import checked_token
 from data_finops.contracts.allocation import AllocationCategory
 from data_finops.contracts.billing import CostBasis
 from data_finops.lineage.validation import MAX_EVENT_BYTES
@@ -81,8 +82,8 @@ def _problem_doc(description: str) -> dict[str, Any]:
 
 
 _READ_PROBLEMS: dict[int | str, dict[str, Any]] = {
-    401: _problem_doc("When a token is configured: no valid bearer token (ADR 0024)."),
     400: _problem_doc("Invalid request: the detail names the fields, never their values."),
+    401: _problem_doc("When a token is configured: no valid bearer token (ADR 0024)."),
     500: _problem_doc("An unexpected failure; the detail reveals nothing about it."),
     503: _problem_doc("The database cannot be opened as a current data-finops database."),
 }
@@ -95,13 +96,18 @@ _PAGE_PROBLEMS: dict[int | str, dict[str, Any]] = {
     ),
     404: _problem_doc("No such Calculation Run, or no calculated Snapshot Scope matches."),
 }
+_HEALTH_RESPONSES: dict[int | str, dict[str, Any]] = {
+    401: _READ_PROBLEMS[401],
+    503: {"model": Health, "description": "The database cannot be opened."},
+}
+
 _RECEIVER_RESPONSES: dict[int | str, dict[str, Any]] = {
     201: {"model": LineageReceipt, "description": "Stored, or already stored (a duplicate)."},
     202: {"model": LineageUnsupported, "description": "A JobEvent or DatasetEvent: not stored."},
     400: _problem_doc("Rejected: the detail gives the kind and failing field, never content."),
+    401: _READ_PROBLEMS[401],
     413: _problem_doc(f"The body is larger than one event may be ({_EVENT_CAP})."),
     415: _problem_doc("The body has a Content-Encoding; send the event uncompressed."),
-    401: _READ_PROBLEMS[401],
     500: _READ_PROBLEMS[500],
     503: _READ_PROBLEMS[503],
 }
@@ -117,16 +123,16 @@ def create_app(db: Path, *, token: str | None = None) -> FastAPI:
     app = FastAPI(title="data-finops", version="v1", summary="Where the cloud bill went.")
 
     if token is not None:
-        expected = token.encode("utf-8")
+        expected = checked_token(token).encode("utf-8")
 
         @app.middleware("http")
         async def require_token(
             request: Request, call_next: Callable[[Request], Awaitable[Response]]
         ) -> Response:
-            scheme, _, supplied = request.headers.get("authorization", "").partition(" ")
-            if scheme.lower() != "bearer" or not hmac.compare_digest(
-                supplied.encode("utf-8"), expected
-            ):
+            # RFC 7235: a case-insensitive scheme, then one or more spaces, then the token.
+            parts = request.headers.get("authorization", "").split()
+            supplied = parts[1] if len(parts) == 2 and parts[0].lower() == "bearer" else ""
+            if not hmac.compare_digest(supplied.encode("utf-8"), expected):
                 refused = _problem_json(401, "Unauthorized", "A valid bearer token is required.")
                 refused.headers["WWW-Authenticate"] = "Bearer"
                 return refused
@@ -136,7 +142,7 @@ def create_app(db: Path, *, token: str | None = None) -> FastAPI:
         with Reporting(db) as opened:
             yield opened
 
-    @app.get("/health", responses={401: _READ_PROBLEMS[401], 503: {"model": Health}})
+    @app.get("/health", responses=_HEALTH_RESPONSES)
     def health(response: Response) -> Health:
         """Whether the database opens as a current data-finops database."""
         try:

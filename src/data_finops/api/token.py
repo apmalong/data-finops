@@ -22,9 +22,14 @@ def read_token(*, environ: Mapping[str, str], file: Path | None) -> str | None:
     if from_environment is not None and file is not None:
         raise ValueError(f"set the token in {TOKEN_VARIABLE} or a file, not both")
     raw = file.read_text(encoding="utf-8") if file is not None else from_environment
-    if raw is None:
-        return None
-    token = raw.strip()
-    if len(token) < MIN_TOKEN_LENGTH:
-        raise ValueError(f"the token must be at least {MIN_TOKEN_LENGTH} characters")
+    return None if raw is None else checked_token(raw.strip())
+
+
+def checked_token(token: str) -> str:
+    """`token` itself, or ValueError if it is shorter than MIN_TOKEN_LENGTH or has
+    surrounding whitespace: the one rule for every way a token is configured."""
+    if len(token) < MIN_TOKEN_LENGTH or token != token.strip():
+        raise ValueError(
+            f"the token must be at least {MIN_TOKEN_LENGTH} characters, without surrounding spaces"
+        )
     return token

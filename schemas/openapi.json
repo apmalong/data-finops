@@ -59,7 +59,7 @@
             }
           },
           "503": {
-            "description": "Service Unavailable",
+            "description": "The database cannot be opened.",
             "content": {
               "application/json": {
                 "schema": {
@@ -132,8 +132,8 @@
               }
             }
           },
-          "401": {
-            "description": "When a token is configured: no valid bearer token (ADR 0024).",
+          "400": {
+            "description": "Invalid request: the detail names the fields, never their values.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -168,8 +168,8 @@
               }
             }
           },
-          "400": {
-            "description": "Invalid request: the detail names the fields, never their values.",
+          "401": {
+            "description": "When a token is configured: no valid bearer token (ADR 0024).",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -454,8 +454,8 @@
               }
             }
           },
-          "401": {
-            "description": "When a token is configured: no valid bearer token (ADR 0024).",
+          "400": {
+            "description": "Invalid request, or filters matching several Snapshot Scopes: the detail names the fields to give, never their values.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -490,8 +490,8 @@
               }
             }
           },
-          "400": {
-            "description": "Invalid request, or filters matching several Snapshot Scopes: the detail names the fields to give, never their values.",
+          "401": {
+            "description": "When a token is configured: no valid bearer token (ADR 0024).",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -709,6 +709,42 @@
               }
             }
           },
+          "401": {
+            "description": "When a token is configured: no valid bearer token (ADR 0024).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "title": "Type",
+                      "default": "about:blank"
+                    },
+                    "title": {
+                      "type": "string",
+                      "title": "Title"
+                    },
+                    "status": {
+                      "type": "integer",
+                      "title": "Status"
+                    },
+                    "detail": {
+                      "type": "string",
+                      "title": "Detail"
+                    }
+                  },
+                  "type": "object",
+                  "required": [
+                    "title",
+                    "status",
+                    "detail"
+                  ],
+                  "title": "Problem",
+                  "description": "An RFC 9457 Problem Details body."
+                }
+              }
+            }
+          },
           "413": {
             "description": "The body is larger than one event may be (1 MiB).",
             "content": {
@@ -747,42 +783,6 @@
           },
           "415": {
             "description": "The body has a Content-Encoding; send the event uncompressed.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "properties": {
-                    "type": {
-                      "type": "string",
-                      "title": "Type",
-                      "default": "about:blank"
-                    },
-                    "title": {
-                      "type": "string",
-                      "title": "Title"
-                    },
-                    "status": {
-                      "type": "integer",
-                      "title": "Status"
-                    },
-                    "detail": {
-                      "type": "string",
-                      "title": "Detail"
-                    }
-                  },
-                  "type": "object",
-                  "required": [
-                    "title",
-                    "status",
-                    "detail"
-                  ],
-                  "title": "Problem",
-                  "description": "An RFC 9457 Problem Details body."
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "When a token is configured: no valid bearer token (ADR 0024).",
             "content": {
               "application/problem+json": {
                 "schema": {
