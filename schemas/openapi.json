@@ -2829,6 +2829,32 @@
         "title": "ExplainedWorkloadRun",
         "description": "A Workload Run an Allocation's Evidence names; `run` is None if never reported."
       },
+      "ExportSnapshotRead": {
+        "properties": {
+          "snapshot_id": {
+            "type": "string",
+            "title": "Snapshot Id"
+          },
+          "content_digest": {
+            "type": "string",
+            "title": "Content Digest"
+          },
+          "published_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Published At"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "snapshot_id",
+          "content_digest",
+          "published_at"
+        ],
+        "title": "ExportSnapshotRead",
+        "description": "The Export Snapshot a Calculation Run read."
+      },
       "FocusBillingLine": {
         "properties": {
           "BilledCost": {
@@ -3199,14 +3225,7 @@
             "title": "Calculation Run Id"
           },
           "scope": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/SnapshotScope"
-              },
-              {
-                "type": "null"
-              }
-            ]
+            "$ref": "#/components/schemas/SnapshotScope"
           },
           "policy_version": {
             "type": "string",
@@ -3246,7 +3265,7 @@
           "export_snapshot": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/ReadExportSnapshot"
+                "$ref": "#/components/schemas/ExportSnapshotRead"
               },
               {
                 "type": "null"
@@ -3423,32 +3442,6 @@
           "conflicting_observations"
         ],
         "title": "QueryExecutionFlag"
-      },
-      "ReadExportSnapshot": {
-        "properties": {
-          "snapshot_id": {
-            "type": "string",
-            "title": "Snapshot Id"
-          },
-          "content_digest": {
-            "type": "string",
-            "title": "Content Digest"
-          },
-          "published_at": {
-            "type": "string",
-            "format": "date-time",
-            "title": "Published At"
-          }
-        },
-        "additionalProperties": false,
-        "type": "object",
-        "required": [
-          "snapshot_id",
-          "content_digest",
-          "published_at"
-        ],
-        "title": "ReadExportSnapshot",
-        "description": "The Export Snapshot a Calculation Run read."
       },
       "RollupAmount": {
         "properties": {

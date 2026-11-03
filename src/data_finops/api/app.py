@@ -94,7 +94,7 @@ _READ_PROBLEMS: dict[int | str, dict[str, Any]] = {
     503: _problem_doc("The database cannot be opened as a current data-finops database."),
 }
 
-_PAGE_PROBLEMS: dict[int | str, dict[str, Any]] = {
+_SELECTION_PROBLEMS: dict[int | str, dict[str, Any]] = {
     **_READ_PROBLEMS,
     400: _problem_doc(
         "Invalid request, or filters matching several Snapshot Scopes: the detail names the"
@@ -177,7 +177,7 @@ def create_app(db: Path, *, token: str | None = None) -> FastAPI:
             billing_period=billing_period,
         )
 
-    @app.get("/v1/allocations", responses=_PAGE_PROBLEMS)
+    @app.get("/v1/allocations", responses=_SELECTION_PROBLEMS)
     def allocations(
         read_model: Annotated[Reporting, Depends(reporting)],
         calculation_run_id: Annotated[str | None, Query(max_length=128)] = None,
@@ -207,7 +207,7 @@ def create_app(db: Path, *, token: str | None = None) -> FastAPI:
             offset=offset,
         )
 
-    @app.get("/v1/rollups", responses=_PAGE_PROBLEMS)
+    @app.get("/v1/rollups", responses=_SELECTION_PROBLEMS)
     def rollups(
         read_model: Annotated[Reporting, Depends(reporting)],
         level: RollupLevel,
@@ -230,7 +230,7 @@ def create_app(db: Path, *, token: str | None = None) -> FastAPI:
             offset=offset,
         )
 
-    @app.get("/v1/reconciliation", responses=_PAGE_PROBLEMS)
+    @app.get("/v1/reconciliation", responses=_SELECTION_PROBLEMS)
     def reconciliation(
         read_model: Annotated[Reporting, Depends(reporting)],
         calculation_run_id: Annotated[str | None, Query(max_length=128)] = None,
@@ -253,7 +253,7 @@ def create_app(db: Path, *, token: str | None = None) -> FastAPI:
             offset=offset,
         )
 
-    @app.get("/v1/provenance", responses=_PAGE_PROBLEMS)
+    @app.get("/v1/provenance", responses=_SELECTION_PROBLEMS)
     def provenance(
         read_model: Annotated[Reporting, Depends(reporting)],
         calculation_run_id: Annotated[str | None, Query(max_length=128)] = None,

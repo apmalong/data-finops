@@ -126,7 +126,7 @@ class AllocationReconciliation(_Response):
     items: list[AllocationLineReconciliation]
 
 
-class ReadExportSnapshot(_Response):
+class ExportSnapshotRead(_Response):
     """The Export Snapshot a Calculation Run read."""
 
     snapshot_id: str
@@ -139,8 +139,7 @@ class Provenance(_Response):
     """How one Allocation Snapshot was made, enough to reproduce any figure in it."""
 
     calculation_run_id: str
-    scope: SnapshotScope | None
-    """None only for a snapshot whose Export Snapshot is no longer stored."""
+    scope: SnapshotScope
     policy_version: str
     policy_components: list[str]
     """The engine and each policy the run applied, e.g. `allocation-engine/1`."""
@@ -150,7 +149,8 @@ class Provenance(_Response):
     is_current: bool
     superseded_by: str | None
     """The Calculation Run whose snapshot replaced this one for its scope, if any."""
-    export_snapshot: ReadExportSnapshot | None
+    export_snapshot: ExportSnapshotRead | None
+    """None only for a snapshot stored before M5 with no Allocations to name its export."""
 
 
 RollupLevel = Literal["model_execution", "workload_run"]

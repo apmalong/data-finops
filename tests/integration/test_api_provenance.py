@@ -40,15 +40,13 @@ def client(database: Database) -> Iterator[TestClient]:
 def test_provenance_is_served_as_the_read_model_answers_it(
     client: TestClient, database: Database, selection: str
 ) -> None:
-    params = (
-        {"billing_account_id": ACCOUNT}
-        if selection == "current"
-        else {"calculation_run_id": database.first_run}
-    )
+    run = None if selection == "current" else database.first_run
+    account = ACCOUNT if run is None else None
+    params = {"calculation_run_id": run} if run else {"billing_account_id": account}
     response = client.get(PATH, params=params)
     assert response.status_code == 200
     with Reporting(database.path) as reporting:
-        expected = reporting.provenance(**params)  # type: ignore[arg-type]
+        expected = reporting.provenance(calculation_run_id=run, billing_account_id=account)
     assert response.json() == expected.model_dump(mode="json")
     valid_response("get", PATH, 200, response.json())
 

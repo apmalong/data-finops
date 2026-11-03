@@ -65,10 +65,10 @@ def test_a_superseded_run_names_the_run_that_superseded_it(
     assert (first.is_current, first.superseded_by) == (False, database.current_run)
     assert first.export_snapshot is not None
     assert first.export_snapshot.snapshot_id == EXPORT.snapshot.snapshot_id
-    assert first.created_at < reporting.provenance(billing_account_id=ACCOUNT).created_at
-    assert first.export_snapshot.content_digest != (
-        reporting.provenance(billing_account_id=ACCOUNT).export_snapshot.content_digest  # type: ignore[union-attr]
-    )
+    current = reporting.provenance(billing_account_id=ACCOUNT)
+    assert current.export_snapshot is not None
+    assert first.created_at < current.created_at
+    assert first.export_snapshot.content_digest != current.export_snapshot.content_digest
 
 
 def test_selection_is_as_for_the_other_reads(reporting: Reporting, database: Database) -> None:
@@ -116,3 +116,28 @@ def test_a_snapshot_without_allocations_still_names_the_export_it_read(tmp_path:
     assert provenance.export_snapshot is not None
     assert provenance.export_snapshot.snapshot_id == EXPORT.snapshot.snapshot_id
     assert provenance.scope == EXPORT.snapshot.scope
+
+
+def test_a_pre_m5_snapshot_with_no_allocations_keeps_its_scope_and_successor(
+    tmp_path: Path,
+) -> None:
+    # Before M5 no Export Snapshot was recorded; with no Allocations nothing names it, but the
+    # Allocation Snapshot's own row still gives its scope, so its successor is still found.
+    path = tmp_path / "data-finops.sqlite"
+    fill(path)
+    with Ledger(path) as ledger:
+        ledger.store_allocations(
+            EXPORT.snapshot.scope,
+            calculation_run_id="calc-pre-m5",
+            policy_version=POLICY_VERSION,
+            input_digest="pre-m5",
+            allocations=[],
+        )
+    later = restate(path)
+    with Reporting(path) as reporting:
+        provenance = reporting.provenance(calculation_run_id="calc-pre-m5")
+    assert (provenance.export_snapshot, provenance.scope, provenance.superseded_by) == (
+        None,
+        EXPORT.snapshot.scope,
+        later,
+    )
