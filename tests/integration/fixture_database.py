@@ -1,7 +1,6 @@
 """Databases filled through the public ingest functions and Calculation Runs (spec 06,
 seam 1): every hand-written fixture, as in the M4 exit test, and hand-written variations."""
 
-from datetime import timedelta
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
@@ -14,6 +13,7 @@ from data_finops.workload.store import WorkloadStore
 
 FIXTURES = Path(__file__).resolve().parents[2] / "fixtures"
 EXPORT = load_export(FIXTURES / "focus" / "export-2026-10.json")
+RESTATED = load_export(FIXTURES / "focus" / "export-2026-10-restated.json")
 ACCOUNT, REGION = "123456789012", "us-east-1"
 OTHER_ACCOUNT = "210987654321"
 
@@ -33,21 +33,10 @@ def fill(path: Path) -> str:
 
 
 def restate(path: Path) -> str:
-    """Import a later publication of the fixture export, its S3 line restated from $4.00 to
-    $5.00, and recalculate; returns the new Calculation Run's ID."""
-    lines = [*EXPORT.lines]
-    lines[1] = lines[1].model_copy(update={basis.value: Decimal("5.00") for basis in CostBasis})
-    restated = FocusExport(
-        snapshot=EXPORT.snapshot.model_copy(
-            update={
-                "snapshot_id": "aws-focus-123456789012-2026-10-v2",
-                "published_at": EXPORT.snapshot.published_at + timedelta(days=1),
-            }
-        ),
-        lines=lines,
-    )
+    """Import the restated fixture export (`export-2026-10-restated.json`: published a day
+    later, its S3 line $5.00 instead of $4.00) and recalculate; returns the new run's ID."""
     with Ledger(path) as ledger, WorkloadStore(path) as store:
-        ledger.import_snapshot(restated)
+        ledger.import_snapshot(RESTATED)
         return run_calculation(ledger, store, EXPORT.snapshot.scope).calculation_run_id
 
 

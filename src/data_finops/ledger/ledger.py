@@ -239,6 +239,13 @@ class Ledger:
             for account, start, end, source in rows
         ]
 
+    def content_digest(self, snapshot_id: str) -> str | None:
+        """The stored Export Snapshot's content digest (its replay key), or None if unknown."""
+        row = self._connection.execute(
+            "SELECT content_digest FROM export_snapshot WHERE snapshot_id = ?", (snapshot_id,)
+        ).fetchone()
+        return None if row is None else str(row[0])
+
     def snapshot(self, snapshot_id: str) -> FocusExport | None:
         """Any stored Export Snapshot, current or superseded."""
         row = self._connection.execute(

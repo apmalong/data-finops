@@ -29,6 +29,7 @@ from data_finops.reporting import (
     CostSummaries,
     DatabaseUnavailable,
     NotFound,
+    Provenance,
     Reporting,
     RollupLevel,
     RollupPage,
@@ -250,6 +251,23 @@ def create_app(db: Path, *, token: str | None = None) -> FastAPI:
             cost_basis=cost_basis,
             limit=limit,
             offset=offset,
+        )
+
+    @app.get("/v1/provenance", responses=_PAGE_PROBLEMS)
+    def provenance(
+        read_model: Annotated[Reporting, Depends(reporting)],
+        calculation_run_id: Annotated[str | None, Query(max_length=128)] = None,
+        billing_account_id: Annotated[str | None, Query(max_length=128)] = None,
+        billing_period: date | None = None,
+        source: Annotated[str | None, Query(max_length=256)] = None,
+    ) -> Provenance:
+        """How one Allocation Snapshot was made, chosen as for `/v1/allocations`: inputs,
+        policies, the Export Snapshot it read, and the run that superseded it, if any."""
+        return read_model.provenance(
+            calculation_run_id=calculation_run_id,
+            billing_account_id=billing_account_id,
+            billing_period=billing_period,
+            source=source,
         )
 
     @app.get("/v1/allocations/{ref}/explanation", responses=_EXPLANATION_PROBLEMS)

@@ -43,6 +43,8 @@ from data_finops.reporting.models import (
     ExplainedModelExecution,
     ExplainedRollup,
     ExplainedWorkloadRun,
+    Provenance,
+    ReadExportSnapshot,
     RollupAmount,
     RollupEntry,
     RollupLevel,
@@ -266,6 +268,53 @@ class Reporting:
             offset=offset,
             items=rows[offset : offset + limit],
         )
+
+    def provenance(
+        self,
+        *,
+        calculation_run_id: str | None = None,
+        billing_account_id: str | None = None,
+        billing_period: date | None = None,
+        source: str | None = None,
+    ) -> Provenance:
+        """How one Allocation Snapshot was made, chosen as for `allocations`: its inputs and
+        policies, the Export Snapshot it read, and whether a later run superseded it."""
+        stored = self._served(calculation_run_id, billing_account_id, billing_period, source)
+        snapshot = stored.snapshot
+        export_id = snapshot.export_snapshot_id or next(
+            (snapshot_id_of(a.billing_line_ref) for a in stored.allocations), None
+        )
+        export = self._ledger.snapshot(export_id) if export_id else None
+        digest = self._ledger.content_digest(export_id) if export_id else None
+        scope = export.snapshot.scope if export is not None else None
+        return Provenance(
+            calculation_run_id=snapshot.calculation_run_id,
+            scope=scope,
+            policy_version=snapshot.policy_version,
+            policy_components=snapshot.policy_version.split("+"),
+            input_digest=snapshot.input_digest,
+            created_at=snapshot.created_at,
+            is_current=snapshot.is_current,
+            superseded_by=self._superseded_by(snapshot.calculation_run_id, scope),
+            export_snapshot=(
+                None
+                if export is None or digest is None
+                else ReadExportSnapshot(
+                    snapshot_id=export.snapshot.snapshot_id,
+                    content_digest=digest,
+                    published_at=export.snapshot.published_at,
+                )
+            ),
+        )
+
+    def _superseded_by(self, calculation_run_id: str, scope: SnapshotScope | None) -> str | None:
+        """The next Allocation Snapshot stored for the scope after this one, if any."""
+        runs = [
+            s.calculation_run_id
+            for s in (self._ledger.allocation_snapshots(scope) if scope else [])
+        ]
+        position = runs.index(calculation_run_id) if calculation_run_id in runs else len(runs)
+        return runs[position + 1] if position + 1 < len(runs) else None
 
     def explanation(self, ref: str) -> CostExplanation:
         """The Cost Explanation of the Allocation at `ref` (`<calculation_run_id>#<position>`),

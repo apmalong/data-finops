@@ -126,6 +126,33 @@ class AllocationReconciliation(_Response):
     items: list[AllocationLineReconciliation]
 
 
+class ReadExportSnapshot(_Response):
+    """The Export Snapshot a Calculation Run read."""
+
+    snapshot_id: str
+    content_digest: str
+    """The Ledger's digest of the snapshot's content: the same content, the same digest."""
+    published_at: UtcDatetime
+
+
+class Provenance(_Response):
+    """How one Allocation Snapshot was made, enough to reproduce any figure in it."""
+
+    calculation_run_id: str
+    scope: SnapshotScope | None
+    """None only for a snapshot whose Export Snapshot is no longer stored."""
+    policy_version: str
+    policy_components: list[str]
+    """The engine and each policy the run applied, e.g. `allocation-engine/1`."""
+    input_digest: str
+    """The run's inputs: identical inputs and policies give the same digest (a replay)."""
+    created_at: UtcDatetime
+    is_current: bool
+    superseded_by: str | None
+    """The Calculation Run whose snapshot replaced this one for its scope, if any."""
+    export_snapshot: ReadExportSnapshot | None
+
+
 RollupLevel = Literal["model_execution", "workload_run"]
 """What a Roll-up sums to (ADR 0016)."""
 

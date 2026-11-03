@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 from data_finops.billing.focus import load_export
+from data_finops.contracts.billing import CostBasis
 from data_finops.dbt.artifacts import load_manifest, load_run_results
 from data_finops.lineage.openlineage import load_events
 from data_finops.providers.athena import load_query_executions
@@ -61,3 +62,17 @@ def test_dbt_artifacts_share_the_invocation():
 def test_fixture_files_are_utf8_json():
     for path in FIXTURES.rglob("*.json"):
         json.loads(path.read_text(encoding="utf-8"))
+
+
+def test_the_restated_export_differs_only_by_publication_and_the_s3_line():
+    # A later publication of the same scope (ADR 0020) restating one line: the exit
+    # walkthrough and the provenance tests rely on exactly this difference (#113).
+    original = load_export(FIXTURES / "focus" / "export-2026-10.json")
+    restated = load_export(FIXTURES / "focus" / "export-2026-10-restated.json")
+    assert restated.snapshot.scope == original.snapshot.scope
+    assert restated.snapshot.published_at > original.snapshot.published_at
+    assert restated.snapshot.snapshot_id != original.snapshot.snapshot_id
+    assert restated.lines[0] == original.lines[0]
+    s3 = {"BilledCost", "EffectiveCost", "ListCost", "ContractedCost"}
+    assert restated.lines[1].model_dump(exclude=s3) == original.lines[1].model_dump(exclude=s3)
+    assert {str(restated.lines[1].cost(basis)) for basis in CostBasis} == {"5.00"}
