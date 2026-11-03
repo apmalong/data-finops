@@ -649,11 +649,14 @@ def _currency_summary(
     currency: str, billed: Decimal, allocations: list[Allocation]
 ) -> CurrencySummary:
     allocated: dict[tuple[AllocationCategory, Confidence | None], Decimal] = defaultdict(Decimal)
+    coverage: dict[tuple[AllocationCategory, Confidence | None], list[Decimal]] = defaultdict(list)
     unallocated: dict[AllocationMethod, Decimal] = defaultdict(Decimal)
-    adjustments = Decimal(0)
+    adjustments = billed * 0  # zero at the bill's own scale, e.g. 0.00
     for a in allocations:
         if a.category is not AllocationCategory.UNALLOCATED:
             allocated[(a.category, a.confidence)] += a.amount
+            if a.coverage is not None:
+                coverage[(a.category, a.confidence)].append(a.coverage)
         elif a.method == AllocationMethod.ADJUSTMENT:
             adjustments += a.amount
         else:
@@ -662,7 +665,13 @@ def _currency_summary(
         currency=currency,
         billed=billed,
         allocated=[
-            AllocatedAmount(category=category, confidence=confidence, amount=amount)
+            AllocatedAmount(
+                category=category,
+                confidence=confidence,
+                amount=amount,
+                coverage_min=min(coverage[(category, confidence)], default=None),
+                coverage_max=max(coverage[(category, confidence)], default=None),
+            )
             for (category, confidence), amount in sorted(
                 allocated.items(), key=lambda item: (item[0][0], item[0][1] or "")
             )

@@ -12,7 +12,8 @@ from openapi_contract import OPENAPI
 
 from data_finops.api import create_app
 
-DASHBOARD = Path(__file__).resolve().parents[2] / "src" / "data_finops" / "api" / "dashboard"
+ROOT = Path(__file__).resolve().parents[2]
+DASHBOARD = ROOT / "src" / "data_finops" / "api" / "dashboard"
 FILES = ("index.html", "dashboard.css", "dashboard.js")
 
 
@@ -54,10 +55,19 @@ def test_the_dashboard_needs_no_library_and_no_network_beyond_its_api() -> None:
         assert "<script src" not in text.replace('<script src="dashboard.js"', ""), name
 
 
-def test_the_design_note_ticks_every_spec_06_rule() -> None:
+def _spec_06_rules() -> list[str]:
+    spec = (ROOT / "docs" / "specs" / "06-api-and-dashboard.md").read_text(encoding="utf-8")
+    section = spec.split("## Dashboard", 1)[1].split("\n## ", 1)[0]
+    return re.findall(r"^- (.+)$", section, flags=re.M)
+
+
+def test_the_design_note_quotes_and_ticks_every_spec_06_dashboard_rule() -> None:
     note = (DASHBOARD / "DESIGN.md").read_text(encoding="utf-8")
-    rules = re.findall(r"^- \[(.)\] ", note, flags=re.M)
-    assert rules and all(tick == "x" for tick in rules)
+    ticked = set(re.findall(r"^- \[x\] (.+)$", note, flags=re.M))
+    rules = _spec_06_rules()
+    assert len(rules) == 8
+    assert [rule for rule in rules if rule not in ticked] == []
+    assert re.findall(r"^- \[ \] ", note, flags=re.M) == []
 
 
 def test_with_a_token_the_dashboard_is_guarded_like_every_route(database: Path) -> None:

@@ -42,6 +42,10 @@ class AllocatedAmount(_Response):
     category: AllocationCategory
     confidence: Confidence | None
     amount: DecimalString
+    coverage_min: DecimalString | None = None
+    """The lowest Coverage among these Allocations (ADR 0017); None when none carries one."""
+    coverage_max: DecimalString | None = None
+    """The highest; equal to `coverage_min` when every line was covered alike."""
 
 
 class UnallocatedAmount(_Response):

@@ -1,7 +1,9 @@
-/* data-finops dashboard (spec 06; design rules in DESIGN.md). Colours are the dataviz
+/* data-finops dashboard: the Cost Summary and Roll-ups (spec 06; design rules in DESIGN.md). Colours are the dataviz
    skill's validated reference steps: one series hue for allocated amounts, one highlight
    for amounts that need attention. Everything else is ink on the surface. */
 
+/* Light and dark each have their own validated steps. The theme follows the system setting;
+   `data-theme` on <html> forces one (the screenshots use it). */
 :root {
   color-scheme: light;
   --page: #f9f9f7;
@@ -63,8 +65,8 @@ h3 { font-size: 0.95rem; margin: 0 0 8px; font-weight: 600; }
 .panel { background: var(--surface); border-radius: 8px; padding: 16px; min-width: 0; }
 
 .headline { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
-.hero { font-size: 2rem; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
-.hero small { font-size: 0.9rem; color: var(--ink-2); font-weight: 400; margin-left: 4px; }
+/* The headline number: proportional figures at hero size (tabular figures are for columns). */
+.hero { font-size: 48px; line-height: 1.1; font-weight: 600; letter-spacing: -0.01em; margin: 0; }
 .delta { font-size: 0.85rem; color: var(--ink-2); }
 .delta.attention { color: var(--ink); }
 .delta.attention::before { content: "⚠ "; color: var(--attention); }
@@ -78,6 +80,7 @@ h3 { font-size: 0.95rem; margin: 0 0 8px; font-weight: 600; }
 .bar-label { color: var(--ink-2); font-size: 0.85rem; overflow-wrap: anywhere; }
 .bar-label strong { color: var(--ink); font-weight: 500; }
 .bar-label strong.mono { font-weight: 400; }
+.detail { color: var(--ink-3); font-size: 0.75rem; }
 .bar-track { position: relative; height: 20px; }
 .bar-track .zero { position: absolute; top: -4px; bottom: -4px; width: 1px; background: var(--ink-3); }
 .bar {
@@ -99,16 +102,16 @@ th { color: var(--ink-3); font-weight: 500; border-bottom: 1px solid var(--rule)
 td.amount, th.amount { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 tr.group td { border-top: 1px solid var(--rule); }
 tr.total td { font-weight: 600; border-top: 1px solid var(--ink-3); }
-.tag { color: var(--ink-3); font-size: 0.75rem; }
 .mono { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-size: 0.8rem; }
 
 .tooltip {
   position: fixed; pointer-events: none; background: var(--surface); color: var(--ink);
   border: 1px solid var(--rule); border-radius: 6px; padding: 6px 8px; font-size: 0.8rem;
-  box-shadow: 0 2px 8px rgb(0 0 0 / 0.12); max-width: 320px;
+  max-width: 320px;
 }
 
 @media (forced-colors: active) {
+  .bar-track .zero { background: CanvasText; }
   .bar { background: CanvasText; }
   .bar.attention { background: Highlight; }
 }
