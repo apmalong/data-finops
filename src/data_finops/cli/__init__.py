@@ -10,10 +10,11 @@ position and reason, never by their content (ADR 0012).
 import argparse
 import ipaddress
 import os
+import shutil
 import sqlite3
 import sys
 import tempfile
-from collections.abc import Callable, Iterable, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -207,7 +208,14 @@ def _demo(args: argparse.Namespace) -> int:
     fixtures: Path = args.fixtures
     if not (fixtures / "focus").is_dir():
         raise _Failure("the demo needs a source checkout with its fixtures directory")
-    db = Path(tempfile.mkdtemp(prefix="data-finops-demo-")) / "data-finops.sqlite"
+    folder = Path(tempfile.mkdtemp(prefix="data-finops-demo-"))
+    try:
+        return _run_demo(folder / "data-finops.sqlite", fixtures, args.port, args.start_server)
+    finally:
+        shutil.rmtree(folder, ignore_errors=True)
+
+
+def _run_demo(db: Path, fixtures: Path, port: int, start_server: StartServer) -> int:
     print(f"demo: database {db}")
     athena = {"account_id": "123456789012", "region": "us-east-1"}
     steps: list[tuple[Callable[[argparse.Namespace], int], Path, dict[str, str]]] = [
@@ -227,15 +235,22 @@ def _demo(args: argparse.Namespace) -> int:
     for ingest, path, extra in steps:
         ingest(argparse.Namespace(path=path, db=db, **extra))
     _calculate(argparse.Namespace(db=db))
-    return _serve_database(db, DEFAULT_HOST, args.port, None, args.start_server)
+    # The local demo needs no secret (ADR 0024): a configured token is not applied to it.
+    return _serve_database(db, DEFAULT_HOST, port, None, start_server, environ={})
 
 
 def _serve_database(
-    db: Path, host: str, port: int, token_file: Path | None, start_server: StartServer
+    db: Path,
+    host: str,
+    port: int,
+    token_file: Path | None,
+    start_server: StartServer,
+    *,
+    environ: Mapping[str, str] = os.environ,
 ) -> int:
     api = _api()
     try:
-        token = api.read_token(environ=os.environ, file=token_file)
+        token = api.read_token(environ=environ, file=token_file)
     except ValueError as error:
         raise _Failure(str(error)) from None
     if token is None and not _is_loopback(host):
@@ -250,8 +265,11 @@ def _serve_database(
 
 
 def _api() -> Any:
-    """The `api` package, imported only when needed so ingest and calculate never need it."""
+    """The `api` package, imported only when needed so ingest and calculate never need it;
+    uvicorn, the other half of the extra, is checked here too, before anything is written."""
     try:
+        import uvicorn  # noqa: F401
+
         import data_finops.api as api
     except ImportError:
         raise _Failure(_INSTALL_HINT) from None
@@ -259,8 +277,8 @@ def _api() -> Any:
 
 
 def _is_loopback(host: str) -> bool:
-    if host == "localhost":
-        return True
+    """Only a literal loopback address counts: a name such as `localhost` is resolved by the
+    system and could point anywhere (ADR 0024)."""
     try:
         return ipaddress.ip_address(host).is_loopback
     except ValueError:

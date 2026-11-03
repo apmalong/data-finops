@@ -19,13 +19,20 @@ TOKEN = "s3cret-token-value-0123456789"
 
 
 class Recorder:
-    """Stands in for the server: records the app and address it was asked to serve."""
+    """Stands in for the server: records the app and address it was asked to serve, and
+    while "serving" GETs `probes`, as a client would before the server stops."""
 
-    def __init__(self) -> None:
+    def __init__(self, *probes: str) -> None:
         self.calls: list[tuple[Any, str, int]] = []
+        self.probes = probes
+        self.responses: dict[str, tuple[int, Any]] = {}
 
     def __call__(self, app: Any, host: str, port: int) -> None:
         self.calls.append((app, host, port))
+        with TestClient(app) as client:
+            for path in self.probes:
+                response = client.get(path)
+                self.responses[path] = (response.status_code, response.json())
 
 
 @pytest.fixture
@@ -107,12 +114,12 @@ def test_serve_refuses_a_database_that_does_not_exist(
 def test_demo_loads_the_fixtures_calculates_and_serves_on_loopback(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    server = Recorder()
+    server = Recorder("/v1/costs/summary")
     assert main(["demo", "--port", "8123"], start_server=server) == 0
-    ((app, host, port),) = server.calls
+    ((_, host, port),) = server.calls
     assert (host, port) == ("127.0.0.1", 8123)
-    with TestClient(app) as client:
-        summary = client.get("/v1/costs/summary").json()
+    status, summary = server.responses["/v1/costs/summary"]
+    assert status == 200
     (usd,) = summary["summaries"][0]["currencies"]
     assert usd["billed"] == "10.00"
     out = capsys.readouterr().out
@@ -134,3 +141,42 @@ def test_without_the_api_extra_serve_and_demo_say_how_to_install_it(
     out, err = capsys.readouterr()
     assert err.count("pip install 'data-finops[api]'") == 2
     assert "demo: database" not in out  # nothing written before the extra is found missing
+
+
+def test_the_demo_ignores_a_configured_token_and_removes_its_database_afterwards(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setenv(TOKEN_VARIABLE, TOKEN)
+    server = Recorder("/health")
+    assert main(["demo"], start_server=server) == 0
+    assert server.responses["/health"][0] == 200  # the local demo needs no secret
+    printed = next(
+        line for line in capsys.readouterr().out.splitlines() if line.startswith("demo: database ")
+    )
+    assert not Path(printed.removeprefix("demo: database ")).exists()
+
+
+def test_the_demo_needs_the_fixtures_directory(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    server = Recorder()
+    assert main(["demo", "--fixtures", str(tmp_path / "none")], start_server=server) == 2
+    assert server.calls == [] and "source checkout" in capsys.readouterr().err
+
+
+def test_localhost_by_name_is_not_treated_as_loopback(
+    database: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv(TOKEN_VARIABLE, raising=False)
+    server = Recorder()
+    assert main(["serve", "--db", str(database), "--host", "localhost"], start_server=server) == 2
+    assert main(["serve", "--db", str(database), "--host", "::1"], start_server=server) == 0
+
+
+def test_without_uvicorn_serve_says_how_to_install_the_extra(
+    database: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setitem(sys.modules, "uvicorn", None)
+    server = Recorder()
+    assert main(["serve", "--db", str(database)], start_server=server) == 2
+    assert "pip install 'data-finops[api]'" in capsys.readouterr().err
