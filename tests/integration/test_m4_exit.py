@@ -4,8 +4,9 @@ call the engine and match the golden scenarios (#90; plan, M4).
 The `existing-fixtures` scenario runs end to end: every hand-written fixture is ingested
 through the public interfaces, a Calculation Run allocates the stored Export Snapshot, and
 the stored Allocation Snapshot is compared with the oracle and rolled up. The synthetic
-and negative-adjustment scenarios have no fixture files, so their lines are built here
-and given to the engine directly, as callers classify them.
+and negative-adjustment scenarios have no fixture files: their lines are built from the
+oracle's own `billing_lines` and given to the engine directly, as callers classify them.
+Every scenario's Allocations are held to the accounting invariants.
 """
 
 import json
@@ -34,7 +35,7 @@ from data_finops.attribution.rollups import (
 )
 from data_finops.billing.focus import load_export
 from data_finops.calculation import run_calculation
-from data_finops.contracts.allocation import Allocation, Confidence
+from data_finops.contracts.allocation import Allocation, AllocationCategory, Confidence
 from data_finops.contracts.billing import CostBasis, FocusBillingLine, FocusChargeCategory
 from data_finops.identity.links import ModelExecutionKey
 from data_finops.ledger import AllocationStoreOutcome, Ledger
@@ -42,14 +43,19 @@ from data_finops.workload.store import WorkloadStore
 
 ROOT = Path(__file__).resolve().parents[2]
 FIXTURES = ROOT / "fixtures"
-SCENARIOS = {s["id"]: s for s in json.loads((FIXTURES / "golden" / "scenarios.json").read_text())}
+SCENARIOS = {
+    s["id"]: s
+    for s in json.loads((FIXTURES / "golden" / "scenarios.json").read_text(encoding="utf-8"))
+}
 SCHEMA = Draft202012Validator(
-    json.loads((ROOT / "schemas" / "allocation.schema.json").read_text()),
+    json.loads((ROOT / "schemas" / "allocation.schema.json").read_text(encoding="utf-8")),
     format_checker=Draft202012Validator.FORMAT_CHECKER,
 )
 EXPORT = load_export(FIXTURES / "focus" / "export-2026-10.json")
 ACCOUNT, REGION = "123456789012", "us-east-1"
-DAG_RUN, TASK_RUN, DBT_RUN = (f"00000000-0000-4000-8000-00000000000{n}" for n in range(3))
+DAG_RUN = "00000000-0000-4000-8000-000000000000"
+AIRFLOW_TASK = "00000000-0000-4000-8000-000000000001"
+DBT_RUN = "00000000-0000-4000-8000-000000000002"
 
 
 def _comparable(allocations: list[Allocation]) -> list[dict[str, Any]]:
@@ -68,6 +74,43 @@ def _oracle(scenario_id: str) -> list[dict[str, Any]]:
     return _comparable(
         [Allocation.model_validate(a) for a in SCENARIOS[scenario_id]["allocations"]]
     )
+
+
+def _assert_invariants(allocations: list[Allocation], lines: dict[str, FocusBillingLine]) -> None:
+    """Every line partitioned exactly, in its own currency and sign, for every Cost Basis;
+    every Allocation valid against the published schema; no Confidence on Unallocated."""
+    allocated: dict[tuple[str, CostBasis], Decimal] = defaultdict(Decimal)
+    for allocation in allocations:
+        SCHEMA.validate(allocation.model_dump(mode="json"))
+        line = lines[allocation.billing_line_ref]
+        assert allocation.currency == line.BillingCurrency
+        assert allocation.amount * line.cost(CostBasis(allocation.cost_basis)) >= 0  # sign kept
+        if allocation.category == AllocationCategory.UNALLOCATED:
+            assert allocation.confidence is None
+        allocated[(allocation.billing_line_ref, CostBasis(allocation.cost_basis))] += (
+            allocation.amount
+        )
+    assert allocated == {
+        (ref, basis): line.cost(basis) for ref, line in lines.items() for basis in CostBasis
+    }
+
+
+def _oracle_lines(scenario_id: str, category: FocusChargeCategory) -> dict[str, FocusBillingLine]:
+    """The scenario's billing lines: the fixture's Athena line carrying each oracle amount
+    and currency in every cost column."""
+    return {
+        line["ref"]: FocusBillingLine.model_validate(
+            EXPORT.lines[0].model_dump()
+            | {basis.value: Decimal(line["amount"]) for basis in CostBasis}
+            | {"BillingCurrency": line["currency"], "ChargeCategory": category}
+        )
+        for line in SCENARIOS[scenario_id]["billing_lines"]
+    }
+
+
+def _engine(lines: dict[str, FocusBillingLine], pools: dict[str, Any]) -> list[Allocation]:
+    pooled = [PooledLine(ref, line, pools[ref]) for ref, line in lines.items()]
+    return allocate(pooled, policy_version="golden-v1", calculation_run_id="golden")
 
 
 @pytest.fixture(scope="module")
@@ -93,82 +136,46 @@ def end_to_end(tmp_path_factory: pytest.TempPathFactory) -> Iterator[list[Alloca
         yield stored.allocations
 
 
-def _line(ref: str, amount: str, category: FocusChargeCategory) -> PooledLine:
-    """A synthetic line: the fixture's Athena line with `amount` in every cost column."""
-    line = FocusBillingLine.model_validate(
-        EXPORT.lines[0].model_dump()
-        | {basis.value: Decimal(amount) for basis in CostBasis}
-        | {"ChargeCategory": category}
-    )
-    return PooledLine(ref, line, IdleCostPool("unused"))
-
-
-def _engine(lines: list[PooledLine]) -> list[Allocation]:
-    return allocate(lines, policy_version="golden-v1", calculation_run_id="golden")
-
-
 def test_the_existing_fixtures_scenario_runs_end_to_end(end_to_end: list[Allocation]) -> None:
     assert _comparable(end_to_end) == _oracle("existing-fixtures-complete-coverage")
+    _assert_invariants(
+        end_to_end, {EXPORT.line_ref(i): line for i, line in enumerate(EXPORT.lines)}
+    )
 
 
 def test_the_synthetic_cost_pools_scenario_is_computed_by_the_engine() -> None:
-    usage = FocusChargeCategory.USAGE
-    lines = [
-        _line("synthetic#0", "3.00", usage),
-        _line("synthetic#1", "2.00", usage),
-        _line("synthetic#2", "1.00", usage),
-        _line("synthetic#3", "4.00", usage),
-    ]
-    pools = [
-        DirectCostPool(
-            "synthetic-direct",
-            "q-synthetic-orders",
-            Confidence.DIRECT_VERIFIED,
-            ("explicit-demo-price-001",),
-        ),
-        SharedCostPool(
-            "synthetic-shared",
-            (
-                SharedWeight("q-synthetic-orders", Decimal(5)),
-                SharedWeight("q-synthetic-customers", Decimal(3)),
+    lines = _oracle_lines("explicit-synthetic-cost-pools", FocusChargeCategory.USAGE)
+    allocations = _engine(
+        lines,
+        {
+            "synthetic#0": DirectCostPool(
+                "synthetic-direct",
+                "q-synthetic-orders",
+                Confidence.DIRECT_VERIFIED,
+                ("explicit-demo-price-001",),
             ),
-            Confidence.METERED_ESTIMATE,
-            ("synthetic-weight-001",),
-        ),
-        IdleCostPool("synthetic-idle"),
-        SharedCostPool("synthetic-unknown", (), Confidence.METERED_ESTIMATE),
-    ]
-    pooled = [
-        PooledLine(line.ref, line.line, pool) for line, pool in zip(lines, pools, strict=True)
-    ]
-    assert _comparable(_engine(pooled)) == _oracle("explicit-synthetic-cost-pools")
+            "synthetic#1": SharedCostPool(
+                "synthetic-shared",
+                (
+                    SharedWeight("q-synthetic-orders", Decimal(5)),
+                    SharedWeight("q-synthetic-customers", Decimal(3)),
+                ),
+                Confidence.METERED_ESTIMATE,
+                ("synthetic-weight-001",),
+            ),
+            "synthetic#2": IdleCostPool("synthetic-idle"),
+            "synthetic#3": SharedCostPool("synthetic-unknown", (), Confidence.METERED_ESTIMATE),
+        },
+    )
+    assert _comparable(allocations) == _oracle("explicit-synthetic-cost-pools")
+    _assert_invariants(allocations, lines)
 
 
 def test_the_negative_adjustment_scenario_is_computed_by_the_engine() -> None:
-    credit = _line("credit#0", "-1.00", FocusChargeCategory.CREDIT)
-    pooled = [PooledLine(credit.ref, credit.line, Adjustment("adjustments"))]
-    assert _comparable(_engine(pooled)) == _oracle("negative-adjustment")
-
-
-def test_the_accounting_invariants_hold_on_the_stored_snapshot(
-    end_to_end: list[Allocation],
-) -> None:
-    # Every Billing Line is partitioned exactly, in its own currency, for every Cost Basis.
-    allocated: dict[tuple[str, CostBasis], Decimal] = defaultdict(Decimal)
-    for allocation in end_to_end:
-        SCHEMA.validate(allocation.model_dump(mode="json"))
-        position = int(allocation.billing_line_ref.rsplit("#", 1)[1])
-        assert allocation.currency == EXPORT.lines[position].BillingCurrency
-        allocated[(allocation.billing_line_ref, CostBasis(allocation.cost_basis))] += (
-            allocation.amount
-        )
-        if allocation.category == "unallocated":
-            assert allocation.confidence is None
-    assert allocated == {
-        (EXPORT.line_ref(position), basis): line.cost(basis)
-        for position, line in enumerate(EXPORT.lines)
-        for basis in CostBasis
-    }
+    lines = _oracle_lines("negative-adjustment", FocusChargeCategory.CREDIT)
+    allocations = _engine(lines, {"credit#0": Adjustment("adjustments")})
+    assert _comparable(allocations) == _oracle("negative-adjustment")
+    _assert_invariants(allocations, lines)  # -1.00 in every Cost Basis, never clamped
 
 
 def test_the_allocations_roll_up_to_the_model_and_the_airflow_runs(
@@ -178,4 +185,4 @@ def test_the_allocations_roll_up_to_the_model_and_the_airflow_runs(
     assert model_execution_rollups(end_to_end) == {
         ModelExecutionKey("inv-001", "model.demo.orders"): six
     }
-    assert workload_run_rollups(end_to_end) == {DBT_RUN: six, TASK_RUN: six, DAG_RUN: six}
+    assert workload_run_rollups(end_to_end) == {DBT_RUN: six, AIRFLOW_TASK: six, DAG_RUN: six}

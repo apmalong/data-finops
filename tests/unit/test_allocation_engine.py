@@ -86,10 +86,10 @@ def test_existing_fixtures_golden_scenario() -> None:
                         (
                             "athena:q-001",
                             "dbt-query-comment:inv-001:model.demo.orders",
-                            *(
-                                f"openlineage-run:00000000-0000-4000-8000-00000000000{n}"
-                                for n in (2, 1, 0)
-                            ),
+                            # The dbt run, the Airflow task, the DAG run: nearest first.
+                            "openlineage-run:00000000-0000-4000-8000-000000000002",
+                            "openlineage-run:00000000-0000-4000-8000-000000000001",
+                            "openlineage-run:00000000-0000-4000-8000-000000000000",
                         ),
                     ),
                     MeteredUsage("q-002", Decimal("0")),  # DDL, nothing scanned

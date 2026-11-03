@@ -44,6 +44,7 @@ def stores(tmp_path: Path) -> Iterator[tuple[Ledger, WorkloadStore]]:
                 FIXTURES / "athena" / name, account_id=ACCOUNT, region=REGION
             )
         store.ingest_dbt_artifact(FIXTURES / "dbt" / "run_results.json")
+        # With the events, q-001's Evidence names its Workload Runs as the oracle lists (#90).
         store.ingest_events(FIXTURES / "openlineage" / "events.json")
         yield ledger, store
 
