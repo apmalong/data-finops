@@ -89,26 +89,27 @@ class AllocationPage(_Response):
     items: list[AllocationEntry]
 
 
-class LineReconciliation(_Response):
-    """One Billing Line in one Cost Basis: what was billed, what the Allocations hold, and
-    the Reconciliation Delta between them (zero when Reconciliation holds)."""
+class AllocationLineReconciliation(_Response):
+    """One Billing Line, Cost Basis and currency: what was billed, what the Allocations hold,
+    and the Reconciliation Delta between them (zero when Reconciliation holds). A line the bill
+    lacks, or a currency other than the line's, is billed zero, so invented amounts show."""
 
     billing_line_ref: str
     currency: CurrencyCode
     cost_basis: CostBasis
     billed: DecimalString
-    allocated: DecimalString
-    delta: DecimalString
+    allocated_amount: DecimalString
+    reconciliation_delta: DecimalString
 
 
-class CurrencyReconciliation(_Response):
+class AllocationCurrencyReconciliation(_Response):
     """Every line of one currency and Cost Basis; never added to another currency's."""
 
     currency: CurrencyCode
     cost_basis: CostBasis
     billed: DecimalString
-    allocated: DecimalString
-    delta: DecimalString
+    allocated_amount: DecimalString
+    reconciliation_delta: DecimalString
 
 
 class AllocationReconciliation(_Response):
@@ -117,12 +118,12 @@ class AllocationReconciliation(_Response):
 
     calculation_run_id: str
     export_snapshot_id: str | None
-    totals: list[CurrencyReconciliation]
+    totals: list[AllocationCurrencyReconciliation]
     total: int
-    """Lines (Billing Line and Cost Basis pairs) across every page."""
+    """Rows (Billing Line, Cost Basis and currency) across every page."""
     limit: int
     offset: int
-    lines: list[LineReconciliation]
+    items: list[AllocationLineReconciliation]
 
 
 RollupLevel = Literal["model_execution", "workload_run"]

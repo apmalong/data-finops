@@ -39,7 +39,7 @@ from data_finops.contracts.allocation import Allocation, AllocationCategory, Con
 from data_finops.contracts.billing import CostBasis, FocusBillingLine, FocusChargeCategory
 from data_finops.identity.links import ModelExecutionKey
 from data_finops.ledger import AllocationStoreOutcome, Ledger
-from data_finops.reporting import Reporting
+from data_finops.reporting import MAX_PAGE_SIZE, Reporting
 from data_finops.workload.store import WorkloadStore
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -158,10 +158,11 @@ def test_the_end_to_end_run_reconciles_every_line_through_the_read_model(
     # The same partition check as `_assert_invariants`, made by `reporting` (#112) over the
     # stored snapshot and the Export Snapshot its run read.
     with Reporting(end_to_end_database) as reporting:
-        report = reporting.reconciliation(billing_account_id=ACCOUNT)
+        report = reporting.reconciliation(billing_account_id=ACCOUNT, limit=MAX_PAGE_SIZE)
     assert report.total == len(EXPORT.lines) * len(CostBasis)
-    assert all(line.delta == 0 for line in report.lines)
-    assert all(total.delta == 0 for total in report.totals)
+    assert len(report.items) == report.total
+    assert all(line.reconciliation_delta == 0 for line in report.items)
+    assert all(total.reconciliation_delta == 0 for total in report.totals)
 
 
 def test_the_synthetic_cost_pools_scenario_is_computed_by_the_engine() -> None:

@@ -1634,6 +1634,44 @@
         ],
         "title": "AllocationCategory"
       },
+      "AllocationCurrencyReconciliation": {
+        "properties": {
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "title": "Currency"
+          },
+          "cost_basis": {
+            "$ref": "#/components/schemas/CostBasis"
+          },
+          "billed": {
+            "type": "string",
+            "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+            "title": "Billed"
+          },
+          "allocated_amount": {
+            "type": "string",
+            "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+            "title": "Allocated Amount"
+          },
+          "reconciliation_delta": {
+            "type": "string",
+            "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+            "title": "Reconciliation Delta"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "currency",
+          "cost_basis",
+          "billed",
+          "allocated_amount",
+          "reconciliation_delta"
+        ],
+        "title": "AllocationCurrencyReconciliation",
+        "description": "Every line of one currency and Cost Basis; never added to another currency's."
+      },
       "AllocationEntry": {
         "properties": {
           "ref": {
@@ -1652,6 +1690,49 @@
         ],
         "title": "AllocationEntry",
         "description": "One Allocation and its address, `<calculation_run_id>#<position>` (spec 06)."
+      },
+      "AllocationLineReconciliation": {
+        "properties": {
+          "billing_line_ref": {
+            "type": "string",
+            "title": "Billing Line Ref"
+          },
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "title": "Currency"
+          },
+          "cost_basis": {
+            "$ref": "#/components/schemas/CostBasis"
+          },
+          "billed": {
+            "type": "string",
+            "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+            "title": "Billed"
+          },
+          "allocated_amount": {
+            "type": "string",
+            "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+            "title": "Allocated Amount"
+          },
+          "reconciliation_delta": {
+            "type": "string",
+            "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+            "title": "Reconciliation Delta"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "billing_line_ref",
+          "currency",
+          "cost_basis",
+          "billed",
+          "allocated_amount",
+          "reconciliation_delta"
+        ],
+        "title": "AllocationLineReconciliation",
+        "description": "One Billing Line, Cost Basis and currency: what was billed, what the Allocations hold,\nand the Reconciliation Delta between them (zero when Reconciliation holds). A line the bill\nlacks, or a currency other than the line's, is billed zero, so invented amounts show."
       },
       "AllocationMethod": {
         "type": "string",
@@ -1726,7 +1807,7 @@
           },
           "totals": {
             "items": {
-              "$ref": "#/components/schemas/CurrencyReconciliation"
+              "$ref": "#/components/schemas/AllocationCurrencyReconciliation"
             },
             "type": "array",
             "title": "Totals"
@@ -1743,12 +1824,12 @@
             "type": "integer",
             "title": "Offset"
           },
-          "lines": {
+          "items": {
             "items": {
-              "$ref": "#/components/schemas/LineReconciliation"
+              "$ref": "#/components/schemas/AllocationLineReconciliation"
             },
             "type": "array",
-            "title": "Lines"
+            "title": "Items"
           }
         },
         "additionalProperties": false,
@@ -1760,7 +1841,7 @@
           "total",
           "limit",
           "offset",
-          "lines"
+          "items"
         ],
         "title": "AllocationReconciliation",
         "description": "One Allocation Snapshot's Allocations against the Export Snapshot its Calculation Run\nread: per-currency totals over every line, and one page of the lines."
@@ -1918,44 +1999,6 @@
         ],
         "title": "CostSummary",
         "description": "Where one Allocation Snapshot put its Snapshot Scope's bill, for one Cost Basis."
-      },
-      "CurrencyReconciliation": {
-        "properties": {
-          "currency": {
-            "type": "string",
-            "pattern": "^[A-Z]{3}$",
-            "title": "Currency"
-          },
-          "cost_basis": {
-            "$ref": "#/components/schemas/CostBasis"
-          },
-          "billed": {
-            "type": "string",
-            "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
-            "title": "Billed"
-          },
-          "allocated": {
-            "type": "string",
-            "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
-            "title": "Allocated"
-          },
-          "delta": {
-            "type": "string",
-            "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
-            "title": "Delta"
-          }
-        },
-        "additionalProperties": false,
-        "type": "object",
-        "required": [
-          "currency",
-          "cost_basis",
-          "billed",
-          "allocated",
-          "delta"
-        ],
-        "title": "CurrencyReconciliation",
-        "description": "Every line of one currency and Cost Basis; never added to another currency's."
       },
       "CurrencySummary": {
         "properties": {
@@ -2468,49 +2511,6 @@
         ],
         "title": "Health",
         "description": "Whether the database opens as a current data-finops database; a status, not an error."
-      },
-      "LineReconciliation": {
-        "properties": {
-          "billing_line_ref": {
-            "type": "string",
-            "title": "Billing Line Ref"
-          },
-          "currency": {
-            "type": "string",
-            "pattern": "^[A-Z]{3}$",
-            "title": "Currency"
-          },
-          "cost_basis": {
-            "$ref": "#/components/schemas/CostBasis"
-          },
-          "billed": {
-            "type": "string",
-            "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
-            "title": "Billed"
-          },
-          "allocated": {
-            "type": "string",
-            "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
-            "title": "Allocated"
-          },
-          "delta": {
-            "type": "string",
-            "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
-            "title": "Delta"
-          }
-        },
-        "additionalProperties": false,
-        "type": "object",
-        "required": [
-          "billing_line_ref",
-          "currency",
-          "cost_basis",
-          "billed",
-          "allocated",
-          "delta"
-        ],
-        "title": "LineReconciliation",
-        "description": "One Billing Line in one Cost Basis: what was billed, what the Allocations hold, and\nthe Reconciliation Delta between them (zero when Reconciliation holds)."
       },
       "LineageReceipt": {
         "properties": {
