@@ -8,6 +8,7 @@ never stops the file: every problem becomes a Rejection naming the failing field
 never the value.
 """
 
+import codecs
 import json
 from dataclasses import dataclass
 from enum import StrEnum
@@ -63,10 +64,24 @@ class Screening:
 
 def screen_events(path: Path) -> Screening:
     """Split an event file (JSON array or JSON Lines) into valid RunEvents and the rest."""
-    events: list[RunEvent] = []
     rejected: list[Rejection] = []
+    return _screen(_items(path.read_bytes(), rejected), rejected)
+
+
+def screen_event(data: bytes) -> Screening:
+    """Screen one event, such as an HTTP request body, exactly as one file item (spec 04).
+
+    The whole body is the event, at position 1: newlines inside it never split it.
+    """
+    rejected: list[Rejection] = []
+    item = _parse(1, data.removeprefix(codecs.BOM_UTF8), rejected)
+    return _screen([] if item is None else [item], rejected)
+
+
+def _screen(items: list[tuple[int, Any]], rejected: list[Rejection]) -> Screening:
+    events: list[RunEvent] = []
     unsupported: list[Rejection] = []
-    for position, item in _items(path.read_bytes(), rejected):
+    for position, item in items:
         outcome = _check(position, item)
         if isinstance(outcome, RunEvent):
             events.append(outcome)
@@ -82,7 +97,7 @@ def screen_events(path: Path) -> Screening:
 
 
 def _items(data: bytes, rejected: list[Rejection]) -> list[tuple[int, Any]]:
-    data = data.removeprefix(b"\xef\xbb\xbf")
+    data = data.removeprefix(codecs.BOM_UTF8)
     if data.lstrip().startswith(b"["):
         try:
             elements = _loads(data.decode("utf-8"))
@@ -106,20 +121,25 @@ def _items(data: bytes, rejected: list[Rejection]) -> list[tuple[int, Any]]:
     items = []
     # Split on newlines only: U+2028 and similar may appear unescaped inside JSON strings.
     for position, line in enumerate(data.split(b"\n"), start=1):
-        if not line.strip():
-            continue
-        if len(line) > MAX_EVENT_BYTES:
-            rejected.append(Rejection(position, RejectionKind.TOO_LARGE))
-            continue
-        try:
-            items.append((position, _loads(line.decode("utf-8"))))
-        except UnicodeDecodeError:
-            rejected.append(Rejection(position, RejectionKind.NOT_UTF8))
-        except RecursionError:
-            rejected.append(Rejection(position, RejectionKind.TOO_DEEP))
-        except ValueError:
-            rejected.append(Rejection(position, RejectionKind.NOT_JSON))
+        if line.strip() and (item := _parse(position, line, rejected)) is not None:
+            items.append(item)
     return items
+
+
+def _parse(position: int, raw: bytes, rejected: list[Rejection]) -> tuple[int, Any] | None:
+    """One event's bytes as JSON, or None with its Rejection recorded."""
+    if len(raw) > MAX_EVENT_BYTES:
+        rejected.append(Rejection(position, RejectionKind.TOO_LARGE))
+        return None
+    try:
+        return position, _loads(raw.decode("utf-8"))
+    except UnicodeDecodeError:
+        rejected.append(Rejection(position, RejectionKind.NOT_UTF8))
+    except RecursionError:
+        rejected.append(Rejection(position, RejectionKind.TOO_DEEP))
+    except ValueError:
+        rejected.append(Rejection(position, RejectionKind.NOT_JSON))
+    return None
 
 
 def _loads(text: str) -> Any:
