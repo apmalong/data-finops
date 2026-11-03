@@ -9,7 +9,7 @@ store or provider policies (architecture-boundaries.md).
 
 import hashlib
 import json
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from dataclasses import asdict, dataclass
 from decimal import Decimal
 from uuid import uuid4
@@ -23,6 +23,14 @@ from data_finops.attribution.engine import (
     PooledLine,
     allocate,
 )
+from data_finops.attribution.rollups import (
+    ModelExecutionRef,
+    RollupTotal,
+    model_execution_evidence,
+    model_execution_of,
+    roll_up,
+)
+from data_finops.contracts.allocation import Allocation
 from data_finops.contracts.billing import (
     FocusBillingLine,
     FocusChargeCategory,
@@ -146,8 +154,46 @@ def _evidence(query: QueryExecution, store: WorkloadStore) -> tuple[str, ...]:
     )
     if resolution is not None and resolution.outcome == LinkOutcome.LINKED and resolution.link:
         invocation_id, node_id = json.loads(resolution.link.target_id)
-        refs.append(f"dbt-query-comment:{invocation_id}:{node_id}")
+        refs.append(model_execution_evidence(ModelExecutionRef(invocation_id, node_id)))
     return tuple(refs)
+
+
+def workload_run_rollups(
+    allocations: Iterable[Allocation], store: WorkloadStore
+) -> dict[str, tuple[RollupTotal, ...]]:
+    """Each Workload Run's Roll-up (ADR 0016): the Allocations to Query Executions whose
+    Model Execution's invocation is reported by that run or by a run below it.
+
+    The chain is the invocation's Workload Run (M3 Identity Link) and its reported
+    parents, the last of which may be a run known only from a ParentRunFacet. Producers
+    can report cycles, so each run is visited once. dbt-ol's per-model runs are the same
+    work as their Model Execution (ADR 0022) and are not Roll-up targets here.
+    """
+    chains: dict[str, tuple[str, ...]] = {}
+
+    def runs_of(allocation: Allocation) -> tuple[str, ...]:
+        model_execution = model_execution_of(allocation)
+        if model_execution is None:
+            return ()
+        invocation_id = model_execution.invocation_id
+        if invocation_id not in chains:
+            chains[invocation_id] = _run_chain(invocation_id, store)
+        return chains[invocation_id]
+
+    return roll_up(allocations, runs_of)
+
+
+def _run_chain(invocation_id: str, store: WorkloadStore) -> tuple[str, ...]:
+    resolution = store.workload_run_of_invocation(invocation_id)
+    if resolution is None or resolution.link is None:
+        return ()
+    chain: list[str] = []
+    run_id: str | None = resolution.link.target_id
+    while run_id is not None and run_id not in chain:
+        chain.append(run_id)
+        run = store.workload_run(run_id)
+        run_id = run.parent_run_id if run is not None else None
+    return tuple(chain)
 
 
 def _input_digest(
