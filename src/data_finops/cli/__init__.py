@@ -1,15 +1,22 @@
 """The `data-finops` command line (spec 05; stdlib `argparse`).
 
 `ingest` loads one input file into a database and reports what the Python interface
-returned; `calculate` starts a Calculation Run for every Snapshot Scope. Rejected items are
-named by position and reason, never by their content (ADR 0012).
+returned; `calculate` starts a Calculation Run for every Snapshot Scope; `serve` serves the
+API and dashboard (the optional `api` extra) on loopback unless a token is configured
+(ADR 0024); `demo` does all of it over the bundled fixtures. Rejected items are named by
+position and reason, never by their content (ADR 0012).
 """
 
 import argparse
+import ipaddress
+import os
+import shutil
 import sqlite3
 import sys
-from collections.abc import Callable, Iterable, Sequence
+import tempfile
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from pathlib import Path
+from typing import Any
 
 from pydantic import ValidationError
 
@@ -21,16 +28,25 @@ from data_finops.workload.store import ArtifactOutcome, WorkloadStore
 OK, REJECTED, FAILED = 0, 1, 2
 """Exit codes: everything stored; something rejected (the rest stored); nothing done."""
 
+StartServer = Callable[[Any, str, int], None]
+"""Serves an ASGI app on a host and port until stopped; uvicorn unless a caller injects one."""
+
+DEFAULT_HOST, DEFAULT_PORT = "127.0.0.1", 8000
+FIXTURES = Path(__file__).resolve().parents[3] / "fixtures"
+"""The hand-written fixtures `demo` loads: present in a source checkout, not in the wheel."""
+_INSTALL_HINT = "the API needs the api extra: pip install 'data-finops[api]'"
+
 
 class _Failure(Exception):
     """Nothing was done; the message says why, without content from any input file."""
 
 
-def main(argv: Sequence[str] | None = None) -> int:
+def main(argv: Sequence[str] | None = None, *, start_server: StartServer | None = None) -> int:
     try:
         args = _parser().parse_args(argv)
     except SystemExit as exited:  # argparse has printed usage or help
         return exited.code if isinstance(exited.code, int) else FAILED
+    args.start_server = start_server or _uvicorn
     try:
         code: int = args.run(args)
     except _Failure as failure:
@@ -76,7 +92,29 @@ def _parser() -> argparse.ArgumentParser:
     )
     _database_argument(calculate)
     calculate.set_defaults(run=_calculate)
+
+    serve = commands.add_parser("serve", help="serve the API and dashboard over a database")
+    _database_argument(serve)
+    _address_arguments(serve)
+    serve.add_argument(
+        "--token-file",
+        type=Path,
+        help="a file holding the bearer token (or set DATA_FINOPS_TOKEN); required off loopback",
+    )
+    serve.set_defaults(run=_serve)
+
+    demo = commands.add_parser(
+        "demo", help="load the fixtures into a new database, calculate and serve on loopback"
+    )
+    demo.add_argument("--port", type=int, default=DEFAULT_PORT)
+    demo.add_argument("--fixtures", type=Path, default=FIXTURES, help=argparse.SUPPRESS)
+    demo.set_defaults(run=_demo)
     return parser
+
+
+def _address_arguments(command: argparse.ArgumentParser) -> None:
+    command.add_argument("--host", default=DEFAULT_HOST, help="default: loopback only")
+    command.add_argument("--port", type=int, default=DEFAULT_PORT)
 
 
 def _database_argument(command: argparse.ArgumentParser) -> None:
@@ -157,6 +195,100 @@ def _calculate(args: argparse.Namespace) -> int:
                 f" {result.outcome} {result.calculation_run_id}"
             )
     return OK
+
+
+def _serve(args: argparse.Namespace) -> int:
+    if not args.db.is_file():
+        raise _Failure(f"no database at {args.db}")
+    return _serve_database(args.db, args.host, args.port, args.token_file, args.start_server)
+
+
+def _demo(args: argparse.Namespace) -> int:
+    _api()  # before writing anything: without the extra there is nothing to serve
+    fixtures: Path = args.fixtures
+    if not (fixtures / "focus").is_dir():
+        raise _Failure("the demo needs a source checkout with its fixtures directory")
+    folder = Path(tempfile.mkdtemp(prefix="data-finops-demo-"))
+    try:
+        return _run_demo(folder / "data-finops.sqlite", fixtures, args.port, args.start_server)
+    finally:
+        shutil.rmtree(folder, ignore_errors=True)
+
+
+def _run_demo(db: Path, fixtures: Path, port: int, start_server: StartServer) -> int:
+    print(f"demo: database {db}")
+    athena = {"account_id": "123456789012", "region": "us-east-1"}
+    steps: list[tuple[Callable[[argparse.Namespace], int], Path, dict[str, str]]] = [
+        (_ingest_focus, fixtures / "focus" / "export-2026-10.json", {}),
+        *(
+            (_ingest_athena, fixtures / "athena" / name, athena)
+            for name in (
+                "query-executions.json",
+                "link-outcomes.json",
+                "link-outcomes-restated.json",
+            )
+        ),
+        (_ingest_openlineage, fixtures / "openlineage" / "events.json", {}),
+        (_ingest_dbt, fixtures / "dbt" / "manifest.json", {}),
+        (_ingest_dbt, fixtures / "dbt" / "run_results.json", {}),
+    ]
+    for ingest, path, extra in steps:
+        ingest(argparse.Namespace(path=path, db=db, **extra))
+    _calculate(argparse.Namespace(db=db))
+    # The local demo needs no secret (ADR 0024): a configured token is not applied to it.
+    return _serve_database(db, DEFAULT_HOST, port, None, start_server, environ={})
+
+
+def _serve_database(
+    db: Path,
+    host: str,
+    port: int,
+    token_file: Path | None,
+    start_server: StartServer,
+    *,
+    environ: Mapping[str, str] = os.environ,
+) -> int:
+    api = _api()
+    try:
+        token = api.read_token(environ=environ, file=token_file)
+    except ValueError as error:
+        raise _Failure(str(error)) from None
+    if token is None and not _is_loopback(host):
+        raise _Failure(
+            f"refusing to serve on {host} without a token: set {api.TOKEN_VARIABLE} or"
+            " --token-file (ADR 0024)"
+        )
+    app = api.create_app(db, token=token)
+    print(f"serving {db} at http://{host}:{port}/ (Ctrl+C to stop)")
+    start_server(app, host, port)
+    return OK
+
+
+def _api() -> Any:
+    """The `api` package, imported only when needed so ingest and calculate never need it;
+    uvicorn, the other half of the extra, is checked here too, before anything is written."""
+    try:
+        import uvicorn  # noqa: F401
+
+        import data_finops.api as api
+    except ImportError:
+        raise _Failure(_INSTALL_HINT) from None
+    return api
+
+
+def _is_loopback(host: str) -> bool:
+    """Only a literal loopback address counts: a name such as `localhost` is resolved by the
+    system and could point anywhere (ADR 0024)."""
+    try:
+        return ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        return False
+
+
+def _uvicorn(app: Any, host: str, port: int) -> None:  # pragma: no cover - binds a socket
+    import uvicorn
+
+    uvicorn.run(app, host=host, port=port)
 
 
 def _workload_store(db: Path) -> WorkloadStore:

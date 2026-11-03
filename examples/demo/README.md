@@ -1,5 +1,7 @@
 # Offline demo walkthrough
 
+Run from a source checkout: `data-finops demo` reads the repo's `fixtures/` (spec 05, #116).
+
 1. Install project dependencies after M0 implementation.
 2. Run fixture importer against `fixtures/`.
 3. Start FastAPI and open dashboard.
