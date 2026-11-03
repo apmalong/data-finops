@@ -7,7 +7,7 @@ from datetime import date
 from decimal import Decimal
 from pathlib import Path
 from types import TracebackType
-from typing import Self
+from typing import Self, get_args
 
 from data_finops.attribution.engine import AllocationMethod
 from data_finops.attribution.rollups import (
@@ -185,7 +185,7 @@ class Reporting:
         page out of bounds.
         """
         if level not in _ROLLUPS:
-            raise ValueError("level must be model_execution or workload_run")
+            raise ValueError(f"level must be one of {', '.join(get_args(RollupLevel))}")
         _check_page(limit, offset)
         stored = self._served(calculation_run_id, billing_account_id, billing_period, source)
         entries = sorted(
@@ -355,7 +355,7 @@ class Reporting:
         return billed
 
 
-_ROLLUPS: dict[str, Callable[[list[Allocation]], dict[str, tuple[RollupTotal, ...]]]] = {
+_ROLLUPS: dict[RollupLevel, Callable[[list[Allocation]], dict[str, tuple[RollupTotal, ...]]]] = {
     "model_execution": lambda allocations: {
         key.target_id(): totals for key, totals in model_execution_rollups(allocations).items()
     },
@@ -385,13 +385,15 @@ def _rollups_of(
     allocations: list[Allocation],
 ) -> list[ExplainedRollup]:
     """The Roll-ups `allocation` contributes to, in its own currency and Cost Basis."""
-    groups: list[tuple[RollupLevel, str, tuple[RollupTotal, ...]]] = []
-    if model is not None:
-        groups.append(
-            ("model_execution", model.target_id(), model_execution_rollups(allocations)[model])
-        )
-    run_totals = workload_run_rollups(allocations)
-    groups += [("workload_run", run, run_totals[run]) for run in runs]
+    keys: dict[RollupLevel, list[str]] = {
+        "model_execution": [] if model is None else [model.target_id()],
+        "workload_run": runs,
+    }
+    groups = [
+        (level, key, _ROLLUPS[level](allocations)[key])
+        for level, level_keys in keys.items()
+        for key in level_keys
+    ]
     return [
         ExplainedRollup(
             level=level, key=key, currency=t.currency, cost_basis=t.cost_basis, amount=t.amount

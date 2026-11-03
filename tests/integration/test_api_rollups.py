@@ -6,11 +6,11 @@ from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
-from fixture_database import ACCOUNT, fill
+from fixture_database import ACCOUNT, add_other_account, fill
 from openapi_contract import valid_response
 
 from data_finops.api import create_app
-from data_finops.reporting import Reporting
+from data_finops.reporting import Reporting, RollupLevel
 
 PROBLEM = "application/problem+json"
 PATH = "/v1/rollups"
@@ -31,12 +31,12 @@ def client(database: Path) -> Iterator[TestClient]:
 
 @pytest.mark.parametrize("level", ["model_execution", "workload_run"])
 def test_a_page_is_served_as_the_read_model_answers_it(
-    client: TestClient, database: Path, level: str
+    client: TestClient, database: Path, level: RollupLevel
 ) -> None:
     response = client.get(PATH, params={"level": level, "billing_account_id": ACCOUNT, "limit": 2})
     assert response.status_code == 200
     with Reporting(database) as reporting:
-        expected = reporting.rollups(level=level, billing_account_id=ACCOUNT, limit=2)  # type: ignore[arg-type]
+        expected = reporting.rollups(level=level, billing_account_id=ACCOUNT, limit=2)
     assert response.json() == expected.model_dump(mode="json")
     valid_response("get", PATH, 200, response.json())
 
@@ -49,13 +49,32 @@ def test_a_page_is_served_as_the_read_model_answers_it(
         ({"level": "workload_run", "limit": "0"}, "limit"),
     ],
 )
-def test_a_missing_or_invalid_level_is_a_problem_naming_the_field(
+def test_an_invalid_level_or_page_is_a_problem_naming_the_field(
     client: TestClient, params: dict[str, str], field: str
 ) -> None:
     response = client.get(PATH, params=params)
     assert (response.status_code, response.headers["content-type"]) == (400, PROBLEM)
     assert field in response.json()["detail"] and "secret" not in response.text
     valid_response("get", PATH, 400, response.json())
+
+
+def test_an_ambiguous_scope_or_conflicting_filters_are_problems(tmp_path: Path) -> None:
+    path = tmp_path / "data-finops.sqlite"
+    first = fill(path)
+    add_other_account(path)
+    with TestClient(create_app(path), raise_server_exceptions=False) as client:
+        ambiguous = client.get(PATH, params={"level": "workload_run"})
+        conflicting = client.get(
+            PATH,
+            params={
+                "level": "workload_run",
+                "calculation_run_id": first,
+                "billing_account_id": ACCOUNT,
+            },
+        )
+    for response in (ambiguous, conflicting):
+        assert (response.status_code, response.headers["content-type"]) == (400, PROBLEM)
+        valid_response("get", PATH, 400, response.json())
 
 
 def test_an_unknown_calculation_run_is_not_found(client: TestClient) -> None:
