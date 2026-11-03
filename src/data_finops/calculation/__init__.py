@@ -157,7 +157,7 @@ def _evidence(query: QueryExecution, store: WorkloadStore) -> tuple[str, ...]:
     )
     if resolution is None or resolution.link is None:
         return tuple(refs)
-    model_execution = ModelExecutionKey(*json.loads(resolution.link.target_id))
+    model_execution = ModelExecutionKey.from_target_id(resolution.link.target_id)
     refs.append(model_execution_evidence(model_execution))
     run = store.workload_run_of_invocation(model_execution.invocation_id)
     if run is not None and run.link is not None:

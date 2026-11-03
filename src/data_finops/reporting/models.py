@@ -246,9 +246,10 @@ class RootRunPage(_Response):
     items: list[ExplainedWorkloadRun]
 
 
-class QueryLink(_Response):
+class QueryClaim(_Response):
     """A Query Execution whose Trusted Query Comment names a Model Execution, and what became
-    of that claim (its Link Outcome): only `linked` makes an Identity Link."""
+    of that claim (its Link Outcome): only `linked` makes an Identity Link; `ambiguous` and
+    `unmatched` claims are shown so a missing link is explained, not hidden."""
 
     query_execution: QueryExecution
     outcome: LinkOutcome
@@ -260,7 +261,16 @@ class LineageModelExecution(_Response):
     invocation_id: str
     node_id: str
     execution: ModelExecution | None
-    queries: list[QueryLink]
+    queries: list[QueryClaim]
+
+
+class InvocationLink(_Response):
+    """The dbt invocation a run reports, and its Link Outcome to a Workload Run: `linked` to
+    this run, or for example `ambiguous` when several runs report it."""
+
+    invocation_id: str
+    outcome: LinkOutcome
+    linked_run_id: str | None
 
 
 class RunLineage(_Response):
@@ -275,12 +285,16 @@ class RunLineage(_Response):
     children: list[WorkloadRun]
     data_assets: list[DataAsset]
     lineage_edges: list[LineageEdge]
-    invocation_id: str | None
-    """The dbt invocation this run reported as its own, if any."""
+    invocation: InvocationLink | None
+    """For a dbt invocation run: the invocation and its Link Outcome."""
     model_run_link: LinkResolution | None
     """For a dbt-ol model run: the Link Outcome to its Model Execution (ADR 0022)."""
     model_executions: list[LineageModelExecution]
-    """The invocation's Model Executions, or the model run's linked one."""
+    """Reached only through a `linked` Identity Link: the invocation's Model Executions when
+    the invocation links to this run, or the model run's Model Execution."""
+    unmatched_queries: list[QueryClaim]
+    """Queries naming this run's linked invocation but a node it never reported. Queries
+    with no comment (`no_evidence`) name no run, so never appear in lineage."""
 
 
 class CostSummaries(_Response):

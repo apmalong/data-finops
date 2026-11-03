@@ -3425,6 +3425,37 @@
         ],
         "title": "IdentityLink"
       },
+      "InvocationLink": {
+        "properties": {
+          "invocation_id": {
+            "type": "string",
+            "title": "Invocation Id"
+          },
+          "outcome": {
+            "$ref": "#/components/schemas/LinkOutcome"
+          },
+          "linked_run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Linked Run Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "invocation_id",
+          "outcome",
+          "linked_run_id"
+        ],
+        "title": "InvocationLink",
+        "description": "The dbt invocation a run reports, and its Link Outcome to a Workload Run: `linked` to\nthis run, or for example `ambiguous` when several runs report it."
+      },
       "LineageDirection": {
         "type": "string",
         "enum": [
@@ -3494,7 +3525,7 @@
           },
           "queries": {
             "items": {
-              "$ref": "#/components/schemas/QueryLink"
+              "$ref": "#/components/schemas/QueryClaim"
             },
             "type": "array",
             "title": "Queries"
@@ -3723,6 +3754,24 @@
         "title": "Provenance",
         "description": "How one Allocation Snapshot was made, enough to reproduce any figure in it."
       },
+      "QueryClaim": {
+        "properties": {
+          "query_execution": {
+            "$ref": "#/components/schemas/QueryExecution"
+          },
+          "outcome": {
+            "$ref": "#/components/schemas/LinkOutcome"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "query_execution",
+          "outcome"
+        ],
+        "title": "QueryClaim",
+        "description": "A Query Execution whose Trusted Query Comment names a Model Execution, and what became\nof that claim (its Link Outcome): only `linked` makes an Identity Link; `ambiguous` and\n`unmatched` claims are shown so a missing link is explained, not hidden."
+      },
       "QueryCorrelation": {
         "properties": {
           "node_id": {
@@ -3876,24 +3925,6 @@
           "conflicting_observations"
         ],
         "title": "QueryExecutionFlag"
-      },
-      "QueryLink": {
-        "properties": {
-          "query_execution": {
-            "$ref": "#/components/schemas/QueryExecution"
-          },
-          "outcome": {
-            "$ref": "#/components/schemas/LinkOutcome"
-          }
-        },
-        "additionalProperties": false,
-        "type": "object",
-        "required": [
-          "query_execution",
-          "outcome"
-        ],
-        "title": "QueryLink",
-        "description": "A Query Execution whose Trusted Query Comment names a Model Execution, and what became\nof that claim (its Link Outcome): only `linked` makes an Identity Link."
       },
       "RollupAmount": {
         "properties": {
@@ -4068,16 +4099,15 @@
             "type": "array",
             "title": "Lineage Edges"
           },
-          "invocation_id": {
+          "invocation": {
             "anyOf": [
               {
-                "type": "string"
+                "$ref": "#/components/schemas/InvocationLink"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Invocation Id"
+            ]
           },
           "model_run_link": {
             "anyOf": [
@@ -4095,6 +4125,13 @@
             },
             "type": "array",
             "title": "Model Executions"
+          },
+          "unmatched_queries": {
+            "items": {
+              "$ref": "#/components/schemas/QueryClaim"
+            },
+            "type": "array",
+            "title": "Unmatched Queries"
           }
         },
         "additionalProperties": false,
@@ -4106,9 +4143,10 @@
           "children",
           "data_assets",
           "lineage_edges",
-          "invocation_id",
+          "invocation",
           "model_run_link",
-          "model_executions"
+          "model_executions",
+          "unmatched_queries"
         ],
         "title": "RunLineage",
         "description": "One Workload Run and what surrounds it: its family, Data Assets, and the Identity\nLinks that reach its Model Executions and their Query Executions (ADR 0022)."
