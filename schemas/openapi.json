@@ -1250,6 +1250,275 @@
         }
       }
     },
+    "/v1/provenance": {
+      "get": {
+        "summary": "Provenance",
+        "description": "How one Allocation Snapshot was made, chosen as for `/v1/allocations`: inputs,\npolicies, the Export Snapshot it read, and the run that superseded it, if any.",
+        "operationId": "provenance_v1_provenance_get",
+        "parameters": [
+          {
+            "name": "calculation_run_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 128
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Calculation Run Id"
+            }
+          },
+          {
+            "name": "billing_account_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 128
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Billing Account Id"
+            }
+          },
+          {
+            "name": "billing_period",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Billing Period"
+            }
+          },
+          {
+            "name": "source",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 256
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Source"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Provenance"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request, or filters matching several Snapshot Scopes: the detail names the fields to give, never their values.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "description": "An RFC 9457 Problem Details body.",
+                  "properties": {
+                    "type": {
+                      "default": "about:blank",
+                      "title": "Type",
+                      "type": "string"
+                    },
+                    "title": {
+                      "title": "Title",
+                      "type": "string"
+                    },
+                    "status": {
+                      "title": "Status",
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "title": "Detail",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "title",
+                    "status",
+                    "detail"
+                  ],
+                  "title": "Problem",
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "When a token is configured: no valid bearer token (ADR 0024).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "description": "An RFC 9457 Problem Details body.",
+                  "properties": {
+                    "type": {
+                      "default": "about:blank",
+                      "title": "Type",
+                      "type": "string"
+                    },
+                    "title": {
+                      "title": "Title",
+                      "type": "string"
+                    },
+                    "status": {
+                      "title": "Status",
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "title": "Detail",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "title",
+                    "status",
+                    "detail"
+                  ],
+                  "title": "Problem",
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An unexpected failure; the detail reveals nothing about it.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "description": "An RFC 9457 Problem Details body.",
+                  "properties": {
+                    "type": {
+                      "default": "about:blank",
+                      "title": "Type",
+                      "type": "string"
+                    },
+                    "title": {
+                      "title": "Title",
+                      "type": "string"
+                    },
+                    "status": {
+                      "title": "Status",
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "title": "Detail",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "title",
+                    "status",
+                    "detail"
+                  ],
+                  "title": "Problem",
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The database cannot be opened as a current data-finops database.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "description": "An RFC 9457 Problem Details body.",
+                  "properties": {
+                    "type": {
+                      "default": "about:blank",
+                      "title": "Type",
+                      "type": "string"
+                    },
+                    "title": {
+                      "title": "Title",
+                      "type": "string"
+                    },
+                    "status": {
+                      "title": "Status",
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "title": "Detail",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "title",
+                    "status",
+                    "detail"
+                  ],
+                  "title": "Problem",
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such Calculation Run, or no calculated Snapshot Scope matches.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "description": "An RFC 9457 Problem Details body.",
+                  "properties": {
+                    "type": {
+                      "default": "about:blank",
+                      "title": "Type",
+                      "type": "string"
+                    },
+                    "title": {
+                      "title": "Title",
+                      "type": "string"
+                    },
+                    "status": {
+                      "title": "Status",
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "title": "Detail",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "title",
+                    "status",
+                    "detail"
+                  ],
+                  "title": "Problem",
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/allocations/{ref}/explanation": {
       "get": {
         "summary": "Explanation",
@@ -2560,6 +2829,32 @@
         "title": "ExplainedWorkloadRun",
         "description": "A Workload Run an Allocation's Evidence names; `run` is None if never reported."
       },
+      "ExportSnapshotRead": {
+        "properties": {
+          "snapshot_id": {
+            "type": "string",
+            "title": "Snapshot Id"
+          },
+          "content_digest": {
+            "type": "string",
+            "title": "Content Digest"
+          },
+          "published_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Published At"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "snapshot_id",
+          "content_digest",
+          "published_at"
+        ],
+        "title": "ExportSnapshotRead",
+        "description": "The Export Snapshot a Calculation Run read."
+      },
       "FocusBillingLine": {
         "properties": {
           "BilledCost": {
@@ -2922,6 +3217,77 @@
         ],
         "title": "ModelExecution",
         "description": "One run of a dbt node within one invocation."
+      },
+      "Provenance": {
+        "properties": {
+          "calculation_run_id": {
+            "type": "string",
+            "title": "Calculation Run Id"
+          },
+          "scope": {
+            "$ref": "#/components/schemas/SnapshotScope"
+          },
+          "policy_version": {
+            "type": "string",
+            "title": "Policy Version"
+          },
+          "policy_components": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Policy Components"
+          },
+          "input_digest": {
+            "type": "string",
+            "title": "Input Digest"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "is_current": {
+            "type": "boolean",
+            "title": "Is Current"
+          },
+          "superseded_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Superseded By"
+          },
+          "export_snapshot": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ExportSnapshotRead"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "calculation_run_id",
+          "scope",
+          "policy_version",
+          "policy_components",
+          "input_digest",
+          "created_at",
+          "is_current",
+          "superseded_by",
+          "export_snapshot"
+        ],
+        "title": "Provenance",
+        "description": "How one Allocation Snapshot was made, enough to reproduce any figure in it."
       },
       "QueryCorrelation": {
         "properties": {

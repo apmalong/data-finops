@@ -28,6 +28,7 @@ from data_finops.attribution.rollups import (
     query_execution_evidence,
     workload_run_evidence,
 )
+from data_finops.contracts.allocation import POLICY_SEPARATOR
 from data_finops.contracts.billing import (
     FocusBillingLine,
     FocusChargeCategory,
@@ -43,7 +44,7 @@ CLASSIFICATION_VERSION = "line-classification/1"
 """Step B, FOCUS-generic: Credit and Adjustment lines are Adjustments; only usage lines
 that are not corrections can be metered; Ineligible and Adjustment pool IDs."""
 
-POLICY_VERSION = "+".join(
+POLICY_VERSION = POLICY_SEPARATOR.join(
     (
         ENGINE_VERSION,
         CLASSIFICATION_VERSION,

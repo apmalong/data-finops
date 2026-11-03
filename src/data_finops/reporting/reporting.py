@@ -18,7 +18,12 @@ from data_finops.attribution.rollups import (
     workload_run_rollups,
     workload_runs_of,
 )
-from data_finops.contracts.allocation import Allocation, AllocationCategory, Confidence
+from data_finops.contracts.allocation import (
+    Allocation,
+    AllocationCategory,
+    Confidence,
+    policy_components,
+)
 from data_finops.contracts.billing import (
     CostBasis,
     FocusBillingLine,
@@ -43,6 +48,8 @@ from data_finops.reporting.models import (
     ExplainedModelExecution,
     ExplainedRollup,
     ExplainedWorkloadRun,
+    ExportSnapshotRead,
+    Provenance,
     RollupAmount,
     RollupEntry,
     RollupLevel,
@@ -267,6 +274,55 @@ class Reporting:
             items=rows[offset : offset + limit],
         )
 
+    def provenance(
+        self,
+        *,
+        calculation_run_id: str | None = None,
+        billing_account_id: str | None = None,
+        billing_period: date | None = None,
+        source: str | None = None,
+    ) -> Provenance:
+        """How one Allocation Snapshot was made, chosen as for `allocations`: its inputs and
+        policies, the Export Snapshot it read, and whether a later run superseded it."""
+        stored = self._served(calculation_run_id, billing_account_id, billing_period, source)
+        snapshot = stored.snapshot
+        if snapshot.scope is None:
+            raise RuntimeError("the Ledger returned an Allocation Snapshot without its scope")
+        records = [
+            record
+            for export_id in _export_snapshot_ids(stored)
+            if (record := self._ledger.snapshot_record(export_id)) is not None
+        ]
+        return Provenance(
+            calculation_run_id=snapshot.calculation_run_id,
+            scope=snapshot.scope,
+            policy_version=snapshot.policy_version,
+            policy_components=policy_components(snapshot.policy_version),
+            input_digest=snapshot.input_digest,
+            created_at=snapshot.created_at,
+            is_current=snapshot.is_current,
+            superseded_by=self._superseded_by(snapshot.calculation_run_id, snapshot.scope),
+            export_snapshot=next(
+                (
+                    ExportSnapshotRead(
+                        snapshot_id=r.snapshot.snapshot_id,
+                        content_digest=r.content_digest,
+                        published_at=r.snapshot.published_at,
+                    )
+                    for r in records
+                ),
+                None,
+            ),
+        )
+
+    def _superseded_by(self, calculation_run_id: str, scope: SnapshotScope) -> str | None:
+        """The next Allocation Snapshot stored for the scope after this one, if any."""
+        runs = [s.calculation_run_id for s in self._ledger.allocation_snapshots(scope)]
+        if calculation_run_id not in runs:
+            return None
+        later = runs[runs.index(calculation_run_id) + 1 :]
+        return later[0] if later else None
+
     def explanation(self, ref: str) -> CostExplanation:
         """The Cost Explanation of the Allocation at `ref` (`<calculation_run_id>#<position>`),
         current or superseded; NotFound for an unknown or malformed reference."""
@@ -403,18 +459,21 @@ class Reporting:
         """The Billing Lines the snapshot partitions, by reference: every line of the Export
         Snapshot its run read. Snapshots stored before M5 record none; their Allocations'
         line references name it."""
-        recorded = stored.snapshot.export_snapshot_id
-        snapshot_ids = (
-            {recorded}
-            if recorded is not None
-            else {snapshot_id_of(a.billing_line_ref) for a in stored.allocations}
-        )
         bill = []
-        for snapshot_id in sorted(snapshot_ids):
+        for snapshot_id in _export_snapshot_ids(stored):
             export = self._ledger.snapshot(snapshot_id)
             if export is not None:
                 bill += [(export.line_ref(i), line) for i, line in enumerate(export.lines)]
         return bill
+
+
+def _export_snapshot_ids(stored: StoredAllocations) -> list[str]:
+    """The Export Snapshot a snapshot's run read: recorded since M5; before that, named by its
+    Allocations' line references."""
+    recorded = stored.snapshot.export_snapshot_id
+    if recorded is not None:
+        return [recorded]
+    return sorted({snapshot_id_of(a.billing_line_ref) for a in stored.allocations})
 
 
 def _totals(rows: list[AllocationLineReconciliation]) -> list[AllocationCurrencyReconciliation]:

@@ -101,6 +101,12 @@ class AllocationStoreResult:
 
 
 @dataclass(frozen=True)
+class ExportSnapshotRecord:
+    snapshot: ExportSnapshot
+    content_digest: str
+
+
+@dataclass(frozen=True)
 class StoredAllocations:
     snapshot: AllocationSnapshot
     allocations: list[Allocation]
@@ -239,6 +245,17 @@ class Ledger:
             for account, start, end, source in rows
         ]
 
+    def snapshot_record(self, snapshot_id: str) -> ExportSnapshotRecord | None:
+        """A stored Export Snapshot's metadata and content digest (its replay key), without
+        loading its lines; None if unknown."""
+        row = self._connection.execute(
+            "SELECT snapshot_json, content_digest FROM export_snapshot WHERE snapshot_id = ?",
+            (snapshot_id,),
+        ).fetchone()
+        if row is None:
+            return None
+        return ExportSnapshotRecord(ExportSnapshot.model_validate_json(row[0]), str(row[1]))
+
     def snapshot(self, snapshot_id: str) -> FocusExport | None:
         """Any stored Export Snapshot, current or superseded."""
         row = self._connection.execute(
@@ -364,14 +381,16 @@ class Ledger:
         account, start, end, source = _scope_key(scope) if scope else (None, None, None, None)
         rows = self._connection.execute(
             "SELECT s.calculation_run_id, s.input_digest, s.policy_version, s.created_at_us,"
-            " c.calculation_run_id IS NOT NULL, s.export_snapshot_id FROM allocation_snapshot s"
+            " c.calculation_run_id IS NOT NULL, s.export_snapshot_id, s.billing_account_id,"
+            " s.billing_period_start, s.billing_period_end, s.source FROM allocation_snapshot s"
             " LEFT JOIN current_allocation_snapshot c"
             " ON c.calculation_run_id = s.calculation_run_id"
             " WHERE (:run IS NULL OR s.calculation_run_id = :run)"
             " AND (:account IS NULL OR (s.billing_account_id = :account"
             " AND s.billing_period_start = :start AND s.billing_period_end = :end"
             " AND s.source = :source))"
-            " ORDER BY s.created_at_us, s.calculation_run_id",
+            # Ties in time fall back to the order stored, as the current pointer moved.
+            " ORDER BY s.created_at_us, s.rowid",
             {
                 "run": calculation_run_id,
                 "account": account,
@@ -388,8 +407,14 @@ class Ledger:
                 created_at=_EPOCH + timedelta(microseconds=created_us),
                 is_current=bool(current),
                 export_snapshot_id=export_id,
+                scope=SnapshotScope(
+                    billing_account_id=scope[0],
+                    billing_period_start=scope[1],
+                    billing_period_end=scope[2],
+                    source=scope[3],
+                ),
             )
-            for run_id, digest, policy, created_us, current, export_id in rows
+            for run_id, digest, policy, created_us, current, export_id, *scope in rows
         ]
 
     def _current_allocation_run(self, scope: SnapshotScope) -> str | None:

@@ -5,7 +5,16 @@ from enum import StrEnum
 from pydantic import BaseModel, ConfigDict, JsonValue, model_validator
 from pydantic.config import JsonDict
 
+from data_finops.contracts.billing import SnapshotScope
 from data_finops.contracts.types import CurrencyCode, DecimalString, UtcDatetime
+
+POLICY_SEPARATOR = "+"
+"""Joins the engine and policy versions a Calculation Run applied into its policy version."""
+
+
+def policy_components(policy_version: str) -> list[str]:
+    """The engine and each policy in a policy version, e.g. `allocation-engine/1`."""
+    return policy_version.split(POLICY_SEPARATOR)
 
 
 class AllocationCategory(StrEnum):
@@ -121,3 +130,5 @@ class AllocationSnapshot(BaseModel):
     is_current: bool
     export_snapshot_id: str | None = None
     """The Export Snapshot the Calculation Run read; None for snapshots stored before M5."""
+    scope: SnapshotScope | None = None
+    """The Snapshot Scope it was calculated for, as the Ledger records it."""

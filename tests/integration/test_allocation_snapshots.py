@@ -216,3 +216,18 @@ def test_a_scopes_snapshots_are_listed_oldest_first_without_their_allocations(
         ("run-a", True),
     ]
     assert [s.created_at.hour for s in listed] == [1, 2]
+
+
+def test_snapshots_made_at_the_same_moment_are_listed_in_the_order_stored(
+    tmp_path: Path,
+) -> None:
+    moment = datetime(2026, 11, 3, 1, tzinfo=UTC)
+    with Ledger(tmp_path / "data-finops.sqlite", clock=lambda: moment) as ledger:
+        _store(ledger, "run-z", "digest-1")
+        _store(ledger, "run-a", "digest-2")
+        listed = ledger.allocation_snapshots(SCOPE)
+    assert [(s.calculation_run_id, s.is_current) for s in listed] == [
+        ("run-z", False),
+        ("run-a", True),
+    ]
+    assert {s.scope for s in listed} == {SCOPE}
