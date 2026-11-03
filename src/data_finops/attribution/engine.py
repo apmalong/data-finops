@@ -20,6 +20,10 @@ from data_finops.contracts.allocation import (
 )
 from data_finops.contracts.billing import CostBasis, FocusBillingLine
 
+ENGINE_VERSION = "allocation-engine/1"
+"""The engine's own rules (spec 03 steps E-G); part of every Allocation's policy version."""
+
+
 # ISO 4217 list one (published 2026-09-17): minor units other than 2; all others have 2.
 _MINOR_UNITS = {
     **dict.fromkeys(

@@ -545,6 +545,19 @@ class WorkloadStore:
             flags=(QueryExecutionFlag.CONFLICTING_OBSERVATIONS,) if len(rows) > 1 else (),
         )
 
+    def query_executions(self, account_id: str, region: str) -> list[QueryExecution]:
+        """Every Query Execution reported for the account and region, by ID."""
+        ids = self._connection.execute(
+            "SELECT DISTINCT query_execution_id FROM workload_query_execution"
+            " WHERE account_id = ? AND region = ? ORDER BY query_execution_id",
+            (account_id, region),
+        ).fetchall()
+        return [
+            query
+            for (query_execution_id,) in ids
+            if (query := self.query_execution(account_id, region, query_execution_id))
+        ]
+
     def stored_query_executions(
         self, account_id: str, region: str, query_execution_id: str
     ) -> list[str]:

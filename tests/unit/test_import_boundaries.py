@@ -50,6 +50,18 @@ def test_package_respects_import_boundaries(package):
             assert not name.startswith(FORBIDDEN_IMPORTS[package]), f"{path}: imports {name}"
 
 
+def test_only_the_calculation_run_brings_the_ledger_and_workload_store_together():
+    # architecture-boundaries.md: `calculation` is the only place they meet.
+    for path in SRC.rglob("*.py"):
+        if path.parent.name == "calculation":
+            continue
+        names = _imports(path)
+        both = any(n.startswith("data_finops.ledger") for n in names) and any(
+            n.startswith("data_finops.workload") for n in names
+        )
+        assert not both, f"{path}: imports both the Ledger and the workload store"
+
+
 def test_attribution_reads_no_clock():
     for path in (SRC / "attribution").rglob("*.py"):
         for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):

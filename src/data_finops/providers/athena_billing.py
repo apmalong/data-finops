@@ -57,6 +57,29 @@ def bytes_in_consumed_unit(billable: int, consumed_unit: str) -> Decimal:
     return Decimal(billable) / _BYTES_PER_UNIT[consumed_unit]
 
 
+def is_on_demand_usage(line: FocusBillingLine) -> bool:
+    """Whether a usage line bills Athena on-demand scanning, so it can be metered
+    (`POLICY_VERSION`; ADR 0017): Athena's service, with a positive ConsumedQuantity in a
+    unit `bytes_in_consumed_unit` knows. Provisional until #91: the ServiceName and unit a
+    real export writes. Which lines are usage at all is the Calculation Run's (step B).
+    """
+    return (
+        line.ServiceName == "Amazon Athena"
+        and line.ConsumedUnit in _BYTES_PER_UNIT
+        and line.ConsumedQuantity is not None
+        and line.ConsumedQuantity > 0
+    )
+
+
+def pool_id(line: FocusBillingLine) -> str:
+    """The metered Cost Pool a line belongs to, by its billing scope keys
+    (`SCOPE_POLICY_VERSION`): usage account, region, workgroup (`*` when the line names
+    none) and charge period start."""
+    workgroup = _workgroup(line.ResourceId) or "*"
+    day = line.ChargePeriodStart.date().isoformat()
+    return f"athena-on-demand:{line.SubAccountId}:{line.RegionId}:{workgroup}:{day}"
+
+
 def in_billing_scope(query: QueryExecution, line: FocusBillingLine) -> bool:
     """Whether `query` falls in the scope Athena billed `line` for (ADR 0023).
 
