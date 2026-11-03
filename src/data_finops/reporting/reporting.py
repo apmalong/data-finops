@@ -14,6 +14,8 @@ from data_finops.contracts.billing import CostBasis, SnapshotScope, snapshot_id_
 from data_finops.ledger import Ledger, StoredAllocations
 from data_finops.reporting.models import (
     AllocatedAmount,
+    AllocationEntry,
+    AllocationPage,
     CostSummaries,
     CostSummary,
     CurrencySummary,
@@ -21,6 +23,17 @@ from data_finops.reporting.models import (
     UnallocatedAmount,
 )
 from data_finops.workload.store import StaleDatabaseError, WorkloadStore
+
+MAX_PAGE = 1000
+"""The largest page a read serves (spec 06)."""
+
+
+class NotFound(LookupError):
+    """Nothing matches: an unknown Calculation Run, or no calculated scope for the filters."""
+
+
+class AmbiguousScope(ValueError):
+    """The filters match several Snapshot Scopes where a read serves one snapshot."""
 
 
 class DatabaseUnavailable(Exception):
@@ -77,18 +90,85 @@ class Reporting:
         basis = CostBasis(cost_basis)
         summaries: list[CostSummary] = []
         uncalculated: list[SnapshotScope] = []
-        for scope in self._ledger.scopes():
-            if billing_account_id not in (None, scope.billing_account_id) or billing_period not in (
-                None,
-                scope.billing_period_start.date(),
-            ):
-                continue
+        for scope in self._scopes(billing_account_id, billing_period):
             stored = self._ledger.current_allocations(scope)
             if stored is None:
                 uncalculated.append(scope)
             else:
                 summaries.append(self._summary(scope, stored, basis))
         return CostSummaries(summaries=summaries, uncalculated_scopes=uncalculated)
+
+    def allocations(
+        self,
+        *,
+        calculation_run_id: str | None = None,
+        billing_account_id: str | None = None,
+        billing_period: date | None = None,
+        target_id: str | None = None,
+        category: AllocationCategory | None = None,
+        billing_line_ref: str | None = None,
+        cost_basis: CostBasis | None = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> AllocationPage:
+        """One page of one Allocation Snapshot's Allocations, in stored order.
+
+        The snapshot is `calculation_run_id`'s, or else the current one of the single
+        Snapshot Scope the filters select: NotFound if none is calculated, AmbiguousScope if
+        several are. `limit` is 1 to MAX_PAGE and `offset` at least 0, else ValueError.
+        """
+        if not 1 <= limit <= MAX_PAGE or offset < 0:
+            raise ValueError(f"limit must be 1 to {MAX_PAGE} and offset at least 0")
+        stored = self._served(calculation_run_id, billing_account_id, billing_period)
+        run_id = stored.snapshot.calculation_run_id
+        matching = [
+            AllocationEntry(ref=f"{run_id}#{position}", allocation=allocation)
+            for position, allocation in enumerate(stored.allocations)
+            if target_id in (None, allocation.target_id)
+            and category in (None, allocation.category)
+            and billing_line_ref in (None, allocation.billing_line_ref)
+            and cost_basis in (None, allocation.cost_basis)
+        ]
+        return AllocationPage(
+            calculation_run_id=run_id,
+            total=len(matching),
+            limit=limit,
+            offset=offset,
+            items=matching[offset : offset + limit],
+        )
+
+    def _served(
+        self,
+        calculation_run_id: str | None,
+        billing_account_id: str | None,
+        billing_period: date | None,
+    ) -> StoredAllocations:
+        """The one Allocation Snapshot a read serves (spec 06)."""
+        if calculation_run_id is not None:
+            named = self._ledger.allocation_snapshot(calculation_run_id)
+            if named is None:
+                raise NotFound("no such Calculation Run")
+            return named
+        current = [
+            stored
+            for scope in self._scopes(billing_account_id, billing_period)
+            if (stored := self._ledger.current_allocations(scope)) is not None
+        ]
+        if not current:
+            raise NotFound("no calculated Snapshot Scope matches")
+        if len(current) > 1:
+            raise AmbiguousScope("several Snapshot Scopes match")
+        return current[0]
+
+    def _scopes(
+        self, billing_account_id: str | None, billing_period: date | None
+    ) -> list[SnapshotScope]:
+        return [
+            scope
+            for scope in self._ledger.scopes()
+            if billing_account_id in (None, scope.billing_account_id)
+            and billing_period in (None, scope.billing_period_start.date())
+        ]
 
     def _summary(
         self, scope: SnapshotScope, stored: StoredAllocations, basis: CostBasis

@@ -12,8 +12,17 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from starlette.exceptions import HTTPException
 
+from data_finops.contracts.allocation import AllocationCategory
 from data_finops.contracts.billing import CostBasis
-from data_finops.reporting import CostSummaries, DatabaseUnavailable, Reporting
+from data_finops.reporting import (
+    MAX_PAGE,
+    AllocationPage,
+    AmbiguousScope,
+    CostSummaries,
+    DatabaseUnavailable,
+    NotFound,
+    Reporting,
+)
 
 PROBLEM = "application/problem+json"
 
@@ -47,6 +56,15 @@ _READ_PROBLEMS: dict[int | str, dict[str, Any]] = {
     503: _problem_doc("The database cannot be opened as a current data-finops database."),
 }
 
+_PAGE_PROBLEMS: dict[int | str, dict[str, Any]] = {
+    **_READ_PROBLEMS,
+    400: _problem_doc(
+        "Invalid request, or filters matching several Snapshot Scopes: the detail names the"
+        " fields to give, never their values."
+    ),
+    404: _problem_doc("No such Calculation Run, or no calculated Snapshot Scope matches."),
+}
+
 
 def create_app(db: Path) -> FastAPI:
     """The API over the database file `db`; nothing is opened until a request needs it."""
@@ -78,6 +96,45 @@ def create_app(db: Path) -> FastAPI:
             cost_basis=cost_basis,
             billing_account_id=billing_account_id,
             billing_period=billing_period,
+        )
+
+    @app.get("/v1/allocations", responses=_PAGE_PROBLEMS)
+    def allocations(
+        read_model: Annotated[Reporting, Depends(reporting)],
+        calculation_run_id: Annotated[str | None, Query(max_length=128)] = None,
+        billing_account_id: Annotated[str | None, Query(max_length=128)] = None,
+        billing_period: date | None = None,
+        target_id: Annotated[str | None, Query(max_length=256)] = None,
+        category: AllocationCategory | None = None,
+        billing_line_ref: Annotated[str | None, Query(max_length=256)] = None,
+        cost_basis: CostBasis | None = None,
+        limit: Annotated[int, Query(ge=1, le=MAX_PAGE)] = 100,
+        offset: Annotated[int, Query(ge=0)] = 0,
+    ) -> AllocationPage:
+        """One page of one Allocation Snapshot: a named Calculation Run's, or the current one
+        of the single Snapshot Scope the filters select."""
+        return read_model.allocations(
+            calculation_run_id=calculation_run_id,
+            billing_account_id=billing_account_id,
+            billing_period=billing_period,
+            target_id=target_id,
+            category=category,
+            billing_line_ref=billing_line_ref,
+            cost_basis=cost_basis,
+            limit=limit,
+            offset=offset,
+        )
+
+    @app.exception_handler(NotFound)
+    def not_found(request: Request, error: NotFound) -> JSONResponse:
+        return _problem_json(404, "Not found", "Nothing matches the request.")
+
+    @app.exception_handler(AmbiguousScope)
+    def ambiguous(request: Request, error: AmbiguousScope) -> JSONResponse:
+        return _problem_json(
+            400,
+            "Several Snapshot Scopes match",
+            "Give billing_account_id and billing_period, or calculation_run_id.",
         )
 
     @app.exception_handler(RequestValidationError)
