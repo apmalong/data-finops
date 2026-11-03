@@ -104,6 +104,21 @@ tr.group td { border-top: 1px solid var(--rule); }
 tr.total td { font-weight: 600; border-top: 1px solid var(--ink-3); }
 .mono { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-size: 0.8rem; }
 
+/* Details on demand (#118). Anything that opens one is a keyboard-reachable button. */
+.openable { cursor: pointer; }
+.openable:hover .bar-label strong, tr.openable:hover td { text-decoration: underline; }
+.openable:focus-visible { outline: 2px solid var(--allocated); outline-offset: 2px; }
+.detail-panel, .detail { margin-top: 24px; }
+.detail h3 { margin-top: 20px; }
+.detail h4 { font-size: 0.85rem; margin: 12px 0 4px; color: var(--ink-2); font-weight: 600; }
+.facts { display: grid; grid-template-columns: max-content 1fr; gap: 2px 16px; margin: 4px 0; font-size: 0.85rem; }
+.facts dt { color: var(--ink-3); }
+.facts dd { margin: 0; overflow-wrap: anywhere; }
+.runs, .claims { list-style: none; padding: 0; margin: 4px 0; font-size: 0.85rem; }
+.runs li { padding: 2px 0; }
+.runs li.attention::before { content: "⚠ "; color: var(--attention); }
+pre.mono { white-space: pre-wrap; max-height: 320px; overflow: auto; background: var(--page); padding: 8px; border-radius: 4px; }
+
 .tooltip {
   position: fixed; pointer-events: none; background: var(--surface); color: var(--ink);
   border: 1px solid var(--rule); border-radius: 6px; padding: 6px 8px; font-size: 0.8rem;
