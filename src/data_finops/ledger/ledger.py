@@ -341,7 +341,7 @@ class Ledger:
 
     def allocation_snapshot(self, calculation_run_id: str) -> StoredAllocations | None:
         """Any stored Allocation Snapshot, current or superseded."""
-        found = self._snapshot_metadata("s.calculation_run_id = ?", (calculation_run_id,))
+        found = self._snapshot_metadata(calculation_run_id=calculation_run_id)
         if not found:
             return None
         rows = self._connection.execute(
@@ -355,21 +355,30 @@ class Ledger:
 
     def allocation_snapshots(self, scope: SnapshotScope) -> list[AllocationSnapshot]:
         """Every Allocation Snapshot stored for `scope`, oldest first, without Allocations."""
-        return self._snapshot_metadata(
-            "s.billing_account_id = ? AND s.billing_period_start = ?"
-            " AND s.billing_period_end = ? AND s.source = ?",
-            _scope_key(scope),
-        )
+        return self._snapshot_metadata(scope=scope)
 
-    def _snapshot_metadata(self, where: str, parameters: Sequence[str]) -> list[AllocationSnapshot]:
-        """Allocation Snapshots matching `where`, one of the fixed clauses above."""
+    def _snapshot_metadata(
+        self, *, calculation_run_id: str | None = None, scope: SnapshotScope | None = None
+    ) -> list[AllocationSnapshot]:
+        """Allocation Snapshots by Calculation Run or by scope (one of the two), oldest first."""
+        account, start, end, source = _scope_key(scope) if scope else (None, None, None, None)
         rows = self._connection.execute(
             "SELECT s.calculation_run_id, s.input_digest, s.policy_version, s.created_at_us,"
             " c.calculation_run_id IS NOT NULL, s.export_snapshot_id FROM allocation_snapshot s"
             " LEFT JOIN current_allocation_snapshot c"
             " ON c.calculation_run_id = s.calculation_run_id"
-            f" WHERE {where} ORDER BY s.created_at_us, s.calculation_run_id",
-            parameters,
+            " WHERE (:run IS NULL OR s.calculation_run_id = :run)"
+            " AND (:account IS NULL OR (s.billing_account_id = :account"
+            " AND s.billing_period_start = :start AND s.billing_period_end = :end"
+            " AND s.source = :source))"
+            " ORDER BY s.created_at_us, s.calculation_run_id",
+            {
+                "run": calculation_run_id,
+                "account": account,
+                "start": start,
+                "end": end,
+                "source": source,
+            },
         ).fetchall()
         return [
             AllocationSnapshot(

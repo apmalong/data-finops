@@ -24,7 +24,7 @@ from data_finops.reporting.models import (
 )
 from data_finops.workload.store import StaleDatabaseError, WorkloadStore
 
-MAX_PAGE = 1000
+MAX_PAGE_SIZE = 1000
 """The largest page a read serves (spec 06)."""
 
 
@@ -34,6 +34,10 @@ class NotFound(LookupError):
 
 class AmbiguousScope(ValueError):
     """The filters match several Snapshot Scopes where a read serves one snapshot."""
+
+
+class ConflictingFilters(ValueError):
+    """A named Calculation Run together with scope filters: the run already fixes its scope."""
 
 
 class DatabaseUnavailable(Exception):
@@ -104,6 +108,7 @@ class Reporting:
         calculation_run_id: str | None = None,
         billing_account_id: str | None = None,
         billing_period: date | None = None,
+        source: str | None = None,
         target_id: str | None = None,
         category: AllocationCategory | None = None,
         billing_line_ref: str | None = None,
@@ -113,13 +118,14 @@ class Reporting:
     ) -> AllocationPage:
         """One page of one Allocation Snapshot's Allocations, in stored order.
 
-        The snapshot is `calculation_run_id`'s, or else the current one of the single
-        Snapshot Scope the filters select: NotFound if none is calculated, AmbiguousScope if
-        several are. `limit` is 1 to MAX_PAGE and `offset` at least 0, else ValueError.
+        The snapshot is `calculation_run_id`'s (ConflictingFilters if scope filters are also
+        given), or else the current one of the single Snapshot Scope the filters select:
+        NotFound if none is calculated, AmbiguousScope if several are. `limit` is 1 to
+        MAX_PAGE_SIZE and `offset` at least 0, else ValueError.
         """
-        if not 1 <= limit <= MAX_PAGE or offset < 0:
-            raise ValueError(f"limit must be 1 to {MAX_PAGE} and offset at least 0")
-        stored = self._served(calculation_run_id, billing_account_id, billing_period)
+        if not 1 <= limit <= MAX_PAGE_SIZE or offset < 0:
+            raise ValueError(f"limit must be 1 to {MAX_PAGE_SIZE} and offset at least 0")
+        stored = self._served(calculation_run_id, billing_account_id, billing_period, source)
         run_id = stored.snapshot.calculation_run_id
         matching = [
             AllocationEntry(ref=f"{run_id}#{position}", allocation=allocation)
@@ -142,16 +148,19 @@ class Reporting:
         calculation_run_id: str | None,
         billing_account_id: str | None,
         billing_period: date | None,
+        source: str | None,
     ) -> StoredAllocations:
         """The one Allocation Snapshot a read serves (spec 06)."""
         if calculation_run_id is not None:
+            if (billing_account_id, billing_period, source) != (None, None, None):
+                raise ConflictingFilters("a named Calculation Run fixes its own scope")
             named = self._ledger.allocation_snapshot(calculation_run_id)
             if named is None:
                 raise NotFound("no such Calculation Run")
             return named
         current = [
             stored
-            for scope in self._scopes(billing_account_id, billing_period)
+            for scope in self._scopes(billing_account_id, billing_period, source)
             if (stored := self._ledger.current_allocations(scope)) is not None
         ]
         if not current:
@@ -161,13 +170,17 @@ class Reporting:
         return current[0]
 
     def _scopes(
-        self, billing_account_id: str | None, billing_period: date | None
+        self,
+        billing_account_id: str | None,
+        billing_period: date | None,
+        source: str | None = None,
     ) -> list[SnapshotScope]:
         return [
             scope
             for scope in self._ledger.scopes()
             if billing_account_id in (None, scope.billing_account_id)
             and billing_period in (None, scope.billing_period_start.date())
+            and source in (None, scope.source)
         ]
 
     def _summary(

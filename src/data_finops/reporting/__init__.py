@@ -12,19 +12,21 @@ from data_finops.reporting.models import (
     UnallocatedAmount,
 )
 from data_finops.reporting.reporting import (
-    MAX_PAGE,
+    MAX_PAGE_SIZE,
     AmbiguousScope,
+    ConflictingFilters,
     DatabaseUnavailable,
     NotFound,
     Reporting,
 )
 
 __all__ = [
-    "MAX_PAGE",
+    "MAX_PAGE_SIZE",
     "AllocatedAmount",
     "AllocationEntry",
     "AllocationPage",
     "AmbiguousScope",
+    "ConflictingFilters",
     "CostSummaries",
     "CostSummary",
     "CurrencySummary",

@@ -9,10 +9,12 @@ from typing import NamedTuple
 
 import pytest
 from fastapi.testclient import TestClient
-from fixture_database import ACCOUNT, fill, restate
+from fixture_database import ACCOUNT, add_other_account, fill, restate
 from openapi_contract import valid_response
 
 from data_finops.api import create_app
+from data_finops.contracts.allocation import AllocationCategory
+from data_finops.contracts.billing import CostBasis
 from data_finops.reporting import Reporting
 
 PROBLEM = "application/problem+json"
@@ -52,28 +54,36 @@ def test_a_page_is_served_as_the_read_model_answers_it(
 def test_filters_and_a_superseded_snapshot_reach_the_read_model(
     client: TestClient, database: Database
 ) -> None:
-    params = {
-        "calculation_run_id": database.first_run,
-        "target_id": "q-001",
-        "category": "direct",
-        "cost_basis": "BilledCost",
-        "billing_line_ref": "aws-focus-123456789012-2026-10-v1#0",
-    }
-    response = client.get(PATH, params=params)
+    line = "aws-focus-123456789012-2026-10-v1#0"
+    response = client.get(
+        PATH,
+        params={
+            "calculation_run_id": database.first_run,
+            "target_id": "q-001",
+            "category": "direct",
+            "cost_basis": "BilledCost",
+            "billing_line_ref": line,
+        },
+    )
+    assert response.status_code == 200
     with Reporting(database.path) as reporting:
         expected = reporting.allocations(
             calculation_run_id=database.first_run,
             target_id="q-001",
-            category="direct",  # type: ignore[arg-type]
-            cost_basis="BilledCost",  # type: ignore[arg-type]
-            billing_line_ref="aws-focus-123456789012-2026-10-v1#0",
+            category=AllocationCategory.DIRECT,
+            cost_basis=CostBasis.BILLED_COST,
+            billing_line_ref=line,
         )
     assert response.json() == expected.model_dump(mode="json")
-    assert response.json()["total"] == 1
-    scoped = client.get(
-        PATH, params={"billing_account_id": ACCOUNT, "billing_period": "2026-10-01"}
-    )
-    assert scoped.json()["calculation_run_id"] != database.first_run
+
+
+def test_scope_filters_reach_the_read_model(client: TestClient, database: Database) -> None:
+    params = {"billing_account_id": ACCOUNT, "billing_period": "2026-10-01"}
+    response = client.get(PATH, params=params)
+    assert response.status_code == 200
+    assert response.json()["calculation_run_id"] != database.first_run
+    other_source = client.get(PATH, params={**params, "source": "another-source"})
+    assert (other_source.status_code, other_source.headers["content-type"]) == (404, PROBLEM)
 
 
 @pytest.mark.parametrize(
@@ -102,31 +112,23 @@ def test_an_unknown_calculation_run_is_not_found(client: TestClient) -> None:
     valid_response("get", PATH, 404, response.json())
 
 
+def test_a_named_run_with_scope_filters_is_a_problem(
+    client: TestClient, database: Database
+) -> None:
+    response = client.get(
+        PATH, params={"calculation_run_id": database.first_run, "billing_account_id": ACCOUNT}
+    )
+    assert (response.status_code, response.headers["content-type"]) == (400, PROBLEM)
+    assert "calculation_run_id" in response.json()["detail"]
+    valid_response("get", PATH, 400, response.json())
+
+
 def test_filters_matching_several_scopes_must_be_narrowed(tmp_path: Path) -> None:
-    from fixture_database import EXPORT
-
-    from data_finops.ledger import Ledger
-
     path = tmp_path / "data-finops.sqlite"
     fill(path)
-    other = EXPORT.model_copy(
-        update={
-            "snapshot": EXPORT.snapshot.model_copy(
-                update={"snapshot_id": "other-v1", "billing_account_id": "210987654321"}
-            )
-        }
-    )
-    with Ledger(path) as ledger:
-        ledger.import_snapshot(other)
-        ledger.store_allocations(
-            other.snapshot.scope,
-            calculation_run_id="calc-other",
-            policy_version="test",
-            input_digest="other",
-            export_snapshot_id="other-v1",
-            allocations=[],
-        )
+    add_other_account(path)
     with TestClient(create_app(path), raise_server_exceptions=False) as client:
         response = client.get(PATH)
     assert (response.status_code, response.headers["content-type"]) == (400, PROBLEM)
     assert "billing_account_id" in response.json()["detail"]
+    valid_response("get", PATH, 400, response.json())

@@ -13,25 +13,32 @@ from pathlib import Path
 from typing import NamedTuple
 
 import pytest
-from fixture_database import ACCOUNT, EXPORT, fill, restate
+from fixture_database import ACCOUNT, EXPORT, OTHER_ACCOUNT, add_other_account, fill, restate
 
 from data_finops.contracts.allocation import AllocationCategory
 from data_finops.contracts.billing import CostBasis
-from data_finops.ledger import Ledger
-from data_finops.reporting import AmbiguousScope, NotFound, Reporting
+from data_finops.reporting import (
+    AllocationEntry,
+    AmbiguousScope,
+    ConflictingFilters,
+    NotFound,
+    Reporting,
+)
 
 
 class Database(NamedTuple):
     path: Path
     first_run: str
     current_run: str
+    other_run: str
 
 
 @pytest.fixture(scope="module")
 def database(tmp_path_factory: pytest.TempPathFactory) -> Database:
     path = tmp_path_factory.mktemp("allocations") / "data-finops.sqlite"
     first = fill(path)
-    return Database(path, first, restate(path))
+    current = restate(path)
+    return Database(path, first, current, add_other_account(path))
 
 
 @pytest.fixture
@@ -40,10 +47,10 @@ def reporting(database: Database) -> Iterator[Reporting]:
         yield opened
 
 
-def _billed(page_items: list) -> list[tuple[str, Decimal]]:  # type: ignore[type-arg]
+def _billed(items: list[AllocationEntry]) -> list[tuple[str, Decimal]]:
     return sorted(
         (item.allocation.target_id, item.allocation.amount)
-        for item in page_items
+        for item in items
         if item.allocation.cost_basis == CostBasis.BILLED_COST
     )
 
@@ -51,7 +58,7 @@ def _billed(page_items: list) -> list[tuple[str, Decimal]]:  # type: ignore[type
 def test_the_current_snapshot_is_listed_with_each_allocation_addressed(
     reporting: Reporting, database: Database
 ) -> None:
-    page = reporting.allocations()
+    page = reporting.allocations(billing_account_id=ACCOUNT)
     assert (page.calculation_run_id, page.total, page.limit, page.offset) == (
         database.current_run,
         8,  # two lines, one Allocation Target each, once per Cost Basis
@@ -78,6 +85,14 @@ def test_an_unknown_calculation_run_is_not_found(reporting: Reporting) -> None:
         reporting.allocations(calculation_run_id="calc-unknown")
 
 
+def test_a_named_run_cannot_be_combined_with_scope_filters(
+    reporting: Reporting, database: Database
+) -> None:
+    for scope_filter in ({"billing_account_id": ACCOUNT}, {"billing_period": date(2026, 10, 1)}):
+        with pytest.raises(ConflictingFilters):
+            reporting.allocations(calculation_run_id=database.first_run, **scope_filter)  # type: ignore[arg-type]
+
+
 @pytest.mark.parametrize(
     ("filters", "targets"),
     [
@@ -89,75 +104,58 @@ def test_an_unknown_calculation_run_is_not_found(reporting: Reporting) -> None:
 def test_filters_narrow_the_page(
     reporting: Reporting, filters: dict[str, object], targets: set[str]
 ) -> None:
-    page = reporting.allocations(**filters)  # type: ignore[arg-type]
+    page = reporting.allocations(billing_account_id=ACCOUNT, **filters)  # type: ignore[arg-type]
     assert {item.allocation.target_id for item in page.items} == targets
     assert page.total == len(page.items) == 4  # one Allocation per Cost Basis
 
 
 def test_a_cost_basis_filter_keeps_that_column(reporting: Reporting) -> None:
-    page = reporting.allocations(cost_basis=CostBasis.EFFECTIVE_COST)
+    page = reporting.allocations(billing_account_id=ACCOUNT, cost_basis=CostBasis.EFFECTIVE_COST)
     assert page.total == 2
     assert {item.allocation.cost_basis for item in page.items} == {"EffectiveCost"}
 
 
+def test_each_allocation_keeps_its_own_currency(reporting: Reporting) -> None:
+    page = reporting.allocations(billing_account_id=OTHER_ACCOUNT)
+    by_line = {(item.allocation.billing_line_ref, item.allocation.currency) for item in page.items}
+    assert by_line == {
+        ("other-account-v1#0", "USD"),
+        ("other-account-v1#1", "EUR"),
+        ("other-account-v1#2", "EUR"),
+    }
+    assert page.total == 12  # three lines, once per Cost Basis
+
+
 def test_pages_are_bounded_and_stable(reporting: Reporting) -> None:
-    everything = reporting.allocations().items
-    first = reporting.allocations(limit=5, offset=0)
-    rest = reporting.allocations(limit=1000, offset=5)
+    everything = reporting.allocations(billing_account_id=ACCOUNT).items
+    first = reporting.allocations(billing_account_id=ACCOUNT, limit=5, offset=0)
+    rest = reporting.allocations(billing_account_id=ACCOUNT, limit=1000, offset=5)
     assert (len(first.items), first.total) == (5, 8)
     assert first.items + rest.items == everything
-    assert reporting.allocations(offset=8).items == []
+    assert reporting.allocations(billing_account_id=ACCOUNT, offset=8).items == []
 
 
 @pytest.mark.parametrize(("limit", "offset"), [(0, 0), (1001, 0), (10, -1)])
 def test_limits_out_of_range_are_refused(reporting: Reporting, limit: int, offset: int) -> None:
     with pytest.raises(ValueError):
-        reporting.allocations(limit=limit, offset=offset)
+        reporting.allocations(billing_account_id=ACCOUNT, limit=limit, offset=offset)
 
 
-def test_scope_filters_select_the_snapshot(reporting: Reporting, database: Database) -> None:
-    page = reporting.allocations(billing_account_id=ACCOUNT, billing_period=date(2026, 10, 1))
+def test_scope_filters_select_one_snapshot_or_none(
+    reporting: Reporting, database: Database
+) -> None:
+    page = reporting.allocations(
+        billing_account_id=ACCOUNT, billing_period=date(2026, 10, 1), source=EXPORT.snapshot.source
+    )
     assert page.calculation_run_id == database.current_run
     with pytest.raises(NotFound):
         reporting.allocations(billing_account_id="999999999999")
+    with pytest.raises(NotFound):
+        reporting.allocations(billing_account_id=ACCOUNT, source="another-source")
 
 
-def test_several_matching_scopes_must_be_narrowed(tmp_path: Path) -> None:
-    path = tmp_path / "data-finops.sqlite"
-    fill(path)
-    other = EXPORT.model_copy(
-        update={
-            "snapshot": EXPORT.snapshot.model_copy(
-                update={"snapshot_id": "other-v1", "billing_account_id": "210987654321"}
-            )
-        }
-    )
-    with Ledger(path) as ledger:
-        ledger.import_snapshot(other)
-        ledger.store_allocations(
-            other.snapshot.scope,
-            calculation_run_id="calc-other",
-            policy_version="test",
-            input_digest="other",
-            export_snapshot_id="other-v1",
-            allocations=[],
-        )
-    with Reporting(path) as reporting:
-        with pytest.raises(AmbiguousScope):
-            reporting.allocations()
-        assert reporting.allocations(billing_account_id=ACCOUNT).total == 8
-
-
-def test_the_ledger_lists_a_scopes_allocation_snapshots_oldest_first(
-    database: Database,
-) -> None:
-    with Ledger(database.path) as ledger:
-        snapshots = ledger.allocation_snapshots(EXPORT.snapshot.scope)
-    assert [(s.calculation_run_id, s.is_current) for s in snapshots] == [
-        (database.first_run, False),
-        (database.current_run, True),
-    ]
-    assert [s.export_snapshot_id for s in snapshots] == [
-        EXPORT.snapshot.snapshot_id,
-        "aws-focus-123456789012-2026-10-v2",
-    ]
+def test_filters_matching_several_scopes_must_be_narrowed(reporting: Reporting) -> None:
+    with pytest.raises(AmbiguousScope):
+        reporting.allocations()
+    with pytest.raises(AmbiguousScope):
+        reporting.allocations(billing_period=date(2026, 10, 1))

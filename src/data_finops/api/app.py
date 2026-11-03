@@ -15,9 +15,10 @@ from starlette.exceptions import HTTPException
 from data_finops.contracts.allocation import AllocationCategory
 from data_finops.contracts.billing import CostBasis
 from data_finops.reporting import (
-    MAX_PAGE,
+    MAX_PAGE_SIZE,
     AllocationPage,
     AmbiguousScope,
+    ConflictingFilters,
     CostSummaries,
     DatabaseUnavailable,
     NotFound,
@@ -104,19 +105,22 @@ def create_app(db: Path) -> FastAPI:
         calculation_run_id: Annotated[str | None, Query(max_length=128)] = None,
         billing_account_id: Annotated[str | None, Query(max_length=128)] = None,
         billing_period: date | None = None,
+        source: Annotated[str | None, Query(max_length=256)] = None,
         target_id: Annotated[str | None, Query(max_length=256)] = None,
         category: AllocationCategory | None = None,
         billing_line_ref: Annotated[str | None, Query(max_length=256)] = None,
         cost_basis: CostBasis | None = None,
-        limit: Annotated[int, Query(ge=1, le=MAX_PAGE)] = 100,
+        limit: Annotated[int, Query(ge=1, le=MAX_PAGE_SIZE)] = 100,
         offset: Annotated[int, Query(ge=0)] = 0,
     ) -> AllocationPage:
-        """One page of one Allocation Snapshot: a named Calculation Run's, or the current one
-        of the single Snapshot Scope the filters select."""
+        """One page of one Allocation Snapshot: a named Calculation Run's, or else the current
+        one of the single Snapshot Scope that `billing_account_id`, `billing_period` and `source`
+        select."""
         return read_model.allocations(
             calculation_run_id=calculation_run_id,
             billing_account_id=billing_account_id,
             billing_period=billing_period,
+            source=source,
             target_id=target_id,
             category=category,
             billing_line_ref=billing_line_ref,
@@ -130,11 +134,20 @@ def create_app(db: Path) -> FastAPI:
         return _problem_json(404, "Not found", "Nothing matches the request.")
 
     @app.exception_handler(AmbiguousScope)
-    def ambiguous(request: Request, error: AmbiguousScope) -> JSONResponse:
+    def ambiguous_scope(request: Request, error: AmbiguousScope) -> JSONResponse:
         return _problem_json(
             400,
             "Several Snapshot Scopes match",
-            "Give billing_account_id and billing_period, or calculation_run_id.",
+            "Narrow with billing_account_id, billing_period and source, or give"
+            " calculation_run_id.",
+        )
+
+    @app.exception_handler(ConflictingFilters)
+    def conflicting_filters(request: Request, error: ConflictingFilters) -> JSONResponse:
+        return _problem_json(
+            400,
+            "Conflicting filters",
+            "Give calculation_run_id or billing_account_id, billing_period and source, not both.",
         )
 
     @app.exception_handler(RequestValidationError)

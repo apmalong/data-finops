@@ -210,7 +210,7 @@
     "/v1/allocations": {
       "get": {
         "summary": "Allocations",
-        "description": "One page of one Allocation Snapshot: a named Calculation Run's, or the current one\nof the single Snapshot Scope the filters select.",
+        "description": "One page of one Allocation Snapshot: a named Calculation Run's, or else the current\none of the single Snapshot Scope that `billing_account_id`, `billing_period` and `source`\nselect.",
         "operationId": "allocations_v1_allocations_get",
         "parameters": [
           {
@@ -262,6 +262,23 @@
                 }
               ],
               "title": "Billing Period"
+            }
+          },
+          {
+            "name": "source",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 256
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Source"
             }
           },
           {
