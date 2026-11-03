@@ -52,7 +52,8 @@ CREATE TABLE IF NOT EXISTS allocation_snapshot (
     source TEXT NOT NULL,
     input_digest TEXT NOT NULL,
     policy_version TEXT NOT NULL,
-    created_at_us INTEGER NOT NULL
+    created_at_us INTEGER NOT NULL,
+    export_snapshot_id TEXT
 );
 CREATE TABLE IF NOT EXISTS allocation (
     calculation_run_id TEXT NOT NULL REFERENCES allocation_snapshot (calculation_run_id),
@@ -140,6 +141,14 @@ class Ledger:
         self._connection.execute("PRAGMA journal_mode=WAL")
         self._connection.execute("PRAGMA foreign_keys=ON")
         self._connection.executescript(_SCHEMA)
+        columns = {
+            row[1] for row in self._connection.execute("PRAGMA table_info(allocation_snapshot)")
+        }
+        if "export_snapshot_id" not in columns:
+            # Added in M5 (#105); snapshots stored before it record no Export Snapshot.
+            self._connection.execute(
+                "ALTER TABLE allocation_snapshot ADD COLUMN export_snapshot_id TEXT"
+            )
 
     def close(self) -> None:
         self._connection.close()
@@ -214,6 +223,22 @@ class Ledger:
         current = self._current(scope)
         return None if current is None else self._load(current)
 
+    def scopes(self) -> list[SnapshotScope]:
+        """Every Snapshot Scope with a stored Export Snapshot, by account, period and source."""
+        rows = self._connection.execute(
+            "SELECT DISTINCT billing_account_id, billing_period_start, billing_period_end, source"
+            " FROM export_snapshot ORDER BY 1, 2, 3, 4"
+        ).fetchall()
+        return [
+            SnapshotScope(
+                billing_account_id=account,
+                billing_period_start=start,
+                billing_period_end=end,
+                source=source,
+            )
+            for account, start, end, source in rows
+        ]
+
     def snapshot(self, snapshot_id: str) -> FocusExport | None:
         """Any stored Export Snapshot, current or superseded."""
         row = self._connection.execute(
@@ -244,6 +269,7 @@ class Ledger:
         policy_version: str,
         input_digest: str,
         allocations: Sequence[Allocation],
+        export_snapshot_id: str | None = None,
     ) -> AllocationStoreResult:
         """Store a Calculation Run's Allocations as the current snapshot for `scope`.
 
@@ -252,7 +278,8 @@ class Ledger:
         atomically and becomes current, and every earlier one is retained; as for Export
         Snapshots (ADR 0020), inputs equal to a superseded snapshot make a new one. Raises
         AllocationSnapshotConflictError if the run ID is already stored, and ValueError if
-        an Allocation names another Calculation Run or policy version.
+        an Allocation names another Calculation Run or policy version. `export_snapshot_id`
+        records the Export Snapshot the run read, the bill its Allocations partition.
         """
         for allocation in allocations:
             named = (allocation.calculation_run_id, allocation.policy_version)
@@ -278,13 +305,15 @@ class Ledger:
             self._connection.execute(
                 "INSERT INTO allocation_snapshot (calculation_run_id, billing_account_id,"
                 " billing_period_start, billing_period_end, source, input_digest,"
-                " policy_version, created_at_us) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                " policy_version, created_at_us, export_snapshot_id)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     calculation_run_id,
                     *_scope_key(scope),
                     input_digest,
                     policy_version,
                     _microseconds(self._clock()),
+                    export_snapshot_id,
                 ),
             )
             self._connection.executemany(
@@ -314,7 +343,7 @@ class Ledger:
         """Any stored Allocation Snapshot, current or superseded."""
         row = self._connection.execute(
             "SELECT s.input_digest, s.policy_version, s.created_at_us,"
-            " c.calculation_run_id IS NOT NULL FROM allocation_snapshot s"
+            " c.calculation_run_id IS NOT NULL, s.export_snapshot_id FROM allocation_snapshot s"
             " LEFT JOIN current_allocation_snapshot c"
             " ON c.calculation_run_id = s.calculation_run_id"
             " WHERE s.calculation_run_id = ?",
@@ -322,7 +351,7 @@ class Ledger:
         ).fetchone()
         if row is None:
             return None
-        input_digest, policy_version, created_at_us, is_current = row
+        input_digest, policy_version, created_at_us, is_current, export_snapshot_id = row
         rows = self._connection.execute(
             "SELECT allocation_json FROM allocation WHERE calculation_run_id = ? ORDER BY position",
             (calculation_run_id,),
@@ -334,6 +363,7 @@ class Ledger:
                 input_digest=input_digest,
                 created_at=_EPOCH + timedelta(microseconds=created_at_us),
                 is_current=bool(is_current),
+                export_snapshot_id=export_snapshot_id,
             ),
             allocations=[Allocation.model_validate_json(stored) for (stored,) in rows],
         )

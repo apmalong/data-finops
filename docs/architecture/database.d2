@@ -30,6 +30,7 @@ ledger: Ledger (billing) {
     "input_digest": TEXT {constraint: [not_null]}
     "policy_version": TEXT {constraint: [not_null]}
     "created_at_us": INTEGER {constraint: [not_null]}
+    "export_snapshot_id": TEXT
   }
   allocation: {
     shape: sql_table

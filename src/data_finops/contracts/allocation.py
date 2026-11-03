@@ -119,3 +119,5 @@ class AllocationSnapshot(BaseModel):
     input_digest: str
     created_at: UtcDatetime
     is_current: bool
+    export_snapshot_id: str | None = None
+    """The Export Snapshot the Calculation Run read; None for snapshots stored before M5."""

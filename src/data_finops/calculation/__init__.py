@@ -96,6 +96,7 @@ def run_calculation(
         calculation_run_id=run_id,
         policy_version=POLICY_VERSION,
         input_digest=digest,
+        export_snapshot_id=export.snapshot.snapshot_id,
         allocations=allocate(pooled, policy_version=POLICY_VERSION, calculation_run_id=run_id),
     )
     return CalculationResult(
