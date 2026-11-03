@@ -52,7 +52,13 @@ from data_finops.identity.links import (
     trusted_query_comment,
 )
 from data_finops.lineage.openlineage import RunEvent
-from data_finops.lineage.validation import Rejection, RejectionKind, screen_events
+from data_finops.lineage.validation import (
+    Rejection,
+    RejectionKind,
+    Screening,
+    screen_event,
+    screen_events,
+)
 from data_finops.providers.athena import EntryRejection, screen_query_history
 
 _SCHEMA = """
@@ -309,7 +315,16 @@ class WorkloadStore:
         differing only in that text are duplicates. Each event is screened first; invalid ones
         are reported and the rest of the file is still stored.
         """
-        screening = screen_events(path)
+        return self._store_screened(screen_events(path))
+
+    def ingest_event(self, data: bytes) -> IngestResult:
+        """Store one OpenLineage event, such as an HTTP request body (spec 04, #104).
+
+        Screened and stored exactly as one item of `ingest_events`, reported at position 1.
+        """
+        return self._store_screened(screen_event(data))
+
+    def _store_screened(self, screening: Screening) -> IngestResult:
         accepted = duplicates = changed_copies = 0
         with self._write_transaction():
             for event in screening.events:
