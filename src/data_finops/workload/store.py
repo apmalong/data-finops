@@ -160,7 +160,11 @@ _COMMENT_KEY = "dbt_query_comment"
 _EPOCH = datetime(1970, 1, 1, tzinfo=UTC)
 
 
-class StaleDatabaseError(RuntimeError):
+class UnusableDatabaseError(RuntimeError):
+    """The file cannot be used as a workload store; the message never quotes the file."""
+
+
+class StaleDatabaseError(UnusableDatabaseError):
     """The database file predates the current workload schema; recreate it (no migrations)."""
 
 
@@ -271,6 +275,17 @@ class _Observation:
 
 class WorkloadStore:
     """Workload Runs and their evidence, opened from the installation's database file."""
+
+    @classmethod
+    def open_existing(cls, path: Path) -> Self:
+        """Open a store that must already exist, as a server does: a missing file or one
+        that is not a current database raises UnusableDatabaseError and nothing is created."""
+        if not path.is_file():
+            raise UnusableDatabaseError("no database file at the configured path")
+        try:
+            return cls(path)
+        except sqlite3.DatabaseError:
+            raise UnusableDatabaseError("the file is not a data-finops database") from None
 
     def __init__(self, path: Path) -> None:
         self._connection = sqlite3.connect(path, isolation_level=None)
