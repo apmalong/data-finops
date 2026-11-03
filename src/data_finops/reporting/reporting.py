@@ -6,23 +6,27 @@ from datetime import date
 from decimal import Decimal
 from pathlib import Path
 from types import TracebackType
-from typing import Literal, Self
+from typing import Self
 
 from data_finops.attribution.engine import AllocationMethod
 from data_finops.attribution.rollups import (
     RollupTotal,
     model_execution_of,
     model_execution_rollups,
+    query_execution_of,
     workload_run_rollups,
     workload_runs_of,
 )
-from data_finops.contracts.allocation import (
-    Allocation,
-    AllocationCategory,
-    Confidence,
-    TargetType,
+from data_finops.contracts.allocation import Allocation, AllocationCategory, Confidence
+from data_finops.contracts.billing import (
+    CostBasis,
+    FocusBillingLine,
+    SnapshotScope,
+    parse_line_ref,
+    snapshot_id_of,
 )
-from data_finops.contracts.billing import CostBasis, SnapshotScope, snapshot_id_of
+from data_finops.contracts.workload import QueryExecution
+from data_finops.identity.links import ModelExecutionKey
 from data_finops.ledger import Ledger, StoredAllocations
 from data_finops.reporting.models import (
     AllocatedAmount,
@@ -35,6 +39,7 @@ from data_finops.reporting.models import (
     ExplainedModelExecution,
     ExplainedRollup,
     ExplainedWorkloadRun,
+    RollupLevel,
     ServedSnapshot,
     UnallocatedAmount,
 )
@@ -144,7 +149,7 @@ class Reporting:
         stored = self._served(calculation_run_id, billing_account_id, billing_period, source)
         run_id = stored.snapshot.calculation_run_id
         matching = [
-            AllocationEntry(ref=f"{run_id}#{position}", allocation=allocation)
+            AllocationEntry(ref=_allocation_ref(run_id, position), allocation=allocation)
             for position, allocation in enumerate(stored.allocations)
             if target_id in (None, allocation.target_id)
             and category in (None, allocation.category)
@@ -162,19 +167,12 @@ class Reporting:
     def explanation(self, ref: str) -> CostExplanation:
         """The Cost Explanation of the Allocation at `ref` (`<calculation_run_id>#<position>`),
         current or superseded; NotFound for an unknown or malformed reference."""
-        run_id, _, position_text = ref.rpartition("#")
-        stored = self._ledger.allocation_snapshot(run_id) if run_id else None
-        if stored is None or not position_text.isdigit():
+        parsed = _parse_allocation_ref(ref)
+        stored = self._ledger.allocation_snapshot(parsed[0]) if parsed else None
+        if parsed is None or stored is None or parsed[1] >= len(stored.allocations):
             raise NotFound("no such Allocation")
-        position = int(position_text)
-        if position >= len(stored.allocations):
-            raise NotFound("no such Allocation")
-        allocation = stored.allocations[position]
-        snapshot_id, _, line_position = allocation.billing_line_ref.rpartition("#")
-        export = self._ledger.snapshot(snapshot_id)
-        if export is None:
-            raise NotFound("the Allocation's Billing Line is not stored")
-        line = export.lines[int(line_position)]
+        allocation = stored.allocations[parsed[1]]
+        line = self._billing_line(allocation.billing_line_ref)
         model = model_execution_of(allocation)
         runs = workload_runs_of(allocation)
         return CostExplanation(
@@ -185,43 +183,46 @@ class Reporting:
             unallocated_reason=(
                 allocation.method if allocation.category is AllocationCategory.UNALLOCATED else None
             ),
-            query_execution=(
-                self._store.query_execution(
-                    line.SubAccountId or line.BillingAccountId,
-                    line.RegionId or "",
-                    allocation.target_id,
-                )
-                if allocation.target_type is TargetType.QUERY_EXECUTION
-                else None
-            ),
-            model_execution=(
-                None
-                if model is None
-                else ExplainedModelExecution(
-                    invocation_id=model.invocation_id,
-                    node_id=model.node_id,
-                    execution=next(
-                        (
-                            m
-                            for m in self._store.model_executions(model.invocation_id)
-                            if m.node_id == model.node_id
-                        ),
-                        None,
-                    ),
-                    dbt_node=next(
-                        (
-                            n
-                            for n in self._store.manifest_nodes(model.invocation_id)
-                            if n.node_id == model.node_id
-                        ),
-                        None,
-                    ),
-                )
-            ),
+            query_execution=self._query_execution(allocation, line),
+            model_execution=None if model is None else self._model_execution(model),
             workload_runs=[
                 ExplainedWorkloadRun(run_id=run, run=self._store.workload_run(run)) for run in runs
             ],
-            rollups=_rollups_of(allocation, stored.allocations),
+            rollups=_rollups_of(allocation, model, runs, stored.allocations),
+        )
+
+    def _billing_line(self, line_ref: str) -> FocusBillingLine:
+        """The stored Billing Line an Allocation partitions; a dangling reference is an
+        integrity fault in the Ledger, not a missing resource."""
+        parsed = parse_line_ref(line_ref)
+        export = self._ledger.snapshot(parsed[0]) if parsed else None
+        if parsed is None or export is None or parsed[1] >= len(export.lines):
+            raise RuntimeError("an Allocation references a Billing Line the Ledger lacks")
+        return export.lines[parsed[1]]
+
+    def _query_execution(
+        self, allocation: Allocation, line: FocusBillingLine
+    ) -> QueryExecution | None:
+        """The Query Execution the Allocation's Evidence names, in the line's usage account
+        and region (spec 03); None if the Evidence names none or it is not stored."""
+        query_execution_id = query_execution_of(allocation)
+        if query_execution_id is None or line.SubAccountId is None or line.RegionId is None:
+            return None
+        return self._store.query_execution(line.SubAccountId, line.RegionId, query_execution_id)
+
+    def _model_execution(self, model: ModelExecutionKey) -> ExplainedModelExecution:
+        invocation_id, node_id = model
+        return ExplainedModelExecution(
+            invocation_id=invocation_id,
+            node_id=node_id,
+            execution=next(
+                (m for m in self._store.model_executions(invocation_id) if m.node_id == node_id),
+                None,
+            ),
+            dbt_node=next(
+                (n for n in self._store.manifest_nodes(invocation_id) if n.node_id == node_id),
+                None,
+            ),
         )
 
     def _served(
@@ -308,18 +309,30 @@ class Reporting:
         return billed
 
 
-def _rollups_of(allocation: Allocation, allocations: list[Allocation]) -> list[ExplainedRollup]:
+def _allocation_ref(calculation_run_id: str, position: int) -> str:
+    """An Allocation's address, `<calculation_run_id>#<position>` (spec 06)."""
+    return f"{calculation_run_id}#{position}"
+
+
+def _parse_allocation_ref(ref: str) -> tuple[str, int] | None:
+    run_id, _, position = ref.rpartition("#")
+    return (run_id, int(position)) if run_id and position.isdigit() else None
+
+
+def _rollups_of(
+    allocation: Allocation,
+    model: ModelExecutionKey | None,
+    runs: list[str],
+    allocations: list[Allocation],
+) -> list[ExplainedRollup]:
     """The Roll-ups `allocation` contributes to, in its own currency and Cost Basis."""
-    model = model_execution_of(allocation)
-    groups: list[
-        tuple[Literal["model_execution", "workload_run"], str, tuple[RollupTotal, ...]]
-    ] = []
+    groups: list[tuple[RollupLevel, str, tuple[RollupTotal, ...]]] = []
     if model is not None:
         groups.append(
             ("model_execution", model.target_id(), model_execution_rollups(allocations)[model])
         )
     run_totals = workload_run_rollups(allocations)
-    groups += [("workload_run", run, run_totals[run]) for run in workload_runs_of(allocation)]
+    groups += [("workload_run", run, run_totals[run]) for run in runs]
     return [
         ExplainedRollup(
             level=level, key=key, currency=t.currency, cost_basis=t.cost_basis, amount=t.amount

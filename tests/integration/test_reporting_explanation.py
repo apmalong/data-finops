@@ -14,8 +14,11 @@ from typing import Any, NamedTuple
 import pytest
 from fixture_database import ACCOUNT, EXPORT, FIXTURES, fill
 
+from data_finops.calculation import run_calculation
 from data_finops.contracts.billing import CostBasis
+from data_finops.ledger import Ledger
 from data_finops.reporting import NotFound, Reporting
+from data_finops.workload.store import WorkloadStore
 
 ORACLE = next(
     s
@@ -126,3 +129,65 @@ def test_an_unknown_or_malformed_reference_is_not_found(
 ) -> None:
     with pytest.raises(NotFound):
         reporting.explanation(ref.format(run=database.run))
+
+
+def test_an_unlinked_query_executions_allocation_rolls_up_to_nothing(tmp_path: Path) -> None:
+    # No Calculation Run over the fixtures leaves q-001 unlinked, so its Allocation is
+    # stored again with only the query's own Evidence, as the engine records an unlinked one.
+    path = tmp_path / "data-finops.sqlite"
+    first = fill(path)
+    with Ledger(path) as ledger:
+        stored = ledger.allocation_snapshot(first)
+        assert stored is not None
+        unlinked = [
+            a.model_copy(
+                update={
+                    "calculation_run_id": "calc-unlinked",
+                    "evidence_refs": a.evidence_refs[:1],
+                }
+            )
+            for a in stored.allocations
+        ]
+        ledger.store_allocations(
+            EXPORT.snapshot.scope,
+            calculation_run_id="calc-unlinked",
+            policy_version=stored.snapshot.policy_version,
+            input_digest="unlinked",
+            export_snapshot_id=EXPORT.snapshot.snapshot_id,
+            allocations=unlinked,
+        )
+    with Reporting(path) as reporting:
+        explanation = reporting.explanation(_ref(reporting, "q-001"))
+    assert explanation.allocation.evidence_refs == ["athena:q-001"]
+    assert explanation.query_execution is not None
+    assert (explanation.model_execution, explanation.workload_runs, explanation.rollups) == (
+        None,
+        [],
+        [],
+    )
+
+
+def test_the_query_execution_is_looked_up_in_the_lines_usage_account(tmp_path: Path) -> None:
+    # A member account's usage billed to the payer: the query history is the member's
+    # (spec 03: the usage account is SubAccountId, not the paying BillingAccountId).
+    member = "111111111111"
+    lines = [
+        line.model_copy(
+            update={
+                "SubAccountId": member,
+                "ResourceId": (line.ResourceId or "").replace(ACCOUNT, member) or None,
+            }
+        )
+        for line in EXPORT.lines
+    ]
+    path = tmp_path / "data-finops.sqlite"
+    with Ledger(path) as ledger, WorkloadStore(path) as store:
+        ledger.import_snapshot(EXPORT.model_copy(update={"lines": lines}))
+        history = tmp_path / "query-executions.json"
+        source = (FIXTURES / "athena" / "query-executions.json").read_text(encoding="utf-8")
+        history.write_text(source.replace(ACCOUNT, member), encoding="utf-8")
+        store.ingest_query_history(history, account_id=member, region="us-east-1")
+        run_calculation(ledger, store, EXPORT.snapshot.scope)
+    with Reporting(path) as reporting:
+        query = reporting.explanation(_ref(reporting, "q-001")).query_execution
+    assert query is not None and query.account_id == member

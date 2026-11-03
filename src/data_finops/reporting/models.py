@@ -89,6 +89,10 @@ class AllocationPage(_Response):
     items: list[AllocationEntry]
 
 
+RollupLevel = Literal["model_execution", "workload_run"]
+"""What a Roll-up sums to (ADR 0016)."""
+
+
 class ExplainedModelExecution(_Response):
     """The Model Execution an Allocation's Evidence links, as the workload store holds it;
     `execution` or `dbt_node` is None when that part was never ingested."""
@@ -104,12 +108,14 @@ class ExplainedWorkloadRun(_Response):
 
     run_id: str
     run: WorkloadRun | None
+    """None when the store holds no event for it: a run known only as another run's parent
+    or root (ParentRunFacet) has no status of its own."""
 
 
 class ExplainedRollup(_Response):
     """A Roll-up the Allocation contributes to, in the Allocation's currency and Cost Basis."""
 
-    level: Literal["model_execution", "workload_run"]
+    level: RollupLevel
     key: str
     """The Model Execution as `["<invocation>","<node>"]`, or the Workload Run's ID."""
     currency: CurrencyCode
