@@ -1519,6 +1519,255 @@
         }
       }
     },
+    "/v1/lineage": {
+      "get": {
+        "summary": "Lineage",
+        "description": "Without `run_id`, the topmost Workload Runs (paged); with it, that run's lineage:\nits family, Data Assets, Lineage Edges and the Identity Links that reach its Model\nExecutions and their Query Executions, each with its Link Outcome.",
+        "operationId": "lineage_v1_lineage_get",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 256
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Run Id"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 1000,
+              "minimum": 1,
+              "default": 100,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/RootRunPage"
+                    },
+                    {
+                      "$ref": "#/components/schemas/RunLineage"
+                    }
+                  ],
+                  "title": "Response Lineage V1 Lineage Get"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request: the detail names the fields, never their values.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "description": "An RFC 9457 Problem Details body.",
+                  "properties": {
+                    "type": {
+                      "default": "about:blank",
+                      "title": "Type",
+                      "type": "string"
+                    },
+                    "title": {
+                      "title": "Title",
+                      "type": "string"
+                    },
+                    "status": {
+                      "title": "Status",
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "title": "Detail",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "title",
+                    "status",
+                    "detail"
+                  ],
+                  "title": "Problem",
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "When a token is configured: no valid bearer token (ADR 0024).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "description": "An RFC 9457 Problem Details body.",
+                  "properties": {
+                    "type": {
+                      "default": "about:blank",
+                      "title": "Type",
+                      "type": "string"
+                    },
+                    "title": {
+                      "title": "Title",
+                      "type": "string"
+                    },
+                    "status": {
+                      "title": "Status",
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "title": "Detail",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "title",
+                    "status",
+                    "detail"
+                  ],
+                  "title": "Problem",
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An unexpected failure; the detail reveals nothing about it.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "description": "An RFC 9457 Problem Details body.",
+                  "properties": {
+                    "type": {
+                      "default": "about:blank",
+                      "title": "Type",
+                      "type": "string"
+                    },
+                    "title": {
+                      "title": "Title",
+                      "type": "string"
+                    },
+                    "status": {
+                      "title": "Status",
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "title": "Detail",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "title",
+                    "status",
+                    "detail"
+                  ],
+                  "title": "Problem",
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The database cannot be opened as a current data-finops database.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "description": "An RFC 9457 Problem Details body.",
+                  "properties": {
+                    "type": {
+                      "default": "about:blank",
+                      "title": "Type",
+                      "type": "string"
+                    },
+                    "title": {
+                      "title": "Title",
+                      "type": "string"
+                    },
+                    "status": {
+                      "title": "Status",
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "title": "Detail",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "title",
+                    "status",
+                    "detail"
+                  ],
+                  "title": "Problem",
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No event reports or names that Workload Run.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "description": "An RFC 9457 Problem Details body.",
+                  "properties": {
+                    "type": {
+                      "default": "about:blank",
+                      "title": "Type",
+                      "type": "string"
+                    },
+                    "title": {
+                      "title": "Title",
+                      "type": "string"
+                    },
+                    "status": {
+                      "title": "Status",
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "title": "Detail",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "title",
+                    "status",
+                    "detail"
+                  ],
+                  "title": "Problem",
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/allocations/{ref}/explanation": {
       "get": {
         "summary": "Explanation",
@@ -2624,6 +2873,26 @@
         "title": "CurrencySummary",
         "description": "One currency's part of a Cost Summary; never added to another currency's."
       },
+      "DataAsset": {
+        "properties": {
+          "namespace": {
+            "type": "string",
+            "title": "Namespace"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "namespace",
+          "name"
+        ],
+        "title": "DataAsset",
+        "description": "Identified by the OpenLineage dataset naming convention."
+      },
       "DbtNode": {
         "properties": {
           "node_id": {
@@ -3112,6 +3381,167 @@
         "title": "Health",
         "description": "Whether the database opens as a current data-finops database; a status, not an error."
       },
+      "IdentityLink": {
+        "properties": {
+          "source_type": {
+            "type": "string",
+            "title": "Source Type"
+          },
+          "source_id": {
+            "type": "string",
+            "title": "Source Id"
+          },
+          "target_type": {
+            "type": "string",
+            "title": "Target Type"
+          },
+          "target_id": {
+            "type": "string",
+            "title": "Target Id"
+          },
+          "evidence_type": {
+            "type": "string",
+            "title": "Evidence Type"
+          },
+          "evidence_value": {
+            "type": "string",
+            "title": "Evidence Value"
+          },
+          "policy_version": {
+            "type": "string",
+            "title": "Policy Version"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "source_type",
+          "source_id",
+          "target_type",
+          "target_id",
+          "evidence_type",
+          "evidence_value",
+          "policy_version"
+        ],
+        "title": "IdentityLink"
+      },
+      "InvocationLink": {
+        "properties": {
+          "invocation_id": {
+            "type": "string",
+            "title": "Invocation Id"
+          },
+          "outcome": {
+            "$ref": "#/components/schemas/LinkOutcome"
+          },
+          "linked_run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Linked Run Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "invocation_id",
+          "outcome",
+          "linked_run_id"
+        ],
+        "title": "InvocationLink",
+        "description": "The dbt invocation a run reports, and its Link Outcome to a Workload Run: `linked` to\nthis run, or for example `ambiguous` when several runs report it."
+      },
+      "LineageDirection": {
+        "type": "string",
+        "enum": [
+          "input",
+          "output"
+        ],
+        "title": "LineageDirection"
+      },
+      "LineageEdge": {
+        "properties": {
+          "run_id": {
+            "type": "string",
+            "title": "Run Id"
+          },
+          "asset": {
+            "$ref": "#/components/schemas/DataAsset"
+          },
+          "direction": {
+            "$ref": "#/components/schemas/LineageDirection"
+          },
+          "observed_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Observed At"
+          },
+          "provenance": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provenance"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "run_id",
+          "asset",
+          "direction",
+          "observed_at"
+        ],
+        "title": "LineageEdge"
+      },
+      "LineageModelExecution": {
+        "properties": {
+          "invocation_id": {
+            "type": "string",
+            "title": "Invocation Id"
+          },
+          "node_id": {
+            "type": "string",
+            "title": "Node Id"
+          },
+          "execution": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ModelExecution"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "queries": {
+            "items": {
+              "$ref": "#/components/schemas/QueryClaim"
+            },
+            "type": "array",
+            "title": "Queries"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "invocation_id",
+          "node_id",
+          "execution",
+          "queries"
+        ],
+        "title": "LineageModelExecution",
+        "description": "A Model Execution in a run's lineage, with the Query Executions that claim it."
+      },
       "LineageReceipt": {
         "properties": {
           "accepted": {
@@ -3149,6 +3579,41 @@
         ],
         "title": "LineageUnsupported",
         "description": "A valid JobEvent or DatasetEvent: received, not stored (spec 04)."
+      },
+      "LinkOutcome": {
+        "type": "string",
+        "enum": [
+          "linked",
+          "no_evidence",
+          "unmatched",
+          "ambiguous"
+        ],
+        "title": "LinkOutcome",
+        "description": "What became of an attempt to link a workload identity (GLOSSARY: Link Outcome)."
+      },
+      "LinkResolution": {
+        "properties": {
+          "outcome": {
+            "$ref": "#/components/schemas/LinkOutcome"
+          },
+          "link": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/IdentityLink"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "outcome"
+        ],
+        "title": "LinkResolution",
+        "description": "A Link Outcome, with the Identity Link only when the outcome is `linked`."
       },
       "ModelExecution": {
         "properties": {
@@ -3288,6 +3753,24 @@
         ],
         "title": "Provenance",
         "description": "How one Allocation Snapshot was made, enough to reproduce any figure in it."
+      },
+      "QueryClaim": {
+        "properties": {
+          "query_execution": {
+            "$ref": "#/components/schemas/QueryExecution"
+          },
+          "outcome": {
+            "$ref": "#/components/schemas/LinkOutcome"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "query_execution",
+          "outcome"
+        ],
+        "title": "QueryClaim",
+        "description": "A Query Execution whose Trusted Query Comment names a Model Execution, and what became\nof that claim (its Link Outcome): only `linked` makes an Identity Link; `ambiguous` and\n`unmatched` claims are shown so a missing link is explained, not hidden."
       },
       "QueryCorrelation": {
         "properties": {
@@ -3538,6 +4021,135 @@
         ],
         "title": "RollupPage",
         "description": "One page of one Allocation Snapshot's Roll-ups at one level, ordered by key."
+      },
+      "RootRunPage": {
+        "properties": {
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "limit": {
+            "type": "integer",
+            "title": "Limit"
+          },
+          "offset": {
+            "type": "integer",
+            "title": "Offset"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ExplainedWorkloadRun"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "total",
+          "limit",
+          "offset",
+          "items"
+        ],
+        "title": "RootRunPage",
+        "description": "The topmost Workload Runs, reported or only named as another run's parent or root."
+      },
+      "RunLineage": {
+        "properties": {
+          "run_id": {
+            "type": "string",
+            "title": "Run Id"
+          },
+          "run": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WorkloadRun"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "ancestors": {
+            "items": {
+              "$ref": "#/components/schemas/ExplainedWorkloadRun"
+            },
+            "type": "array",
+            "title": "Ancestors"
+          },
+          "children": {
+            "items": {
+              "$ref": "#/components/schemas/WorkloadRun"
+            },
+            "type": "array",
+            "title": "Children"
+          },
+          "data_assets": {
+            "items": {
+              "$ref": "#/components/schemas/DataAsset"
+            },
+            "type": "array",
+            "title": "Data Assets"
+          },
+          "lineage_edges": {
+            "items": {
+              "$ref": "#/components/schemas/LineageEdge"
+            },
+            "type": "array",
+            "title": "Lineage Edges"
+          },
+          "invocation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/InvocationLink"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "model_run_link": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LinkResolution"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "model_executions": {
+            "items": {
+              "$ref": "#/components/schemas/LineageModelExecution"
+            },
+            "type": "array",
+            "title": "Model Executions"
+          },
+          "unmatched_queries": {
+            "items": {
+              "$ref": "#/components/schemas/QueryClaim"
+            },
+            "type": "array",
+            "title": "Unmatched Queries"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "run_id",
+          "run",
+          "ancestors",
+          "children",
+          "data_assets",
+          "lineage_edges",
+          "invocation",
+          "model_run_link",
+          "model_executions",
+          "unmatched_queries"
+        ],
+        "title": "RunLineage",
+        "description": "One Workload Run and what surrounds it: its family, Data Assets, and the Identity\nLinks that reach its Model Executions and their Query Executions (ADR 0022)."
       },
       "ServedSnapshot": {
         "properties": {

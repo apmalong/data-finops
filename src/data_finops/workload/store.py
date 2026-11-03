@@ -26,6 +26,7 @@ from data_finops.contracts.workload import (
     DbtObservationFlag,
     LineageDirection,
     LineageEdge,
+    LinkOutcome,
     LinkResolution,
     ModelExecution,
     QueryCorrelation,
@@ -440,6 +441,31 @@ class WorkloadStore:
             ended_at=_moment(max(o.event_time_us for o in terminals)) if terminals else None,
         )
 
+    def root_runs(self) -> list[str]:
+        """The topmost Workload Runs, by run ID: each reported run's last ancestor, or the run
+        itself if it has none. A root known only from a ParentRunFacet is listed; within a
+        reported cycle, the run `ancestors` reaches last stands for it."""
+        rows = self._connection.execute(
+            "SELECT DISTINCT run_id FROM workload_lineage_event"
+        ).fetchall()
+        return sorted({(self.ancestors(run_id) or [run_id])[-1] for (run_id,) in rows})
+
+    def invocation_link_of_run(self, run_id: str) -> tuple[str, LinkResolution] | None:
+        """The dbt invocation a run reports as its invocation run, with the invocation's Link
+        Outcome (`workload_run_of_invocation`), or None for a run reporting no invocation, a
+        model run (ADR 0022) or a run naming several invocations."""
+        rows = self._connection.execute(
+            "SELECT DISTINCT dbt_invocation_id, dbt_node_id IS NOT NULL"
+            " FROM workload_lineage_event WHERE run_id = ? AND dbt_invocation_id IS NOT NULL",
+            (run_id,),
+        ).fetchall()
+        invocations = {invocation for invocation, _ in rows}
+        if len(invocations) != 1 or any(is_model_run for _, is_model_run in rows):
+            return None
+        (invocation_id,) = invocations
+        resolution = self.workload_run_of_invocation(invocation_id)
+        return None if resolution is None else (invocation_id, resolution)
+
     def children(self, run_id: str) -> list[WorkloadRun]:
         """Runs whose direct parent, as `workload_run` reports it, is `run_id`; by run ID.
 
@@ -844,18 +870,50 @@ class WorkloadStore:
         ambiguous) are left out.
         """
         target = ModelExecutionKey(invocation_id=invocation_id, node_id=node_id).target_id()
+        return [
+            query
+            for query, resolution in self.query_links_of_model_execution(invocation_id, node_id)
+            if _links_to(resolution, target)
+        ]
+
+    def unmatched_queries_of_invocation(
+        self, invocation_id: str
+    ) -> list[tuple[QueryExecution, LinkResolution]]:
+        """Query Executions whose Trusted Query Comment names this invocation but a node its run
+        results never reported: Link Outcome `unmatched`, by submission time and ID."""
+        candidates = self._connection.execute(
+            "SELECT DISTINCT account_id, region, query_execution_id"
+            " FROM workload_query_execution WHERE invocation_id = ?",
+            (invocation_id,),
+        ).fetchall()
+        unmatched = [
+            (query, resolution)
+            for key in candidates
+            if (resolution := self.model_execution_of_query(*key)) is not None
+            and resolution.outcome == LinkOutcome.UNMATCHED
+            and (query := self.query_execution(*key)) is not None
+        ]
+        return sorted(
+            unmatched, key=lambda claim: (claim[0].submitted_at, claim[0].query_execution_id)
+        )
+
+    def query_links_of_model_execution(
+        self, invocation_id: str, node_id: str
+    ) -> list[tuple[QueryExecution, LinkResolution]]:
+        """Every Query Execution whose Trusted Query Comment names this Model Execution, with
+        its Link Outcome (linked, or for example ambiguous), by submission time and ID."""
         candidates = self._connection.execute(
             "SELECT DISTINCT account_id, region, query_execution_id"
             " FROM workload_query_execution WHERE invocation_id = ? AND node_id = ?",
             (invocation_id, node_id),
         ).fetchall()
-        linked = [
-            query
+        links = [
+            (query, resolution)
             for key in candidates
-            if _links_to(self.model_execution_of_query(*key), target)
-            and (query := self.query_execution(*key)) is not None
+            if (query := self.query_execution(*key)) is not None
+            and (resolution := self.model_execution_of_query(*key)) is not None
         ]
-        return sorted(linked, key=lambda q: (q.submitted_at, q.query_execution_id))
+        return sorted(links, key=lambda link: (link[0].submitted_at, link[0].query_execution_id))
 
     def _reported_model_executions(
         self, claims: set[ModelExecutionKey]

@@ -31,7 +31,7 @@ from data_finops.contracts.billing import (
     parse_line_ref,
     snapshot_id_of,
 )
-from data_finops.contracts.workload import QueryExecution
+from data_finops.contracts.workload import LinkResolution, QueryExecution
 from data_finops.identity.links import ModelExecutionKey
 from data_finops.ledger import Ledger, StoredAllocations
 from data_finops.reporting.models import (
@@ -49,11 +49,16 @@ from data_finops.reporting.models import (
     ExplainedRollup,
     ExplainedWorkloadRun,
     ExportSnapshotRead,
+    InvocationLink,
+    LineageModelExecution,
     Provenance,
+    QueryClaim,
     RollupAmount,
     RollupEntry,
     RollupLevel,
     RollupPage,
+    RootRunPage,
+    RunLineage,
     ServedSnapshot,
     UnallocatedAmount,
 )
@@ -323,6 +328,93 @@ class Reporting:
         later = runs[runs.index(calculation_run_id) + 1 :]
         return later[0] if later else None
 
+    def root_runs(self, *, limit: int = 100, offset: int = 0) -> RootRunPage:
+        """The topmost Workload Runs: each reported run's last ancestor, or the run itself if
+        it has none, by run ID. A root known only from a ParentRunFacet is listed too."""
+        _check_page(limit, offset)
+        roots = self._store.root_runs()
+        return RootRunPage(
+            total=len(roots),
+            limit=limit,
+            offset=offset,
+            items=[
+                ExplainedWorkloadRun(run_id=run_id, run=self._store.workload_run(run_id))
+                for run_id in roots[offset : offset + limit]
+            ],
+        )
+
+    def lineage(self, run_id: str) -> RunLineage:
+        """One Workload Run's lineage; NotFound if no event reports or names it. Model and
+        Query Executions are reached only through Identity Links and their Link Outcomes."""
+        run = self._store.workload_run(run_id)
+        children = self._store.children(run_id)
+        if run is None and not children:
+            raise NotFound("no such Workload Run")
+        invocation = self._store.invocation_link_of_run(run_id)
+        model_run_link = None if invocation else self._store.model_execution_of_run(run_id)
+        linked_invocation = _linked_invocation(invocation, run_id)
+        return RunLineage(
+            run_id=run_id,
+            run=run,
+            ancestors=[
+                ExplainedWorkloadRun(run_id=a, run=self._store.workload_run(a))
+                for a in self._store.ancestors(run_id)
+            ],
+            children=children,
+            data_assets=self._store.data_assets(run_id),
+            lineage_edges=self._store.lineage_edges(run_id),
+            invocation=(
+                None
+                if invocation is None
+                else InvocationLink(
+                    invocation_id=invocation[0],
+                    outcome=invocation[1].outcome,
+                    linked_run_id=invocation[1].link.target_id if invocation[1].link else None,
+                )
+            ),
+            model_run_link=model_run_link,
+            model_executions=self._lineage_model_executions(linked_invocation, model_run_link),
+            unmatched_queries=[
+                QueryClaim(query_execution=query, outcome=resolution.outcome)
+                for query, resolution in (
+                    self._store.unmatched_queries_of_invocation(linked_invocation)
+                    if linked_invocation
+                    else []
+                )
+            ],
+        )
+
+    def _lineage_model_executions(
+        self, linked_invocation: str | None, model_run_link: LinkResolution | None
+    ) -> list[LineageModelExecution]:
+        """The invocation's Model Executions when it links to this run, or the model run's
+        linked Model Execution; none otherwise."""
+        if linked_invocation is not None:
+            executions = self._store.model_executions(linked_invocation)
+        elif model_run_link is not None and model_run_link.link is not None:
+            key = ModelExecutionKey.from_target_id(model_run_link.link.target_id)
+            executions = [
+                m
+                for m in self._store.model_executions(key.invocation_id)
+                if m.node_id == key.node_id
+            ]
+        else:
+            executions = []
+        return [
+            LineageModelExecution(
+                invocation_id=execution.invocation_id,
+                node_id=execution.node_id,
+                execution=execution,
+                queries=[
+                    QueryClaim(query_execution=query, outcome=resolution.outcome)
+                    for query, resolution in self._store.query_links_of_model_execution(
+                        execution.invocation_id, execution.node_id
+                    )
+                ],
+            )
+            for execution in executions
+        ]
+
     def explanation(self, ref: str) -> CostExplanation:
         """The Cost Explanation of the Allocation at `ref` (`<calculation_run_id>#<position>`),
         current or superseded; NotFound for an unknown or malformed reference."""
@@ -474,6 +566,13 @@ def _export_snapshot_ids(stored: StoredAllocations) -> list[str]:
     if recorded is not None:
         return [recorded]
     return sorted({snapshot_id_of(a.billing_line_ref) for a in stored.allocations})
+
+
+def _linked_invocation(invocation: tuple[str, LinkResolution] | None, run_id: str) -> str | None:
+    """The run's invocation, when its Identity Link targets this run."""
+    if invocation is None or invocation[1].link is None:
+        return None
+    return invocation[0] if invocation[1].link.target_id == run_id else None
 
 
 def _totals(rows: list[AllocationLineReconciliation]) -> list[AllocationCurrencyReconciliation]:

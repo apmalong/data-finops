@@ -42,6 +42,12 @@ class ModelExecutionKey(NamedTuple):
         """As an Identity Link target: `["<invocation>","<node>"]` (spec 02)."""
         return json.dumps([self.invocation_id, self.node_id], separators=(",", ":"))
 
+    @classmethod
+    def from_target_id(cls, target_id: str) -> "ModelExecutionKey":
+        """The Model Execution an Identity Link targets, from `target_id`'s encoding."""
+        invocation_id, node_id = json.loads(target_id)
+        return cls(invocation_id=invocation_id, node_id=node_id)
+
 
 class QueryExecutionKey(NamedTuple):
     """A Query Execution's identity: the provider's ID within an account and region."""
