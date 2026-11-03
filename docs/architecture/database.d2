@@ -20,6 +20,31 @@ ledger: Ledger (billing) {
     "position": INTEGER {constraint: [primary_key]}
     "line_json": TEXT {constraint: [not_null]}
   }
+  allocation_snapshot: {
+    shape: sql_table
+    "calculation_run_id": TEXT {constraint: [primary_key]}
+    "billing_account_id": TEXT {constraint: [not_null]}
+    "billing_period_start": TEXT {constraint: [not_null]}
+    "billing_period_end": TEXT {constraint: [not_null]}
+    "source": TEXT {constraint: [not_null]}
+    "input_digest": TEXT {constraint: [not_null]}
+    "policy_version": TEXT {constraint: [not_null]}
+    "created_at_us": INTEGER {constraint: [not_null]}
+  }
+  allocation: {
+    shape: sql_table
+    "calculation_run_id": TEXT {constraint: [primary_key; foreign_key]}
+    "position": INTEGER {constraint: [primary_key]}
+    "allocation_json": TEXT {constraint: [not_null]}
+  }
+  current_allocation_snapshot: {
+    shape: sql_table
+    "billing_account_id": TEXT {constraint: [primary_key]}
+    "billing_period_start": TEXT {constraint: [primary_key]}
+    "billing_period_end": TEXT {constraint: [primary_key]}
+    "source": TEXT {constraint: [primary_key]}
+    "calculation_run_id": TEXT {constraint: [foreign_key; not_null]}
+  }
 }
 
 workload: Workload store {
@@ -97,3 +122,5 @@ workload: Workload store {
 }
 
 ledger.billing_line."snapshot_id" -> ledger.export_snapshot."snapshot_id"
+ledger.allocation."calculation_run_id" -> ledger.allocation_snapshot."calculation_run_id"
+ledger.current_allocation_snapshot."calculation_run_id" -> ledger.allocation_snapshot."calculation_run_id"

@@ -1,13 +1,14 @@
 """SQLite-backed Ledger (ADR 0018). Storage is private to this module.
 
-Snapshots and lines are stored as their contract JSON, so amounts keep their exact
-value and scale and every FOCUS column, including `x_` extensions, round-trips.
+Snapshots, lines and Allocations are stored as their contract JSON, so amounts keep
+their exact value and scale and every FOCUS column, including `x_` extensions,
+round-trips.
 """
 
 import hashlib
 import json
 import sqlite3
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -16,6 +17,7 @@ from pathlib import Path
 from types import TracebackType
 from typing import Self
 
+from data_finops.contracts.allocation import Allocation, AllocationSnapshot
 from data_finops.contracts.billing import (
     CostBasis,
     ExportSnapshot,
@@ -42,6 +44,30 @@ CREATE TABLE IF NOT EXISTS billing_line (
     line_json TEXT NOT NULL,
     PRIMARY KEY (snapshot_id, position)
 );
+CREATE TABLE IF NOT EXISTS allocation_snapshot (
+    calculation_run_id TEXT PRIMARY KEY,
+    billing_account_id TEXT NOT NULL,
+    billing_period_start TEXT NOT NULL,
+    billing_period_end TEXT NOT NULL,
+    source TEXT NOT NULL,
+    input_digest TEXT NOT NULL,
+    policy_version TEXT NOT NULL,
+    created_at_us INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS allocation (
+    calculation_run_id TEXT NOT NULL REFERENCES allocation_snapshot (calculation_run_id),
+    position INTEGER NOT NULL,
+    allocation_json TEXT NOT NULL,
+    PRIMARY KEY (calculation_run_id, position)
+);
+CREATE TABLE IF NOT EXISTS current_allocation_snapshot (
+    billing_account_id TEXT NOT NULL,
+    billing_period_start TEXT NOT NULL,
+    billing_period_end TEXT NOT NULL,
+    source TEXT NOT NULL,
+    calculation_run_id TEXT NOT NULL REFERENCES allocation_snapshot (calculation_run_id),
+    PRIMARY KEY (billing_account_id, billing_period_start, billing_period_end, source)
+);
 """
 
 
@@ -52,6 +78,31 @@ _EPOCH = datetime(1970, 1, 1, tzinfo=UTC)
 
 class SnapshotConflictError(Exception):
     """A snapshot ID is already stored with different billing content."""
+
+
+class AllocationSnapshotConflictError(Exception):
+    """A Calculation Run ID is already stored with a different input digest."""
+
+
+class AllocationStoreOutcome(StrEnum):
+    NEW = "new"
+    """Stored, and now the current Allocation Snapshot for its scope."""
+    REPLAY = "replay"
+    """Nothing stored: a snapshot with this input digest already exists for the scope,
+    and it is now current."""
+
+
+@dataclass(frozen=True)
+class AllocationStoreResult:
+    outcome: AllocationStoreOutcome
+    calculation_run_id: str
+    """The snapshot now current: the one just stored, or the one with the same inputs."""
+
+
+@dataclass(frozen=True)
+class StoredAllocations:
+    snapshot: AllocationSnapshot
+    allocations: list[Allocation]
 
 
 class ImportOutcome(StrEnum):
@@ -79,9 +130,12 @@ class ImportResult:
 
 
 class Ledger:
-    """The immutable, versioned record of Export Snapshots, opened from a database file."""
+    """The immutable, versioned record of Export Snapshots and the Allocation Snapshots
+    computed from them, opened from a database file."""
 
-    def __init__(self, path: Path) -> None:
+    def __init__(self, path: Path, *, clock: Callable[[], datetime] = lambda: datetime.now(UTC)):
+        """Open the Ledger in `path`; `clock` stamps Allocation Snapshots' creation."""
+        self._clock = clock
         self._connection = sqlite3.connect(path, isolation_level=None)
         self._connection.execute("PRAGMA journal_mode=WAL")
         self._connection.execute("PRAGMA foreign_keys=ON")
@@ -181,6 +235,117 @@ class Ledger:
         if stored is None:
             raise LookupError(f"snapshot {source.snapshot.snapshot_id} is not in the Ledger")
         return reconciliation.reconcile(source, stored, basis)
+
+    def store_allocations(
+        self,
+        scope: SnapshotScope,
+        *,
+        calculation_run_id: str,
+        policy_version: str,
+        input_digest: str,
+        allocations: Sequence[Allocation],
+    ) -> AllocationStoreResult:
+        """Store a Calculation Run's Allocations as the current snapshot for `scope`.
+
+        Unless they replay it: inputs equal to the scope's *current* snapshot (same input
+        digest) store nothing (spec 03 step H). Otherwise the snapshot is stored
+        atomically and becomes current, and every earlier one is retained; as for Export
+        Snapshots (ADR 0020), inputs equal to a superseded snapshot make a new one. Raises
+        AllocationSnapshotConflictError if the run ID is already stored, and ValueError if
+        an Allocation names another Calculation Run or policy version.
+        """
+        for allocation in allocations:
+            named = (allocation.calculation_run_id, allocation.policy_version)
+            if named != (calculation_run_id, policy_version):
+                raise ValueError(
+                    f"an Allocation names Calculation Run {named[0]} under policy {named[1]},"
+                    f" not {calculation_run_id} under {policy_version}"
+                )
+        with self._write_transaction():
+            current = self._current_allocation_run(scope)
+            if current is not None and self._connection.execute(
+                "SELECT input_digest FROM allocation_snapshot WHERE calculation_run_id = ?",
+                (current,),
+            ).fetchone() == (input_digest,):
+                return AllocationStoreResult(AllocationStoreOutcome.REPLAY, current)
+            if self._connection.execute(
+                "SELECT 1 FROM allocation_snapshot WHERE calculation_run_id = ?",
+                (calculation_run_id,),
+            ).fetchone():
+                raise AllocationSnapshotConflictError(
+                    f"Calculation Run {calculation_run_id} is already stored"
+                )
+            self._connection.execute(
+                "INSERT INTO allocation_snapshot (calculation_run_id, billing_account_id,"
+                " billing_period_start, billing_period_end, source, input_digest,"
+                " policy_version, created_at_us) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    calculation_run_id,
+                    *_scope_key(scope),
+                    input_digest,
+                    policy_version,
+                    _microseconds(self._clock()),
+                ),
+            )
+            self._connection.executemany(
+                "INSERT INTO allocation (calculation_run_id, position, allocation_json)"
+                " VALUES (?, ?, ?)",
+                [
+                    (calculation_run_id, position, allocation.model_dump_json())
+                    for position, allocation in enumerate(allocations)
+                ],
+            )
+            self._connection.execute(
+                "INSERT INTO current_allocation_snapshot (billing_account_id,"
+                " billing_period_start, billing_period_end, source, calculation_run_id)"
+                " VALUES (?, ?, ?, ?, ?) ON CONFLICT (billing_account_id,"
+                " billing_period_start, billing_period_end, source)"
+                " DO UPDATE SET calculation_run_id = excluded.calculation_run_id",
+                (*_scope_key(scope), calculation_run_id),
+            )
+        return AllocationStoreResult(AllocationStoreOutcome.NEW, calculation_run_id)
+
+    def current_allocations(self, scope: SnapshotScope) -> StoredAllocations | None:
+        """The scope's current Allocation Snapshot: the latest Calculation Run's."""
+        current = self._current_allocation_run(scope)
+        return None if current is None else self.allocation_snapshot(current)
+
+    def allocation_snapshot(self, calculation_run_id: str) -> StoredAllocations | None:
+        """Any stored Allocation Snapshot, current or superseded."""
+        row = self._connection.execute(
+            "SELECT s.input_digest, s.policy_version, s.created_at_us,"
+            " c.calculation_run_id IS NOT NULL FROM allocation_snapshot s"
+            " LEFT JOIN current_allocation_snapshot c"
+            " ON c.calculation_run_id = s.calculation_run_id"
+            " WHERE s.calculation_run_id = ?",
+            (calculation_run_id,),
+        ).fetchone()
+        if row is None:
+            return None
+        input_digest, policy_version, created_at_us, is_current = row
+        rows = self._connection.execute(
+            "SELECT allocation_json FROM allocation WHERE calculation_run_id = ? ORDER BY position",
+            (calculation_run_id,),
+        ).fetchall()
+        return StoredAllocations(
+            snapshot=AllocationSnapshot(
+                calculation_run_id=calculation_run_id,
+                policy_version=policy_version,
+                input_digest=input_digest,
+                created_at=_EPOCH + timedelta(microseconds=created_at_us),
+                is_current=bool(is_current),
+            ),
+            allocations=[Allocation.model_validate_json(stored) for (stored,) in rows],
+        )
+
+    def _current_allocation_run(self, scope: SnapshotScope) -> str | None:
+        row = self._connection.execute(
+            "SELECT calculation_run_id FROM current_allocation_snapshot"
+            " WHERE billing_account_id = ? AND billing_period_start = ?"
+            " AND billing_period_end = ? AND source = ?",
+            _scope_key(scope),
+        ).fetchone()
+        return None if row is None else str(row[0])
 
     def _load(self, stored: _StoredSnapshot) -> FocusExport:
         lines = self._connection.execute(
