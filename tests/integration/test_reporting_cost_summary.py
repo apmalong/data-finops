@@ -244,6 +244,8 @@ def test_a_file_the_stores_refuse_is_unavailable(tmp_path: Path) -> None:
     before_m3 = tmp_path / "m2.sqlite"
     with sqlite3.connect(before_m3) as m2_file:  # M2's table, without the columns M3 added
         m2_file.execute("CREATE TABLE workload_lineage_event (run_id TEXT)")
-    for path in (not_a_database, before_m3):
+    missing = tmp_path / "typo.sqlite"
+    for path in (not_a_database, before_m3, missing):
         with pytest.raises(DatabaseUnavailable):
             Reporting(path)
+    assert not missing.exists()

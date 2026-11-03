@@ -1,6 +1,6 @@
 """Write the API's OpenAPI 3.1 document to `schemas/openapi.json` (spec 06).
 
-Run `python -m data_finops.api.openapi` after changing a route or response model;
+Run `uv run python -m data_finops.api.openapi` after changing a route or response model;
 `tests/contract/test_openapi_up_to_date.py` fails while the file is stale.
 """
 

@@ -20,7 +20,7 @@ from data_finops.reporting.models import (
     ServedSnapshot,
     UnallocatedAmount,
 )
-from data_finops.workload.store import WorkloadStore
+from data_finops.workload.store import StaleDatabaseError, WorkloadStore
 
 
 class DatabaseUnavailable(Exception):
@@ -31,14 +31,19 @@ class Reporting:
     """The read model over one database file."""
 
     def __init__(self, path: Path) -> None:
-        """Open both stores; raises DatabaseUnavailable if either refuses the file."""
+        """Open both stores on an existing file; raises DatabaseUnavailable if there is no
+        file or either store refuses it, so a wrong path is reported rather than created."""
+        if not path.is_file():
+            raise DatabaseUnavailable
         try:
             self._ledger = Ledger(path)
         except sqlite3.DatabaseError:
             raise DatabaseUnavailable from None
         try:
+            # Held open from the start, so a stale workload schema is reported here, by
+            # `/health`, rather than by the first read that needs the store.
             self._store = WorkloadStore(path)
-        except (sqlite3.DatabaseError, RuntimeError):
+        except (sqlite3.DatabaseError, StaleDatabaseError):
             self._ledger.close()
             raise DatabaseUnavailable from None
 

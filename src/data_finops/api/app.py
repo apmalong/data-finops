@@ -5,7 +5,7 @@ from datetime import date
 from pathlib import Path
 from typing import Annotated, Any, Literal
 
-from fastapi import Depends, FastAPI, Request, Response
+from fastapi import Depends, FastAPI, Query, Request, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse
@@ -28,10 +28,13 @@ class Problem(BaseModel):
 
 
 class Health(BaseModel):
+    """Whether the database opens as a current data-finops database; a status, not an error."""
+
     status: Literal["ok", "unavailable"]
 
 
-def _problem_response(description: str) -> dict[str, Any]:
+def _problem_doc(description: str) -> dict[str, Any]:
+    """An OpenAPI response entry for a Problem Details body."""
     return {
         "description": description,
         "content": {PROBLEM: {"schema": Problem.model_json_schema()}},
@@ -39,8 +42,9 @@ def _problem_response(description: str) -> dict[str, Any]:
 
 
 _READ_PROBLEMS: dict[int | str, dict[str, Any]] = {
-    400: _problem_response("Invalid request: the detail names the fields, never their values."),
-    503: _problem_response("The database cannot be opened as a current data-finops database."),
+    400: _problem_doc("Invalid request: the detail names the fields, never their values."),
+    500: _problem_doc("An unexpected failure; the detail reveals nothing about it."),
+    503: _problem_doc("The database cannot be opened as a current data-finops database."),
 }
 
 
@@ -66,7 +70,7 @@ def create_app(db: Path) -> FastAPI:
     def cost_summary(
         read_model: Annotated[Reporting, Depends(reporting)],
         cost_basis: CostBasis = CostBasis.BILLED_COST,
-        billing_account_id: str | None = None,
+        billing_account_id: Annotated[str | None, Query(max_length=128)] = None,
         billing_period: date | None = None,
     ) -> CostSummaries:
         """One Cost Summary per Snapshot Scope, for the scope's current Allocation Snapshot."""
@@ -81,15 +85,19 @@ def create_app(db: Path) -> FastAPI:
         fields = sorted(
             {".".join(map(str, e["loc"][1:])) or str(e["loc"][0]) for e in error.errors()}
         )
-        return _problem(400, "Invalid request", f"Invalid value for: {', '.join(fields)}.")
+        return _problem_json(400, "Invalid request", f"Invalid value for: {', '.join(fields)}.")
 
     @app.exception_handler(HTTPException)
     def http_error(request: Request, error: HTTPException) -> JSONResponse:
-        return _problem(error.status_code, str(error.detail), str(error.detail))
+        return _problem_json(error.status_code, str(error.detail), str(error.detail))
+
+    @app.exception_handler(Exception)
+    def unexpected(request: Request, error: Exception) -> JSONResponse:
+        return _problem_json(500, "Internal error", "The request could not be completed.")
 
     @app.exception_handler(DatabaseUnavailable)
     def unavailable(request: Request, error: DatabaseUnavailable) -> JSONResponse:
-        return _problem(503, "Database unavailable", "The database cannot be opened.")
+        return _problem_json(503, "Database unavailable", "The database cannot be opened.")
 
     def openapi() -> dict[str, Any]:
         """The generated document without FastAPI's 422 entries: invalid input answers 400."""
@@ -109,6 +117,6 @@ def create_app(db: Path) -> FastAPI:
     return app
 
 
-def _problem(status: int, title: str, detail: str) -> JSONResponse:
+def _problem_json(status: int, title: str, detail: str) -> JSONResponse:
     body = Problem(title=title, status=status, detail=detail).model_dump()
     return JSONResponse(body, status_code=status, media_type=PROBLEM)

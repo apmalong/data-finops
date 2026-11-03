@@ -160,6 +160,10 @@ _COMMENT_KEY = "dbt_query_comment"
 _EPOCH = datetime(1970, 1, 1, tzinfo=UTC)
 
 
+class StaleDatabaseError(RuntimeError):
+    """The database file predates the current workload schema; recreate it (no migrations)."""
+
+
 @dataclass(frozen=True)
 class IngestResult:
     accepted: int
@@ -286,7 +290,7 @@ class WorkloadStore:
             missing = columns - present
             if present and missing:
                 self._connection.close()
-                raise RuntimeError(
+                raise StaleDatabaseError(
                     f"{table} lacks {', '.join(sorted(missing))}: this database file predates"
                     " the current workload schema; recreate it and re-ingest"
                 )

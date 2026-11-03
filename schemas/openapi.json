@@ -57,7 +57,8 @@
             "schema": {
               "anyOf": [
                 {
-                  "type": "string"
+                  "type": "string",
+                  "maxLength": 128
                 },
                 {
                   "type": "null"
@@ -97,6 +98,42 @@
           },
           "400": {
             "description": "Invalid request: the detail names the fields, never their values.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "description": "An RFC 9457 Problem Details body.",
+                  "properties": {
+                    "type": {
+                      "default": "about:blank",
+                      "title": "Type",
+                      "type": "string"
+                    },
+                    "title": {
+                      "title": "Title",
+                      "type": "string"
+                    },
+                    "status": {
+                      "title": "Status",
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "title": "Detail",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "title",
+                    "status",
+                    "detail"
+                  ],
+                  "title": "Problem",
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An unexpected failure; the detail reveals nothing about it.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -371,7 +408,8 @@
         "required": [
           "status"
         ],
-        "title": "Health"
+        "title": "Health",
+        "description": "Whether the database opens as a current data-finops database; a status, not an error."
       },
       "ServedSnapshot": {
         "properties": {

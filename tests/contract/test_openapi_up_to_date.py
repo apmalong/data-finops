@@ -10,11 +10,11 @@ COMMITTED = Path(__file__).resolve().parents[2] / "schemas" / "openapi.json"
 
 def test_the_committed_openapi_document_matches_the_app():
     assert json.loads(COMMITTED.read_text(encoding="utf-8")) == document(), (
-        "schemas/openapi.json is stale; run `python -m data_finops.api.openapi`"
+        "schemas/openapi.json is stale; run `uv run python -m data_finops.api.openapi`"
     )
 
 
-def test_the_document_is_openapi_3_1_and_answers_invalid_input_with_problems():
+def test_the_document_is_openapi_3_1_without_fastapis_422_entries():
     generated = document()
     assert generated["openapi"].startswith("3.1.")
     responses = [

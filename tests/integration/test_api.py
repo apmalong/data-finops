@@ -116,6 +116,7 @@ def test_an_unknown_path_is_a_problem(client: TestClient) -> None:
 def test_health_reports_a_usable_database(client: TestClient) -> None:
     response = client.get("/health")
     assert (response.status_code, response.json()) == (200, {"status": "ok"})
+    _valid_response("/health", 200, response.json())
 
 
 def test_health_reports_a_file_that_is_not_a_database(tmp_path: Path) -> None:
@@ -127,3 +128,39 @@ def test_health_reports_a_file_that_is_not_a_database(tmp_path: Path) -> None:
     assert (health.status_code, health.json()) == (503, {"status": "unavailable"})
     assert (summary.status_code, summary.headers["content-type"]) == (503, PROBLEM)
     assert "notes.txt" not in summary.text
+
+
+def test_a_database_path_with_no_file_is_unavailable_and_never_created(tmp_path: Path) -> None:
+    missing = tmp_path / "typo.sqlite"
+    with TestClient(create_app(missing), raise_server_exceptions=False) as client:
+        health = client.get("/health")
+        summary = client.get("/v1/costs/summary")
+    assert (health.status_code, health.json()) == (503, {"status": "unavailable"})
+    _valid_response("/health", 503, health.json())
+    assert summary.status_code == 503
+    _valid_response("/v1/costs/summary", 503, summary.json())
+    assert not missing.exists()
+
+
+def test_an_unexpected_failure_is_a_problem_that_reveals_nothing(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def fail(*args: object, **kwargs: object) -> None:
+        raise RuntimeError("SELECT secret FROM internals")
+
+    monkeypatch.setattr(Reporting, "cost_summary", fail)
+    response = client.get("/v1/costs/summary")
+    assert (response.status_code, response.headers["content-type"]) == (500, PROBLEM)
+    assert response.json()["status"] == 500
+    assert "secret" not in response.text and "SELECT" not in response.text
+
+
+def test_an_overlong_account_filter_is_refused(client: TestClient) -> None:
+    response = client.get("/v1/costs/summary", params={"billing_account_id": "1" * 129})
+    assert (response.status_code, response.headers["content-type"]) == (400, PROBLEM)
+
+
+def test_no_response_carries_sql_or_database_details(client: TestClient) -> None:
+    for path in ("/health", "/v1/costs/summary", "/v1/costs/summary?cost_basis=x", "/nope"):
+        text = client.get(path).text.lower()
+        assert not any(word in text for word in ("select ", "sqlite", "insert ", ".sqlite"))
