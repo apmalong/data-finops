@@ -36,8 +36,9 @@ def load_parquet_export(files: Iterable[Path], snapshot: ExportSnapshot) -> Focu
     reader records a sha256 for every file it reads, replacing `snapshot.files`.
     Files are read in path order (file name first), so line positions never depend on
     how the files were listed. Provider doubles, at any nesting depth, become their
-    shortest round-trip decimal and keep their raw value (OQ-21). Timestamps without
-    a zone are UTC, as FOCUS requires.
+    shortest round-trip decimal and keep their raw value (OQ-21). Timestamps are UTC, as
+    FOCUS requires: a zoned one (AWS writes `timestamp[ms, tz=UTC]`) is read as its UTC
+    instant without a time-zone database, which Windows lacks; one without a zone is UTC.
     """
     lines: list[FocusBillingLine] = []
     hashes: list[SnapshotFile] = []
@@ -45,9 +46,41 @@ def load_parquet_export(files: Iterable[Path], snapshot: ExportSnapshot) -> Focu
         content = path.read_bytes()
         hashes.append(SnapshotFile(path=path.name, sha256=hashlib.sha256(content).hexdigest()))
         table = pq.read_table(pa.BufferReader(content))  # type: ignore[no-untyped-call]
+        table = table.cast(zoneless_utc_schema(table.schema))
         map_columns = {f.name for f in table.schema if pa.types.is_map(f.type)}
         lines += [_focus_line(row, map_columns) for row in table.to_pylist()]
     return FocusExport(snapshot=snapshot.model_copy(update={"files": hashes}), lines=lines)
+
+
+def zoneless_utc_schema(schema: pa.Schema) -> pa.Schema:
+    """`schema` with every zoned timestamp as a zoneless one holding its UTC wall clock.
+
+    Arrow stores a zoned timestamp as its UTC instant, so casting a table to this schema
+    keeps every value, and converting it to Python never resolves a zone's name (which
+    needs a time-zone database; Windows has none). Timestamps inside structs, maps, lists,
+    large lists and fixed-size lists are rewritten too; other nested types are left alone.
+    """
+    return pa.schema([_zoneless_field(field) for field in schema], metadata=schema.metadata)
+
+
+def _zoneless_field(field: pa.Field) -> pa.Field:
+    return field.with_type(_zoneless(field.type))
+
+
+def _zoneless(type_: pa.DataType) -> pa.DataType:
+    if pa.types.is_timestamp(type_):
+        return pa.timestamp(type_.unit)
+    if pa.types.is_struct(type_):
+        return pa.struct([_zoneless_field(type_.field(i)) for i in range(type_.num_fields)])
+    if pa.types.is_map(type_):
+        return pa.map_(_zoneless_field(type_.key_field), _zoneless_field(type_.item_field))
+    if pa.types.is_fixed_size_list(type_):
+        return pa.list_(_zoneless_field(type_.value_field), type_.list_size)
+    if pa.types.is_large_list(type_):
+        return pa.large_list(_zoneless_field(type_.value_field))
+    if pa.types.is_list(type_):
+        return pa.list_(_zoneless_field(type_.value_field))
+    return type_
 
 
 def _focus_line(row: dict[str, Any], map_columns: set[str]) -> FocusBillingLine:

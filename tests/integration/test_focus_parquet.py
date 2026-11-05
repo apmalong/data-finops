@@ -1,7 +1,7 @@
 """FOCUS Parquet export reader through its public interface (seam agreed in #6)."""
 
 import hashlib
-from datetime import datetime
+from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
 
@@ -16,7 +16,8 @@ FIXTURE = Path(__file__).resolve().parents[2] / "fixtures" / "focus" / "export-2
 SNAPSHOT = load_export(FIXTURE).snapshot
 
 # AWS publishes FOCUS cost and quantity columns as double and periods as
-# timestamp_milliseconds (AWS FOCUS 1.2 column dictionary).
+# timestamp_milliseconds (AWS FOCUS 1.2 column dictionary), zoned UTC as the real 2026-10 and
+# 2026-11 exports are.
 SCHEMA = pa.schema(
     [
         ("BilledCost", pa.float64()),
@@ -26,10 +27,10 @@ SCHEMA = pa.schema(
         ("ConsumedQuantity", pa.float64()),
         ("BillingAccountId", pa.string()),
         ("BillingCurrency", pa.string()),
-        ("BillingPeriodStart", pa.timestamp("ms")),
-        ("BillingPeriodEnd", pa.timestamp("ms")),
-        ("ChargePeriodStart", pa.timestamp("ms")),
-        ("ChargePeriodEnd", pa.timestamp("ms")),
+        ("BillingPeriodStart", pa.timestamp("ms", tz="UTC")),
+        ("BillingPeriodEnd", pa.timestamp("ms", tz="UTC")),
+        ("ChargePeriodStart", pa.timestamp("ms", tz="UTC")),
+        ("ChargePeriodEnd", pa.timestamp("ms", tz="UTC")),
         ("ChargeCategory", pa.string()),
         ("ProviderName", pa.string()),
         ("ServiceName", pa.string()),
@@ -50,10 +51,10 @@ def _row(cost: float, service: str = "Amazon Athena", **overrides: object) -> di
         "ConsumedQuantity": 0.001,
         "BillingAccountId": "123456789012",
         "BillingCurrency": "USD",
-        "BillingPeriodStart": datetime(2026, 10, 1),
-        "BillingPeriodEnd": datetime(2026, 11, 1),
-        "ChargePeriodStart": datetime(2026, 10, 1),
-        "ChargePeriodEnd": datetime(2026, 10, 2),
+        "BillingPeriodStart": datetime(2026, 10, 1, tzinfo=UTC),
+        "BillingPeriodEnd": datetime(2026, 11, 1, tzinfo=UTC),
+        "ChargePeriodStart": datetime(2026, 10, 1, tzinfo=UTC),
+        "ChargePeriodEnd": datetime(2026, 10, 2, tzinfo=UTC),
         "ChargeCategory": "Usage",
         "ProviderName": "AWS",
         "ServiceName": service,
@@ -174,3 +175,54 @@ def test_files_with_the_same_name_in_different_folders_order_by_full_path(tmp_pa
     export = load_parquet_export([in_b, in_a], SNAPSHOT)
 
     assert [line.model_dump(mode="json")["BilledCost"] for line in export.lines] == ["1.5", "2.5"]
+
+
+def test_timestamps_without_a_zone_are_read_as_utc(tmp_path):
+    rows = [_row(6.0, BillingPeriodStart=datetime(2026, 10, 1))]
+    naive = SCHEMA.set(
+        SCHEMA.get_field_index("BillingPeriodStart"),
+        pa.field("BillingPeriodStart", pa.timestamp("ms")),
+    )
+    part = tmp_path / "part-00001.parquet"
+    pq.write_table(pa.Table.from_pylist(rows, schema=naive), part)
+
+    line = load_parquet_export([part], SNAPSHOT).lines[0]
+
+    assert line.BillingPeriodStart == datetime(2026, 10, 1, tzinfo=UTC)
+
+
+def test_zoned_timestamps_nested_in_structs_lists_and_maps_are_read_as_utc(tmp_path):
+    zoned = pa.timestamp("ms", tz="UTC")
+    schema = (
+        SCHEMA.append(pa.field("x_Window", pa.struct([("start", zoned)])))
+        .append(pa.field("x_Times", pa.list_(zoned)))
+        .append(pa.field("x_Pair", pa.list_(zoned, 2)))
+        .append(pa.field("x_ByName", pa.map_(pa.string(), zoned)))
+    )
+    six = datetime(2026, 10, 1, 6, tzinfo=UTC)
+    rows = [
+        _row(6.0, x_Window={"start": six}, x_Times=[six], x_Pair=[six, six], x_ByName=[("a", six)])
+    ]
+    part = tmp_path / "part-00001.parquet"
+    pq.write_table(pa.Table.from_pylist(rows, schema=schema), part)
+
+    line = load_parquet_export([part], SNAPSHOT).lines[0].model_dump(mode="json")
+
+    assert line["x_Window"] == {"start": "2026-10-01T06:00:00Z"}
+    assert line["x_Times"] == ["2026-10-01T06:00:00Z"]
+    assert line["x_Pair"] == ["2026-10-01T06:00:00Z"] * 2
+    assert line["x_ByName"] == {"a": "2026-10-01T06:00:00Z"}
+
+
+def test_a_timestamp_in_another_zone_is_read_as_its_utc_instant(tmp_path):
+    rows = [_row(6.0)]
+    schema = SCHEMA.set(
+        SCHEMA.get_field_index("ChargePeriodStart"),
+        pa.field("ChargePeriodStart", pa.timestamp("ms", tz="+05:00")),
+    )
+    part = tmp_path / "part-00001.parquet"
+    pq.write_table(pa.Table.from_pylist(rows, schema=schema), part)
+
+    line = load_parquet_export([part], SNAPSHOT).lines[0]
+
+    assert line.ChargePeriodStart == datetime(2026, 10, 1, tzinfo=UTC)
