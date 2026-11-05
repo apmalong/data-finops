@@ -63,6 +63,42 @@ Records for each step are on the issues; account and bucket identifiers stay out
 - #35: the anonymized sample is in `fixtures/reference-workload/` (Athena history, one manifest, three run results, OpenLineage JSON Lines; 716 KB). Account pseudonym replaced by the AWS placeholder and Athena timestamps converted to UTC for the public copy. A scan for the original account ID, bucket, local paths, user names, AWS profile name and dbt `project_id` found none. Contract tests pass; `verify_upstream.py` now checks the sample by default: 0 failures.
 - #36: field allowlists for dbt manifests, run results and OpenLineage events (`scripts/anonymize_workload_fields.py`): unknown fields are dropped and counted by path, free text pseudonymized, unread dbt collections emptied; timestamps with a UTC offset become UTC. On #24's outputs the only non-`args` drop was `dbt_model.config.incremental` (then reviewed and allowed); scans clean; 17 comments still link; 20 OpenLineage invocations match; `verify_upstream.py` 0 failures. `fixtures/reference-workload/` regenerated with the new rules (messages, doc blocks and tag values now pseudonymized) and rescanned: clean.
 
+## M1: offline billing ledger, verified against a real export (2026-11-05)
+#7–#11 built the Ledger on hand-written fixtures. #12 closes M1 against the owner's real AWS FOCUS 1.2 deliveries for 2026-10 and 2026-11, read from `.local/` (git-ignored). Account IDs are masked in the output below.
+
+- **Manifest reader:** `data-finops ingest focus <export>-Manifest.json [--data-dir DIR]` reads one AWS Data Exports delivery as an Export Snapshot.
+  - Only the data files the manifest lists are read.
+  - `published_at` is the execution's `CreatedAt`, taken from the S3 folder named in the manifest's `dataFiles` (ADR 0020 amendment: neither manifest records a publication time).
+  - The FOCUS release must be the pinned 1.2.
+  - `uv run pytest tests/integration/test_aws_data_exports.py` → 14 passed.
+- **Real deliveries, ingested twice each through the command line:**
+  ```text
+  focus: new aws-focus-<acct>-2026-10-6125b072-049f-358a-92f6-27ad54abd4f3
+  focus: replay aws-focus-<acct>-2026-10-6125b072-049f-358a-92f6-27ad54abd4f3
+  focus: new aws-focus-<acct>-2026-11-980aa446-5e52-3927-9bca-c5774fc47fe8
+  focus: replay aws-focus-<acct>-2026-11-980aa446-5e52-3927-9bca-c5774fc47fe8
+  ```
+- **Reconciliation per Billing Line:**
+  ```text
+  2026-10  BilledCost     7984 lines  balanced  USD -0.0000169624 = -0.0000169624  lines with a non-zero delta: 0
+  2026-10  EffectiveCost  7984 lines  balanced  USD -0.0000169624 = -0.0000169624  lines with a non-zero delta: 0
+  2026-11  BilledCost      918 lines  balanced  USD -0.0000011680 = -0.0000011680  lines with a non-zero delta: 0
+  2026-11  EffectiveCost   918 lines  balanced  USD -0.0000011680 = -0.0000011680  lines with a non-zero delta: 0
+  ```
+- **Restatement in any import order:** an earlier 2026-11 delivery (2026-11-05 13:06 UTC), imported after the later one, was stored as history:
+  ```text
+  focus: superseded aws-focus-<acct>-2026-11-0771642f-2e82-3988-b27a-f8171b7deb3d
+  ```
+- **OQ-21 confirmed:** of 91,091 doubles, none needs more than 15 significant digits for its shortest round-trip form, which has 1 to 12 decimal places.
+- **Found on the way:**
+  - The reader failed on AWS's zoned UTC timestamps on Windows, fixed in PR #136.
+  - A Windows download cannot keep AWS's folder names, whose colons Windows forbids, hence `--data-dir` and reading the folder from the manifest.
+- **Gates on the branch:**
+  - `uv run pytest -q` → 715 passed;
+  - `uv run ruff check .` → All checks passed;
+  - `uv run mypy src` → no issues in 38 source files;
+  - `uv run bandit -q -r src scripts` → no issues.
+
 ## M2: workload metadata (2026-11-01)
 Spec #40, tickets #41–#48; decisions in ADR 0022 and the ADR 0018 amendment (PR #39). Each ticket was written test-first at the agreed seam (the workload store's public interface on a temporary SQLite file), mutation-checked, and reviewed on the Standards and Spec axes; the mutation results are in each PR (#49–#55 and #48's).
 

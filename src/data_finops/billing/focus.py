@@ -52,6 +52,17 @@ def load_parquet_export(files: Iterable[Path], snapshot: ExportSnapshot) -> Focu
     return FocusExport(snapshot=snapshot.model_copy(update={"files": hashes}), lines=lines)
 
 
+def billing_accounts(files: Iterable[Path]) -> set[str]:
+    """The billing accounts named in the FOCUS Parquet `files`, read without loading lines,
+    so a caller can build the Export Snapshot `load_parquet_export` needs."""
+    return {
+        str(account)
+        for path in files
+        for account in pq.read_table(path, columns=["BillingAccountId"]).column(0).to_pylist()  # type: ignore[no-untyped-call]
+        if account is not None
+    }
+
+
 def zoneless_utc_schema(schema: pa.Schema) -> pa.Schema:
     """`schema` with every zoned timestamp as a zoneless one holding its UTC wall clock.
 
