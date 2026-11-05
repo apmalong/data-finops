@@ -191,14 +191,38 @@ def test_timestamps_without_a_zone_are_read_as_utc(tmp_path):
     assert line.BillingPeriodStart == datetime(2026, 10, 1, tzinfo=UTC)
 
 
-def test_zoned_timestamps_nested_in_a_struct_are_read_as_utc(tmp_path):
-    schema = SCHEMA.append(
-        pa.field("x_Window", pa.struct([("start", pa.timestamp("ms", tz="UTC"))]))
+def test_zoned_timestamps_nested_in_structs_lists_and_maps_are_read_as_utc(tmp_path):
+    zoned = pa.timestamp("ms", tz="UTC")
+    schema = (
+        SCHEMA.append(pa.field("x_Window", pa.struct([("start", zoned)])))
+        .append(pa.field("x_Times", pa.list_(zoned)))
+        .append(pa.field("x_Pair", pa.list_(zoned, 2)))
+        .append(pa.field("x_ByName", pa.map_(pa.string(), zoned)))
     )
-    rows = [_row(6.0, x_Window={"start": datetime(2026, 10, 1, 6, tzinfo=UTC)})]
+    six = datetime(2026, 10, 1, 6, tzinfo=UTC)
+    rows = [
+        _row(6.0, x_Window={"start": six}, x_Times=[six], x_Pair=[six, six], x_ByName=[("a", six)])
+    ]
     part = tmp_path / "part-00001.parquet"
     pq.write_table(pa.Table.from_pylist(rows, schema=schema), part)
 
     line = load_parquet_export([part], SNAPSHOT).lines[0].model_dump(mode="json")
 
     assert line["x_Window"] == {"start": "2026-10-01T06:00:00Z"}
+    assert line["x_Times"] == ["2026-10-01T06:00:00Z"]
+    assert line["x_Pair"] == ["2026-10-01T06:00:00Z"] * 2
+    assert line["x_ByName"] == {"a": "2026-10-01T06:00:00Z"}
+
+
+def test_a_timestamp_in_another_zone_is_read_as_its_utc_instant(tmp_path):
+    rows = [_row(6.0)]
+    schema = SCHEMA.set(
+        SCHEMA.get_field_index("ChargePeriodStart"),
+        pa.field("ChargePeriodStart", pa.timestamp("ms", tz="+05:00")),
+    )
+    part = tmp_path / "part-00001.parquet"
+    pq.write_table(pa.Table.from_pylist(rows, schema=schema), part)
+
+    line = load_parquet_export([part], SNAPSHOT).lines[0]
+
+    assert line.ChargePeriodStart == datetime(2026, 10, 1, tzinfo=UTC)

@@ -13,7 +13,7 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
 
-from data_finops.billing.focus import utc_wall_clock
+from data_finops.billing.focus import zoneless_utc_schema
 
 ROOT = Path(__file__).resolve().parents[2]
 _spec = importlib.util.spec_from_file_location(
@@ -100,8 +100,7 @@ def export_dir(tmp_path: Path) -> Path:
 
 def _rows_in(path: Path) -> list[dict[str, object]]:
     table = pq.read_table(path)
-    readable = pa.schema([field.with_type(utc_wall_clock(field.type)) for field in table.schema])
-    return table.cast(readable).to_pylist()  # type: ignore[no-any-return]
+    return table.cast(zoneless_utc_schema(table.schema)).to_pylist()  # type: ignore[no-any-return]
 
 
 def _flat(value: object) -> str:
