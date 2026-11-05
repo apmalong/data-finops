@@ -20,6 +20,7 @@ from typing import Any
 
 from pydantic import ValidationError
 
+from data_finops.billing.aws_data_exports import DeliveryError, is_manifest, load_delivery
 from data_finops.billing.focus import load_export
 from data_finops.calculation import run_calculation
 from data_finops.ledger import Ledger, SnapshotConflictError
@@ -69,7 +70,13 @@ def _parser() -> argparse.ArgumentParser:
     ingest = commands.add_parser("ingest", help="load one input file into a database")
     kinds = ingest.add_subparsers(required=True, metavar="kind")
     ingesters: list[tuple[str, Callable[[argparse.Namespace], int], str, tuple[str, ...]]] = [
-        ("focus", _ingest_focus, "a FOCUS Export Snapshot (JSON)", ()),
+        (
+            "focus",
+            _ingest_focus,
+            "a FOCUS Export Snapshot (JSON), or an AWS Data Exports Delivery by its"
+            " downloaded <export>-Manifest.json",
+            (),
+        ),
         ("openlineage", _ingest_openlineage, "OpenLineage events (JSON array or JSON Lines)", ()),
         ("dbt", _ingest_dbt, "a dbt manifest.json or run_results.json", ()),
         (
@@ -84,6 +91,12 @@ def _parser() -> argparse.ArgumentParser:
         command.add_argument("path", type=Path)
         for option in required_options:
             command.add_argument(option, required=True)
+        if kind == "focus":
+            command.add_argument(
+                "--data-dir",
+                type=Path,
+                help="where a Delivery's data files were downloaded (default: beside its manifest)",
+            )
         _database_argument(command)
         command.set_defaults(run=run)
 
@@ -123,8 +136,13 @@ def _database_argument(command: argparse.ArgumentParser) -> None:
 
 def _ingest_focus(args: argparse.Namespace) -> int:
     try:
-        export = load_export(args.path)
-    except (ValidationError, ValueError):
+        if is_manifest(args.path):
+            export = load_delivery(args.path, args.data_dir)
+        else:
+            export = load_export(args.path)
+    except DeliveryError as error:  # names files only, never contents
+        raise _Failure(f"{args.path} is not a usable AWS Data Exports Delivery: {error}") from None
+    except (ValidationError, ValueError, OSError):
         raise _Failure(f"{args.path} is not a FOCUS Export Snapshot") from None
     with Ledger(args.db) as ledger:
         try:

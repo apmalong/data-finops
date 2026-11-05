@@ -12,6 +12,10 @@ _Avoid_: bill row, invoice line, cost record
 The complete set of Billing Lines a provider published for one billing account, Billing Period and source at one point in time. A restatement replaces the whole snapshot; earlier snapshots are retained.
 _Avoid_: file, batch, version (alone)
 
+**Delivery**:
+One AWS Data Exports execution: the data files and manifests AWS writes for one billing period at one time. Read as one Export Snapshot, published when AWS created the execution (ADR 0020).
+_Avoid_: export (for one execution), drop, upload
+
 **Superseded Snapshot**:
 An Export Snapshot kept as history because a later publication is current for its Snapshot Scope.
 _Avoid_: old version, stale snapshot
