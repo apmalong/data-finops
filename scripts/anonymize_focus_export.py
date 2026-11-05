@@ -28,6 +28,8 @@ from typing import Any
 import pyarrow as pa
 import pyarrow.parquet as pq
 
+from data_finops.billing.focus import utc_wall_clock
+
 REPO = Path(__file__).resolve().parents[1]
 SKIPPED = "<skipped files>"
 ACCOUNT_COLUMNS = frozenset({"BillingAccountId", "SubAccountId"})
@@ -182,7 +184,10 @@ def _write_parquet(source: Path, out: Path, pseudonyms: Pseudonyms, summary: Cou
     table = pq.read_table(source)
     columns = []
     for field in table.schema:
-        values = table.column(field.name).to_pylist()
+        # Zoned timestamps as their UTC wall clock: Python never resolves the zone's name,
+        # which needs a time-zone database Windows lacks. Cast back on write.
+        readable = utc_wall_clock(field.type)
+        values = table.column(field.name).cast(readable).to_pylist()
         if field.name in TAG_COLUMNS:
             replaced = [None if v is None else pseudonyms.tags(v) for v in values]
         else:
@@ -191,7 +196,7 @@ def _write_parquet(source: Path, out: Path, pseudonyms: Pseudonyms, summary: Cou
         summary[field.name] += sum(
             1 for old, new in zip(values, replaced, strict=True) if old != new
         )
-        columns.append(pa.array(replaced, type=field.type))
+        columns.append(pa.array(replaced, type=readable).cast(field.type))
     result = pa.Table.from_arrays(columns, schema=table.schema)
     pq.write_table(result, out, compression=compression.lower())
 

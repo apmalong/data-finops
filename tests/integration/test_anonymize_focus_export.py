@@ -6,12 +6,14 @@ All identifiers below are invented or AWS documentation placeholders.
 import importlib.util
 import json
 import re
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
+
+from data_finops.billing.focus import utc_wall_clock
 
 ROOT = Path(__file__).resolve().parents[2]
 _spec = importlib.util.spec_from_file_location(
@@ -29,7 +31,7 @@ SCHEMA = pa.schema(
     [
         ("BilledCost", pa.float64()),
         ("ConsumedQuantity", pa.float64()),
-        ("ChargePeriodStart", pa.timestamp("ms")),
+        ("ChargePeriodStart", pa.timestamp("ms", tz="UTC")),  # as AWS writes it
         ("BillingAccountId", pa.string()),
         ("BillingAccountName", pa.string()),
         ("SubAccountId", pa.string()),
@@ -50,7 +52,7 @@ def _row(**overrides: object) -> dict[str, object]:
     row: dict[str, object] = {
         "BilledCost": 0.1,
         "ConsumedQuantity": 1e-07,
-        "ChargePeriodStart": datetime(2026, 11, 1),
+        "ChargePeriodStart": datetime(2026, 11, 1, tzinfo=UTC),
         "BillingAccountId": PAYER,
         "BillingAccountName": "Example Payer",
         "SubAccountId": MEMBER,
@@ -97,7 +99,9 @@ def export_dir(tmp_path: Path) -> Path:
 
 
 def _rows_in(path: Path) -> list[dict[str, object]]:
-    return pq.read_table(path).to_pylist()  # type: ignore[no-any-return]
+    table = pq.read_table(path)
+    readable = pa.schema([field.with_type(utc_wall_clock(field.type)) for field in table.schema])
+    return table.cast(readable).to_pylist()  # type: ignore[no-any-return]
 
 
 def _flat(value: object) -> str:
