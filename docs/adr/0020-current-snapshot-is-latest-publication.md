@@ -22,7 +22,7 @@ The real AWS Data Exports deliveries (FOCUS 1.2, 2026-10 and 2026-11) show that 
 
 AWS writes each delivery under `data/` and `metadata/billing_period=YYYY-MM/<CreatedAt>-<executionId>/`. Its `<CreatedAt>` equals, to the millisecond, the `CreatedAt` that the Data Exports ListExecutions API reports for that execution.
 
-**Decision:** for an AWS Data Exports delivery, `published_at` is that `<CreatedAt>`. It is read from the S3 folder named in the manifest's own `dataFiles` URIs, not from local paths: the folder name holds colons, which Windows cannot store, so a download's local layout is the operator's. The URIs' execution ID must equal the manifest's `executionId`. The snapshot ID is `aws-focus-<billing account>-<YYYY-MM>-<executionId>`.
+**Decision:** for an AWS Data Exports Delivery, `published_at` is that `<CreatedAt>`. It is read from the S3 folder named in the manifest's own `dataFiles` URIs, not from local paths: the folder name holds colons, which Windows cannot store, so a download's local layout is the operator's. The URIs' execution ID must equal the manifest's `executionId`. The snapshot ID is `aws-focus-<billing account>-<YYYY-MM>-<executionId>`. Two Deliveries created in the same millisecond would be ordered by point 1's tie-break, the higher snapshot ID: by execution ID, which is deterministic but arbitrary. AWS has not been seen to do this; Deliveries for a period come hours apart.
 
 This keeps point 5: the time is AWS's own, written by AWS at delivery, and never file modification time or import time. It also keeps import offline: no API call, so no credentials. The API's `LastUpdatedAt` (delivery finished) was rejected; it orders deliveries the same way but needs the network.
 
