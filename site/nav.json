@@ -1,6 +1,8 @@
 [
   {"title": "data-finops", "path": "index.html"},
-  {"title": "Tutorials", "path": "tutorials/index.html", "pages": []},
+  {"title": "Tutorials", "path": "tutorials/index.html", "pages": [
+    {"title": "Your first allocation", "path": "tutorials/first-allocation.html"}
+  ]},
   {"title": "How-to guides", "path": "how-to/index.html", "pages": []},
   {"title": "Reference", "path": "reference/index.html", "pages": []},
   {"title": "Explanation", "path": "explanation/index.html", "pages": []},

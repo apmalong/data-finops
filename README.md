@@ -19,7 +19,7 @@ uv sync --extra api --frozen
 uv run data-finops demo        # open http://127.0.0.1:8000/
 ```
 
-`examples/demo/README.md` walks through what you see, one step and one command at a time. `uv run data-finops --help` lists the commands.
+The tutorial [Your first allocation](https://apmalong.github.io/data-finops/tutorials/first-allocation.html) walks through what you see, one step and one command at a time. `uv run data-finops --help` lists the commands.
 
 ## Documentation
 The documentation for people who run data-finops is at <https://apmalong.github.io/data-finops/>: tutorials, how-to guides, reference and explanation. It is published from `site/` on every push to `main` (ADR 0025, spec 07).

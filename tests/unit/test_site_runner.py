@@ -185,3 +185,9 @@ def test_curl_must_name_the_served_address_and_get_a_success(tmp_path: Path) -> 
 def test_lines_of_checked_output_count_from_where_its_text_starts(tmp_path: Path) -> None:
     path = page(tmp_path, INGEST + '<pre class="output checked">\nfocus: old …</pre>')
     assert where(run_page(path, REPO)) == [(1, 6)]
+
+
+def test_a_relative_repository_path_works(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    path = page(tmp_path, INGEST)
+    monkeypatch.chdir(REPO)
+    assert run_page(path, Path(".")) == []

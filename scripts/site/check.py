@@ -50,6 +50,12 @@ class Problem:
 
 PLACEHOLDER_ACCOUNT = "123456789012"
 _TWELVE_DIGITS = re.compile(r"(?<!\d)\d{12}(?!\d)")
+# A UUID's last group is 12 hex digits that can all be decimal, as in the fixtures' run IDs, so
+# a whole UUID is never read as an account ID. The trade-off: an account ID hidden inside a
+# UUID-shaped string would pass; anywhere else, such as inside a snapshot ID, it is reported.
+_UUID = re.compile(
+    r"\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b", re.IGNORECASE
+)
 _EXTERNAL_URL = re.compile(r"https?://", re.IGNORECASE)
 _CSS_URL = re.compile(r"""url\(\s*(['"]?)(.*?)\1\s*\)|@import\s+(['"])(.*?)\3""", re.IGNORECASE)
 _TEXT = {".html", ".css", ".js", ".json", ".md", ".svg", ".txt"}
@@ -301,7 +307,8 @@ def _code_rules(
 
 def _text_rules(site: _Site, name: str, text: str) -> Iterator[Problem]:
     for line, content in enumerate(text.splitlines(), start=1):
-        if any(m.group() != PLACEHOLDER_ACCOUNT for m in _TWELVE_DIGITS.finditer(content)):
+        without_uuids = _UUID.sub("", content)
+        if any(m.group() != PLACEHOLDER_ACCOUNT for m in _TWELVE_DIGITS.finditer(without_uuids)):
             # Never echo the number: it may be a real account ID (ADR 0012).
             message = f"a 12-digit number other than {PLACEHOLDER_ACCOUNT}"
             yield Problem(name, line, "account-id", message)

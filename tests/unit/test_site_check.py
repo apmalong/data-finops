@@ -397,3 +397,19 @@ def test_contrast_reads_tokens_as_browsers_do_and_never_skips_one_silently(
         ("assets/site.css", "unchecked-colour", 7),
         ("assets/site.css", "low-contrast", 8),
     ]
+
+
+def test_a_uuid_is_never_taken_for_an_account_id_but_an_id_inside_another_is(
+    tmp_path: Path,
+) -> None:
+    site = make_site(
+        tmp_path,
+        {
+            "index.html": page(
+                "<p>Run 00000000-0000-4000-8000-000000000002 and "
+                "9B2F64A1-1C2D-4E5F-8A9B-210987654321.</p>\n"
+                "<p>Snapshot aws-focus-210987654321-2026-10-v1.</p>"
+            ),
+        },
+    )
+    assert rules(check_site(site)) == [("index.html", "account-id", BODY + 1)]

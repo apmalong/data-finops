@@ -1,11 +1,12 @@
-"""M5 exit criterion: the demo walkthrough passes as written (#119; spec 06, Exit).
+"""M5 exit criterion: the demo walkthrough passes as written (#119; spec 06, Exit; #147).
 
-Every claim `examples/demo/README.md` makes about what the reader sees is checked here as
-the reader produces it: inputs go in through the command line (`main(argv)`), and what is
-shown is read back through the API's test client, never from the stores. The dashboard
-draws only what these answers hold; how it looks is checked by eye (spec 06).
+The walkthrough is the site's tutorial, `site/tutorials/first-allocation.html` (ADR 0025).
+`test_the_tutorial_runs_as_written` runs its commands through the page runner and checks the
+output it shows. The step tests below hold what the page shows only in prose or screenshots:
+inputs go in through the command line (`main(argv)`), and what is shown is read back through
+the API's test client, never from the stores. How the dashboard looks is checked by eye.
 
-`STEP_1` is the README's step 1, command for command; the `demo` command loads the same
+`STEP_1` is the tutorial's step 1, command for command; the `demo` command loads the same
 fixtures from its own list, which the CLI tests hold.
 """
 
@@ -19,8 +20,11 @@ from fastapi.testclient import TestClient
 
 from data_finops.api import create_app
 from data_finops.cli import main
+from scripts.site.runner import run_page
 
-FIXTURES = Path(__file__).resolve().parents[2] / "fixtures"
+REPO = Path(__file__).resolve().parents[2]
+FIXTURES = REPO / "fixtures"
+TUTORIAL = REPO / "site" / "tutorials" / "first-allocation.html"
 ACCOUNT, REGION = "123456789012", "us-east-1"
 SOURCE = "aws-data-exports:FOCUS_1_2_AWS"
 SCOPE = {"billing_account_id": ACCOUNT, "billing_period": "2026-10-01", "source": SOURCE}
@@ -92,6 +96,10 @@ def _rollups(client: TestClient, level: str) -> dict[str, str]:
 
 def _calculation_run(client: TestClient) -> str:
     return _summary(client)["snapshot"]["calculation_run_id"]  # type: ignore[no-any-return]
+
+
+def test_the_tutorial_runs_as_written() -> None:
+    assert run_page(TUTORIAL, REPO) == []
 
 
 def test_steps_1_and_2_print_what_the_walkthrough_says(
