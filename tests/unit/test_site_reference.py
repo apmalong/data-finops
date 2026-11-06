@@ -305,8 +305,7 @@ def test_the_http_reference_explains_its_schemas_and_spells_out_enums() -> None:
     html = render_http(document)
     assert (
         "<td>CostBasis: one of &quot;BilledCost&quot;, &quot;ListCost&quot;, "
-        "default &quot;BilledCost&quot;</td>"
-        in html
+        "default &quot;BilledCost&quot;</td>" in html
     )
     assert '<td><code>application/json</code>: <a href="#schema-page">Page</a></td>' in html
     assert '<h2 id="head-v1-basis"><code>HEAD /v1/basis</code>: Probe</h2>' in html
@@ -340,6 +339,5 @@ def test_a_contract_field_naming_an_enum_definition_spells_out_its_values() -> N
     html = render_contracts({"thing.schema.json": THING})
     assert (
         "<tr><td><code>kind</code></td><td>required</td>"
-        "<td>Kind: one of &quot;a&quot;, &quot;b&quot;</td><td></td></tr>"
-        in html
+        "<td>Kind: one of &quot;a&quot;, &quot;b&quot;</td><td></td></tr>" in html
     )
