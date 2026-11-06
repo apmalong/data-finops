@@ -44,7 +44,7 @@ class _Failure(Exception):
 
 def main(argv: Sequence[str] | None = None, *, start_server: StartServer | None = None) -> int:
     try:
-        args = _parser().parse_args(argv)
+        args = build_parser().parse_args(argv)
     except SystemExit as exited:  # argparse has printed usage or help
         return exited.code if isinstance(exited.code, int) else FAILED
     args.start_server = start_server or _uvicorn
@@ -61,7 +61,8 @@ def main(argv: Sequence[str] | None = None, *, start_server: StartServer | None 
     return code
 
 
-def _parser() -> argparse.ArgumentParser:
+def build_parser() -> argparse.ArgumentParser:
+    """The command line's parser; the site's CLI reference is generated from it (spec 07)."""
     parser = argparse.ArgumentParser(
         prog="data-finops", description="Load billing and workload inputs, then allocate the bill."
     )

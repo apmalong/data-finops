@@ -5,11 +5,14 @@
 """
 
 import html
+import json
 import posixpath
 import re
+from collections.abc import Callable
 from pathlib import Path
 
 from scripts.site.nav import Entry, SiteError, parse_nav, walk
+from scripts.site.reference import render_cli, render_contracts, render_glossary, render_http
 
 __all__ = ["SiteError", "build"]
 
@@ -48,8 +51,48 @@ def build(repo: Path) -> dict[str, str]:
         text = source.read_text(encoding="utf-8")
         for name in (*REQUIRED_REGIONS, *OPTIONAL_REGIONS):
             text = _stamp(text, entry.path, name, content[name], name in REQUIRED_REGIONS)
-        built[entry.path] = text
+        built[entry.path] = _stamp_reference(repo, entry.path, text)
     return built
+
+
+def _stamp_reference(repo: Path, page: str, text: str) -> str:
+    """A generated reference page's `reference` region, rendered from its source."""
+    has_region = "<!-- reference:start -->" in text
+    if page not in GENERATED:
+        if has_region:
+            raise SiteError(f"{page} has a reference region but no source to render it from")
+        return text
+    if not has_region:
+        raise SiteError(f"{page} has no reference region")
+    return _stamp(text, page, "reference", GENERATED[page](repo), True)
+
+
+def _cli_reference(repo: Path) -> str:
+    from data_finops.cli import build_parser  # data_finops only here: `check` stays stdlib-only
+
+    return render_cli(build_parser())
+
+
+def _http_reference(repo: Path) -> str:
+    return render_http(json.loads((repo / "schemas" / "openapi.json").read_text(encoding="utf-8")))
+
+
+def _contracts_reference(repo: Path) -> str:
+    schemas = sorted((repo / "schemas").glob("*.schema.json"))
+    return render_contracts({p.name: json.loads(p.read_text(encoding="utf-8")) for p in schemas})
+
+
+def _glossary_reference(repo: Path) -> str:
+    return render_glossary((repo / "GLOSSARY.md").read_text(encoding="utf-8"))
+
+
+# The generated reference pages, each with the renderer of its source (spec 07).
+GENERATED: dict[str, Callable[[Path], str]] = {
+    "reference/cli.html": _cli_reference,
+    "reference/http-api.html": _http_reference,
+    "reference/data-contracts.html": _contracts_reference,
+    "reference/glossary.html": _glossary_reference,
+}
 
 
 def _relative(current: str, target: str) -> str:

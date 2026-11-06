@@ -1,0 +1,771 @@
+<!doctype html>
+<html lang="en">
+<head>
+<!-- head:start -->
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="../assets/site.css">
+<!-- head:end -->
+<title>HTTP API - data-finops</title>
+<meta name="description" content="Every route of the data-finops HTTP API, with its parameters and responses.">
+</head>
+<body>
+<!-- nav:start -->
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="site-header"><a href="../index.html">data-finops</a></header>
+<nav aria-label="Site">
+<ul>
+<li><a href="../tutorials/index.html">Tutorials</a>
+<ul>
+<li><a href="../tutorials/first-allocation.html">Your first allocation</a></li>
+</ul>
+</li>
+<li><a href="../how-to/index.html">How-to guides</a></li>
+<li><a href="index.html">Reference</a>
+<ul>
+<li><a href="cli.html">Command line</a></li>
+<li><a href="http-api.html" aria-current="page">HTTP API</a></li>
+<li><a href="data-contracts.html">Data contracts</a></li>
+<li><a href="glossary.html">Glossary</a></li>
+</ul>
+</li>
+<li><a href="../explanation/index.html">Explanation</a></li>
+<li><a href="../contributing.html">Contributing</a></li>
+</ul>
+</nav>
+<!-- nav:end -->
+<main id="main">
+<h1>HTTP API</h1>
+<p>Every route that <code>data-finops serve</code> answers, with its parameters and responses. This page is generated from <a href="https://github.com/apmalong/data-finops/blob/main/schemas/openapi.json"><code>schemas/openapi.json</code></a>, the OpenAPI 3.1 document the server is tested against.</p>
+<ul>
+<li>Amounts are Decimal strings, never floating-point numbers.</li>
+<li>Errors are Problem Details (RFC 9457, <code>application/problem+json</code>). They name the field at fault and never echo what was sent.</li>
+<li>The server listens on loopback unless told otherwise. With a token configured, every route needs <code>Authorization: Bearer &lt;token&gt;</code>.</li>
+<li>Lists are paged with <code>limit</code> (default 100, at most 1000) and <code>offset</code>.</li>
+</ul>
+<!-- reference:start -->
+<h2 id="get-health"><code>GET /health</code>: Health</h2>
+<p>Whether the database opens as a current data-finops database.</p>
+<table>
+<thead><tr><th>Status</th><th>Meaning</th><th>Body</th></tr></thead>
+<tbody>
+<tr><td>200</td><td>Successful Response</td><td><code>application/json</code>: <a href="#schema-health">Health</a></td></tr>
+<tr><td>401</td><td>When a token is configured: no valid bearer token (ADR 0024).</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
+<tr><td>503</td><td>The database cannot be opened.</td><td><code>application/json</code>: <a href="#schema-health">Health</a></td></tr>
+</tbody>
+</table>
+<h2 id="get-v1-costs-summary"><code>GET /v1/costs/summary</code>: Cost Summary</h2>
+<p>One Cost Summary per Snapshot Scope, for the scope&#x27;s current Allocation Snapshot.</p>
+<table>
+<thead><tr><th>Parameter</th><th>In</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>cost_basis</code></td><td>query</td><td>optional</td><td>CostBasis: one of &quot;BilledCost&quot;, &quot;EffectiveCost&quot;, &quot;ListCost&quot;, &quot;ContractedCost&quot;, default &quot;BilledCost&quot;</td><td></td></tr>
+<tr><td><code>billing_account_id</code></td><td>query</td><td>optional</td><td>string, at most 128 characters, or null</td><td></td></tr>
+<tr><td><code>billing_period</code></td><td>query</td><td>optional</td><td>string, date, or null</td><td></td></tr>
+</tbody>
+</table>
+<table>
+<thead><tr><th>Status</th><th>Meaning</th><th>Body</th></tr></thead>
+<tbody>
+<tr><td>200</td><td>Successful Response</td><td><code>application/json</code>: <a href="#schema-cost-summaries">CostSummaries</a></td></tr>
+<tr><td>400</td><td>Invalid request: the detail names the fields, never their values.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
+<tr><td>401</td><td>When a token is configured: no valid bearer token (ADR 0024).</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
+<tr><td>500</td><td>An unexpected failure; the detail reveals nothing about it.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
+<tr><td>503</td><td>The database cannot be opened as a current data-finops database.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
+</tbody>
+</table>
+<h2 id="get-v1-allocations"><code>GET /v1/allocations</code>: Allocations</h2>
+<p>One page of one Allocation Snapshot: a named Calculation Run&#x27;s, or else the current one of the single Snapshot Scope that `billing_account_id`, `billing_period` and `source` select.</p>
+<table>
+<thead><tr><th>Parameter</th><th>In</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>calculation_run_id</code></td><td>query</td><td>optional</td><td>string, at most 128 characters, or null</td><td></td></tr>
+<tr><td><code>billing_account_id</code></td><td>query</td><td>optional</td><td>string, at most 128 characters, or null</td><td></td></tr>
+<tr><td><code>billing_period</code></td><td>query</td><td>optional</td><td>string, date, or null</td><td></td></tr>
+<tr><td><code>source</code></td><td>query</td><td>optional</td><td>string, at most 256 characters, or null</td><td></td></tr>
+<tr><td><code>target_id</code></td><td>query</td><td>optional</td><td>string, at most 256 characters, or null</td><td></td></tr>
+<tr><td><code>category</code></td><td>query</td><td>optional</td><td>AllocationCategory: one of &quot;direct&quot;, &quot;shared&quot;, &quot;idle&quot;, &quot;unallocated&quot;, or null</td><td></td></tr>
+<tr><td><code>billing_line_ref</code></td><td>query</td><td>optional</td><td>string, at most 256 characters, or null</td><td></td></tr>
+<tr><td><code>cost_basis</code></td><td>query</td><td>optional</td><td>CostBasis: one of &quot;BilledCost&quot;, &quot;EffectiveCost&quot;, &quot;ListCost&quot;, &quot;ContractedCost&quot;, or null</td><td></td></tr>
+<tr><td><code>limit</code></td><td>query</td><td>optional</td><td>integer, 1 to 1000, default 100</td><td></td></tr>
+<tr><td><code>offset</code></td><td>query</td><td>optional</td><td>integer, at least 0, default 0</td><td></td></tr>
+</tbody>
+</table>
+<table>
+<thead><tr><th>Status</th><th>Meaning</th><th>Body</th></tr></thead>
+<tbody>
+<tr><td>200</td><td>Successful Response</td><td><code>application/json</code>: <a href="#schema-allocation-page">AllocationPage</a></td></tr>
+<tr><td>400</td><td>Invalid request, or filters matching several Snapshot Scopes: the detail names the fields to give, never their values.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
+<tr><td>401</td><td>When a token is configured: no valid bearer token (ADR 0024).</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
+<tr><td>500</td><td>An unexpected failure; the detail reveals nothing about it.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
+<tr><td>503</td><td>The database cannot be opened as a current data-finops database.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
+<tr><td>404</td><td>No such Calculation Run, or no calculated Snapshot Scope matches.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
+</tbody>
+</table>
+<h2 id="get-v1-rollups"><code>GET /v1/rollups</code>: Rollups</h2>
+<p>What each Model Execution or Workload Run cost in one Allocation Snapshot, chosen as for `/v1/allocations`; kept apart because a Roll-up is a view, never an Allocation.</p>
+<table>
+<thead><tr><th>Parameter</th><th>In</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>level</code></td><td>query</td><td>required</td><td>one of &quot;model_execution&quot;, &quot;workload_run&quot;</td><td></td></tr>
+<tr><td><code>calculation_run_id</code></td><td>query</td><td>optional</td><td>string, at most 128 characters, or null</td><td></td></tr>
+<tr><td><code>billing_account_id</code></td><td>query</td><td>optional</td><td>string, at most 128 characters, or null</td><td></td></tr>
+<tr><td><code>billing_period</code></td><td>query</td><td>optional</td><td>string, date, or null</td><td></td></tr>
+<tr><td><code>source</code></td><td>query</td><td>optional</td><td>string, at most 256 characters, or null</td><td></td></tr>
+<tr><td><code>limit</code></td><td>query</td><td>optional</td><td>integer, 1 to 1000, default 100</td><td></td></tr>
+<tr><td><code>offset</code></td><td>query</td><td>optional</td><td>integer, at least 0, default 0</td><td></td></tr>
+</tbody>
+</table>
+<table>
+<thead><tr><th>Status</th><th>Meaning</th><th>Body</th></tr></thead>
+<tbody>
+<tr><td>200</td><td>Successful Response</td><td><code>application/json</code>: <a href="#schema-rollup-page">RollupPage</a></td></tr>
+<tr><td>400</td><td>Invalid request, or filters matching several Snapshot Scopes: the detail names the fields to give, never their values.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
+<tr><td>401</td><td>When a token is configured: no valid bearer token (ADR 0024).</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
+<tr><td>500</td><td>An unexpected failure; the detail reveals nothing about it.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
+<tr><td>503</td><td>The database cannot be opened as a current data-finops database.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
+<tr><td>404</td><td>No such Calculation Run, or no calculated Snapshot Scope matches.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
+</tbody>
+</table>
+<h2 id="get-v1-reconciliation"><code>GET /v1/reconciliation</code>: Reconciliation</h2>
+<p>One Allocation Snapshot&#x27;s Allocations against the bill they partition: per Billing Line and Cost Basis, with per-currency totals over every line.</p>
+<table>
+<thead><tr><th>Parameter</th><th>In</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>calculation_run_id</code></td><td>query</td><td>optional</td><td>string, at most 128 characters, or null</td><td></td></tr>
+<tr><td><code>billing_account_id</code></td><td>query</td><td>optional</td><td>string, at most 128 characters, or null</td><td></td></tr>
+<tr><td><code>billing_period</code></td><td>query</td><td>optional</td><td>string, date, or null</td><td></td></tr>
+<tr><td><code>source</code></td><td>query</td><td>optional</td><td>string, at most 256 characters, or null</td><td></td></tr>
+<tr><td><code>cost_basis</code></td><td>query</td><td>optional</td><td>CostBasis: one of &quot;BilledCost&quot;, &quot;EffectiveCost&quot;, &quot;ListCost&quot;, &quot;ContractedCost&quot;, or null</td><td></td></tr>
+<tr><td><code>limit</code></td><td>query</td><td>optional</td><td>integer, 1 to 1000, default 100</td><td></td></tr>
+<tr><td><code>offset</code></td><td>query</td><td>optional</td><td>integer, at least 0, default 0</td><td></td></tr>
+</tbody>
+</table>
+<table>
+<thead><tr><th>Status</th><th>Meaning</th><th>Body</th></tr></thead>
+<tbody>
+<tr><td>200</td><td>Successful Response</td><td><code>application/json</code>: <a href="#schema-allocation-reconciliation">AllocationReconciliation</a></td></tr>
+<tr><td>400</td><td>Invalid request, or filters matching several Snapshot Scopes: the detail names the fields to give, never their values.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
+<tr><td>401</td><td>When a token is configured: no valid bearer token (ADR 0024).</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
+<tr><td>500</td><td>An unexpected failure; the detail reveals nothing about it.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
+<tr><td>503</td><td>The database cannot be opened as a current data-finops database.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
+<tr><td>404</td><td>No such Calculation Run, or no calculated Snapshot Scope matches.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
+</tbody>
+</table>
+<h2 id="get-v1-provenance"><code>GET /v1/provenance</code>: Provenance</h2>
+<p>How one Allocation Snapshot was made, chosen as for `/v1/allocations`: inputs, policies, the Export Snapshot it read, and the run that superseded it, if any.</p>
+<table>
+<thead><tr><th>Parameter</th><th>In</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>calculation_run_id</code></td><td>query</td><td>optional</td><td>string, at most 128 characters, or null</td><td></td></tr>
+<tr><td><code>billing_account_id</code></td><td>query</td><td>optional</td><td>string, at most 128 characters, or null</td><td></td></tr>
+<tr><td><code>billing_period</code></td><td>query</td><td>optional</td><td>string, date, or null</td><td></td></tr>
+<tr><td><code>source</code></td><td>query</td><td>optional</td><td>string, at most 256 characters, or null</td><td></td></tr>
+</tbody>
+</table>
+<table>
+<thead><tr><th>Status</th><th>Meaning</th><th>Body</th></tr></thead>
+<tbody>
+<tr><td>200</td><td>Successful Response</td><td><code>application/json</code>: <a href="#schema-provenance">Provenance</a></td></tr>
+<tr><td>400</td><td>Invalid request, or filters matching several Snapshot Scopes: the detail names the fields to give, never their values.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
+<tr><td>401</td><td>When a token is configured: no valid bearer token (ADR 0024).</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
+<tr><td>500</td><td>An unexpected failure; the detail reveals nothing about it.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
+<tr><td>503</td><td>The database cannot be opened as a current data-finops database.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
+<tr><td>404</td><td>No such Calculation Run, or no calculated Snapshot Scope matches.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
+</tbody>
+</table>
+<h2 id="get-v1-lineage"><code>GET /v1/lineage</code>: Lineage</h2>
+<p>Without `run_id`, the topmost Workload Runs (paged); with it, that run&#x27;s lineage: its family, Data Assets, Lineage Edges and the Identity Links that reach its Model Executions and their Query Executions, each with its Link Outcome.</p>
+<table>
+<thead><tr><th>Parameter</th><th>In</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>run_id</code></td><td>query</td><td>optional</td><td>string, at most 256 characters, or null</td><td></td></tr>
+<tr><td><code>limit</code></td><td>query</td><td>optional</td><td>integer, 1 to 1000, default 100</td><td></td></tr>
+<tr><td><code>offset</code></td><td>query</td><td>optional</td><td>integer, at least 0, default 0</td><td></td></tr>
+</tbody>
+</table>
+<table>
+<thead><tr><th>Status</th><th>Meaning</th><th>Body</th></tr></thead>
+<tbody>
+<tr><td>200</td><td>Successful Response</td><td><code>application/json</code>: RootRunPage or RunLineage</td></tr>
+<tr><td>400</td><td>Invalid request: the detail names the fields, never their values.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
+<tr><td>401</td><td>When a token is configured: no valid bearer token (ADR 0024).</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
+<tr><td>500</td><td>An unexpected failure; the detail reveals nothing about it.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
+<tr><td>503</td><td>The database cannot be opened as a current data-finops database.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
+<tr><td>404</td><td>No event reports or names that Workload Run.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
+</tbody>
+</table>
+<h2 id="get-v1-allocations-ref-explanation"><code>GET /v1/allocations/{ref}/explanation</code>: Explanation</h2>
+<p>The Cost Explanation of one Allocation, addressed `&lt;calculation_run_id&gt;#&lt;position&gt;` (the `#` sent as `%23`): Billing Line, Allocation, Evidence resolved, Roll-ups.</p>
+<table>
+<thead><tr><th>Parameter</th><th>In</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>ref</code></td><td>path</td><td>required</td><td>string, at most 256 characters</td><td></td></tr>
+</tbody>
+</table>
+<table>
+<thead><tr><th>Status</th><th>Meaning</th><th>Body</th></tr></thead>
+<tbody>
+<tr><td>200</td><td>Successful Response</td><td><code>application/json</code>: <a href="#schema-cost-explanation">CostExplanation</a></td></tr>
+<tr><td>400</td><td>Invalid request: the detail names the fields, never their values.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
+<tr><td>401</td><td>When a token is configured: no valid bearer token (ADR 0024).</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
+<tr><td>500</td><td>An unexpected failure; the detail reveals nothing about it.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
+<tr><td>503</td><td>The database cannot be opened as a current data-finops database.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
+<tr><td>404</td><td>No such Allocation.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
+</tbody>
+</table>
+<h2 id="post-api-v1-lineage"><code>POST /api/v1/lineage</code>: Receive Lineage</h2>
+<p>Store one OpenLineage RunEvent, the default endpoint of OpenLineage&#x27;s HTTP transport (spec 04). Screened exactly as one item of an event file. The one async endpoint (spec 06): it streams the body so an oversized one is refused at the cap instead of buffered (ADR 0024), then ingests in the thread pool.</p>
+<p>Request body: <code>application/json</code>, required.</p>
+<table>
+<thead><tr><th>Status</th><th>Meaning</th><th>Body</th></tr></thead>
+<tbody>
+<tr><td>201</td><td>Stored, or already stored (a duplicate).</td><td><code>application/json</code>: <a href="#schema-lineage-receipt">LineageReceipt</a></td></tr>
+<tr><td>202</td><td>A JobEvent or DatasetEvent: not stored.</td><td><code>application/json</code>: <a href="#schema-lineage-unsupported">LineageUnsupported</a></td></tr>
+<tr><td>400</td><td>Rejected: the detail gives the kind and failing field, never content.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
+<tr><td>401</td><td>When a token is configured: no valid bearer token (ADR 0024).</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
+<tr><td>413</td><td>The body is larger than one event may be (1 MiB).</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
+<tr><td>415</td><td>The body has a Content-Encoding; send the event uncompressed.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
+<tr><td>500</td><td>An unexpected failure; the detail reveals nothing about it.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
+<tr><td>503</td><td>The database cannot be opened as a current data-finops database.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
+</tbody>
+</table>
+<h2 id="schemas">Schemas</h2>
+<h3 id="schema-allocated-amount">AllocatedAmount</h3>
+<p>Allocations of one Allocation Category and Confidence (none for Idle).</p>
+<table>
+<thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>category</code></td><td>required</td><td>AllocationCategory: one of &quot;direct&quot;, &quot;shared&quot;, &quot;idle&quot;, &quot;unallocated&quot;</td><td></td></tr>
+<tr><td><code>confidence</code></td><td>required</td><td>Confidence: one of &quot;direct_verified&quot;, &quot;metered_estimate&quot;, &quot;heuristic_estimate&quot;, or null</td><td></td></tr>
+<tr><td><code>amount</code></td><td>required</td><td>string, matching ^-?[0-9]+(\.[0-9]+)?$</td><td></td></tr>
+<tr><td><code>coverage_min</code></td><td>optional</td><td>string, matching ^-?[0-9]+(\.[0-9]+)?$, or null</td><td></td></tr>
+<tr><td><code>coverage_max</code></td><td>optional</td><td>string, matching ^-?[0-9]+(\.[0-9]+)?$, or null</td><td></td></tr>
+</tbody>
+</table>
+<h3 id="schema-allocation">Allocation</h3>
+<p>The part of one Billing Line assigned to one Allocation Target.</p>
+<table>
+<thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>billing_line_ref</code></td><td>required</td><td>string</td><td></td></tr>
+<tr><td><code>pool_id</code></td><td>required</td><td>string</td><td></td></tr>
+<tr><td><code>target_type</code></td><td>required</td><td>TargetType: one of &quot;query_execution&quot;, &quot;idle&quot;, &quot;unallocated&quot;</td><td></td></tr>
+<tr><td><code>target_id</code></td><td>required</td><td>string</td><td></td></tr>
+<tr><td><code>amount</code></td><td>required</td><td>string, matching ^-?[0-9]+(\.[0-9]+)?$</td><td></td></tr>
+<tr><td><code>currency</code></td><td>required</td><td>string, matching ^[A-Z]{3}$</td><td></td></tr>
+<tr><td><code>cost_basis</code></td><td>required</td><td>string</td><td></td></tr>
+<tr><td><code>category</code></td><td>required</td><td>AllocationCategory: one of &quot;direct&quot;, &quot;shared&quot;, &quot;idle&quot;, &quot;unallocated&quot;</td><td></td></tr>
+<tr><td><code>method</code></td><td>required</td><td>string</td><td></td></tr>
+<tr><td><code>confidence</code></td><td>optional</td><td>Confidence: one of &quot;direct_verified&quot;, &quot;metered_estimate&quot;, &quot;heuristic_estimate&quot;, or null</td><td></td></tr>
+<tr><td><code>coverage</code></td><td>optional</td><td>string, matching ^-?[0-9]+(\.[0-9]+)?$, or null</td><td></td></tr>
+<tr><td><code>policy_version</code></td><td>required</td><td>string</td><td></td></tr>
+<tr><td><code>calculation_run_id</code></td><td>required</td><td>string</td><td></td></tr>
+<tr><td><code>evidence_refs</code></td><td>optional</td><td>list of string, default []</td><td></td></tr>
+<tr><td><code>as_of</code></td><td>optional</td><td>string, date-time, or null</td><td></td></tr>
+</tbody>
+</table>
+<h3 id="schema-allocation-category">AllocationCategory</h3>
+<p>One of direct, shared, idle, unallocated.</p>
+<h3 id="schema-allocation-currency-reconciliation">AllocationCurrencyReconciliation</h3>
+<p>Every line of one currency and Cost Basis; never added to another currency&#x27;s.</p>
+<table>
+<thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>currency</code></td><td>required</td><td>string, matching ^[A-Z]{3}$</td><td></td></tr>
+<tr><td><code>cost_basis</code></td><td>required</td><td>CostBasis: one of &quot;BilledCost&quot;, &quot;EffectiveCost&quot;, &quot;ListCost&quot;, &quot;ContractedCost&quot;</td><td></td></tr>
+<tr><td><code>billed</code></td><td>required</td><td>string, matching ^-?[0-9]+(\.[0-9]+)?$</td><td></td></tr>
+<tr><td><code>allocated_amount</code></td><td>required</td><td>string, matching ^-?[0-9]+(\.[0-9]+)?$</td><td></td></tr>
+<tr><td><code>reconciliation_delta</code></td><td>required</td><td>string, matching ^-?[0-9]+(\.[0-9]+)?$</td><td></td></tr>
+</tbody>
+</table>
+<h3 id="schema-allocation-entry">AllocationEntry</h3>
+<p>One Allocation and its address, `&lt;calculation_run_id&gt;#&lt;position&gt;` (spec 06).</p>
+<table>
+<thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>ref</code></td><td>required</td><td>string</td><td></td></tr>
+<tr><td><code>allocation</code></td><td>required</td><td>Allocation</td><td></td></tr>
+</tbody>
+</table>
+<h3 id="schema-allocation-line-reconciliation">AllocationLineReconciliation</h3>
+<p>One Billing Line, Cost Basis and currency: what was billed, what the Allocations hold, and the Reconciliation Delta between them (zero when Reconciliation holds). A line the bill lacks, or a currency other than the line&#x27;s, is billed zero, so invented amounts show.</p>
+<table>
+<thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>billing_line_ref</code></td><td>required</td><td>string</td><td></td></tr>
+<tr><td><code>currency</code></td><td>required</td><td>string, matching ^[A-Z]{3}$</td><td></td></tr>
+<tr><td><code>cost_basis</code></td><td>required</td><td>CostBasis: one of &quot;BilledCost&quot;, &quot;EffectiveCost&quot;, &quot;ListCost&quot;, &quot;ContractedCost&quot;</td><td></td></tr>
+<tr><td><code>billed</code></td><td>required</td><td>string, matching ^-?[0-9]+(\.[0-9]+)?$</td><td></td></tr>
+<tr><td><code>allocated_amount</code></td><td>required</td><td>string, matching ^-?[0-9]+(\.[0-9]+)?$</td><td></td></tr>
+<tr><td><code>reconciliation_delta</code></td><td>required</td><td>string, matching ^-?[0-9]+(\.[0-9]+)?$</td><td></td></tr>
+</tbody>
+</table>
+<h3 id="schema-allocation-method">AllocationMethod</h3>
+<p>How an amount was allocated; for Unallocated amounts, why (spec 03, M4 structure 10). One of estimated_metered_share, provider_line_match, weighted_share, no_observed_activity, ineligible, adjustment, coverage_remainder, coverage_exceeded, no_evidence.</p>
+<h3 id="schema-allocation-page">AllocationPage</h3>
+<p>One page of a single Allocation Snapshot&#x27;s Allocations; offsets are stable because the snapshot never changes.</p>
+<table>
+<thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>calculation_run_id</code></td><td>required</td><td>string</td><td></td></tr>
+<tr><td><code>total</code></td><td>required</td><td>integer</td><td></td></tr>
+<tr><td><code>limit</code></td><td>required</td><td>integer</td><td></td></tr>
+<tr><td><code>offset</code></td><td>required</td><td>integer</td><td></td></tr>
+<tr><td><code>items</code></td><td>required</td><td>list of AllocationEntry</td><td></td></tr>
+</tbody>
+</table>
+<h3 id="schema-allocation-reconciliation">AllocationReconciliation</h3>
+<p>One Allocation Snapshot&#x27;s Allocations against the Export Snapshot its Calculation Run read: per-currency totals over every line, and one page of the lines.</p>
+<table>
+<thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>calculation_run_id</code></td><td>required</td><td>string</td><td></td></tr>
+<tr><td><code>export_snapshot_id</code></td><td>required</td><td>string, or null</td><td></td></tr>
+<tr><td><code>totals</code></td><td>required</td><td>list of AllocationCurrencyReconciliation</td><td></td></tr>
+<tr><td><code>total</code></td><td>required</td><td>integer</td><td></td></tr>
+<tr><td><code>limit</code></td><td>required</td><td>integer</td><td></td></tr>
+<tr><td><code>offset</code></td><td>required</td><td>integer</td><td></td></tr>
+<tr><td><code>items</code></td><td>required</td><td>list of AllocationLineReconciliation</td><td></td></tr>
+</tbody>
+</table>
+<h3 id="schema-confidence">Confidence</h3>
+<p>One of direct_verified, metered_estimate, heuristic_estimate.</p>
+<h3 id="schema-cost-basis">CostBasis</h3>
+<p>The FOCUS cost column a figure is taken from; bases are never added together. One of BilledCost, EffectiveCost, ListCost, ContractedCost.</p>
+<h3 id="schema-cost-explanation">CostExplanation</h3>
+<p>The chain behind one Allocation (GLOSSARY): its Billing Line, the Allocation, its Evidence resolved, and the Roll-ups it contributes to.</p>
+<table>
+<thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>ref</code></td><td>required</td><td>string</td><td></td></tr>
+<tr><td><code>billing_line_ref</code></td><td>required</td><td>string</td><td></td></tr>
+<tr><td><code>billing_line</code></td><td>required</td><td>FocusBillingLine</td><td></td></tr>
+<tr><td><code>allocation</code></td><td>required</td><td>Allocation</td><td></td></tr>
+<tr><td><code>unallocated_reason</code></td><td>required</td><td>string, or null</td><td></td></tr>
+<tr><td><code>query_execution</code></td><td>required</td><td>QueryExecution, or null</td><td></td></tr>
+<tr><td><code>model_execution</code></td><td>required</td><td>ExplainedModelExecution, or null</td><td></td></tr>
+<tr><td><code>workload_runs</code></td><td>required</td><td>list of ExplainedWorkloadRun</td><td></td></tr>
+<tr><td><code>rollups</code></td><td>required</td><td>list of ExplainedRollup</td><td></td></tr>
+</tbody>
+</table>
+<h3 id="schema-cost-summaries">CostSummaries</h3>
+<p>The Cost Summary of each matching Snapshot Scope&#x27;s current Allocation Snapshot.</p>
+<table>
+<thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>summaries</code></td><td>required</td><td>list of CostSummary</td><td></td></tr>
+<tr><td><code>uncalculated_scopes</code></td><td>required</td><td>list of SnapshotScope</td><td></td></tr>
+</tbody>
+</table>
+<h3 id="schema-cost-summary">CostSummary</h3>
+<p>Where one Allocation Snapshot put its Snapshot Scope&#x27;s bill, for one Cost Basis.</p>
+<table>
+<thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>scope</code></td><td>required</td><td>SnapshotScope</td><td></td></tr>
+<tr><td><code>cost_basis</code></td><td>required</td><td>CostBasis: one of &quot;BilledCost&quot;, &quot;EffectiveCost&quot;, &quot;ListCost&quot;, &quot;ContractedCost&quot;</td><td></td></tr>
+<tr><td><code>snapshot</code></td><td>required</td><td>ServedSnapshot</td><td></td></tr>
+<tr><td><code>currencies</code></td><td>required</td><td>list of CurrencySummary</td><td></td></tr>
+</tbody>
+</table>
+<h3 id="schema-currency-summary">CurrencySummary</h3>
+<p>One currency&#x27;s part of a Cost Summary; never added to another currency&#x27;s.</p>
+<table>
+<thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>currency</code></td><td>required</td><td>string, matching ^[A-Z]{3}$</td><td></td></tr>
+<tr><td><code>billed</code></td><td>required</td><td>string, matching ^-?[0-9]+(\.[0-9]+)?$</td><td></td></tr>
+<tr><td><code>allocated</code></td><td>required</td><td>list of AllocatedAmount</td><td></td></tr>
+<tr><td><code>unallocated</code></td><td>required</td><td>list of UnallocatedAmount</td><td></td></tr>
+<tr><td><code>adjustments</code></td><td>required</td><td>string, matching ^-?[0-9]+(\.[0-9]+)?$</td><td></td></tr>
+<tr><td><code>reconciliation_delta</code></td><td>required</td><td>string, matching ^-?[0-9]+(\.[0-9]+)?$</td><td></td></tr>
+</tbody>
+</table>
+<h3 id="schema-data-asset">DataAsset</h3>
+<p>Identified by the OpenLineage dataset naming convention.</p>
+<table>
+<thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>namespace</code></td><td>required</td><td>string</td><td></td></tr>
+<tr><td><code>name</code></td><td>required</td><td>string</td><td></td></tr>
+</tbody>
+</table>
+<h3 id="schema-dbt-node">DbtNode</h3>
+<p>A node of one invocation&#x27;s dbt manifest: catalog entry and static dependencies.</p>
+<table>
+<thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>node_id</code></td><td>required</td><td>string</td><td></td></tr>
+<tr><td><code>invocation_id</code></td><td>required</td><td>string</td><td></td></tr>
+<tr><td><code>resource_type</code></td><td>required</td><td>string</td><td></td></tr>
+<tr><td><code>name</code></td><td>required</td><td>string</td><td></td></tr>
+<tr><td><code>package_name</code></td><td>optional</td><td>string, or null</td><td></td></tr>
+<tr><td><code>relation_name</code></td><td>optional</td><td>string, or null</td><td></td></tr>
+<tr><td><code>materialized</code></td><td>optional</td><td>string, or null</td><td></td></tr>
+<tr><td><code>depends_on</code></td><td>optional</td><td>list of string, default []</td><td></td></tr>
+<tr><td><code>provenance</code></td><td>optional</td><td>string, or null</td><td></td></tr>
+<tr><td><code>flags</code></td><td>optional</td><td>list of DbtObservationFlag: one of &quot;conflicting_observations&quot;, default []</td><td></td></tr>
+</tbody>
+</table>
+<h3 id="schema-dbt-observation-flag">DbtObservationFlag</h3>
+<p>One of conflicting_observations.</p>
+<h3 id="schema-explained-model-execution">ExplainedModelExecution</h3>
+<p>The Model Execution an Allocation&#x27;s Evidence links, as the workload store holds it; `execution` or `dbt_node` is None when that part was never ingested.</p>
+<table>
+<thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>invocation_id</code></td><td>required</td><td>string</td><td></td></tr>
+<tr><td><code>node_id</code></td><td>required</td><td>string</td><td></td></tr>
+<tr><td><code>execution</code></td><td>required</td><td>ModelExecution, or null</td><td></td></tr>
+<tr><td><code>dbt_node</code></td><td>required</td><td>DbtNode, or null</td><td></td></tr>
+</tbody>
+</table>
+<h3 id="schema-explained-rollup">ExplainedRollup</h3>
+<p>A Roll-up the Allocation contributes to, in the Allocation&#x27;s currency and Cost Basis.</p>
+<table>
+<thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>level</code></td><td>required</td><td>one of &quot;model_execution&quot;, &quot;workload_run&quot;</td><td></td></tr>
+<tr><td><code>key</code></td><td>required</td><td>string</td><td></td></tr>
+<tr><td><code>currency</code></td><td>required</td><td>string, matching ^[A-Z]{3}$</td><td></td></tr>
+<tr><td><code>cost_basis</code></td><td>required</td><td>CostBasis: one of &quot;BilledCost&quot;, &quot;EffectiveCost&quot;, &quot;ListCost&quot;, &quot;ContractedCost&quot;</td><td></td></tr>
+<tr><td><code>amount</code></td><td>required</td><td>string, matching ^-?[0-9]+(\.[0-9]+)?$</td><td></td></tr>
+</tbody>
+</table>
+<h3 id="schema-explained-workload-run">ExplainedWorkloadRun</h3>
+<p>A Workload Run an Allocation&#x27;s Evidence names; `run` is None if never reported.</p>
+<table>
+<thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>run_id</code></td><td>required</td><td>string</td><td></td></tr>
+<tr><td><code>run</code></td><td>required</td><td>WorkloadRun, or null</td><td></td></tr>
+</tbody>
+</table>
+<h3 id="schema-export-snapshot-read">ExportSnapshotRead</h3>
+<p>The Export Snapshot a Calculation Run read.</p>
+<table>
+<thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>snapshot_id</code></td><td>required</td><td>string</td><td></td></tr>
+<tr><td><code>content_digest</code></td><td>required</td><td>string</td><td></td></tr>
+<tr><td><code>published_at</code></td><td>required</td><td>string, date-time</td><td></td></tr>
+</tbody>
+</table>
+<h3 id="schema-focus-billing-line">FocusBillingLine</h3>
+<table>
+<thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>BilledCost</code></td><td>required</td><td>string, matching ^-?[0-9]+(\.[0-9]+)?$</td><td></td></tr>
+<tr><td><code>EffectiveCost</code></td><td>required</td><td>string, matching ^-?[0-9]+(\.[0-9]+)?$</td><td></td></tr>
+<tr><td><code>ListCost</code></td><td>required</td><td>string, matching ^-?[0-9]+(\.[0-9]+)?$</td><td></td></tr>
+<tr><td><code>ContractedCost</code></td><td>required</td><td>string, matching ^-?[0-9]+(\.[0-9]+)?$</td><td></td></tr>
+<tr><td><code>BillingAccountId</code></td><td>required</td><td>string</td><td></td></tr>
+<tr><td><code>BillingCurrency</code></td><td>required</td><td>string, matching ^[A-Z]{3}$</td><td></td></tr>
+<tr><td><code>BillingPeriodStart</code></td><td>required</td><td>string, date-time</td><td></td></tr>
+<tr><td><code>BillingPeriodEnd</code></td><td>required</td><td>string, date-time</td><td></td></tr>
+<tr><td><code>ChargePeriodStart</code></td><td>required</td><td>string, date-time</td><td></td></tr>
+<tr><td><code>ChargePeriodEnd</code></td><td>required</td><td>string, date-time</td><td></td></tr>
+<tr><td><code>ChargeCategory</code></td><td>required</td><td>FocusChargeCategory: one of &quot;Usage&quot;, &quot;Purchase&quot;, &quot;Tax&quot;, &quot;Credit&quot;, &quot;Adjustment&quot;</td><td></td></tr>
+<tr><td><code>ChargeClass</code></td><td>optional</td><td>FocusChargeClass: one of &quot;Correction&quot;, or null</td><td></td></tr>
+<tr><td><code>ProviderName</code></td><td>required</td><td>string</td><td></td></tr>
+<tr><td><code>ServiceName</code></td><td>required</td><td>string</td><td></td></tr>
+<tr><td><code>ServiceCategory</code></td><td>optional</td><td>string, or null</td><td></td></tr>
+<tr><td><code>SkuId</code></td><td>optional</td><td>string, or null</td><td></td></tr>
+<tr><td><code>RegionId</code></td><td>optional</td><td>string, or null</td><td></td></tr>
+<tr><td><code>ResourceId</code></td><td>optional</td><td>string, or null</td><td></td></tr>
+<tr><td><code>SubAccountId</code></td><td>optional</td><td>string, or null</td><td></td></tr>
+<tr><td><code>ConsumedQuantity</code></td><td>optional</td><td>string, matching ^-?[0-9]+(\.[0-9]+)?$, or null</td><td></td></tr>
+<tr><td><code>ConsumedUnit</code></td><td>optional</td><td>string, or null</td><td></td></tr>
+<tr><td><code>PricingQuantity</code></td><td>optional</td><td>string, matching ^-?[0-9]+(\.[0-9]+)?$, or null</td><td></td></tr>
+<tr><td><code>PricingUnit</code></td><td>optional</td><td>string, or null</td><td></td></tr>
+<tr><td><code>Tags</code></td><td>optional</td><td>object of string, or null</td><td></td></tr>
+<tr><td><code>data_finops_raw_values</code></td><td>optional</td><td>object of string, or null</td><td></td></tr>
+</tbody>
+</table>
+<h3 id="schema-focus-charge-category">FocusChargeCategory</h3>
+<p>One of Usage, Purchase, Tax, Credit, Adjustment.</p>
+<h3 id="schema-focus-charge-class">FocusChargeClass</h3>
+<p>One of Correction.</p>
+<h3 id="schema-health">Health</h3>
+<p>Whether the database opens as a current data-finops database; a status, not an error.</p>
+<table>
+<thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>status</code></td><td>required</td><td>one of &quot;ok&quot;, &quot;unavailable&quot;</td><td></td></tr>
+</tbody>
+</table>
+<h3 id="schema-identity-link">IdentityLink</h3>
+<table>
+<thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>source_type</code></td><td>required</td><td>string</td><td></td></tr>
+<tr><td><code>source_id</code></td><td>required</td><td>string</td><td></td></tr>
+<tr><td><code>target_type</code></td><td>required</td><td>string</td><td></td></tr>
+<tr><td><code>target_id</code></td><td>required</td><td>string</td><td></td></tr>
+<tr><td><code>evidence_type</code></td><td>required</td><td>string</td><td></td></tr>
+<tr><td><code>evidence_value</code></td><td>required</td><td>string</td><td></td></tr>
+<tr><td><code>policy_version</code></td><td>required</td><td>string</td><td></td></tr>
+</tbody>
+</table>
+<h3 id="schema-invocation-link">InvocationLink</h3>
+<p>The dbt invocation a run reports, and its Link Outcome to a Workload Run: `linked` to this run, or for example `ambiguous` when several runs report it.</p>
+<table>
+<thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>invocation_id</code></td><td>required</td><td>string</td><td></td></tr>
+<tr><td><code>outcome</code></td><td>required</td><td>LinkOutcome: one of &quot;linked&quot;, &quot;no_evidence&quot;, &quot;unmatched&quot;, &quot;ambiguous&quot;</td><td></td></tr>
+<tr><td><code>linked_run_id</code></td><td>required</td><td>string, or null</td><td></td></tr>
+</tbody>
+</table>
+<h3 id="schema-lineage-direction">LineageDirection</h3>
+<p>One of input, output.</p>
+<h3 id="schema-lineage-edge">LineageEdge</h3>
+<table>
+<thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>run_id</code></td><td>required</td><td>string</td><td></td></tr>
+<tr><td><code>asset</code></td><td>required</td><td>DataAsset</td><td></td></tr>
+<tr><td><code>direction</code></td><td>required</td><td>LineageDirection: one of &quot;input&quot;, &quot;output&quot;</td><td></td></tr>
+<tr><td><code>observed_at</code></td><td>required</td><td>string, date-time</td><td></td></tr>
+<tr><td><code>provenance</code></td><td>optional</td><td>string, or null</td><td></td></tr>
+</tbody>
+</table>
+<h3 id="schema-lineage-model-execution">LineageModelExecution</h3>
+<p>A Model Execution in a run&#x27;s lineage, with the Query Executions that claim it.</p>
+<table>
+<thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>invocation_id</code></td><td>required</td><td>string</td><td></td></tr>
+<tr><td><code>node_id</code></td><td>required</td><td>string</td><td></td></tr>
+<tr><td><code>execution</code></td><td>required</td><td>ModelExecution, or null</td><td></td></tr>
+<tr><td><code>queries</code></td><td>required</td><td>list of QueryClaim</td><td></td></tr>
+</tbody>
+</table>
+<h3 id="schema-lineage-receipt">LineageReceipt</h3>
+<p>What storing one RunEvent changed, as the workload store&#x27;s ingest result counts it.</p>
+<table>
+<thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>accepted</code></td><td>required</td><td>integer</td><td></td></tr>
+<tr><td><code>duplicates</code></td><td>required</td><td>integer</td><td></td></tr>
+<tr><td><code>changed_copies</code></td><td>required</td><td>integer</td><td></td></tr>
+</tbody>
+</table>
+<h3 id="schema-lineage-unsupported">LineageUnsupported</h3>
+<p>A valid JobEvent or DatasetEvent: received, not stored (spec 04).</p>
+<table>
+<thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>unsupported</code></td><td>required</td><td>string</td><td></td></tr>
+</tbody>
+</table>
+<h3 id="schema-link-outcome">LinkOutcome</h3>
+<p>What became of an attempt to link a workload identity (GLOSSARY: Link Outcome). One of linked, no_evidence, unmatched, ambiguous.</p>
+<h3 id="schema-link-resolution">LinkResolution</h3>
+<p>A Link Outcome, with the Identity Link only when the outcome is `linked`.</p>
+<table>
+<thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>outcome</code></td><td>required</td><td>LinkOutcome: one of &quot;linked&quot;, &quot;no_evidence&quot;, &quot;unmatched&quot;, &quot;ambiguous&quot;</td><td></td></tr>
+<tr><td><code>link</code></td><td>optional</td><td>IdentityLink, or null</td><td></td></tr>
+</tbody>
+</table>
+<h3 id="schema-model-execution">ModelExecution</h3>
+<p>One run of a dbt node within one invocation.</p>
+<table>
+<thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>node_id</code></td><td>required</td><td>string</td><td></td></tr>
+<tr><td><code>invocation_id</code></td><td>required</td><td>string</td><td></td></tr>
+<tr><td><code>status</code></td><td>required</td><td>string</td><td></td></tr>
+<tr><td><code>started_at</code></td><td>optional</td><td>string, date-time, or null</td><td></td></tr>
+<tr><td><code>completed_at</code></td><td>optional</td><td>string, date-time, or null</td><td></td></tr>
+<tr><td><code>provenance</code></td><td>optional</td><td>string, or null</td><td></td></tr>
+<tr><td><code>flags</code></td><td>optional</td><td>list of DbtObservationFlag: one of &quot;conflicting_observations&quot;, default []</td><td></td></tr>
+</tbody>
+</table>
+<h3 id="schema-provenance">Provenance</h3>
+<p>How one Allocation Snapshot was made, enough to reproduce any figure in it.</p>
+<table>
+<thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>calculation_run_id</code></td><td>required</td><td>string</td><td></td></tr>
+<tr><td><code>scope</code></td><td>required</td><td>SnapshotScope</td><td></td></tr>
+<tr><td><code>policy_version</code></td><td>required</td><td>string</td><td></td></tr>
+<tr><td><code>policy_components</code></td><td>required</td><td>list of string</td><td></td></tr>
+<tr><td><code>input_digest</code></td><td>required</td><td>string</td><td></td></tr>
+<tr><td><code>created_at</code></td><td>required</td><td>string, date-time</td><td></td></tr>
+<tr><td><code>is_current</code></td><td>required</td><td>boolean</td><td></td></tr>
+<tr><td><code>superseded_by</code></td><td>required</td><td>string, or null</td><td></td></tr>
+<tr><td><code>export_snapshot</code></td><td>required</td><td>ExportSnapshotRead, or null</td><td></td></tr>
+</tbody>
+</table>
+<h3 id="schema-query-claim">QueryClaim</h3>
+<p>A Query Execution whose Trusted Query Comment names a Model Execution, and what became of that claim (its Link Outcome): only `linked` makes an Identity Link; `ambiguous` and `unmatched` claims are shown so a missing link is explained, not hidden.</p>
+<table>
+<thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>query_execution</code></td><td>required</td><td>QueryExecution</td><td></td></tr>
+<tr><td><code>outcome</code></td><td>required</td><td>LinkOutcome: one of &quot;linked&quot;, &quot;no_evidence&quot;, &quot;unmatched&quot;, &quot;ambiguous&quot;</td><td></td></tr>
+</tbody>
+</table>
+<h3 id="schema-query-correlation">QueryCorrelation</h3>
+<p>Identifiers extracted from a trusted query comment; the query text is not kept.</p>
+<table>
+<thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>node_id</code></td><td>required</td><td>string</td><td></td></tr>
+<tr><td><code>invocation_id</code></td><td>required</td><td>string</td><td></td></tr>
+</tbody>
+</table>
+<h3 id="schema-query-execution">QueryExecution</h3>
+<table>
+<thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>provider</code></td><td>required</td><td>string</td><td></td></tr>
+<tr><td><code>account_id</code></td><td>required</td><td>string</td><td></td></tr>
+<tr><td><code>region</code></td><td>required</td><td>string</td><td></td></tr>
+<tr><td><code>query_execution_id</code></td><td>required</td><td>string</td><td></td></tr>
+<tr><td><code>workgroup</code></td><td>optional</td><td>string, or null</td><td></td></tr>
+<tr><td><code>statement_type</code></td><td>optional</td><td>string, or null</td><td></td></tr>
+<tr><td><code>state</code></td><td>required</td><td>string</td><td></td></tr>
+<tr><td><code>submitted_at</code></td><td>required</td><td>string, date-time</td><td></td></tr>
+<tr><td><code>completed_at</code></td><td>optional</td><td>string, date-time, or null</td><td></td></tr>
+<tr><td><code>scanned_bytes</code></td><td>optional</td><td>integer, at least 0.0, or null</td><td></td></tr>
+<tr><td><code>billable_bytes</code></td><td>optional</td><td>integer, at least 0.0, or null</td><td></td></tr>
+<tr><td><code>correlation</code></td><td>optional</td><td>QueryCorrelation, or null</td><td></td></tr>
+<tr><td><code>provenance</code></td><td>optional</td><td>string, or null</td><td></td></tr>
+<tr><td><code>flags</code></td><td>optional</td><td>list of QueryExecutionFlag: one of &quot;conflicting_observations&quot;, default []</td><td></td></tr>
+</tbody>
+</table>
+<h3 id="schema-query-execution-flag">QueryExecutionFlag</h3>
+<p>One of conflicting_observations.</p>
+<h3 id="schema-rollup-amount">RollupAmount</h3>
+<p>One Roll-up total, in one currency and Cost Basis.</p>
+<table>
+<thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>currency</code></td><td>required</td><td>string, matching ^[A-Z]{3}$</td><td></td></tr>
+<tr><td><code>cost_basis</code></td><td>required</td><td>CostBasis: one of &quot;BilledCost&quot;, &quot;EffectiveCost&quot;, &quot;ListCost&quot;, &quot;ContractedCost&quot;</td><td></td></tr>
+<tr><td><code>amount</code></td><td>required</td><td>string, matching ^-?[0-9]+(\.[0-9]+)?$</td><td></td></tr>
+</tbody>
+</table>
+<h3 id="schema-rollup-entry">RollupEntry</h3>
+<p>What one Model Execution or Workload Run cost: a view over Allocations, never an Allocation (GLOSSARY Roll-up).</p>
+<table>
+<thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>key</code></td><td>required</td><td>string</td><td></td></tr>
+<tr><td><code>totals</code></td><td>required</td><td>list of RollupAmount</td><td></td></tr>
+</tbody>
+</table>
+<h3 id="schema-rollup-page">RollupPage</h3>
+<p>One page of one Allocation Snapshot&#x27;s Roll-ups at one level, ordered by key.</p>
+<table>
+<thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>calculation_run_id</code></td><td>required</td><td>string</td><td></td></tr>
+<tr><td><code>level</code></td><td>required</td><td>one of &quot;model_execution&quot;, &quot;workload_run&quot;</td><td></td></tr>
+<tr><td><code>total</code></td><td>required</td><td>integer</td><td></td></tr>
+<tr><td><code>limit</code></td><td>required</td><td>integer</td><td></td></tr>
+<tr><td><code>offset</code></td><td>required</td><td>integer</td><td></td></tr>
+<tr><td><code>items</code></td><td>required</td><td>list of RollupEntry</td><td></td></tr>
+</tbody>
+</table>
+<h3 id="schema-root-run-page">RootRunPage</h3>
+<p>The topmost Workload Runs, reported or only named as another run&#x27;s parent or root.</p>
+<table>
+<thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>total</code></td><td>required</td><td>integer</td><td></td></tr>
+<tr><td><code>limit</code></td><td>required</td><td>integer</td><td></td></tr>
+<tr><td><code>offset</code></td><td>required</td><td>integer</td><td></td></tr>
+<tr><td><code>items</code></td><td>required</td><td>list of ExplainedWorkloadRun</td><td></td></tr>
+</tbody>
+</table>
+<h3 id="schema-run-lineage">RunLineage</h3>
+<p>One Workload Run and what surrounds it: its family, Data Assets, and the Identity Links that reach its Model Executions and their Query Executions (ADR 0022).</p>
+<table>
+<thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>run_id</code></td><td>required</td><td>string</td><td></td></tr>
+<tr><td><code>run</code></td><td>required</td><td>WorkloadRun, or null</td><td></td></tr>
+<tr><td><code>ancestors</code></td><td>required</td><td>list of ExplainedWorkloadRun</td><td></td></tr>
+<tr><td><code>children</code></td><td>required</td><td>list of WorkloadRun</td><td></td></tr>
+<tr><td><code>data_assets</code></td><td>required</td><td>list of DataAsset</td><td></td></tr>
+<tr><td><code>lineage_edges</code></td><td>required</td><td>list of LineageEdge</td><td></td></tr>
+<tr><td><code>invocation</code></td><td>required</td><td>InvocationLink, or null</td><td></td></tr>
+<tr><td><code>model_run_link</code></td><td>required</td><td>LinkResolution, or null</td><td></td></tr>
+<tr><td><code>model_executions</code></td><td>required</td><td>list of LineageModelExecution</td><td></td></tr>
+<tr><td><code>unmatched_queries</code></td><td>required</td><td>list of QueryClaim</td><td></td></tr>
+</tbody>
+</table>
+<h3 id="schema-served-snapshot">ServedSnapshot</h3>
+<p>The Allocation Snapshot a read served, and the Calculation Run that made it.</p>
+<table>
+<thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>calculation_run_id</code></td><td>required</td><td>string</td><td></td></tr>
+<tr><td><code>policy_version</code></td><td>required</td><td>string</td><td></td></tr>
+<tr><td><code>created_at</code></td><td>required</td><td>string, date-time</td><td></td></tr>
+<tr><td><code>is_current</code></td><td>required</td><td>boolean</td><td></td></tr>
+<tr><td><code>export_snapshot_id</code></td><td>required</td><td>string, or null</td><td></td></tr>
+</tbody>
+</table>
+<h3 id="schema-snapshot-scope">SnapshotScope</h3>
+<p>What an Export Snapshot covers; a restatement replaces the snapshot for its scope.</p>
+<table>
+<thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>billing_account_id</code></td><td>required</td><td>string</td><td></td></tr>
+<tr><td><code>billing_period_start</code></td><td>required</td><td>string, date-time</td><td></td></tr>
+<tr><td><code>billing_period_end</code></td><td>required</td><td>string, date-time</td><td></td></tr>
+<tr><td><code>source</code></td><td>required</td><td>string</td><td></td></tr>
+</tbody>
+</table>
+<h3 id="schema-target-type">TargetType</h3>
+<p>One of query_execution, idle, unallocated.</p>
+<h3 id="schema-unallocated-amount">UnallocatedAmount</h3>
+<p>Unallocated amounts for one reason (the Allocation&#x27;s method), Adjustments aside.</p>
+<table>
+<thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>reason</code></td><td>required</td><td>AllocationMethod: one of &quot;estimated_metered_share&quot;, &quot;provider_line_match&quot;, &quot;weighted_share&quot;, &quot;no_observed_activity&quot;, &quot;ineligible&quot;, &quot;adjustment&quot;, &quot;coverage_remainder&quot;, &quot;coverage_exceeded&quot;, &quot;no_evidence&quot;</td><td></td></tr>
+<tr><td><code>amount</code></td><td>required</td><td>string, matching ^-?[0-9]+(\.[0-9]+)?$</td><td></td></tr>
+</tbody>
+</table>
+<h3 id="schema-workload-run">WorkloadRun</h3>
+<p>One OpenLineage run as reported, including dbt-ol&#x27;s per-model runs (ADR 0022).</p>
+<table>
+<thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>system</code></td><td>required</td><td>string</td><td></td></tr>
+<tr><td><code>job_namespace</code></td><td>required</td><td>string</td><td></td></tr>
+<tr><td><code>job_name</code></td><td>required</td><td>string</td><td></td></tr>
+<tr><td><code>run_id</code></td><td>required</td><td>string</td><td></td></tr>
+<tr><td><code>parent_run_id</code></td><td>optional</td><td>string, or null</td><td></td></tr>
+<tr><td><code>parent_job_namespace</code></td><td>optional</td><td>string, or null</td><td></td></tr>
+<tr><td><code>parent_job_name</code></td><td>optional</td><td>string, or null</td><td></td></tr>
+<tr><td><code>root_run_id</code></td><td>optional</td><td>string, or null</td><td></td></tr>
+<tr><td><code>root_job_namespace</code></td><td>optional</td><td>string, or null</td><td></td></tr>
+<tr><td><code>root_job_name</code></td><td>optional</td><td>string, or null</td><td></td></tr>
+<tr><td><code>status</code></td><td>required</td><td>WorkloadRunStatus: one of &quot;running&quot;, &quot;completed&quot;, &quot;failed&quot;, &quot;aborted&quot;, &quot;conflicting&quot;</td><td></td></tr>
+<tr><td><code>flags</code></td><td>optional</td><td>list of WorkloadRunFlag: one of &quot;conflicting_observations&quot;, &quot;conflicting_jobs&quot;, &quot;conflicting_parents&quot;, default []</td><td></td></tr>
+<tr><td><code>started_at</code></td><td>optional</td><td>string, date-time, or null</td><td></td></tr>
+<tr><td><code>ended_at</code></td><td>optional</td><td>string, date-time, or null</td><td></td></tr>
+</tbody>
+</table>
+<h3 id="schema-workload-run-flag">WorkloadRunFlag</h3>
+<p>Disagreements among a run&#x27;s stored observations, shown rather than resolved. One of conflicting_observations, conflicting_jobs, conflicting_parents.</p>
+<h3 id="schema-workload-run-status">WorkloadRunStatus</h3>
+<p>Derived from a run&#x27;s terminal event, whatever the arrival order (spec 02). One of running, completed, failed, aborted, conflicting.</p>
+<!-- reference:end -->
+</main>
+<!-- footer:start -->
+<footer>
+<p>This site describes the <code>main</code> branch. Nothing is released yet. No license has been chosen yet. Source on <a href="https://github.com/apmalong/data-finops">GitHub</a>.</p>
+</footer>
+<!-- footer:end -->
+</body>
+</html>

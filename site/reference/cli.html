@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+<!-- head:start -->
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="../assets/site.css">
+<!-- head:end -->
+<title>Command line - data-finops</title>
+<meta name="description" content="Every data-finops command, with its usage and its arguments.">
+</head>
+<body>
+<!-- nav:start -->
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="site-header"><a href="../index.html">data-finops</a></header>
+<nav aria-label="Site">
+<ul>
+<li><a href="../tutorials/index.html">Tutorials</a>
+<ul>
+<li><a href="../tutorials/first-allocation.html">Your first allocation</a></li>
+</ul>
+</li>
+<li><a href="../how-to/index.html">How-to guides</a></li>
+<li><a href="index.html">Reference</a>
+<ul>
+<li><a href="cli.html" aria-current="page">Command line</a></li>
+<li><a href="http-api.html">HTTP API</a></li>
+<li><a href="data-contracts.html">Data contracts</a></li>
+<li><a href="glossary.html">Glossary</a></li>
+</ul>
+</li>
+<li><a href="../explanation/index.html">Explanation</a></li>
+<li><a href="../contributing.html">Contributing</a></li>
+</ul>
+</nav>
+<!-- nav:end -->
+<main id="main">
+<h1>Command line</h1>
+<p>Every <code>data-finops</code> command, with its usage and its arguments. This page is generated from the command line's own parser, so it says what <code>data-finops --help</code> says. Run <code>data-finops &lt;command&gt; --help</code> for the same text in a terminal.</p>
+<p><code>--db</code> names the database file every command reads and writes; it is created on first use. <code>serve</code> needs the optional <code>api</code> extra.</p>
+<!-- reference:start -->
+<p>Load billing and workload inputs, then allocate the bill.</p>
+<h2 id="ingest"><code>data-finops ingest</code></h2>
+<p>load one input file into a database</p>
+<p>Commands: <a href="#ingest-focus"><code>data-finops ingest focus</code></a>, <a href="#ingest-openlineage"><code>data-finops ingest openlineage</code></a>, <a href="#ingest-dbt"><code>data-finops ingest dbt</code></a>, <a href="#ingest-athena"><code>data-finops ingest athena</code></a>.</p>
+<h2 id="ingest-focus"><code>data-finops ingest focus</code></h2>
+<p>a FOCUS Export Snapshot (JSON), or an AWS Data Exports Delivery by its downloaded &lt;export&gt;-Manifest.json</p>
+<pre><code>usage: data-finops ingest focus [-h] [--data-dir DATA_DIR] --db DB path</code></pre>
+<table>
+<thead><tr><th>Argument</th><th>Required</th><th>Default</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>path</code></td><td>required</td><td></td><td></td></tr>
+<tr><td><code>--data-dir DATA_DIR</code></td><td>optional</td><td></td><td>where a Delivery&#x27;s data files were downloaded (default: beside its manifest)</td></tr>
+<tr><td><code>--db DB</code></td><td>required</td><td></td><td>the database file</td></tr>
+</tbody>
+</table>
+<h2 id="ingest-openlineage"><code>data-finops ingest openlineage</code></h2>
+<p>OpenLineage events (JSON array or JSON Lines)</p>
+<pre><code>usage: data-finops ingest openlineage [-h] --db DB path</code></pre>
+<table>
+<thead><tr><th>Argument</th><th>Required</th><th>Default</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>path</code></td><td>required</td><td></td><td></td></tr>
+<tr><td><code>--db DB</code></td><td>required</td><td></td><td>the database file</td></tr>
+</tbody>
+</table>
+<h2 id="ingest-dbt"><code>data-finops ingest dbt</code></h2>
+<p>a dbt manifest.json or run_results.json</p>
+<pre><code>usage: data-finops ingest dbt [-h] --db DB path</code></pre>
+<table>
+<thead><tr><th>Argument</th><th>Required</th><th>Default</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>path</code></td><td>required</td><td></td><td></td></tr>
+<tr><td><code>--db DB</code></td><td>required</td><td></td><td>the database file</td></tr>
+</tbody>
+</table>
+<h2 id="ingest-athena"><code>data-finops ingest athena</code></h2>
+<p>an Athena BatchGetQueryExecution response</p>
+<pre><code>usage: data-finops ingest athena [-h] --account-id ACCOUNT_ID --region REGION
+                                 --db DB
+                                 path</code></pre>
+<table>
+<thead><tr><th>Argument</th><th>Required</th><th>Default</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>path</code></td><td>required</td><td></td><td></td></tr>
+<tr><td><code>--account-id ACCOUNT_ID</code></td><td>required</td><td></td><td></td></tr>
+<tr><td><code>--region REGION</code></td><td>required</td><td></td><td></td></tr>
+<tr><td><code>--db DB</code></td><td>required</td><td></td><td>the database file</td></tr>
+</tbody>
+</table>
+<h2 id="calculate"><code>data-finops calculate</code></h2>
+<p>start a Calculation Run for every Snapshot Scope</p>
+<pre><code>usage: data-finops calculate [-h] --db DB</code></pre>
+<table>
+<thead><tr><th>Argument</th><th>Required</th><th>Default</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>--db DB</code></td><td>required</td><td></td><td>the database file</td></tr>
+</tbody>
+</table>
+<h2 id="serve"><code>data-finops serve</code></h2>
+<p>serve the API and dashboard over a database</p>
+<pre><code>usage: data-finops serve [-h] --db DB [--host HOST] [--port PORT]
+                         [--token-file TOKEN_FILE]</code></pre>
+<table>
+<thead><tr><th>Argument</th><th>Required</th><th>Default</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>--db DB</code></td><td>required</td><td></td><td>the database file</td></tr>
+<tr><td><code>--host HOST</code></td><td>optional</td><td>127.0.0.1</td><td>default: loopback only</td></tr>
+<tr><td><code>--port PORT</code></td><td>optional</td><td>8000</td><td></td></tr>
+<tr><td><code>--token-file TOKEN_FILE</code></td><td>optional</td><td></td><td>a file holding the bearer token (or set DATA_FINOPS_TOKEN); required off loopback</td></tr>
+</tbody>
+</table>
+<h2 id="demo"><code>data-finops demo</code></h2>
+<p>load the fixtures into a new database, calculate and serve on loopback</p>
+<pre><code>usage: data-finops demo [-h] [--port PORT]</code></pre>
+<table>
+<thead><tr><th>Argument</th><th>Required</th><th>Default</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>--port PORT</code></td><td>optional</td><td>8000</td><td></td></tr>
+</tbody>
+</table>
+<!-- reference:end -->
+</main>
+<!-- footer:start -->
+<footer>
+<p>This site describes the <code>main</code> branch. Nothing is released yet. No license has been chosen yet. Source on <a href="https://github.com/apmalong/data-finops">GitHub</a>.</p>
+</footer>
+<!-- footer:end -->
+</body>
+</html>
