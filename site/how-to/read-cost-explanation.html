@@ -46,6 +46,7 @@
 <li><a href="#setup">Calculate and serve</a></li>
 <li><a href="#find">Find the Allocation</a></li>
 <li><a href="#read">Read its Cost Explanation</a></li>
+<li><a href="#minimal">Show less of the Billing Line</a></li>
 </ul>
 </nav>
 <!-- onpage:end -->
@@ -97,12 +98,20 @@
 <pre class="output checked"><span class="line">{"ref":"calc-…#0","billing_line_ref":"aws-focus-123456789012-2026-10-v1#0","billing_line":{"BilledCost":"6.00",…"ServiceName":"Amazon Athena",…"allocation":{…"category":"direct","method":"estimated_metered_share","confidence":"metered_estimate","coverage":"1",…"query_execution":{…"query_execution_id":"q-001",…"model_execution":{"invocation_id":"inv-001","node_id":"model.demo.orders",…"workload_runs":[{"run_id":"00000000-0000-4000-8000-000000000002",…"rollups":[{"level":"model_execution",…"amount":"6.00"}…</span></pre>
 <p>Read it in order:</p>
 <ol>
-<li><code>billing_line</code>: the Billing Line exactly as exported, every FOCUS column included.</li>
+<li><code>billing_line</code>: the Billing Line exactly as exported, every FOCUS column included. <code>billing_line_detail</code> says how much of it is shown: <code>full</code> here.</li>
 <li><code>allocation</code>: its Allocation Category, method, Confidence, Coverage, Allocation Policy version and Calculation Run.</li>
 <li>The Evidence, each reference resolved: <code>query_execution</code>, then <code>model_execution</code> with its dbt Node, then <code>workload_runs</code>, nearest first. A Workload Run known only as another's parent or root shows <code>"run":null</code>.</li>
 <li><code>rollups</code>: each Roll-up the Allocation adds to, in its currency and Cost Basis.</li>
 </ol>
 <p>For an Unallocated Allocation, <code>unallocated_reason</code> says why it is Unallocated, such as <code>ineligible</code>. The dashboard shows the same Cost Explanation when you click an Allocation.</p>
+
+<h2 id="minimal">Show less of the Billing Line</h2>
+<p>Tags and free-text names often carry team, customer or project names. When the people reading the API should not see them, serve a minimal Billing Line (ADR 0028):</p>
+<div class="shell-tabs">
+<pre class="shell-posix"><code><span class="line">data-finops serve --db finops.sqlite --explanation-detail minimal</span></code></pre>
+<pre class="shell-windows" data-derived=""><code><span class="line">data-finops serve --db finops.sqlite --explanation-detail minimal</span></code></pre>
+</div>
+<p>Each Cost Explanation then shows <code>"billing_line_detail":"minimal"</code>. Its Billing Line keeps the columns data-finops computes with: the cost columns, accounts, periods, charge category and class, provider, service, SKU, region, <code>ResourceId</code>, <code>SubAccountId</code>, quantities and units, and their raw provider values. <code>Tags</code> and every other column, such as <code>ChargeDescription</code> and the provider's <code>x_</code> columns, are left out. Amounts, Evidence and Roll-ups are the same at either level.</p>
 <!-- pager:start -->
 <nav class="pager" aria-label="Previous and next">
 <a rel="prev" href="handle-restated-export.html">Previous: Handle a restated export</a>

@@ -123,7 +123,8 @@
 <h2 id="serve"><code>data-finops serve</code></h2>
 <p>serve the API and dashboard over a database</p>
 <pre class="usage"><code><span class="line">usage: data-finops serve [-h] --db DB [--host HOST] [--port PORT]
-</span><span class="line">                         [--token-file TOKEN_FILE]</span></code></pre>
+</span><span class="line">                         [--token-file TOKEN_FILE]
+</span><span class="line">                         [--explanation-detail {full,minimal}]</span></code></pre>
 <div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
 <table>
 <thead><tr><th>Argument</th><th>Required</th><th>Default</th><th>Meaning</th></tr></thead>
@@ -132,6 +133,7 @@
 <tr><td><code>--host HOST</code></td><td>optional</td><td>127.0.0.1</td><td>default: loopback only</td></tr>
 <tr><td><code>--port PORT</code></td><td>optional</td><td>8000</td><td></td></tr>
 <tr><td><code>--token-file TOKEN_FILE</code></td><td>optional</td><td></td><td>a file holding the bearer token (or set DATA_FINOPS_TOKEN); required off loopback</td></tr>
+<tr><td><code>--explanation-detail EXPLANATION_DETAIL</code></td><td>optional</td><td>full</td><td>how much of the Billing Line a Cost Explanation shows (ADR 0028). One of full, minimal.</td></tr>
 </tbody>
 </table>
 </div>

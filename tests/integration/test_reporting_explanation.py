@@ -17,7 +17,7 @@ from fixture_database import ACCOUNT, EXPORT, FIXTURES, fill
 from data_finops.calculation import run_calculation
 from data_finops.contracts.billing import CostBasis
 from data_finops.ledger import Ledger
-from data_finops.reporting import NotFound, Reporting
+from data_finops.reporting import BillingLineDetail, NotFound, Reporting
 from data_finops.workload.store import WorkloadStore
 
 ORACLE = next(
@@ -191,3 +191,73 @@ def test_the_query_execution_is_looked_up_in_the_lines_usage_account(tmp_path: P
     with Reporting(path) as reporting:
         query = reporting.explanation(_ref(reporting, "q-001")).query_execution
     assert query is not None and query.account_id == member
+
+
+# The detail levels (ADR 0028, #178). The fixture line `…-v1#0` carries `Tags`, free text
+# (`ChargeDescription`, `PublisherName`) and `x_` columns beside the declared ones.
+DECLARED = {
+    "BilledCost", "EffectiveCost", "ListCost", "ContractedCost", "BillingAccountId",
+    "BillingCurrency", "BillingPeriodStart", "BillingPeriodEnd", "ChargePeriodStart",
+    "ChargePeriodEnd", "ChargeCategory", "ChargeClass", "ProviderName", "ServiceName",
+    "ServiceCategory", "SkuId", "RegionId", "ResourceId", "SubAccountId", "ConsumedQuantity",
+    "ConsumedUnit", "PricingQuantity", "PricingUnit", "data_finops_raw_values",
+}  # fmt: skip
+
+
+def test_an_explanation_shows_the_billing_line_in_full_by_default(reporting: Reporting) -> None:
+    explanation = reporting.explanation(_ref(reporting, "q-001"))
+    assert explanation.billing_line_detail is BillingLineDetail.FULL
+    shown = explanation.billing_line.model_dump()
+    assert (shown["ChargeDescription"], shown["x_ServiceCode"], shown["Tags"]) == (
+        "Synthetic demo charge for data scanned by Athena on-demand queries",
+        "AmazonAthena",
+        {},
+    )
+
+
+def test_a_minimal_explanation_withholds_tags_and_every_undeclared_column(
+    reporting: Reporting,
+) -> None:
+    ref = _ref(reporting, "q-001")
+    full = reporting.explanation(ref)
+    minimal = reporting.explanation(ref, detail=BillingLineDetail.MINIMAL)
+    assert minimal.billing_line_detail is BillingLineDetail.MINIMAL
+    shown = minimal.model_dump(mode="json")["billing_line"]
+    assert set(shown) == DECLARED
+    assert {k: shown[k] for k in DECLARED} == {
+        k: full.model_dump(mode="json")["billing_line"][k] for k in DECLARED
+    }
+    assert minimal.model_dump(exclude={"billing_line", "billing_line_detail"}) == full.model_dump(
+        exclude={"billing_line", "billing_line_detail"}
+    )
+
+
+def test_a_minimal_explanation_keeps_raw_values_only_for_declared_columns(
+    tmp_path: Path,
+) -> None:
+    raw = {
+        "BilledCost": "6.0",
+        "ConsumedQuantity": "0.001",
+        "x_Discounts[0].Amount": "0.25",
+        "Tags.team": "1.5",
+    }
+    line = EXPORT.lines[0].model_copy(update={"data_finops_raw_values": raw})
+    export = EXPORT.model_copy(update={"lines": [line, *EXPORT.lines[1:]]})
+    path = tmp_path / "data-finops.sqlite"
+    with Ledger(path) as ledger, WorkloadStore(path) as store:
+        ledger.import_snapshot(export)
+        run_calculation(ledger, store, export.snapshot.scope)
+    with Reporting(path) as opened:
+        (entry,) = opened.allocations(
+            billing_account_id=ACCOUNT,
+            billing_line_ref=f"{export.snapshot.snapshot_id}#0",
+            cost_basis=CostBasis.BILLED_COST,
+        ).items
+        ref = entry.ref
+        minimal = opened.explanation(ref, detail=BillingLineDetail.MINIMAL)
+        full = opened.explanation(ref)
+    assert full.billing_line.data_finops_raw_values == raw
+    assert minimal.billing_line.data_finops_raw_values == {
+        "BilledCost": "6.0",
+        "ConsumedQuantity": "0.001",
+    }

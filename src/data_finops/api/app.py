@@ -25,6 +25,7 @@ from data_finops.reporting import (
     AllocationPage,
     AllocationReconciliation,
     AmbiguousScope,
+    BillingLineDetail,
     ConflictingFilters,
     CostExplanation,
     CostSummaries,
@@ -134,8 +135,15 @@ _RECEIVER_RESPONSES: dict[int | str, dict[str, Any]] = {
 _ONE_EVENT = {"required": True, "content": {"application/json": {"schema": {"type": "object"}}}}
 
 
-def create_app(db: Path, *, token: str | None = None) -> FastAPI:
+def create_app(
+    db: Path,
+    *,
+    token: str | None = None,
+    explanation_detail: BillingLineDetail = BillingLineDetail.FULL,
+) -> FastAPI:
     """The API over the database file `db`; nothing is opened until a request needs it.
+
+    Cost Explanations show their Billing Line at `explanation_detail` (ADR 0028).
 
     With a `token`, every route, documentation included, needs `Authorization: Bearer
     <token>` (ADR 0024); without one, every route is open, for a loopback demo.
@@ -300,7 +308,7 @@ def create_app(db: Path, *, token: str | None = None) -> FastAPI:
         """The Cost Explanation of one Allocation, addressed `<calculation_run_id>#<position>`
         (the `#` sent as `%23`): Billing Line, Allocation, Evidence resolved, Roll-ups."""
         with Reporting(db) as read_model:
-            return read_model.explanation(ref)
+            return read_model.explanation(ref, detail=explanation_detail)
 
     @app.get("/", include_in_schema=False)
     def root() -> RedirectResponse:

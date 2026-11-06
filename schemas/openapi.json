@@ -2693,6 +2693,15 @@
         "title": "AllocationReconciliation",
         "description": "One Allocation Snapshot's Allocations against the Export Snapshot its Calculation Run\nread: per-currency totals over every line, and one page of the lines."
       },
+      "BillingLineDetail": {
+        "type": "string",
+        "enum": [
+          "full",
+          "minimal"
+        ],
+        "title": "BillingLineDetail",
+        "description": "How much of the Billing Line a Cost Explanation shows (ADR 0028)."
+      },
       "Confidence": {
         "type": "string",
         "enum": [
@@ -2724,7 +2733,18 @@
             "title": "Billing Line Ref"
           },
           "billing_line": {
-            "$ref": "#/components/schemas/FocusBillingLine"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MinimalBillingLine"
+              },
+              {
+                "$ref": "#/components/schemas/FocusBillingLine"
+              }
+            ],
+            "title": "Billing Line"
+          },
+          "billing_line_detail": {
+            "$ref": "#/components/schemas/BillingLineDetail"
           },
           "allocation": {
             "$ref": "#/components/schemas/Allocation"
@@ -2781,6 +2801,7 @@
           "ref",
           "billing_line_ref",
           "billing_line",
+          "billing_line_detail",
           "allocation",
           "unallocated_reason",
           "query_execution",
@@ -3638,6 +3659,214 @@
         ],
         "title": "LinkResolution",
         "description": "A Link Outcome, with the Identity Link only when the outcome is `linked`."
+      },
+      "MinimalBillingLine": {
+        "properties": {
+          "BilledCost": {
+            "type": "string",
+            "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+            "title": "Billedcost"
+          },
+          "EffectiveCost": {
+            "type": "string",
+            "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+            "title": "Effectivecost"
+          },
+          "ListCost": {
+            "type": "string",
+            "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+            "title": "Listcost"
+          },
+          "ContractedCost": {
+            "type": "string",
+            "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+            "title": "Contractedcost"
+          },
+          "BillingAccountId": {
+            "type": "string",
+            "title": "Billingaccountid"
+          },
+          "BillingCurrency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "title": "Billingcurrency"
+          },
+          "BillingPeriodStart": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Billingperiodstart"
+          },
+          "BillingPeriodEnd": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Billingperiodend"
+          },
+          "ChargePeriodStart": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Chargeperiodstart"
+          },
+          "ChargePeriodEnd": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Chargeperiodend"
+          },
+          "ChargeCategory": {
+            "$ref": "#/components/schemas/FocusChargeCategory"
+          },
+          "ChargeClass": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FocusChargeClass"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "ProviderName": {
+            "type": "string",
+            "title": "Providername"
+          },
+          "ServiceName": {
+            "type": "string",
+            "title": "Servicename"
+          },
+          "ServiceCategory": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Servicecategory"
+          },
+          "SkuId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Skuid"
+          },
+          "RegionId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Regionid"
+          },
+          "ResourceId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resourceid"
+          },
+          "SubAccountId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subaccountid"
+          },
+          "ConsumedQuantity": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?[0-9]+(\\.[0-9]+)?$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Consumedquantity"
+          },
+          "ConsumedUnit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Consumedunit"
+          },
+          "PricingQuantity": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?[0-9]+(\\.[0-9]+)?$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pricingquantity"
+          },
+          "PricingUnit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pricingunit"
+          },
+          "data_finops_raw_values": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data Finops Raw Values"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "BilledCost",
+          "EffectiveCost",
+          "ListCost",
+          "ContractedCost",
+          "BillingAccountId",
+          "BillingCurrency",
+          "BillingPeriodStart",
+          "BillingPeriodEnd",
+          "ChargePeriodStart",
+          "ChargePeriodEnd",
+          "ChargeCategory",
+          "ProviderName",
+          "ServiceName"
+        ],
+        "title": "MinimalBillingLine",
+        "description": "A Billing Line with only the columns `FocusBillingLine` declares and their raw values\n(ADR 0028): `Tags` is always left out, and no other column is accepted."
       },
       "ModelExecution": {
         "properties": {

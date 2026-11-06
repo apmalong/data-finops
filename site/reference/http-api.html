@@ -390,6 +390,8 @@
 </tbody>
 </table>
 </div>
+<h3 id="schema-billing-line-detail">BillingLineDetail</h3>
+<p>How much of the Billing Line a Cost Explanation shows (ADR 0028). One of full, minimal.</p>
 <h3 id="schema-confidence">Confidence</h3>
 <p>One of direct_verified, metered_estimate, heuristic_estimate.</p>
 <h3 id="schema-cost-basis">CostBasis</h3>
@@ -402,7 +404,8 @@
 <tbody>
 <tr><td><code>ref</code></td><td>required</td><td>string</td><td></td></tr>
 <tr><td><code>billing_line_ref</code></td><td>required</td><td>string</td><td></td></tr>
-<tr><td><code>billing_line</code></td><td>required</td><td>FocusBillingLine</td><td></td></tr>
+<tr><td><code>billing_line</code></td><td>required</td><td>MinimalBillingLine or FocusBillingLine</td><td></td></tr>
+<tr><td><code>billing_line_detail</code></td><td>required</td><td>BillingLineDetail: one of &quot;full&quot;, &quot;minimal&quot;</td><td></td></tr>
 <tr><td><code>allocation</code></td><td>required</td><td>Allocation</td><td></td></tr>
 <tr><td><code>unallocated_reason</code></td><td>required</td><td>string, or null</td><td></td></tr>
 <tr><td><code>query_execution</code></td><td>required</td><td>QueryExecution, or null</td><td></td></tr>
@@ -667,6 +670,39 @@
 <tbody>
 <tr><td><code>outcome</code></td><td>required</td><td>LinkOutcome: one of &quot;linked&quot;, &quot;no_evidence&quot;, &quot;unmatched&quot;, &quot;ambiguous&quot;</td><td></td></tr>
 <tr><td><code>link</code></td><td>optional</td><td>IdentityLink, or null</td><td></td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="schema-minimal-billing-line">MinimalBillingLine</h3>
+<p>A Billing Line with only the columns `FocusBillingLine` declares and their raw values (ADR 0028): `Tags` is always left out, and no other column is accepted.</p>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
+<table>
+<thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>BilledCost</code></td><td>required</td><td>string, matching ^-?[0-9]+(\.[0-9]+)?$</td><td></td></tr>
+<tr><td><code>EffectiveCost</code></td><td>required</td><td>string, matching ^-?[0-9]+(\.[0-9]+)?$</td><td></td></tr>
+<tr><td><code>ListCost</code></td><td>required</td><td>string, matching ^-?[0-9]+(\.[0-9]+)?$</td><td></td></tr>
+<tr><td><code>ContractedCost</code></td><td>required</td><td>string, matching ^-?[0-9]+(\.[0-9]+)?$</td><td></td></tr>
+<tr><td><code>BillingAccountId</code></td><td>required</td><td>string</td><td></td></tr>
+<tr><td><code>BillingCurrency</code></td><td>required</td><td>string, matching ^[A-Z]{3}$</td><td></td></tr>
+<tr><td><code>BillingPeriodStart</code></td><td>required</td><td>string, date-time</td><td></td></tr>
+<tr><td><code>BillingPeriodEnd</code></td><td>required</td><td>string, date-time</td><td></td></tr>
+<tr><td><code>ChargePeriodStart</code></td><td>required</td><td>string, date-time</td><td></td></tr>
+<tr><td><code>ChargePeriodEnd</code></td><td>required</td><td>string, date-time</td><td></td></tr>
+<tr><td><code>ChargeCategory</code></td><td>required</td><td>FocusChargeCategory: one of &quot;Usage&quot;, &quot;Purchase&quot;, &quot;Tax&quot;, &quot;Credit&quot;, &quot;Adjustment&quot;</td><td></td></tr>
+<tr><td><code>ChargeClass</code></td><td>optional</td><td>FocusChargeClass: one of &quot;Correction&quot;, or null</td><td></td></tr>
+<tr><td><code>ProviderName</code></td><td>required</td><td>string</td><td></td></tr>
+<tr><td><code>ServiceName</code></td><td>required</td><td>string</td><td></td></tr>
+<tr><td><code>ServiceCategory</code></td><td>optional</td><td>string, or null</td><td></td></tr>
+<tr><td><code>SkuId</code></td><td>optional</td><td>string, or null</td><td></td></tr>
+<tr><td><code>RegionId</code></td><td>optional</td><td>string, or null</td><td></td></tr>
+<tr><td><code>ResourceId</code></td><td>optional</td><td>string, or null</td><td></td></tr>
+<tr><td><code>SubAccountId</code></td><td>optional</td><td>string, or null</td><td></td></tr>
+<tr><td><code>ConsumedQuantity</code></td><td>optional</td><td>string, matching ^-?[0-9]+(\.[0-9]+)?$, or null</td><td></td></tr>
+<tr><td><code>ConsumedUnit</code></td><td>optional</td><td>string, or null</td><td></td></tr>
+<tr><td><code>PricingQuantity</code></td><td>optional</td><td>string, matching ^-?[0-9]+(\.[0-9]+)?$, or null</td><td></td></tr>
+<tr><td><code>PricingUnit</code></td><td>optional</td><td>string, or null</td><td></td></tr>
+<tr><td><code>data_finops_raw_values</code></td><td>optional</td><td>object of string, or null</td><td></td></tr>
 </tbody>
 </table>
 </div>

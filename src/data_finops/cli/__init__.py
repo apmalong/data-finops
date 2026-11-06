@@ -25,6 +25,7 @@ from data_finops.billing.aws_data_exports import DeliveryError, is_manifest, loa
 from data_finops.billing.focus import load_export
 from data_finops.calculation import run_calculation
 from data_finops.ledger import Ledger, SnapshotConflictError
+from data_finops.reporting import BillingLineDetail
 from data_finops.workload.store import ArtifactOutcome, WorkloadStore
 
 
@@ -126,6 +127,12 @@ def build_parser() -> argparse.ArgumentParser:
         "--token-file",
         type=Path,
         help="a file holding the bearer token (or set DATA_FINOPS_TOKEN); required off loopback",
+    )
+    serve.add_argument(
+        "--explanation-detail",
+        choices=[detail.value for detail in BillingLineDetail],
+        default=BillingLineDetail.FULL.value,
+        help="how much of the Billing Line a Cost Explanation shows (ADR 0028).",
     )
     serve.set_defaults(run=_serve)
 
@@ -231,7 +238,14 @@ def _calculate(args: argparse.Namespace) -> int:
 def _serve(args: argparse.Namespace) -> int:
     if not args.db.is_file():
         raise _Failure(f"no database at {args.db}")
-    return _serve_database(args.db, args.host, args.port, args.token_file, args.start_server)
+    return _serve_database(
+        args.db,
+        args.host,
+        args.port,
+        args.token_file,
+        args.start_server,
+        explanation_detail=BillingLineDetail(args.explanation_detail),
+    )
 
 
 def _demo(args: argparse.Namespace) -> int:
@@ -278,6 +292,7 @@ def _serve_database(
     start_server: StartServer,
     *,
     environ: Mapping[str, str] = os.environ,
+    explanation_detail: BillingLineDetail = BillingLineDetail.FULL,
 ) -> int:
     api = _api()
     try:
@@ -289,7 +304,7 @@ def _serve_database(
             f"refusing to serve on {host} without a token: set {api.TOKEN_VARIABLE} or"
             " --token-file (ADR 0024)"
         )
-    app = api.create_app(db, token=token)
+    app = api.create_app(db, token=token, explanation_detail=explanation_detail)
     print(f"serving {db} at http://{host}:{port}/ (Ctrl+C to stop)")
     start_server(app, host, port)
     return OK

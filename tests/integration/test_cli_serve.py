@@ -180,3 +180,38 @@ def test_without_uvicorn_serve_says_how_to_install_the_extra(
     server = Recorder()
     assert main(["serve", "--db", str(database)], start_server=server) == 2
     assert "pip install 'data-finops[api]'" in capsys.readouterr().err
+
+
+def _explained_detail(app: Any) -> str:
+    with TestClient(app) as client:
+        allocations = client.get("/v1/allocations").json()["items"]
+        ref = allocations[0]["ref"].replace("#", "%23")
+        detail: str = client.get(f"/v1/allocations/{ref}/explanation").json()["billing_line_detail"]
+    return detail
+
+
+@pytest.mark.parametrize(
+    ("argv", "detail"),
+    [
+        ([], "full"),
+        (["--explanation-detail", "minimal"], "minimal"),
+        (["--explanation-detail", "full"], "full"),
+    ],
+)
+def test_serve_shows_the_billing_line_at_the_chosen_detail(
+    database: Path, argv: list[str], detail: str
+) -> None:
+    server = Recorder()
+    assert main(["serve", "--db", str(database), *argv], start_server=server) == 0
+    ((app, _host, _port),) = server.calls
+    assert _explained_detail(app) == detail
+
+
+def test_serve_refuses_an_unknown_detail(
+    database: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    server = Recorder()
+    argv = ["serve", "--db", str(database), "--explanation-detail", "everything"]
+    assert main(argv, start_server=server) == 2
+    assert server.calls == []
+    assert "--explanation-detail" in capsys.readouterr().err

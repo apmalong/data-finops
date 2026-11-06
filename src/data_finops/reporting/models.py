@@ -1,9 +1,10 @@
 """Response models of the read model (spec 06). Amounts are Decimal strings, never floats,
 and never summed across currencies."""
 
+from enum import StrEnum
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from data_finops.attribution.engine import AllocationMethod
 from data_finops.contracts.allocation import Allocation, AllocationCategory, Confidence
@@ -223,14 +224,36 @@ class ExplainedRollup(_Response):
     amount: DecimalString
 
 
+class BillingLineDetail(StrEnum):
+    """How much of the Billing Line a Cost Explanation shows (ADR 0028)."""
+
+    FULL = "full"
+    """Every column as exported: `Tags`, free text and provider `x_` columns included."""
+    MINIMAL = "minimal"
+    """Only the columns `FocusBillingLine` declares and their raw values; `Tags` is null and
+    every other column is withheld."""
+
+
+class MinimalBillingLine(FocusBillingLine):
+    """A Billing Line with only the columns `FocusBillingLine` declares and their raw values
+    (ADR 0028): `Tags` is always left out, and no other column is accepted."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid", title="MinimalBillingLine")
+    Tags: dict[str, str] | None = Field(default=None, exclude=True)
+
+
 class CostExplanation(_Response):
     """The chain behind one Allocation (GLOSSARY): its Billing Line, the Allocation, its
     Evidence resolved, and the Roll-ups it contributes to."""
 
     ref: str
     billing_line_ref: str
-    billing_line: FocusBillingLine
-    """Every FOCUS column as exported, with the provider's raw values."""
+    billing_line: MinimalBillingLine | FocusBillingLine
+    """The Billing Line at `billing_line_detail`: in full, every column as exported, with the
+    provider's raw values."""
+    billing_line_detail: BillingLineDetail
+    """Which detail the Billing Line is shown at, so a withheld column is never mistaken for
+    an empty one."""
     allocation: Allocation
     unallocated_reason: str | None
     """Why an Unallocated amount was not allocated (its method); None otherwise."""
