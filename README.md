@@ -21,6 +21,9 @@ uv run data-finops demo        # open http://127.0.0.1:8000/
 
 `examples/demo/README.md` walks through what you see, one step and one command at a time. `uv run data-finops --help` lists the commands.
 
+## Documentation
+The documentation for people who run data-finops is at <https://apmalong.github.io/data-finops/>: tutorials, how-to guides, reference and explanation. It is published from `site/` on every push to `main` (ADR 0025, spec 07).
+
 ## Mission
 Build a free, open-source, customer-managed, modular FinOps application for data engineering workloads. Attribute authoritative cloud charges to queries, runs, pipelines, models, datasets, data products, tenants, and downstream consumers without double counting. Deliver a small usable AWS Athena + Airflow/OpenLineage + dbt vertical slice first.
 
