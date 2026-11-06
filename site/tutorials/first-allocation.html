@@ -7,7 +7,7 @@
 <link rel="stylesheet" href="../assets/site.css">
 <!-- head:end -->
 <title>Your first allocation - data-finops</title>
-<meta name="description" content="A tutorial: load a small synthetic bill and its workload metadata, allocate it, and follow $10.00 of cost to the query, dbt model and Airflow run that used it.">
+<meta name="description" content="A tutorial: load a small synthetic bill and its workload metadata, allocate it, and follow $10.00 of cost to the Query Execution, Model Execution and Workload Runs that used it.">
 </head>
 <body>
 <!-- nav:start -->
@@ -31,7 +31,7 @@
 <h1>Your first allocation</h1>
 <p>In this tutorial we load a small bill and the metadata of the workload that ran against it. Then we allocate the bill and follow $10.00 of cost to the Query Execution, dbt Model Execution and Airflow Workload Runs that used it. It takes about five minutes and needs no cloud account.</p>
 <p class="notice">The inputs are synthetic test fixtures, not real AWS billing records or provider prices.</p>
-<p>Every command on this page and every output marked as checked is run by a test on each change to data-finops, so what you see here is what you will see.</p>
+<p>Every command in steps 1 to 8, and every output marked as checked, is run by a test on each change to data-finops, so what you see in them is what you will see.</p>
 
 <h2 id="before-you-start">Before you start</h2>
 <p>You need Python 3.12, <a href="https://docs.astral.sh/uv/">uv</a> and a source checkout, because the tutorial reads the fixtures in <code>fixtures/</code>:</p>
@@ -82,25 +82,25 @@ curl -s 'http://127.0.0.1:8000/v1/costs/summary?cost_basis=BilledCost'</code></p
 <li>Under the title are the Calculation Run, when it ran, and the policy version it used.</li>
 </ul>
 
-<h2 id="q-001">4. Follow $6.00 to its query, model and runs</h2>
+<h2 id="q-001">4. Follow $6.00 to its Query Execution, Model Execution and Workload Runs</h2>
 <p><strong>Direct</strong>, metered estimate, Coverage 1: <strong>6.00</strong>. It is an estimate, so it is always shown with its Confidence and Coverage. We ask which Allocation it is, and what it rolls up to:</p>
 <pre><code class="run">curl -s 'http://127.0.0.1:8000/v1/allocations?billing_account_id=123456789012&amp;billing_period=2026-10-01&amp;source=aws-data-exports:FOCUS_1_2_AWS&amp;cost_basis=BilledCost&amp;category=direct'
 curl -s 'http://127.0.0.1:8000/v1/rollups?billing_account_id=123456789012&amp;billing_period=2026-10-01&amp;source=aws-data-exports:FOCUS_1_2_AWS&amp;level=model_execution'</code></pre>
 <pre class="output checked">{"calculation_run_id":"calc-…","total":1,…"target_type":"query_execution","target_id":"q-001","amount":"6.00",…"method":"estimated_metered_share","confidence":"metered_estimate","coverage":"1",…}}]}
 {…"items":[{"key":"[\"inv-001\",\"model.demo.orders\"]","totals":[{"currency":"USD","cost_basis":"BilledCost","amount":"6.00"},…]}]}</pre>
-<p>The whole $6.00 Athena line goes to Query Execution <code>q-001</code>. The line bills exactly the Billable Usage of the queries known in its billing scope, so Coverage is 1 and <code>q-001</code> gets the line by its bytes scanned. In the dashboard, click <strong>Direct</strong> to open its Cost Explanation:</p>
+<p>The whole $6.00 Athena line goes to Query Execution <code>q-001</code>. The line bills exactly the Billable Usage of the Query Executions known in its billing scope, so Coverage is 1 and <code>q-001</code> gets the line by its Billable Usage. In the dashboard, click <strong>Direct</strong> to open its Cost Explanation:</p>
 <img src="../assets/tutorial/dashboard-cost-explanation.png" alt="The Cost Explanation of the 6.00 Allocation: 1, the Billing Line, 6.00 USD of Amazon Athena; 2, the Allocation, Direct, estimated metered share, Coverage 1; 3, the Evidence, Query Execution q-001, Model Execution model.demo.orders, then Workload Runs nearest first; 4, the Roll-ups it contributes to, each 6.00 USD." width="1200" height="2400">
-<p>It reads in order: the Billing Line as exported, the Allocation, the Evidence nearest first, and the Roll-ups. <code>model.demo.orders</code> has $6.00, and so do the dbt run and the Airflow runs above it. A Roll-up is a sum of Allocations, never a further Allocation.</p>
+<p>It reads in order: the Billing Line as exported, the Allocation, the Evidence nearest first, and the Roll-ups. Model Execution <code>model.demo.orders</code> has $6.00, and so do the dbt Workload Run and the Airflow Workload Runs above it. A Roll-up is a sum of Allocations, never a further Allocation.</p>
 
-<h2 id="customers">5. A model with no linked query gets nothing</h2>
+<h2 id="customers">5. A Model Execution with no linked Query Execution gets nothing</h2>
 <p>We ask for the lineage of the dbt run, <code>00000000-0000-4000-8000-000000000002</code>:</p>
 <pre><code class="run">curl -s 'http://127.0.0.1:8000/v1/lineage?run_id=00000000-0000-4000-8000-000000000002'</code></pre>
 <pre class="output checked">{"run_id":"00000000-0000-4000-8000-000000000002",…"node_id":"model.demo.customers",…"query_execution_id":"q-004",…"outcome":"ambiguous"…</pre>
-<p>Only <code>q-004</code> claims <code>model.demo.customers</code>, and its reports disagree, so its Link Outcome is <code>ambiguous</code>. With no Identity Link, nothing is invented for the model: it has no Roll-up. The dashboard shows the same under <strong>Workload Runs</strong>:</p>
-<img src="../assets/tutorial/dashboard-lineage.png" alt="The lineage of Workload Run 00000000-0000-4000-8000-000000000002: the runs above it, the dbt model run below it, and its Identity Links, where model.demo.customers is claimed only by q-004, Link Outcome ambiguous, and model.demo.orders by q-001 and q-002, linked." width="1200" height="2400">
+<p>Only <code>q-004</code> claims <code>model.demo.customers</code>, and its reports disagree, so its Link Outcome is <code>ambiguous</code>. With no Identity Link, nothing is invented for that Model Execution: it has no Roll-up. The dashboard shows the same under <strong>Workload Runs</strong>:</p>
+<img src="../assets/tutorial/dashboard-lineage.png" alt="The lineage of Workload Run 00000000-0000-4000-8000-000000000002: the runs above it, the dbt Workload Run below it, and its Identity Links, where model.demo.customers is claimed only by q-004, Link Outcome ambiguous, and model.demo.orders by q-001 and q-002, linked, and by q-004, ambiguous." width="1200" height="2400">
 
 <h2 id="unallocated">6. The $4.00 S3 line stays Unallocated</h2>
-<p>In the Cost Summary from step 3, <code>"unallocated":[{"reason":"ineligible","amount":"4.00"}]</code>. No policy allocates S3 storage yet, so its $4.00 stays Unallocated, named with its reason, and is never spread over the queries. The dashboard shows it in the highlight colour.</p>
+<p>In the Cost Summary from step 3, <code>"unallocated":[{"reason":"ineligible","amount":"4.00"}]</code>. No policy allocates S3 storage yet, so its $4.00 stays Unallocated, named with its reason, and is never spread over the Query Executions. The dashboard shows it in the highlight colour.</p>
 
 <h2 id="replay">7. Load everything again: nothing changes</h2>
 <pre><code class="run">data-finops ingest focus fixtures/focus/export-2026-10.json --db demo.sqlite
@@ -132,7 +132,7 @@ calculate: 123456789012 2026-10-01 aws-data-exports:FOCUS_1_2_AWS: new calc-…
 <p>The bill is now $11.00 and the new Calculation Run is current. The previous one is kept, not overwritten: ask for <code>/v1/provenance?calculation_run_id=</code> with the first run's ID, and it answers <code>"is_current": false</code> with <code>superseded_by</code> naming the new run.</p>
 
 <h2 id="next">What we did</h2>
-<p>We loaded a bill and the metadata of the workload behind it, and allocated every Billing Line. Then we followed $6.00 through a Query Execution to a dbt model and its Airflow runs, saw a model with no evidence get nothing, saw $4.00 stay Unallocated with its reason, and saw a restated bill make a new Allocation Snapshot while keeping the old one.</p>
+<p>We loaded a bill and the metadata of the workload behind it, and allocated every Billing Line. Then we followed $6.00 through a Query Execution to its Model Execution and Workload Runs, saw a Model Execution with no Evidence get nothing, saw $4.00 stay Unallocated with its reason, and saw a restated bill make a new Allocation Snapshot while keeping the old one.</p>
 <p>To try the whole thing in one command, <code>data-finops demo</code> loads every fixture into a temporary database, calculates, and serves the dashboard until you press Ctrl+C.</p>
 </main>
 <!-- footer:start -->
