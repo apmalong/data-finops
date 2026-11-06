@@ -13,7 +13,7 @@ from pathlib import Path
 
 from scripts.site.nav import Entry, SiteError, parse_nav, walk
 from scripts.site.reference import render_cli, render_contracts, render_glossary, render_http
-from scripts.site.shells import shell_tabs
+from scripts.site.shells import LINE_SPAN, shell_tabs
 
 __all__ = ["SiteError", "build"]
 
@@ -154,7 +154,6 @@ def _pager(current: str, before: Entry | None, after: Entry | None) -> str:
 
 
 _PRE = re.compile(r"(<pre\b[^>]*>(?:<code\b[^>]*>)?)(.*?)((?:</code>)?</pre>)", re.DOTALL)
-_LINE_SPAN = re.compile(r'<span class="line">(.*?)</span>', re.DOTALL)
 _H2 = re.compile(r"<h2\b([^>]*)>(.*?)</h2>", re.DOTALL)
 _LINK_TAG = re.compile(r"</?a\b[^>]*>")
 
@@ -165,7 +164,7 @@ def _line_spans(text: str) -> str:
     unchanged. A block holding any other markup is left as written."""
 
     def spans(block: re.Match[str]) -> str:
-        plain = _LINE_SPAN.sub(r"\1", block[2])
+        plain = LINE_SPAN.sub(r"\1", block[2])
         if "<" in plain:
             return block[0]
         lines = plain.split("\n")

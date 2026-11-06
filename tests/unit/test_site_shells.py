@@ -54,12 +54,17 @@ def test_a_command_block_gets_a_windows_version_beside_it(tmp_path: Path) -> Non
         ),
         ("CALCULATION_RUN_ID=calc-1", '$CALCULATION_RUN_ID = "calc-1"'),
         (
+            "CALCULATION_RUN_ID=calc-&lt;the ID calculate printed&gt;",
+            '$CALCULATION_RUN_ID = "calc-&lt;the ID calculate printed&gt;"',
+        ),
+        (
             "curl -s --data-binary @fixtures/e.json http://x/api",
             "curl.exe -s --data-binary '@fixtures/e.json' http://x/api",
         ),
         ('curl -s "http://x/$CALCULATION_RUN_ID"', 'curl.exe -s "http://x/$CALCULATION_RUN_ID"'),
         ("data-finops ingest dbt fixtures/curl.json", "data-finops ingest dbt fixtures/curl.json"),
         ("curl -s -H 'Accept: a|b' http://x", "curl.exe -s -H 'Accept: a|b' http://x"),
+        ('curl -s -d "a @b" http://x', 'curl.exe -s -d "a @b" http://x'),
     ],
 )
 def test_each_rule_turns_one_shell_line_into_powershell(
@@ -76,6 +81,8 @@ def test_each_rule_turns_one_shell_line_into_powershell(
         "cd a &amp;&amp; ls",
         'export X="$(cd .. &amp;&amp; pwd)"',
         "data-finops ingest \\",
+        "DATA_FINOPS_TOKEN=abc data-finops serve --db d.sqlite",
+        'data-finops x \\" | y \\"',  # escaped quotes outside quotes: the pipe is live
     ],
 )
 def test_a_line_the_rules_cannot_translate_fails_the_build_naming_it(
@@ -125,3 +132,9 @@ def test_an_edited_block_on_a_built_page_gets_a_fresh_windows_version(tmp_path: 
     edited = first.replace("curl -s http://x/a</span>", "curl -s http://x/z</span>", 1)
     assert "http://x/z" in edited
     assert windows(built(tmp_path / "2", "", source=edited)) == "curl.exe -s http://x/z"
+
+
+def test_a_windows_block_that_follows_nothing_fails_the_build(tmp_path: Path) -> None:
+    body = '<p>loose</p>\n<pre class="windows"><code>dir</code></pre>\n'
+    with pytest.raises(SiteError, match=r"how-to/calculate\.html.*windows.*follow"):
+        built(tmp_path, body)

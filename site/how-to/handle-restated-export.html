@@ -81,7 +81,7 @@
 <p>Set <code>CALCULATION_RUN_ID</code> to the ID the last <code>calculate</code> printed:</p>
 <div class="shell-tabs">
 <pre class="shell-posix"><code><span class="line">CALCULATION_RUN_ID=calc-&lt;the ID calculate printed&gt;</span></code></pre>
-<pre class="shell-windows" data-derived=""><code><span class="line">CALCULATION_RUN_ID=calc-&lt;the ID calculate printed&gt;</span></code></pre>
+<pre class="shell-windows" data-derived=""><code><span class="line">$CALCULATION_RUN_ID = "calc-&lt;the ID calculate printed&gt;"</span></code></pre>
 </div>
 <div class="shell-tabs">
 <pre class="shell-posix"><code class="run"><span class="line">curl -s "http://127.0.0.1:8000/v1/provenance?calculation_run_id=$CALCULATION_RUN_ID"</span></code></pre>

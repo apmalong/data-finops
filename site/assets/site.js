@@ -43,7 +43,7 @@
     var bar = document.createElement("div");
     bar.className = "shell-tab-bar";
     bar.setAttribute("role", "group");
-    bar.setAttribute("aria-label", "Commands for");
+    bar.setAttribute("aria-label", "Show the commands for");
     ["posix", "windows"].forEach(function (shell) {
       var button = document.createElement("button");
       button.type = "button";

@@ -24,7 +24,7 @@ One page per document under `site/`, each one Diátaxis type. Home is `index.htm
   - A page holds the macOS/Linux block, which the page runner runs. `build` puts a Windows version beside it, in a `shell-tabs` group.
   - The Windows version is derived by fixed rules: `curl` becomes `curl.exe`; `export X=v` becomes `$env:X = "v"`; `X=v` becomes `$X = "v"`; an unquoted `@file` argument is quoted.
   - A line the rules cannot translate fails the build, until a hand-written `<pre class="windows">` follows the block. Such lines include redirects (PowerShell 5.1 writes `>` as UTF-16), `&&`, pipes, `$(…)` other than `$(cat FILE)`, and line continuations.
-  - Output blocks and the CLI reference's `usage` blocks get no tabs.
+  - Output blocks, the CLI reference's `usage` blocks, and a block holding other markup get no tabs. A `<pre class="windows">` that does not follow a command block fails the build.
   - `site/assets/site.js` shows one version at a time, chosen by the reader's OS and then their last choice, kept in `localStorage`. Without it, both versions show, each labelled.
 - Every link is relative. Root-absolute links (`/…`) are refused, so the same files work from `file://`, a checkout and `https://apmalong.github.io/data-finops/`.
 
