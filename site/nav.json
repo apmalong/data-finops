@@ -1,0 +1,8 @@
+[
+  {"title": "data-finops", "path": "index.html"},
+  {"title": "Tutorials", "path": "tutorials/index.html", "pages": []},
+  {"title": "How-to guides", "path": "how-to/index.html", "pages": []},
+  {"title": "Reference", "path": "reference/index.html", "pages": []},
+  {"title": "Explanation", "path": "explanation/index.html", "pages": []},
+  {"title": "Contributing", "path": "contributing.html"}
+]

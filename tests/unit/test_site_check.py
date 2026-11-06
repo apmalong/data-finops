@@ -1,5 +1,6 @@
 """The site checker (spec 07, "The site tool"), tested only through `check_site`."""
 
+import json
 from pathlib import Path
 
 from scripts.site.check import Problem, check_site
@@ -16,6 +17,12 @@ def page(body: str, *, title: str = "A page", head: str = "", lang: str = ' lang
 
 
 def make_site(root: Path, files: dict[str, str]) -> Path:
+    """A site of `files`; unless they include one, a nav.json that lists each page."""
+    if "nav.json" not in files:
+        pages = [n for n in files if n.endswith(".html")]
+        home = ["index.html"] if "index.html" in pages else []
+        entries = [{"title": n, "path": n} for n in home + [p for p in pages if p not in home]]
+        files = {**files, "nav.json": json.dumps(entries)}
     for name, text in files.items():
         path = root / name
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -178,14 +185,14 @@ def test_twelve_digit_numbers_other_than_the_placeholder_account_are_reported(
             "index.html": page(
                 "<p>Account 123456789012 is the placeholder.</p>\n<p>Not 210987654321.</p>"
             ),
-            "nav.json": '{\n  "note": "acct-555555555555"\n}\n',
+            "notes.json": '{\n  "note": "acct-555555555555"\n}\n',
             "assets/site.css": "/* 9876543210987 has thirteen digits */\n",
         },
     )
     problems = check_site(site)
     assert rules(problems) == [
         ("index.html", "account-id", BODY + 1),
-        ("nav.json", "account-id", 2),
+        ("notes.json", "account-id", 2),
     ]
     assert not any("210987654321" in p.message or "555555555555" in p.message for p in problems)
 
@@ -206,7 +213,10 @@ def test_external_urls_are_refused_in_css_and_js_but_allowed_in_page_text(tmp_pa
 
 
 def test_a_site_without_a_home_page_is_reported(tmp_path: Path) -> None:
-    assert rules(check_site(tmp_path / "missing")) == [("index.html", "missing-index", 1)]
+    assert rules(check_site(tmp_path / "missing")) == [
+        ("index.html", "missing-index", 1),
+        ("nav.json", "missing-nav", 1),
+    ]
 
 
 def test_the_real_site_has_no_problems() -> None:
@@ -298,3 +308,38 @@ def test_a_file_that_is_not_utf8_is_reported_not_fatal(tmp_path: Path) -> None:
         ("assets/LOGO.SVG", "not-utf8", 1),
         ("notes.MD", "account-id", 1),
     ]
+
+
+def test_every_page_is_in_the_nav_and_every_nav_entry_is_a_page(tmp_path: Path) -> None:
+    nav = (
+        "[\n"
+        '  {"title": "Home", "path": "index.html"},\n'
+        '  {"title": "How-to", "path": "how-to/index.html", "pages": [\n'
+        '    {"title": "Gone", "path": "how-to/gone.html"}\n'
+        "  ]}\n"
+        "]\n"
+    )
+    site = make_site(
+        tmp_path,
+        {
+            "index.html": page("<p>x</p>"),
+            "how-to/index.html": page("<p>x</p>"),
+            "orphan.html": page("<p>x</p>"),
+            "nav.json": nav,
+        },
+    )
+    assert rules(check_site(site)) == [
+        ("nav.json", "nav-entry-missing", 4),
+        ("orphan.html", "not-in-nav", 1),
+    ]
+
+
+def test_a_site_without_a_nav_is_reported(tmp_path: Path) -> None:
+    site = make_site(tmp_path, {"index.html": page("<p>x</p>")})
+    (site / "nav.json").unlink()
+    assert rules(check_site(site)) == [("nav.json", "missing-nav", 1)]
+
+
+def test_a_malformed_nav_is_reported_not_fatal(tmp_path: Path) -> None:
+    site = make_site(tmp_path, {"index.html": page("<p>x</p>"), "nav.json": "[{"})
+    assert rules(check_site(site)) == [("nav.json", "bad-nav", 1)]
