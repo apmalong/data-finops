@@ -23,11 +23,12 @@ All development follows Matt Pocock's engineering skills (`mattpocock-skills` pl
 4. **Build:** `implement`, one ticket per branch. Use `tdd` (red, then green) only at the seams agreed for that ticket. Run type checks and single test files often and the full suite at the end, then run `code-review` against `main`. Commit with `Closes #<ticket>`.
 5. **Standards gate:** before any collector, parser, serializer, lineage model, telemetry format, allocation algorithm or integration, apply ADR 0014 (see the section below).
 6. **Pull request:** body follows the `pr` skill (Summary, Evidence, Merge Danger). `main` is protected: a PR and a passing `quality` check are required.
-7. **Close a milestone** only with runnable verification: record commands and output in `progress.md` and update affected docs.
-8. Bugs use `diagnosing-bugs`; issue intake uses `triage` with the labels in `docs/agents/triage-labels.md`.
+7. **Documentation:** every ticket names the Diátaxis documentation type it changes (tutorial, how-to, reference, explanation, or none) in a `## Documentation` section, and done includes that change (ADR 0025, spec 07). The code-review Spec reviewer checks it against the diff.
+8. **Close a milestone** only with runnable verification: record commands and output in `progress.md` and update affected docs.
+9. Bugs use `diagnosing-bugs`; issue intake uses `triage` with the labels in `docs/agents/triage-labels.md`.
 
 ## Repository conventions
-`src/data_finops/{contracts,billing,normalization,ledger,identity,lineage,dbt,workload,attribution,api,providers}`; contracts are generated into `schemas/` by `uv run python -m data_finops.schemas`; `scripts/` holds operator tools and network-dependent upstream checks, never product code; `infra/pulumi/aws`; `tests/{unit,integration,contract}`; `examples/demo`; `examples/reference-workload` (ADR 0021: separate uv project, never imported by `data_finops`).
+`src/data_finops/{contracts,billing,normalization,ledger,identity,lineage,dbt,workload,attribution,api,providers}`; contracts are generated into `schemas/` by `uv run python -m data_finops.schemas`; `scripts/` holds operator tools and network-dependent upstream checks, never product code; `infra/pulumi/aws`; `tests/{unit,integration,contract}`; `examples/demo`; `site/` (the user documentation site, deployed as committed; ADR 0025); `scripts/site/` (its dev tooling, outside the wheel); `examples/reference-workload` (ADR 0021: separate uv project, never imported by `data_finops`).
 
 ## Security
 Use read-only IAM for ingestion, separate deployment permissions, secrets from runtime identity/secret manager, bound query limits, no public ingestion endpoint by default, and no direct SQL interpolation of untrusted metadata.
