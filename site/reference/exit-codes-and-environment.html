@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+<!-- head:start -->
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="../assets/site.css">
+<!-- head:end -->
+<title>Exit codes and environment - data-finops</title>
+<meta name="description" content="Reference: the exit codes of the data-finops command and the environment variables data-finops reads.">
+</head>
+<body>
+<!-- nav:start -->
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="site-header"><a href="../index.html">data-finops</a></header>
+<nav aria-label="Site">
+<ul>
+<li><a href="../tutorials/index.html">Tutorials</a>
+<ul>
+<li><a href="../tutorials/first-allocation.html">Your first allocation</a></li>
+</ul>
+</li>
+<li><a href="../how-to/index.html">How-to guides</a></li>
+<li><a href="index.html">Reference</a>
+<ul>
+<li><a href="cli.html">Command line</a></li>
+<li><a href="http-api.html">HTTP API</a></li>
+<li><a href="data-contracts.html">Data contracts</a></li>
+<li><a href="exit-codes-and-environment.html" aria-current="page">Exit codes and environment</a></li>
+<li><a href="glossary.html">Glossary</a></li>
+</ul>
+</li>
+<li><a href="../explanation/index.html">Explanation</a></li>
+<li><a href="../contributing.html">Contributing</a></li>
+</ul>
+</nav>
+<!-- nav:end -->
+<main id="main">
+<h1>Exit codes and environment</h1>
+<p>This page lists the exit codes of the <code>data-finops</code> command and the environment variables data-finops reads. A test checks both lists against the code.</p>
+
+<h2 id="exit-codes-heading">Exit codes</h2>
+<p>Every <code>data-finops</code> command exits with one of these codes.</p>
+<dl id="exit-codes">
+<dt><code>0</code></dt>
+<dd>Everything was stored. For <code>serve</code> and <code>demo</code>, the server stopped normally.</dd>
+<dt><code>1</code></dt>
+<dd>Something was rejected, and the rest was stored. Each rejected item is named by its position and the reason, never by its content.</dd>
+<dt><code>2</code></dt>
+<dd>Nothing was done. The arguments were wrong, a file could not be read or written, the database is not a data-finops database, or <code>serve</code> refused to start. The message says why.</dd>
+</dl>
+<p>Asking for help with <code>--help</code> exits with <code>0</code>.</p>
+
+<h2 id="environment-heading">Environment variables</h2>
+<dl id="environment">
+<dt><code>DATA_FINOPS_TOKEN</code></dt>
+<dd>
+<p>The bearer token for <code>serve</code>. When a token is set, every route, the API documentation included, needs the header <code>Authorization: Bearer &lt;token&gt;</code>. Without one, every route is open.</p>
+<ul>
+<li>Set the token in this variable or in a file named by <code>--token-file</code>, not both. If both are set, <code>serve</code> exits with <code>2</code>.</li>
+<li>The token must be at least 16 characters, not counting surrounding spaces and line breaks, which are removed. A shorter token makes <code>serve</code> exit with <code>2</code>.</li>
+<li><code>serve</code> needs a token to listen on an address other than loopback, such as <code>--host 0.0.0.0</code>. A name such as <code>localhost</code> does not count as loopback.</li>
+<li><code>demo</code> ignores the token. It always serves on loopback, with every route open.</li>
+<li>data-finops never logs, prints or stores the token. Errors say what is wrong with it, not what it is.</li>
+</ul>
+</dd>
+<dt><code>DATA_FINOPS_ANON_SECRET</code></dt>
+<dd>
+<p>The secret for <code>scripts/anonymize_focus_export.py</code>, the script that anonymizes a downloaded AWS FOCUS export. The script is for contributors and is not part of the <code>data-finops</code> command.</p>
+<ul>
+<li>The secret keys the pseudonyms. The same secret gives the same pseudonyms, so joins and grouping still work across runs.</li>
+<li>It must not be empty. If it is empty or unset, the script stops before writing anything.</li>
+<li>Keep it, and never commit it.</li>
+</ul>
+</dd>
+</dl>
+</main>
+<!-- footer:start -->
+<footer>
+<p>This site describes the <code>main</code> branch. Nothing is released yet. No license has been chosen yet. Source on <a href="https://github.com/apmalong/data-finops">GitHub</a>.</p>
+</footer>
+<!-- footer:end -->
+</body>
+</html>

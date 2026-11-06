@@ -8,6 +8,7 @@
     {"title": "Command line", "path": "reference/cli.html"},
     {"title": "HTTP API", "path": "reference/http-api.html"},
     {"title": "Data contracts", "path": "reference/data-contracts.html"},
+    {"title": "Exit codes and environment", "path": "reference/exit-codes-and-environment.html"},
     {"title": "Glossary", "path": "reference/glossary.html"}
   ]},
   {"title": "Explanation", "path": "explanation/index.html", "pages": []},
