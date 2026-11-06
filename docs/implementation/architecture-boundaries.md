@@ -9,6 +9,7 @@
 - `reporting`: the read model (M5). Answers cost summaries, allocations, explanations, lineage, reconciliation and provenance from the `ledger` and `workload` read interfaces, returning response models; read-only. With `calculation`, the only modules that import both stores.
 - `api`: HTTP adapter (FastAPI, optional `api` extra) and static dashboard. Reads only through `reporting`; its one write is passing OpenLineage events to `WorkloadStore` (ADR 0024). No SQL.
 - `cli`: the `data-finops` command line (stdlib `argparse`): `demo`, `serve`, `ingest`, `calculate`. An entry point: it opens the stores and calls their public functions, joining nothing itself; it may import both only alongside `calculation`, to hand them to the Calculation Run (#115, enforced by the import-boundary test).
-- `providers`: optional cloud-specific collectors and provider pricing policies (`providers.athena_billing`, #82); must not be imported by attribution core.
+- `providers`: optional cloud-specific collectors and provider pricing policies (`providers.athena_billing`, #82); must not be imported by attribution core. `providers.aws` (M6, spec 08) holds the AWS collectors behind the optional `aws` extra (boto3); they fetch files and API responses and hand them to the existing readers, never writing a store themselves.
+- `collection`: the Collection Run (M6, spec 08), a thin orchestrator over `providers.aws`, the stores' public ingest functions and `calculation`. Lambda handlers are thin entry points over `collection` and `api`, like `cli`.
 
 Do not enforce a simplistic linear import graph: identity and lineage are independent inputs to attribution, not submodules of billing. Add an import-boundary test during M0.

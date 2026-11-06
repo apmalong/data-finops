@@ -166,6 +166,24 @@ _Avoid_: database, warehouse
 The complete set of Allocations produced by one Calculation Run. Any period may be recalculated; doing so creates a new snapshot and moves the current pointer.
 _Avoid_: result, rerun output
 
+## Deployment
+
+**Deployment**:
+One Pulumi stack of data-finops in one AWS account (ADR 0026, spec 08).
+_Avoid_: install, environment
+
+**Collection Run**:
+One execution of the collector: it fetches every source a Deployment reads, ingests it, then starts one Calculation Run.
+_Avoid_: job, sync, refresh
+
+**Inbox**:
+The bucket prefix producers write OpenLineage events and dbt artifacts to, for the next Collection Run to pull (ADR 0027).
+_Avoid_: drop zone, landing area
+
+**Collection Watermark**:
+What a Deployment has already collected, per source: the Delivery folders ingested, the Athena query IDs stored and the Inbox keys processed. It is never a clock time alone.
+_Avoid_: checkpoint, cursor
+
 ## Flagged ambiguities
 
 - "Query cost" implies an exact per-query price that providers do not bill. Say "Allocation to a Query Execution" and state its Confidence.
