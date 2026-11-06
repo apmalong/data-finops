@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+<!-- head:start -->
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="../assets/site.css">
+<!-- head:end -->
+<title>Serve with a token - data-finops</title>
+<meta name="description" content="How to serve the data-finops API, dashboard and OpenLineage receiver behind a bearer token, and off loopback.">
+</head>
+<body>
+<!-- nav:start -->
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="site-header"><a href="../index.html">data-finops</a></header>
+<nav aria-label="Site">
+<ul>
+<li><a href="../tutorials/index.html">Tutorials</a>
+<ul>
+<li><a href="../tutorials/first-allocation.html">Your first allocation</a></li>
+</ul>
+</li>
+<li><a href="index.html">How-to guides</a>
+<ul>
+<li><a href="ingest-focus-export.html">Ingest a FOCUS export</a></li>
+<li><a href="ingest-athena-history.html">Ingest Athena query history</a></li>
+<li><a href="ingest-dbt-artifacts.html">Ingest dbt artifacts</a></li>
+<li><a href="receive-openlineage.html">Receive OpenLineage events</a></li>
+<li><a href="calculate.html">Calculate Allocations</a></li>
+<li><a href="handle-restated-export.html">Handle a restated export</a></li>
+<li><a href="read-cost-explanation.html">Read a Cost Explanation</a></li>
+<li><a href="serve-with-token.html" aria-current="page">Serve with a token</a></li>
+</ul>
+</li>
+<li><a href="../reference/index.html">Reference</a>
+<ul>
+<li><a href="../reference/cli.html">Command line</a></li>
+<li><a href="../reference/http-api.html">HTTP API</a></li>
+<li><a href="../reference/data-contracts.html">Data contracts</a></li>
+<li><a href="../reference/exit-codes-and-environment.html">Exit codes and environment</a></li>
+<li><a href="../reference/glossary.html">Glossary</a></li>
+</ul>
+</li>
+<li><a href="../explanation/index.html">Explanation</a></li>
+<li><a href="../contributing.html">Contributing</a></li>
+</ul>
+</nav>
+<!-- nav:end -->
+<main id="main">
+<h1>Serve with a token</h1>
+<p><code>serve</code> runs the API, the dashboard and the OpenLineage receiver. On loopback, a token is optional. To serve on any other address, you need one. This guide sets a token and serves with it (ADR 0024).</p>
+
+<h2 id="make">Make a token</h2>
+<p>A token is at least 16 characters. Make a long random one and keep it in a file only you can read:</p>
+<pre><code>python -c "import secrets; print(secrets.token_urlsafe(32))" &gt; finops.token</code></pre>
+<p>This page uses <code>fixtures/docs/example.token</code>, which holds the dummy token <code>example-token-not-a-secret</code>. Never use it for a real server.</p>
+
+<h2 id="file">Serve with a token file</h2>
+<pre><code class="run">data-finops ingest focus fixtures/focus/export-2026-10.json --db finops.sqlite
+data-finops serve --db finops.sqlite --token-file fixtures/docs/example.token
+curl -s -H "Authorization: Bearer $(cat fixtures/docs/example.token)" http://127.0.0.1:8000/health</code></pre>
+<pre class="output checked">focus: new aws-focus-123456789012-2026-10-v1
+serving finops.sqlite at http://127.0.0.1:8000/ (Ctrl+C to stop)
+{"status":"ok"}</pre>
+<p><code>$(cat …)</code> puts the token in the header without writing it into the command, so with your own token, use <code>$(cat finops.token)</code>. Every route now needs the header <code>Authorization: Bearer &lt;token&gt;</code>, the dashboard and the API documentation included. A request without it, or with another token, gets <code>401</code>:</p>
+<pre class="output">{"type":"about:blank","title":"Unauthorized","status":401,"detail":"A valid bearer token is required."}</pre>
+<p>An OpenLineage client sends the token as its API key, for example in <code>OPENLINEAGE_API_KEY</code>. See <a href="receive-openlineage.html">Receive OpenLineage events</a>.</p>
+
+<h2 id="variable">Serve with the token in the environment</h2>
+<p>Set <code>DATA_FINOPS_TOKEN</code> instead of passing <code>--token-file</code>:</p>
+<pre><code>export DATA_FINOPS_TOKEN="$(cat finops.token)"
+data-finops serve --db finops.sqlite</code></pre>
+<p class="notice">Not run on this page: pages run with no <code>DATA_FINOPS_*</code> settings.</p>
+<p>Use the variable or a file, never both. With both, <code>serve</code> refuses to start:</p>
+<pre class="output">data-finops: set the token in DATA_FINOPS_TOKEN or a file, not both</pre>
+
+<h2 id="host">Serve off loopback</h2>
+<p>To accept requests from other machines, give <code>--host</code> with a token:</p>
+<pre><code>data-finops serve --db finops.sqlite --host 0.0.0.0 --token-file finops.token</code></pre>
+<p>Without a token, <code>serve</code> refuses and exits with <code>2</code>:</p>
+<pre class="output">data-finops: refusing to serve on 0.0.0.0 without a token: set DATA_FINOPS_TOKEN or --token-file (ADR 0024)</pre>
+<ul>
+<li>Only a literal loopback address, such as <code>127.0.0.1</code> or <code>::1</code>, counts as loopback. A name such as <code>localhost</code> needs a token too, because it could resolve to any address.</li>
+<li>The token travels in plain text over HTTP. Off loopback, put the server behind TLS.</li>
+<li><code>demo</code> ignores any token. It always serves on loopback with every route open.</li>
+</ul>
+<p>The token is never logged, printed or stored. The rules are listed in <a href="../reference/exit-codes-and-environment.html#environment-heading">Exit codes and environment</a>.</p>
+</main>
+<!-- footer:start -->
+<footer>
+<p>This site describes the <code>main</code> branch. Nothing is released yet. No license has been chosen yet. Source on <a href="https://github.com/apmalong/data-finops">GitHub</a>.</p>
+</footer>
+<!-- footer:end -->
+</body>
+</html>

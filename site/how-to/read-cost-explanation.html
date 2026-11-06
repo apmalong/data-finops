@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+<!-- head:start -->
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="../assets/site.css">
+<!-- head:end -->
+<title>Read a Cost Explanation - data-finops</title>
+<meta name="description" content="How to find one Allocation and read its Cost Explanation through the data-finops API.">
+</head>
+<body>
+<!-- nav:start -->
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="site-header"><a href="../index.html">data-finops</a></header>
+<nav aria-label="Site">
+<ul>
+<li><a href="../tutorials/index.html">Tutorials</a>
+<ul>
+<li><a href="../tutorials/first-allocation.html">Your first allocation</a></li>
+</ul>
+</li>
+<li><a href="index.html">How-to guides</a>
+<ul>
+<li><a href="ingest-focus-export.html">Ingest a FOCUS export</a></li>
+<li><a href="ingest-athena-history.html">Ingest Athena query history</a></li>
+<li><a href="ingest-dbt-artifacts.html">Ingest dbt artifacts</a></li>
+<li><a href="receive-openlineage.html">Receive OpenLineage events</a></li>
+<li><a href="calculate.html">Calculate Allocations</a></li>
+<li><a href="handle-restated-export.html">Handle a restated export</a></li>
+<li><a href="read-cost-explanation.html" aria-current="page">Read a Cost Explanation</a></li>
+<li><a href="serve-with-token.html">Serve with a token</a></li>
+</ul>
+</li>
+<li><a href="../reference/index.html">Reference</a>
+<ul>
+<li><a href="../reference/cli.html">Command line</a></li>
+<li><a href="../reference/http-api.html">HTTP API</a></li>
+<li><a href="../reference/data-contracts.html">Data contracts</a></li>
+<li><a href="../reference/exit-codes-and-environment.html">Exit codes and environment</a></li>
+<li><a href="../reference/glossary.html">Glossary</a></li>
+</ul>
+</li>
+<li><a href="../explanation/index.html">Explanation</a></li>
+<li><a href="../contributing.html">Contributing</a></li>
+</ul>
+</nav>
+<!-- nav:end -->
+<main id="main">
+<h1>Read a Cost Explanation</h1>
+<p>A Cost Explanation shows why one Allocation got its amount: the Billing Line it came from, the Allocation, its Evidence and the Roll-ups it adds to. This guide finds an Allocation through the API and reads its Cost Explanation (spec 06).</p>
+
+<h2 id="setup">Calculate and serve</h2>
+<p>Load a bill and its workload, then calculate:</p>
+<pre><code class="run">data-finops ingest focus fixtures/focus/export-2026-10.json --db finops.sqlite
+data-finops ingest athena fixtures/athena/query-executions.json --account-id 123456789012 --region us-east-1 --db finops.sqlite
+data-finops ingest openlineage fixtures/openlineage/events.json --db finops.sqlite
+data-finops ingest dbt fixtures/dbt/manifest.json --db finops.sqlite
+data-finops ingest dbt fixtures/dbt/run_results.json --db finops.sqlite</code></pre>
+<pre><code class="run">data-finops calculate --db finops.sqlite
+data-finops serve --db finops.sqlite</code></pre>
+<pre class="output checked">calculate: 123456789012 2026-10-01 aws-data-exports:FOCUS_1_2_AWS: new calc-…
+serving finops.sqlite at http://127.0.0.1:8000/ (Ctrl+C to stop)</pre>
+<p><code>serve</code> keeps running, so run the rest in a second terminal. Set <code>CALCULATION_RUN_ID</code> to the ID <code>calculate</code> printed:</p>
+<pre><code>CALCULATION_RUN_ID=calc-&lt;the ID calculate printed&gt;</code></pre>
+
+<h2 id="find">Find the Allocation</h2>
+<p>List the Calculation Run's direct Allocations:</p>
+<pre><code class="run">curl -s "http://127.0.0.1:8000/v1/allocations?calculation_run_id=$CALCULATION_RUN_ID&amp;cost_basis=BilledCost&amp;category=direct"</code></pre>
+<pre class="output checked">{"calculation_run_id":"calc-…","total":1,…"items":[{"ref":"calc-…#0","allocation":{…"target_type":"query_execution","target_id":"q-001","amount":"6.00",…</pre>
+<p>Each item's <code>ref</code> addresses one Allocation as <code>&lt;calculation_run_id&gt;#&lt;position&gt;</code>. This one gives $6.00 to Query Execution <code>q-001</code>.</p>
+
+<h2 id="read">Read its Cost Explanation</h2>
+<p>Ask for <code>/v1/allocations/&lt;ref&gt;/explanation</code>, sending the <code>#</code> as <code>%23</code>:</p>
+<pre><code class="run">curl -s "http://127.0.0.1:8000/v1/allocations/$CALCULATION_RUN_ID%230/explanation"</code></pre>
+<pre class="output checked">{"ref":"calc-…#0","billing_line_ref":"aws-focus-123456789012-2026-10-v1#0","billing_line":{"BilledCost":"6.00",…"ServiceName":"Amazon Athena",…"allocation":{…"category":"direct","method":"estimated_metered_share","confidence":"metered_estimate","coverage":"1",…"query_execution":{…"query_execution_id":"q-001",…"model_execution":{"invocation_id":"inv-001","node_id":"model.demo.orders",…"workload_runs":[{"run_id":"00000000-0000-4000-8000-000000000002",…"rollups":[{"level":"model_execution",…"amount":"6.00"}…</pre>
+<p>Read it in order:</p>
+<ol>
+<li><code>billing_line</code>: the Billing Line exactly as exported, every FOCUS column included.</li>
+<li><code>allocation</code>: its Allocation Category, method, Confidence, Coverage, Allocation Policy version and Calculation Run.</li>
+<li>The Evidence, each reference resolved: <code>query_execution</code>, then <code>model_execution</code> with its dbt Node, then <code>workload_runs</code>, nearest first. A Workload Run known only as another's parent or root shows <code>"run":null</code>.</li>
+<li><code>rollups</code>: each Roll-up the Allocation adds to, in its currency and Cost Basis.</li>
+</ol>
+<p>For an Unallocated Allocation, <code>unallocated_reason</code> says why it is Unallocated, such as <code>ineligible</code>. The dashboard shows the same Cost Explanation when you click an Allocation.</p>
+</main>
+<!-- footer:start -->
+<footer>
+<p>This site describes the <code>main</code> branch. Nothing is released yet. No license has been chosen yet. Source on <a href="https://github.com/apmalong/data-finops">GitHub</a>.</p>
+</footer>
+<!-- footer:end -->
+</body>
+</html>

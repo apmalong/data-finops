@@ -48,12 +48,14 @@ def test_a_failing_command_is_named_with_its_exit_code_and_its_block_stops(
     path = page(
         tmp_path,
         '<pre><code class="run">data-finops --help</code></pre>\n'
-        '<pre><code class="run">data-finops ingest focus fixtures/none.json --db d.sqlite\n'
+        f'<pre><code class="run">data-finops ingest focus {EXPORT} --db d.sqlite\n'
+        "data-finops ingest focus fixtures/none.json --db d.sqlite\n"
         "data-finops calculate --db d.sqlite</code></pre>",
     )
     problems = run_page(path, REPO)
-    assert where(problems) == [(2, 5)]
+    assert where(problems) == [(2, 6)]
     assert "exited 2" in problems[0].message
+    assert "focus: new" not in problems[0].message  # only the failing line's output
 
 
 INGEST = f'<pre><code class="run">data-finops ingest focus {EXPORT} --db d.sqlite</code></pre>\n'
@@ -104,17 +106,17 @@ def test_serve_opens_the_api_and_curl_reads_it_through_the_test_client(tmp_path:
     assert run_page(path, REPO) == []
 
 
-def test_curl_needs_a_served_api_and_only_reads(tmp_path: Path) -> None:
+def test_curl_needs_a_served_api_and_takes_only_its_known_options(tmp_path: Path) -> None:
     path = page(
         tmp_path,
         '<pre><code class="run">curl -s http://127.0.0.1:8000/health</code></pre>\n'
         + INGEST
         + '<pre><code class="run">data-finops serve --db d.sqlite\n'
-        "curl -s -H 'Authorization: Bearer x' http://127.0.0.1:8000/health</code></pre>",
+        "curl -s -o out.json http://127.0.0.1:8000/health</code></pre>",
     )
     problems = run_page(path, REPO)
     assert where(problems) == [(1, 4), (3, 7)]
-    assert "curl needs the API" in problems[0].message and "-H" in problems[1].message
+    assert "curl needs the API" in problems[0].message and "-o" in problems[1].message
 
 
 def test_a_line_the_shell_could_not_split_is_named_not_fatal(tmp_path: Path) -> None:
@@ -191,3 +193,123 @@ def test_a_relative_repository_path_works(tmp_path: Path, monkeypatch: pytest.Mo
     path = page(tmp_path, INGEST)
     monkeypatch.chdir(REPO)
     assert run_page(path, Path(".")) == []
+
+
+BEARER = "Authorization: Bearer $(cat fixtures/docs/example.token)"
+TOKEN_SERVE = (
+    '<pre><code class="run">data-finops serve --db d.sqlite'
+    " --token-file fixtures/docs/example.token</code></pre>\n"
+)
+
+
+def test_curl_sends_its_headers_so_a_token_served_api_answers(tmp_path: Path) -> None:
+    path = page(
+        tmp_path,
+        INGEST
+        + TOKEN_SERVE
+        + '<pre><code class="run">curl -s http://127.0.0.1:8000/health</code></pre>\n'
+        + f'<pre><code class="run">curl -s -H "{BEARER}"'
+        " http://127.0.0.1:8000/health</code></pre>\n"
+        '<pre class="output checked">{"status":"ok"}</pre>',
+    )
+    problems = run_page(path, REPO)
+    assert where(problems) == [(3, 6)]
+    assert "401" in problems[0].message
+
+
+def test_cat_of_a_file_stands_for_its_text_as_in_a_shell(tmp_path: Path) -> None:
+    """`$(cat FILE)` lets a page send a token without writing it down."""
+    health = "http://127.0.0.1:8000/health"
+    path = page(
+        tmp_path,
+        INGEST
+        + TOKEN_SERVE
+        + f'<pre><code class="run">curl -s -H "Authorization: Bearer $(cat missing.token)" {health}'
+        "</code></pre>\n" + f"<pre><code class=\"run\">curl -s -H '{BEARER}'"
+        f" {health}</code></pre>",
+    )
+    problems = run_page(path, REPO)
+    assert where(problems) == [(3, 6), (4, 7)]
+    assert "missing.token" in problems[0].message and "single quotes" in problems[1].message
+
+
+POST_EVENT = (
+    "curl -s -X POST -H 'Content-Type: application/json'"
+    " --data-binary @fixtures/openlineage/one-event.json"
+    " http://127.0.0.1:8000/api/v1/lineage"
+)
+# A body alone makes it a POST, as in curl; a header may leave out the space after its colon.
+IMPLIED_POST = POST_EVENT.replace("-X POST ", "").replace("Content-Type: ", "Content-Type:")
+
+
+def test_curl_posts_a_file_to_the_receiver(tmp_path: Path) -> None:
+    path = page(
+        tmp_path,
+        INGEST
+        + '<pre><code class="run">data-finops serve --db d.sqlite</code></pre>\n'
+        + f'<pre><code class="run">{POST_EVENT}\n{IMPLIED_POST}</code></pre>\n'
+        '<pre class="output checked">{"accepted":1,"duplicates":0,"changed_copies":0}\n'
+        '{"accepted":0,"duplicates":1,"changed_copies":0}</pre>',
+    )
+    assert run_page(path, REPO) == []
+
+
+@pytest.mark.parametrize(
+    ("args", "complaint"),
+    [
+        ("-X DELETE http://127.0.0.1:8000/health", "DELETE"),
+        ("--data-binary '{}' http://127.0.0.1:8000/api/v1/lineage", "@"),
+        ("--data-binary @missing.json http://127.0.0.1:8000/api/v1/lineage", "missing.json"),
+        ("-H http://127.0.0.1:8000/health", "Name: value"),
+        ("-H 'Authorization: Bearer x'", "exactly one URL"),
+        ("-d @fixtures/openlineage/one-event.json http://127.0.0.1:8000/api/v1/lineage", "-d"),
+        ("http://127.0.0.1:8000/health -X", "-X needs a value"),
+        (
+            "--data-binary @fixtures/openlineage/one-event.json http://127.0.0.1:8000/api/v1/lineage",
+            "Content-Type",
+        ),
+    ],
+)
+def test_curl_refuses_what_it_cannot_send(tmp_path: Path, args: str, complaint: str) -> None:
+    path = page(
+        tmp_path,
+        INGEST
+        + '<pre><code class="run">data-finops serve --db d.sqlite</code></pre>\n'
+        + f'<pre><code class="run">curl -s {args}</code></pre>',
+    )
+    problems = run_page(path, REPO)
+    assert where(problems) == [(3, 6)]
+    assert complaint in problems[0].message
+
+
+def test_calculation_run_id_stands_for_the_run_calculate_last_printed(tmp_path: Path) -> None:
+    path = page(
+        tmp_path,
+        INGEST + '<pre><code class="run">data-finops calculate --db d.sqlite\n'
+        "data-finops serve --db d.sqlite\n"
+        'curl -s -H "X-Note: it\'s quoted"'
+        ' "http://127.0.0.1:8000/v1/provenance?calculation_run_id=$CALCULATION_RUN_ID"\n'
+        "curl -s -H 'Accept: application/json'"
+        ' "http://127.0.0.1:8000/v1/allocations/${CALCULATION_RUN_ID}%230/explanation"'
+        "</code></pre>\n"
+        '<pre class="output checked">calculate: … new calc-…\n'
+        "serving …\n"
+        '{"calculation_run_id":"calc-…","is_current":true,…\n'
+        '{"ref":"calc-…#0",…</pre>',
+    )
+    assert run_page(path, REPO) == []
+
+
+def test_calculation_run_id_needs_a_calculation_and_double_quotes(tmp_path: Path) -> None:
+    url = "http://127.0.0.1:8000/v1/provenance?calculation_run_id=$CALCULATION_RUN_ID"
+    path = page(
+        tmp_path,
+        INGEST
+        + '<pre><code class="run">data-finops serve --db d.sqlite</code></pre>\n'
+        + f'<pre><code class="run">curl -s "{url}"</code></pre>\n'
+        + '<pre><code class="run">data-finops calculate --db d.sqlite</code></pre>\n'
+        + f"<pre><code class=\"run\">curl -s '{url}'</code></pre>",
+    )
+    problems = run_page(path, REPO)
+    assert where(problems) == [(3, 6), (5, 8)]
+    assert "calculate" in problems[0].message and "single quotes" in problems[1].message

@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+<!-- head:start -->
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="../assets/site.css">
+<!-- head:end -->
+<title>Handle a restated export - data-finops</title>
+<meta name="description" content="How to load a restated Export Snapshot and recalculate, keeping the earlier Allocation Snapshot as history.">
+</head>
+<body>
+<!-- nav:start -->
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="site-header"><a href="../index.html">data-finops</a></header>
+<nav aria-label="Site">
+<ul>
+<li><a href="../tutorials/index.html">Tutorials</a>
+<ul>
+<li><a href="../tutorials/first-allocation.html">Your first allocation</a></li>
+</ul>
+</li>
+<li><a href="index.html">How-to guides</a>
+<ul>
+<li><a href="ingest-focus-export.html">Ingest a FOCUS export</a></li>
+<li><a href="ingest-athena-history.html">Ingest Athena query history</a></li>
+<li><a href="ingest-dbt-artifacts.html">Ingest dbt artifacts</a></li>
+<li><a href="receive-openlineage.html">Receive OpenLineage events</a></li>
+<li><a href="calculate.html">Calculate Allocations</a></li>
+<li><a href="handle-restated-export.html" aria-current="page">Handle a restated export</a></li>
+<li><a href="read-cost-explanation.html">Read a Cost Explanation</a></li>
+<li><a href="serve-with-token.html">Serve with a token</a></li>
+</ul>
+</li>
+<li><a href="../reference/index.html">Reference</a>
+<ul>
+<li><a href="../reference/cli.html">Command line</a></li>
+<li><a href="../reference/http-api.html">HTTP API</a></li>
+<li><a href="../reference/data-contracts.html">Data contracts</a></li>
+<li><a href="../reference/exit-codes-and-environment.html">Exit codes and environment</a></li>
+<li><a href="../reference/glossary.html">Glossary</a></li>
+</ul>
+</li>
+<li><a href="../explanation/index.html">Explanation</a></li>
+<li><a href="../contributing.html">Contributing</a></li>
+</ul>
+</nav>
+<!-- nav:end -->
+<main id="main">
+<h1>Handle a restated export</h1>
+<p>A provider can publish a Billing Period again with changed Billing Lines. This guide loads the restated Export Snapshot and recalculates. Nothing earlier is overwritten.</p>
+
+<h2 id="before">Start from a calculated bill</h2>
+<pre><code class="run">data-finops ingest focus fixtures/focus/export-2026-10.json --db finops.sqlite
+data-finops calculate --db finops.sqlite
+data-finops serve --db finops.sqlite</code></pre>
+<pre class="output checked">focus: new aws-focus-123456789012-2026-10-v1
+calculate: 123456789012 2026-10-01 aws-data-exports:FOCUS_1_2_AWS: new calc-…
+serving finops.sqlite at http://127.0.0.1:8000/ (Ctrl+C to stop)</pre>
+<p><code>serve</code> keeps running, so run the rest in a second terminal.</p>
+
+<h2 id="restated">Load the restated Export Snapshot and recalculate</h2>
+<pre><code class="run">data-finops ingest focus fixtures/focus/export-2026-10-restated.json --db finops.sqlite
+data-finops calculate --db finops.sqlite</code></pre>
+<pre class="output checked">focus: new aws-focus-123456789012-2026-10-v2
+calculate: 123456789012 2026-10-01 aws-data-exports:FOCUS_1_2_AWS: new calc-…</pre>
+<p>The restated Export Snapshot is published later, so it is now current. The earlier one becomes a Superseded Snapshot and is kept. A restatement replaces the whole Export Snapshot, never single Billing Lines (ADR 0015).</p>
+
+<h2 id="check">Check that the new Calculation Run is current</h2>
+<p>Set <code>CALCULATION_RUN_ID</code> to the ID the last <code>calculate</code> printed:</p>
+<pre><code>CALCULATION_RUN_ID=calc-&lt;the ID calculate printed&gt;</code></pre>
+<pre><code class="run">curl -s "http://127.0.0.1:8000/v1/provenance?calculation_run_id=$CALCULATION_RUN_ID"</code></pre>
+<pre class="output checked">{"calculation_run_id":"calc-…",…"is_current":true,"superseded_by":null,"export_snapshot":{"snapshot_id":"aws-focus-123456789012-2026-10-v2",…</pre>
+<p>Ask for the first Calculation Run's ID the same way: it answers <code>"is_current":false</code>, and <code>superseded_by</code> names the new run. Its Allocation Snapshot is kept as history.</p>
+
+<h2 id="late">An older Export Snapshot loaded late</h2>
+<p>Exports can arrive out of order. Into a new database file, load the restated Export Snapshot first, then the earlier one:</p>
+<pre><code class="run">data-finops ingest focus fixtures/focus/export-2026-10-restated.json --db late.sqlite
+data-finops ingest focus fixtures/focus/export-2026-10.json --db late.sqlite</code></pre>
+<pre class="output checked">focus: new aws-focus-123456789012-2026-10-v2
+focus: superseded aws-focus-123456789012-2026-10-v1</pre>
+<p>The earlier publication is stored as a Superseded Snapshot, and the latest publication stays current, whatever the order of loading (ADR 0020). Loading an Export Snapshot that is already stored prints <code>replay</code> and stores nothing.</p>
+</main>
+<!-- footer:start -->
+<footer>
+<p>This site describes the <code>main</code> branch. Nothing is released yet. No license has been chosen yet. Source on <a href="https://github.com/apmalong/data-finops">GitHub</a>.</p>
+</footer>
+<!-- footer:end -->
+</body>
+</html>
