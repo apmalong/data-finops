@@ -1,12 +1,12 @@
 """The FastAPI app over one database file (spec 06)."""
 
 import hmac
-from collections.abc import Awaitable, Callable, Iterator
+from collections.abc import Awaitable, Callable
 from datetime import date
 from pathlib import Path
 from typing import Annotated, Any, Literal
 
-from fastapi import Depends, FastAPI, Query, Request, Response
+from fastapi import FastAPI, Query, Request, Response
 from fastapi import Path as PathParameter
 from fastapi.exceptions import RequestValidationError
 from fastapi.openapi.utils import get_openapi
@@ -158,9 +158,9 @@ def create_app(db: Path, *, token: str | None = None) -> FastAPI:
                 return refused
             return await call_next(request)
 
-    def reporting() -> Iterator[Reporting]:
-        with Reporting(db) as opened:
-            yield opened
+    # Each endpoint opens and closes its own read model, never through a dependency: FastAPI
+    # may run a sync dependency and the sync endpoint in different threadpool threads, and
+    # an SQLite connection may only be used by the thread that opened it (#119).
 
     @app.get("/health", responses=_HEALTH_RESPONSES)
     def health(response: Response) -> Health:
@@ -174,21 +174,20 @@ def create_app(db: Path, *, token: str | None = None) -> FastAPI:
 
     @app.get("/v1/costs/summary", responses=_READ_PROBLEMS)
     def cost_summary(
-        read_model: Annotated[Reporting, Depends(reporting)],
         cost_basis: CostBasis = CostBasis.BILLED_COST,
         billing_account_id: Annotated[str | None, Query(max_length=128)] = None,
         billing_period: date | None = None,
     ) -> CostSummaries:
         """One Cost Summary per Snapshot Scope, for the scope's current Allocation Snapshot."""
-        return read_model.cost_summary(
-            cost_basis=cost_basis,
-            billing_account_id=billing_account_id,
-            billing_period=billing_period,
-        )
+        with Reporting(db) as read_model:
+            return read_model.cost_summary(
+                cost_basis=cost_basis,
+                billing_account_id=billing_account_id,
+                billing_period=billing_period,
+            )
 
     @app.get("/v1/allocations", responses=_SELECTION_PROBLEMS)
     def allocations(
-        read_model: Annotated[Reporting, Depends(reporting)],
         calculation_run_id: Annotated[str | None, Query(max_length=128)] = None,
         billing_account_id: Annotated[str | None, Query(max_length=128)] = None,
         billing_period: date | None = None,
@@ -203,22 +202,22 @@ def create_app(db: Path, *, token: str | None = None) -> FastAPI:
         """One page of one Allocation Snapshot: a named Calculation Run's, or else the current
         one of the single Snapshot Scope that `billing_account_id`, `billing_period` and `source`
         select."""
-        return read_model.allocations(
-            calculation_run_id=calculation_run_id,
-            billing_account_id=billing_account_id,
-            billing_period=billing_period,
-            source=source,
-            target_id=target_id,
-            category=category,
-            billing_line_ref=billing_line_ref,
-            cost_basis=cost_basis,
-            limit=limit,
-            offset=offset,
-        )
+        with Reporting(db) as read_model:
+            return read_model.allocations(
+                calculation_run_id=calculation_run_id,
+                billing_account_id=billing_account_id,
+                billing_period=billing_period,
+                source=source,
+                target_id=target_id,
+                category=category,
+                billing_line_ref=billing_line_ref,
+                cost_basis=cost_basis,
+                limit=limit,
+                offset=offset,
+            )
 
     @app.get("/v1/rollups", responses=_SELECTION_PROBLEMS)
     def rollups(
-        read_model: Annotated[Reporting, Depends(reporting)],
         level: RollupLevel,
         calculation_run_id: Annotated[str | None, Query(max_length=128)] = None,
         billing_account_id: Annotated[str | None, Query(max_length=128)] = None,
@@ -229,19 +228,19 @@ def create_app(db: Path, *, token: str | None = None) -> FastAPI:
     ) -> RollupPage:
         """What each Model Execution or Workload Run cost in one Allocation Snapshot, chosen as
         for `/v1/allocations`; kept apart because a Roll-up is a view, never an Allocation."""
-        return read_model.rollups(
-            level=level,
-            calculation_run_id=calculation_run_id,
-            billing_account_id=billing_account_id,
-            billing_period=billing_period,
-            source=source,
-            limit=limit,
-            offset=offset,
-        )
+        with Reporting(db) as read_model:
+            return read_model.rollups(
+                level=level,
+                calculation_run_id=calculation_run_id,
+                billing_account_id=billing_account_id,
+                billing_period=billing_period,
+                source=source,
+                limit=limit,
+                offset=offset,
+            )
 
     @app.get("/v1/reconciliation", responses=_SELECTION_PROBLEMS)
     def reconciliation(
-        read_model: Annotated[Reporting, Depends(reporting)],
         calculation_run_id: Annotated[str | None, Query(max_length=128)] = None,
         billing_account_id: Annotated[str | None, Query(max_length=128)] = None,
         billing_period: date | None = None,
@@ -252,19 +251,19 @@ def create_app(db: Path, *, token: str | None = None) -> FastAPI:
     ) -> AllocationReconciliation:
         """One Allocation Snapshot's Allocations against the bill they partition: per Billing
         Line and Cost Basis, with per-currency totals over every line."""
-        return read_model.reconciliation(
-            calculation_run_id=calculation_run_id,
-            billing_account_id=billing_account_id,
-            billing_period=billing_period,
-            source=source,
-            cost_basis=cost_basis,
-            limit=limit,
-            offset=offset,
-        )
+        with Reporting(db) as read_model:
+            return read_model.reconciliation(
+                calculation_run_id=calculation_run_id,
+                billing_account_id=billing_account_id,
+                billing_period=billing_period,
+                source=source,
+                cost_basis=cost_basis,
+                limit=limit,
+                offset=offset,
+            )
 
     @app.get("/v1/provenance", responses=_SELECTION_PROBLEMS)
     def provenance(
-        read_model: Annotated[Reporting, Depends(reporting)],
         calculation_run_id: Annotated[str | None, Query(max_length=128)] = None,
         billing_account_id: Annotated[str | None, Query(max_length=128)] = None,
         billing_period: date | None = None,
@@ -272,16 +271,16 @@ def create_app(db: Path, *, token: str | None = None) -> FastAPI:
     ) -> Provenance:
         """How one Allocation Snapshot was made, chosen as for `/v1/allocations`: inputs,
         policies, the Export Snapshot it read, and the run that superseded it, if any."""
-        return read_model.provenance(
-            calculation_run_id=calculation_run_id,
-            billing_account_id=billing_account_id,
-            billing_period=billing_period,
-            source=source,
-        )
+        with Reporting(db) as read_model:
+            return read_model.provenance(
+                calculation_run_id=calculation_run_id,
+                billing_account_id=billing_account_id,
+                billing_period=billing_period,
+                source=source,
+            )
 
     @app.get("/v1/lineage", responses=_LINEAGE_PROBLEMS)
     def lineage(
-        read_model: Annotated[Reporting, Depends(reporting)],
         run_id: Annotated[str | None, Query(max_length=256)] = None,
         limit: Annotated[int, Query(ge=1, le=MAX_PAGE_SIZE)] = 100,
         offset: Annotated[int, Query(ge=0)] = 0,
@@ -289,18 +288,19 @@ def create_app(db: Path, *, token: str | None = None) -> FastAPI:
         """Without `run_id`, the topmost Workload Runs (paged); with it, that run's lineage:
         its family, Data Assets, Lineage Edges and the Identity Links that reach its Model
         Executions and their Query Executions, each with its Link Outcome."""
-        if run_id is None:
-            return read_model.root_runs(limit=limit, offset=offset)
-        return read_model.lineage(run_id)
+        with Reporting(db) as read_model:
+            if run_id is None:
+                return read_model.root_runs(limit=limit, offset=offset)
+            return read_model.lineage(run_id)
 
     @app.get("/v1/allocations/{ref}/explanation", responses=_EXPLANATION_PROBLEMS)
     def explanation(
-        read_model: Annotated[Reporting, Depends(reporting)],
         ref: Annotated[str, PathParameter(max_length=256)],
     ) -> CostExplanation:
         """The Cost Explanation of one Allocation, addressed `<calculation_run_id>#<position>`
         (the `#` sent as `%23`): Billing Line, Allocation, Evidence resolved, Roll-ups."""
-        return read_model.explanation(ref)
+        with Reporting(db) as read_model:
+            return read_model.explanation(ref)
 
     @app.get("/", include_in_schema=False)
     def root() -> RedirectResponse:
