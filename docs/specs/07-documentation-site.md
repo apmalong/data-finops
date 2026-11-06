@@ -49,7 +49,7 @@ Stdlib only, dev tooling outside the wheel, under ruff and mypy. Two parts impor
 - `first-allocation` and every offline how-to (`install` excepted) have runnable blocks. `test_m5_exit.py` runs the tutorial page, and `examples/demo/README.md` becomes a pointer to it.
 
 ## Exit codes and environment
-`exit-codes-and-environment` is hand-written. A test checks that every `DATA_FINOPS_*` name in `src/` appears on it, and that its exit codes match the CLI's.
+`exit-codes-and-environment` is hand-written. A test checks that the `DATA_FINOPS_*` names on it are exactly those in `src/` and `scripts/`, and that its exit codes are exactly the CLI's `ExitCode` values.
 
 ## Build and deploy
 - **PRs:** the site tests run in pytest inside the existing required `quality` job, with no new required check.

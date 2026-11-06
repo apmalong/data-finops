@@ -43,11 +43,20 @@
 <p>Every <code>data-finops</code> command exits with one of these codes.</p>
 <dl id="exit-codes">
 <dt><code>0</code></dt>
-<dd>Everything was stored. For <code>serve</code> and <code>demo</code>, the server stopped normally.</dd>
+<dd>Everything was stored. OpenLineage events of a kind data-finops does not read are listed as unsupported, and they do not change the code. For <code>serve</code> and <code>demo</code>, <code>0</code> means the server stopped normally.</dd>
 <dt><code>1</code></dt>
-<dd>Something was rejected, and the rest was stored. Each rejected item is named by its position and the reason, never by its content.</dd>
+<dd>A workload input was rejected, in whole or in part. Only <code>ingest openlineage</code>, <code>ingest dbt</code> and <code>ingest athena</code> exit with <code>1</code>. If some items were rejected, the rest were stored. Each rejected item is named by its position and the reason. If the whole file was rejected, nothing was stored, and the message gives the reason. Messages never quote the input's content.</dd>
 <dt><code>2</code></dt>
-<dd>Nothing was done. The arguments were wrong, a file could not be read or written, the database is not a data-finops database, or <code>serve</code> refused to start. The message says why.</dd>
+<dd>Nothing was done, and the message says why. These are the causes:
+<ul>
+<li>The arguments were wrong.</li>
+<li>A file could not be read or written.</li>
+<li><code>calculate</code> or <code>serve</code> was given a <code>--db</code> path with no database file there.</li>
+<li>The database file is not a data-finops database.</li>
+<li>A FOCUS file is not a FOCUS Export Snapshot or a usable AWS Data Exports Delivery.</li>
+<li><code>serve</code> refused to start, for example because of the token rules below.</li>
+</ul>
+</dd>
 </dl>
 <p>Asking for help with <code>--help</code> exits with <code>0</code>.</p>
 
@@ -58,7 +67,7 @@
 <p>The bearer token for <code>serve</code>. When a token is set, every route, the API documentation included, needs the header <code>Authorization: Bearer &lt;token&gt;</code>. Without one, every route is open.</p>
 <ul>
 <li>Set the token in this variable or in a file named by <code>--token-file</code>, not both. If both are set, <code>serve</code> exits with <code>2</code>.</li>
-<li>The token must be at least 16 characters, not counting surrounding spaces and line breaks, which are removed. A shorter token makes <code>serve</code> exit with <code>2</code>.</li>
+<li>Surrounding spaces and line breaks are removed from the token. What remains must be at least 16 characters. A shorter token makes <code>serve</code> exit with <code>2</code>.</li>
 <li><code>serve</code> needs a token to listen on an address other than loopback, such as <code>--host 0.0.0.0</code>. A name such as <code>localhost</code> does not count as loopback.</li>
 <li><code>demo</code> ignores the token. It always serves on loopback, with every route open.</li>
 <li>data-finops never logs, prints or stores the token. Errors say what is wrong with it, not what it is.</li>
@@ -66,9 +75,14 @@
 </dd>
 <dt><code>DATA_FINOPS_ANON_SECRET</code></dt>
 <dd>
-<p>The secret for <code>scripts/anonymize_focus_export.py</code>, the script that anonymizes a downloaded AWS FOCUS export. The script is for contributors and is not part of the <code>data-finops</code> command.</p>
+<p>The secret for the two anonymizing scripts. They are for contributors and are not part of the <code>data-finops</code> command.</p>
 <ul>
-<li>The secret keys the pseudonyms. The same secret gives the same pseudonyms, so joins and grouping still work across runs.</li>
+<li><code>scripts/anonymize_focus_export.py</code> anonymizes a downloaded AWS FOCUS export.</li>
+<li><code>scripts/anonymize_workload_outputs.py</code> anonymizes the reference workload's Athena history, dbt artifacts and OpenLineage events.</li>
+</ul>
+<p>The rules for the secret:</p>
+<ul>
+<li>The secret keys the pseudonyms. The same secret always gives the same pseudonym for the same value. Use one secret for both scripts, so billing and workload data still match after anonymizing.</li>
 <li>It must not be empty. If it is empty or unset, the script stops before writing anything.</li>
 <li>Keep it, and never commit it.</li>
 </ul>
