@@ -15,7 +15,7 @@ jobs:
         with:
           python-version: '3.12'
       - name: Sync dependencies from committed lockfile
-        run: uv sync --extra dev --extra api --frozen
+        run: uv sync --extra dev --extra api --extra aws --frozen
       - run: uv run ruff check .
       - run: uv run ruff format --check .
       - run: uv run mypy src scripts/site

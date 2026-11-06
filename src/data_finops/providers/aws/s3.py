@@ -1,0 +1,75 @@
+"""Listing and reading S3 objects for a Collection Run (spec 08, ADR 0027)."""
+
+from collections.abc import Iterator, Mapping
+from dataclasses import dataclass
+from typing import Any, Protocol
+
+MAX_KEYS = 1000
+"""S3's own page limit for ListObjectsV2."""
+
+
+class S3Reader(Protocol):
+    """The two S3 calls a collector makes, as boto3's client offers them (keyword arguments
+    and response dictionaries named as in the S3 API)."""
+
+    def list_objects_v2(self, **kwargs: Any) -> Mapping[str, Any]: ...
+
+    def get_object(self, **kwargs: Any) -> Mapping[str, Any]: ...
+
+
+@dataclass(frozen=True)
+class S3Object:
+    key: str
+    etag: str
+    """As S3 returns it, quotes included: the version a Collection Watermark records."""
+    size: int
+
+
+class AwsSourceError(RuntimeError):
+    """An AWS call failed. The message is the AWS error code only (for example
+    `AccessDenied`), never AWS's message text, which may quote ARNs or keys."""
+
+
+class TooLarge(ValueError):
+    """The object is larger than its reader accepts; nothing was downloaded."""
+
+
+def list_objects(s3: S3Reader, bucket: str, prefix: str) -> Iterator[S3Object]:
+    """Every object under `prefix`, in S3's key order, across pages."""
+    params: dict[str, Any] = {"Bucket": bucket, "Prefix": prefix}
+    while True:
+        page = _call(s3.list_objects_v2, **params)
+        for entry in page.get("Contents", ()):
+            yield S3Object(key=entry["Key"], etag=entry["ETag"], size=entry["Size"])
+        if not page.get("IsTruncated"):
+            return
+        params["ContinuationToken"] = page["NextContinuationToken"]
+
+
+def read_object(s3: S3Reader, bucket: str, obj: S3Object, max_bytes: int) -> bytes:
+    """The object's content at the listed version (`If-Match` its ETag), refused before any
+    download when the listing says it exceeds `max_bytes`."""
+    if obj.size > max_bytes:
+        raise TooLarge(obj.key)
+    response = _call(s3.get_object, Bucket=bucket, Key=obj.key, IfMatch=obj.etag)
+    data: bytes = response["Body"].read(max_bytes + 1)
+    if len(data) > max_bytes:
+        raise TooLarge(obj.key)
+    return data
+
+
+def _call(operation: Any, **params: Any) -> Mapping[str, Any]:
+    try:
+        response: Mapping[str, Any] = operation(**params)
+    except Exception as error:  # botocore's ClientError and connection errors
+        raise AwsSourceError(_code(error)) from None
+    return response
+
+
+def _code(error: Exception) -> str:
+    response = getattr(error, "response", None)
+    if isinstance(response, Mapping):
+        code = response.get("Error", {}).get("Code")
+        if isinstance(code, str) and code:
+            return code
+    return type(error).__name__

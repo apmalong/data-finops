@@ -39,6 +39,28 @@ FORBIDDEN_IMPORTS = {
         "data_finops.providers",
         "data_finops.cli",
     ),
+    # spec 08: the AWS collectors fetch and hand over; they never write a store, and they
+    # only type their clients, so importing them never needs the `aws` extra.
+    "providers/aws": (
+        "sqlite3",
+        "boto3",
+        "botocore",
+        "data_finops.ledger",
+        "data_finops.workload",
+        "data_finops.calculation",
+        "data_finops.collection",
+    ),
+    # spec 08: the Collection Run orchestrates through public interfaces only; its AWS
+    # clients are handed to it.
+    "collection": (
+        "sqlite3",
+        "boto3",
+        "botocore",
+        "data_finops.attribution",
+        "data_finops.reporting",
+        "data_finops.api",
+        "data_finops.cli",
+    ),
 }
 ALLOWED = {"contracts": ("data_finops.contracts",)}
 CLOCK_CALLS = {("datetime", "now"), ("datetime", "utcnow"), ("time", "time")}
@@ -64,10 +86,11 @@ def test_package_respects_import_boundaries(package):
 
 
 def test_only_the_calculation_run_and_read_model_bring_the_stores_together():
-    # architecture-boundaries.md: `calculation` and `reporting` are the only places they meet.
-    # `cli` may open both only to hand them to the Calculation Run (#115).
+    # architecture-boundaries.md: `calculation`, `reporting` and `collection` (spec 08) are
+    # the only places they meet. `cli` may open both only to hand them to the Calculation
+    # Run (#115).
     for path in SRC.rglob("*.py"):
-        if path.parent.name in ("calculation", "reporting"):
+        if path.parent.name in ("calculation", "reporting", "collection"):
             continue
         names = _imports(path)
         if path.parent.name == "cli" and "data_finops.calculation" in names:
@@ -103,3 +126,11 @@ def test_the_read_model_writes_no_sql():
         for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
             if isinstance(node, ast.Constant) and isinstance(node.value, str):
                 assert not SQL_STATEMENT.match(node.value), f"{path}: SQL {node.value[:40]!r}"
+
+
+def test_only_the_command_line_makes_aws_clients():
+    # spec 08: everything else is handed a client, so tests stub it and no import needs boto3.
+    for path in SRC.rglob("*.py"):
+        if path.parent.name == "cli":
+            continue
+        assert not any(n.startswith(("boto3", "botocore")) for n in _imports(path)), path

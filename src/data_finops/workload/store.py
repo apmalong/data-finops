@@ -140,6 +140,12 @@ CREATE TABLE IF NOT EXISTS workload_query_execution (
 );
 CREATE INDEX IF NOT EXISTS workload_query_execution_model
     ON workload_query_execution (invocation_id, node_id);
+CREATE TABLE IF NOT EXISTS workload_inbox_object (
+    key TEXT NOT NULL,
+    etag TEXT NOT NULL,
+    outcome TEXT NOT NULL,
+    PRIMARY KEY (key, etag)
+);
 """
 
 _REQUIRED_COLUMNS = {
@@ -185,6 +191,15 @@ class IngestResult:
     def counts(self) -> Counter[RejectionKind]:
         """Rejected and unsupported events counted by kind."""
         return Counter(r.kind for r in (*self.rejected, *self.unsupported))
+
+
+class InboxOutcome(StrEnum):
+    """What a Collection Run made of one Inbox object (spec 08 §4)."""
+
+    COLLECTED = "collected"
+    """Ingested: some or all of it stored, or already stored."""
+    REJECTED = "rejected"
+    """Nothing in it could be stored: too large, or rejected whole."""
 
 
 class ArtifactOutcome(StrEnum):
@@ -388,6 +403,23 @@ class WorkloadStore:
             unsupported=tuple(screening.unsupported),
             changed_copies=changed_copies,
         )
+
+    def inbox_object_collected(self, key: str, etag: str) -> bool:
+        """Whether this version of an Inbox object was already collected (the Inbox part of
+        the Collection Watermark, spec 08), whatever became of it."""
+        row = self._connection.execute(
+            "SELECT 1 FROM workload_inbox_object WHERE key = ? AND etag = ?", (key, etag)
+        ).fetchone()
+        return row is not None
+
+    def record_inbox_object(self, key: str, etag: str, outcome: InboxOutcome) -> None:
+        """Record that this version of an Inbox object was collected, and with what outcome;
+        recording it again changes nothing."""
+        with self._write_transaction():
+            self._connection.execute(
+                "INSERT OR IGNORE INTO workload_inbox_object (key, etag, outcome) VALUES (?, ?, ?)",
+                (key, etag, outcome.value),
+            )
 
     def workload_run(self, run_id: str) -> WorkloadRun | None:
         """The Workload Run as its stored observations describe it, or None if unknown.

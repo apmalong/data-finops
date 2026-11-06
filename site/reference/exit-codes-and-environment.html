@@ -51,7 +51,7 @@
 <dt><code>0</code></dt>
 <dd>Everything was stored. OpenLineage events of a kind data-finops does not read are listed as unsupported, and they do not change the code. For <code>serve</code> and <code>demo</code>, <code>0</code> means the server stopped normally.</dd>
 <dt><code>1</code></dt>
-<dd>A workload input was rejected, in whole or in part. Only <code>ingest openlineage</code>, <code>ingest dbt</code> and <code>ingest athena</code> exit with <code>1</code>. If some items were rejected, the rest were stored. Each rejected item is named by its position and the reason. If the whole file was rejected, nothing was stored, and the message gives the reason. Messages never quote the input's content.</dd>
+<dd>A workload input was rejected, in whole or in part. Only <code>ingest openlineage</code>, <code>ingest dbt</code>, <code>ingest athena</code> and <code>collect</code> exit with <code>1</code>. If some items were rejected, the rest were stored. Each rejected item is named by its position and the reason. If the whole file was rejected, nothing was stored, and the message gives the reason. Messages never quote the input's content.</dd>
 <dt><code>2</code></dt>
 <dd>Nothing was done, and the message says why. These are the causes:
 <ul>
@@ -61,6 +61,8 @@
 <li>The database file is not a data-finops database.</li>
 <li>A FOCUS file is not a FOCUS Export Snapshot or a usable AWS Data Exports Delivery.</li>
 <li><code>serve</code> refused to start, for example because of the token rules below.</li>
+<li><code>collect</code> was given a settings file it refuses.</li>
+<li><code>collect</code> could not read a source, for example because AWS denied access. This is the one <code>2</code> after which something was done: <code>collect</code> still collected the other sources and calculated Allocations.</li>
 </ul>
 </dd>
 </dl>

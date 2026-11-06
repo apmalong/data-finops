@@ -120,6 +120,12 @@ workload: Workload store {
     "node_id": TEXT
     "entry_json": TEXT {constraint: [not_null]}
   }
+  workload_inbox_object: {
+    shape: sql_table
+    "key": TEXT {constraint: [primary_key]}
+    "etag": TEXT {constraint: [primary_key]}
+    "outcome": TEXT {constraint: [not_null]}
+  }
 }
 
 ledger.billing_line."snapshot_id" -> ledger.export_snapshot."snapshot_id"

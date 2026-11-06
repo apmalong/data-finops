@@ -9,6 +9,7 @@
     {"title": "Ingest Athena query history", "path": "how-to/ingest-athena-history.html"},
     {"title": "Ingest dbt artifacts", "path": "how-to/ingest-dbt-artifacts.html"},
     {"title": "Receive OpenLineage events", "path": "how-to/receive-openlineage.html"},
+    {"title": "Send workload metadata to the Inbox", "path": "how-to/send-to-inbox.html"},
     {"title": "Calculate Allocations", "path": "how-to/calculate.html"},
     {"title": "Handle a restated export", "path": "how-to/handle-restated-export.html"},
     {"title": "Read a Cost Explanation", "path": "how-to/read-cost-explanation.html"},

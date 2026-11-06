@@ -44,6 +44,7 @@
 <li><a href="#ingest-dbt"><code>data-finops ingest dbt</code></a></li>
 <li><a href="#ingest-athena"><code>data-finops ingest athena</code></a></li>
 <li><a href="#calculate"><code>data-finops calculate</code></a></li>
+<li><a href="#collect"><code>data-finops collect</code></a></li>
 <li><a href="#serve"><code>data-finops serve</code></a></li>
 <li><a href="#demo"><code>data-finops demo</code></a></li>
 </ul>
@@ -117,6 +118,18 @@
 <thead><tr><th>Argument</th><th>Required</th><th>Default</th><th>Meaning</th></tr></thead>
 <tbody>
 <tr><td><code>--db DB</code></td><td>required</td><td></td><td>the database file</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="collect"><code>data-finops collect</code></h2>
+<p>run one Collection Run against AWS into a database (spec 08)</p>
+<pre class="usage"><code><span class="line">usage: data-finops collect [-h] --db DB --config CONFIG</span></code></pre>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
+<table>
+<thead><tr><th>Argument</th><th>Required</th><th>Default</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>--db DB</code></td><td>required</td><td></td><td>the database file</td></tr>
+<tr><td><code>--config CONFIG</code></td><td>required</td><td></td><td>the collector&#x27;s settings file (TOML)</td></tr>
 </tbody>
 </table>
 </div>
