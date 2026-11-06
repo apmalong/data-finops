@@ -13,7 +13,7 @@
 <!-- nav:start -->
 <a class="skip-link" href="#main">Skip to content</a>
 <header class="site-header"><a href="../index.html">data-finops</a></header>
-<nav aria-label="Site">
+<nav class="site-nav" aria-label="Site">
 <ul>
 <li><a href="../tutorials/index.html">Tutorials</a></li>
 <li><a href="index.html">How-to guides</a>
@@ -68,7 +68,7 @@
 
 <h2 id="delivery">Load an AWS Data Exports Delivery</h2>
 <p>AWS Data Exports writes each Delivery as a manifest, <code>&lt;export&gt;-Manifest.json</code>, and its data files. Download both, then give <code>ingest focus</code> the manifest:</p>
-<pre><code>data-finops ingest focus &lt;download-dir&gt;/&lt;export&gt;-Manifest.json --data-dir &lt;data-files-dir&gt; --db finops.sqlite</code></pre>
+<pre><code><span class="line">data-finops ingest focus &lt;download-dir&gt;/&lt;export&gt;-Manifest.json --data-dir &lt;data-files-dir&gt; --db finops.sqlite</span></code></pre>
 <p class="notice">Not run on this page: it needs a Delivery downloaded from AWS.</p>
 <ul>
 <li><code>--data-dir</code> names where the data files were downloaded. Leave it out when they are beside the manifest.</li>

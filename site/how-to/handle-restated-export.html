@@ -13,7 +13,7 @@
 <!-- nav:start -->
 <a class="skip-link" href="#main">Skip to content</a>
 <header class="site-header"><a href="../index.html">data-finops</a></header>
-<nav aria-label="Site">
+<nav class="site-nav" aria-label="Site">
 <ul>
 <li><a href="../tutorials/index.html">Tutorials</a></li>
 <li><a href="index.html">How-to guides</a>
@@ -69,7 +69,7 @@
 
 <h2 id="check">Check that the new Calculation Run is current</h2>
 <p>Set <code>CALCULATION_RUN_ID</code> to the ID the last <code>calculate</code> printed:</p>
-<pre><code>CALCULATION_RUN_ID=calc-&lt;the ID calculate printed&gt;</code></pre>
+<pre><code><span class="line">CALCULATION_RUN_ID=calc-&lt;the ID calculate printed&gt;</span></code></pre>
 <pre><code class="run"><span class="line">curl -s "http://127.0.0.1:8000/v1/provenance?calculation_run_id=$CALCULATION_RUN_ID"</span></code></pre>
 <pre class="output checked"><span class="line">{"calculation_run_id":"calc-…",…"is_current":true,"superseded_by":null,"export_snapshot":{"snapshot_id":"aws-focus-123456789012-2026-10-v2",…</span></pre>
 <p>Ask for the first Calculation Run's ID the same way: it answers <code>"is_current":false</code>, and <code>superseded_by</code> names the new run. Its Allocation Snapshot is kept as history.</p>

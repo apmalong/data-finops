@@ -13,7 +13,7 @@
 <!-- nav:start -->
 <a class="skip-link" href="#main">Skip to content</a>
 <header class="site-header"><a href="../index.html">data-finops</a></header>
-<nav aria-label="Site">
+<nav class="site-nav" aria-label="Site">
 <ul>
 <li><a href="../tutorials/index.html">Tutorials</a></li>
 <li><a href="index.html">How-to guides</a>
@@ -53,8 +53,8 @@
 
 <h2 id="fetch">Fetch the history from AWS</h2>
 <p>List the Query Execution IDs of a workgroup, then fetch them with <code>BatchGetQueryExecution</code>, which takes at most 50 IDs per call:</p>
-<pre><code>aws athena list-query-executions --work-group &lt;workgroup&gt; --max-items 50 --output json
-aws athena batch-get-query-execution --query-execution-ids &lt;id&gt; &lt;id&gt; … --output json &gt; query-executions.json</code></pre>
+<pre><code><span class="line">aws athena list-query-executions --work-group &lt;workgroup&gt; --max-items 50 --output json
+</span><span class="line">aws athena batch-get-query-execution --query-execution-ids &lt;id&gt; &lt;id&gt; … --output json &gt; query-executions.json</span></code></pre>
 <p class="notice">Not run on this page: it needs AWS credentials and an Athena workgroup.</p>
 <p>Save the response as it is. data-finops reads the plain <code>BatchGetQueryExecution</code> response, up to 512 MiB per file.</p>
 

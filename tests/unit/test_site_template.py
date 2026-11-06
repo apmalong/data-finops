@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 from scripts.site.build import SiteError, build
-from tests.unit.test_site_build import NAV, make_repo, page, region
+from tests.unit.site_pages import NAV, make_repo, page, region
 
 NAV3 = [
     *NAV,
@@ -51,7 +51,10 @@ def test_the_nav_expands_only_the_current_section(tmp_path: Path) -> None:
 
 
 def test_on_this_page_lists_the_pages_h2s_by_their_ids(tmp_path: Path) -> None:
-    body = '<h2 id="load">1. Load <code>it</code></h2>\n<p>x</p>\n<h2 id="run">2. Run</h2>\n'
+    body = (
+        '<h2 id="load">1. Load <code>it</code></h2>\n<p>x</p>\n'
+        '<h2 id="run">2. <a href="#x">Run</a></h2>\n'
+    )
     built = three_sections(tmp_path, page("Calculate", body=body))
     assert region(built["how-to/calculate.html"], "onpage") == (
         '<nav class="on-page" aria-label="On this page">\n<p>On this page</p>\n<ul>\n'
@@ -82,11 +85,12 @@ def test_each_page_links_the_pages_before_and_after_it_in_nav_order(tmp_path: Pa
     assert 'rel="next"' not in region(built["reference/glossary.html"], "pager")
 
 
-def test_each_line_of_a_run_or_output_block_is_its_own_span(tmp_path: Path) -> None:
+def test_each_line_of_a_plain_code_block_is_its_own_span(tmp_path: Path) -> None:
     body = (
         '<pre><code class="run">data-finops ingest\ndata-finops calculate</code></pre>\n'
         '<pre class="output checked">focus: new\ncalculate: new</pre>\n'
-        "<pre><code>left alone\nas written</code></pre>\n"
+        "<pre><code>a plain block\nis spanned too</code></pre>\n"
+        "<pre><code>kept <em>as</em>\nwritten</code></pre>\n"
     )
     built = three_sections(tmp_path, page("Calculate", body=body))["how-to/calculate.html"]
     assert (
@@ -97,7 +101,23 @@ def test_each_line_of_a_run_or_output_block_is_its_own_span(tmp_path: Path) -> N
         '<pre class="output checked"><span class="line">focus: new\n</span>'
         '<span class="line">calculate: new</span></pre>'
     ) in built
-    assert "<pre><code>left alone\nas written</code></pre>" in built
+    assert (
+        '<pre><code><span class="line">a plain block\n</span>'
+        '<span class="line">is spanned too</span></code></pre>'
+    ) in built
+    assert "<pre><code>kept <em>as</em>\nwritten</code></pre>" in built  # other markup: left
+
+
+def test_a_line_added_to_a_built_block_gets_its_own_span(tmp_path: Path) -> None:
+    edited = (
+        '<pre><code class="run"><span class="line">one\n</span>'
+        '<span class="line">two</span>\nthree</code></pre>\n'
+    )
+    built = three_sections(tmp_path, page("Calculate", body=edited))["how-to/calculate.html"]
+    assert (
+        '<pre><code class="run"><span class="line">one\n</span><span class="line">two\n</span>'
+        '<span class="line">three</span></code></pre>'
+    ) in built
 
 
 def test_building_a_built_page_changes_nothing(tmp_path: Path) -> None:

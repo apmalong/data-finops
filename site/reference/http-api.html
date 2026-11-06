@@ -13,7 +13,7 @@
 <!-- nav:start -->
 <a class="skip-link" href="#main">Skip to content</a>
 <header class="site-header"><a href="../index.html">data-finops</a></header>
-<nav aria-label="Site">
+<nav class="site-nav" aria-label="Site">
 <ul>
 <li><a href="../tutorials/index.html">Tutorials</a></li>
 <li><a href="../how-to/index.html">How-to guides</a></li>
@@ -60,7 +60,7 @@
 <!-- reference:start -->
 <h2 id="get-health"><code>GET /health</code>: Health</h2>
 <p>Whether the database opens as a current data-finops database.</p>
-<div class="table-scroll" tabindex="0">
+<div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
 <table>
 <thead><tr><th>Status</th><th>Meaning</th><th>Body</th></tr></thead>
 <tbody>
@@ -72,7 +72,7 @@
 </div>
 <h2 id="get-v1-costs-summary"><code>GET /v1/costs/summary</code>: Cost Summary</h2>
 <p>One Cost Summary per Snapshot Scope, for the scope&#x27;s current Allocation Snapshot.</p>
-<div class="table-scroll" tabindex="0">
+<div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
 <table>
 <thead><tr><th>Parameter</th><th>In</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
 <tbody>
@@ -82,7 +82,7 @@
 </tbody>
 </table>
 </div>
-<div class="table-scroll" tabindex="0">
+<div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
 <table>
 <thead><tr><th>Status</th><th>Meaning</th><th>Body</th></tr></thead>
 <tbody>
@@ -96,7 +96,7 @@
 </div>
 <h2 id="get-v1-allocations"><code>GET /v1/allocations</code>: Allocations</h2>
 <p>One page of one Allocation Snapshot: a named Calculation Run&#x27;s, or else the current one of the single Snapshot Scope that `billing_account_id`, `billing_period` and `source` select.</p>
-<div class="table-scroll" tabindex="0">
+<div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
 <table>
 <thead><tr><th>Parameter</th><th>In</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
 <tbody>
@@ -113,7 +113,7 @@
 </tbody>
 </table>
 </div>
-<div class="table-scroll" tabindex="0">
+<div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
 <table>
 <thead><tr><th>Status</th><th>Meaning</th><th>Body</th></tr></thead>
 <tbody>
@@ -128,7 +128,7 @@
 </div>
 <h2 id="get-v1-rollups"><code>GET /v1/rollups</code>: Rollups</h2>
 <p>What each Model Execution or Workload Run cost in one Allocation Snapshot, chosen as for `/v1/allocations`; kept apart because a Roll-up is a view, never an Allocation.</p>
-<div class="table-scroll" tabindex="0">
+<div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
 <table>
 <thead><tr><th>Parameter</th><th>In</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
 <tbody>
@@ -142,7 +142,7 @@
 </tbody>
 </table>
 </div>
-<div class="table-scroll" tabindex="0">
+<div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
 <table>
 <thead><tr><th>Status</th><th>Meaning</th><th>Body</th></tr></thead>
 <tbody>
@@ -157,7 +157,7 @@
 </div>
 <h2 id="get-v1-reconciliation"><code>GET /v1/reconciliation</code>: Reconciliation</h2>
 <p>One Allocation Snapshot&#x27;s Allocations against the bill they partition: per Billing Line and Cost Basis, with per-currency totals over every line.</p>
-<div class="table-scroll" tabindex="0">
+<div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
 <table>
 <thead><tr><th>Parameter</th><th>In</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
 <tbody>
@@ -171,7 +171,7 @@
 </tbody>
 </table>
 </div>
-<div class="table-scroll" tabindex="0">
+<div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
 <table>
 <thead><tr><th>Status</th><th>Meaning</th><th>Body</th></tr></thead>
 <tbody>
@@ -186,7 +186,7 @@
 </div>
 <h2 id="get-v1-provenance"><code>GET /v1/provenance</code>: Provenance</h2>
 <p>How one Allocation Snapshot was made, chosen as for `/v1/allocations`: inputs, policies, the Export Snapshot it read, and the run that superseded it, if any.</p>
-<div class="table-scroll" tabindex="0">
+<div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
 <table>
 <thead><tr><th>Parameter</th><th>In</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
 <tbody>
@@ -197,7 +197,7 @@
 </tbody>
 </table>
 </div>
-<div class="table-scroll" tabindex="0">
+<div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
 <table>
 <thead><tr><th>Status</th><th>Meaning</th><th>Body</th></tr></thead>
 <tbody>
@@ -212,7 +212,7 @@
 </div>
 <h2 id="get-v1-lineage"><code>GET /v1/lineage</code>: Lineage</h2>
 <p>Without `run_id`, the topmost Workload Runs (paged); with it, that run&#x27;s lineage: its family, Data Assets, Lineage Edges and the Identity Links that reach its Model Executions and their Query Executions, each with its Link Outcome.</p>
-<div class="table-scroll" tabindex="0">
+<div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
 <table>
 <thead><tr><th>Parameter</th><th>In</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
 <tbody>
@@ -222,7 +222,7 @@
 </tbody>
 </table>
 </div>
-<div class="table-scroll" tabindex="0">
+<div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
 <table>
 <thead><tr><th>Status</th><th>Meaning</th><th>Body</th></tr></thead>
 <tbody>
@@ -237,7 +237,7 @@
 </div>
 <h2 id="get-v1-allocations-ref-explanation"><code>GET /v1/allocations/{ref}/explanation</code>: Explanation</h2>
 <p>The Cost Explanation of one Allocation, addressed `&lt;calculation_run_id&gt;#&lt;position&gt;` (the `#` sent as `%23`): Billing Line, Allocation, Evidence resolved, Roll-ups.</p>
-<div class="table-scroll" tabindex="0">
+<div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
 <table>
 <thead><tr><th>Parameter</th><th>In</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
 <tbody>
@@ -245,7 +245,7 @@
 </tbody>
 </table>
 </div>
-<div class="table-scroll" tabindex="0">
+<div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
 <table>
 <thead><tr><th>Status</th><th>Meaning</th><th>Body</th></tr></thead>
 <tbody>
@@ -261,7 +261,7 @@
 <h2 id="post-api-v1-lineage"><code>POST /api/v1/lineage</code>: Receive Lineage</h2>
 <p>Store one OpenLineage RunEvent, the default endpoint of OpenLineage&#x27;s HTTP transport (spec 04). Screened exactly as one item of an event file. The one async endpoint (spec 06): it streams the body so an oversized one is refused at the cap instead of buffered (ADR 0024), then ingests in the thread pool.</p>
 <p>Request body: <code>application/json</code>, required.</p>
-<div class="table-scroll" tabindex="0">
+<div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
 <table>
 <thead><tr><th>Status</th><th>Meaning</th><th>Body</th></tr></thead>
 <tbody>
@@ -279,7 +279,7 @@
 <h2 id="schemas">Schemas</h2>
 <h3 id="schema-allocated-amount">AllocatedAmount</h3>
 <p>Allocations of one Allocation Category and Confidence (none for Idle).</p>
-<div class="table-scroll" tabindex="0">
+<div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
 <table>
 <thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
 <tbody>
@@ -293,7 +293,7 @@
 </div>
 <h3 id="schema-allocation">Allocation</h3>
 <p>The part of one Billing Line assigned to one Allocation Target.</p>
-<div class="table-scroll" tabindex="0">
+<div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
 <table>
 <thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
 <tbody>
@@ -319,7 +319,7 @@
 <p>One of direct, shared, idle, unallocated.</p>
 <h3 id="schema-allocation-currency-reconciliation">AllocationCurrencyReconciliation</h3>
 <p>Every line of one currency and Cost Basis; never added to another currency&#x27;s.</p>
-<div class="table-scroll" tabindex="0">
+<div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
 <table>
 <thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
 <tbody>
@@ -333,7 +333,7 @@
 </div>
 <h3 id="schema-allocation-entry">AllocationEntry</h3>
 <p>One Allocation and its address, `&lt;calculation_run_id&gt;#&lt;position&gt;` (spec 06).</p>
-<div class="table-scroll" tabindex="0">
+<div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
 <table>
 <thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
 <tbody>
@@ -344,7 +344,7 @@
 </div>
 <h3 id="schema-allocation-line-reconciliation">AllocationLineReconciliation</h3>
 <p>One Billing Line, Cost Basis and currency: what was billed, what the Allocations hold, and the Reconciliation Delta between them (zero when Reconciliation holds). A line the bill lacks, or a currency other than the line&#x27;s, is billed zero, so invented amounts show.</p>
-<div class="table-scroll" tabindex="0">
+<div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
 <table>
 <thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
 <tbody>
@@ -361,7 +361,7 @@
 <p>How an amount was allocated; for Unallocated amounts, why (spec 03, M4 structure 10). One of estimated_metered_share, provider_line_match, weighted_share, no_observed_activity, ineligible, adjustment, coverage_remainder, coverage_exceeded, no_evidence.</p>
 <h3 id="schema-allocation-page">AllocationPage</h3>
 <p>One page of a single Allocation Snapshot&#x27;s Allocations; offsets are stable because the snapshot never changes.</p>
-<div class="table-scroll" tabindex="0">
+<div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
 <table>
 <thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
 <tbody>
@@ -375,7 +375,7 @@
 </div>
 <h3 id="schema-allocation-reconciliation">AllocationReconciliation</h3>
 <p>One Allocation Snapshot&#x27;s Allocations against the Export Snapshot its Calculation Run read: per-currency totals over every line, and one page of the lines.</p>
-<div class="table-scroll" tabindex="0">
+<div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
 <table>
 <thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
 <tbody>
@@ -395,7 +395,7 @@
 <p>The FOCUS cost column a figure is taken from; bases are never added together. One of BilledCost, EffectiveCost, ListCost, ContractedCost.</p>
 <h3 id="schema-cost-explanation">CostExplanation</h3>
 <p>The chain behind one Allocation (GLOSSARY): its Billing Line, the Allocation, its Evidence resolved, and the Roll-ups it contributes to.</p>
-<div class="table-scroll" tabindex="0">
+<div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
 <table>
 <thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
 <tbody>
@@ -413,7 +413,7 @@
 </div>
 <h3 id="schema-cost-summaries">CostSummaries</h3>
 <p>The Cost Summary of each matching Snapshot Scope&#x27;s current Allocation Snapshot.</p>
-<div class="table-scroll" tabindex="0">
+<div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
 <table>
 <thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
 <tbody>
@@ -424,7 +424,7 @@
 </div>
 <h3 id="schema-cost-summary">CostSummary</h3>
 <p>Where one Allocation Snapshot put its Snapshot Scope&#x27;s bill, for one Cost Basis.</p>
-<div class="table-scroll" tabindex="0">
+<div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
 <table>
 <thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
 <tbody>
@@ -437,7 +437,7 @@
 </div>
 <h3 id="schema-currency-summary">CurrencySummary</h3>
 <p>One currency&#x27;s part of a Cost Summary; never added to another currency&#x27;s.</p>
-<div class="table-scroll" tabindex="0">
+<div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
 <table>
 <thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
 <tbody>
@@ -452,7 +452,7 @@
 </div>
 <h3 id="schema-data-asset">DataAsset</h3>
 <p>Identified by the OpenLineage dataset naming convention.</p>
-<div class="table-scroll" tabindex="0">
+<div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
 <table>
 <thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
 <tbody>
@@ -463,7 +463,7 @@
 </div>
 <h3 id="schema-dbt-node">DbtNode</h3>
 <p>A node of one invocation&#x27;s dbt manifest: catalog entry and static dependencies.</p>
-<div class="table-scroll" tabindex="0">
+<div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
 <table>
 <thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
 <tbody>
@@ -484,7 +484,7 @@
 <p>One of conflicting_observations.</p>
 <h3 id="schema-explained-model-execution">ExplainedModelExecution</h3>
 <p>The Model Execution an Allocation&#x27;s Evidence links, as the workload store holds it; `execution` or `dbt_node` is None when that part was never ingested.</p>
-<div class="table-scroll" tabindex="0">
+<div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
 <table>
 <thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
 <tbody>
@@ -497,7 +497,7 @@
 </div>
 <h3 id="schema-explained-rollup">ExplainedRollup</h3>
 <p>A Roll-up the Allocation contributes to, in the Allocation&#x27;s currency and Cost Basis.</p>
-<div class="table-scroll" tabindex="0">
+<div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
 <table>
 <thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
 <tbody>
@@ -511,7 +511,7 @@
 </div>
 <h3 id="schema-explained-workload-run">ExplainedWorkloadRun</h3>
 <p>A Workload Run an Allocation&#x27;s Evidence names; `run` is None if never reported.</p>
-<div class="table-scroll" tabindex="0">
+<div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
 <table>
 <thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
 <tbody>
@@ -522,7 +522,7 @@
 </div>
 <h3 id="schema-export-snapshot-read">ExportSnapshotRead</h3>
 <p>The Export Snapshot a Calculation Run read.</p>
-<div class="table-scroll" tabindex="0">
+<div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
 <table>
 <thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
 <tbody>
@@ -533,7 +533,7 @@
 </table>
 </div>
 <h3 id="schema-focus-billing-line">FocusBillingLine</h3>
-<div class="table-scroll" tabindex="0">
+<div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
 <table>
 <thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
 <tbody>
@@ -571,7 +571,7 @@
 <p>One of Correction.</p>
 <h3 id="schema-health">Health</h3>
 <p>Whether the database opens as a current data-finops database; a status, not an error.</p>
-<div class="table-scroll" tabindex="0">
+<div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
 <table>
 <thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
 <tbody>
@@ -580,7 +580,7 @@
 </table>
 </div>
 <h3 id="schema-identity-link">IdentityLink</h3>
-<div class="table-scroll" tabindex="0">
+<div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
 <table>
 <thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
 <tbody>
@@ -596,7 +596,7 @@
 </div>
 <h3 id="schema-invocation-link">InvocationLink</h3>
 <p>The dbt invocation a run reports, and its Link Outcome to a Workload Run: `linked` to this run, or for example `ambiguous` when several runs report it.</p>
-<div class="table-scroll" tabindex="0">
+<div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
 <table>
 <thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
 <tbody>
@@ -609,7 +609,7 @@
 <h3 id="schema-lineage-direction">LineageDirection</h3>
 <p>One of input, output.</p>
 <h3 id="schema-lineage-edge">LineageEdge</h3>
-<div class="table-scroll" tabindex="0">
+<div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
 <table>
 <thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
 <tbody>
@@ -623,7 +623,7 @@
 </div>
 <h3 id="schema-lineage-model-execution">LineageModelExecution</h3>
 <p>A Model Execution in a run&#x27;s lineage, with the Query Executions that claim it.</p>
-<div class="table-scroll" tabindex="0">
+<div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
 <table>
 <thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
 <tbody>
@@ -636,7 +636,7 @@
 </div>
 <h3 id="schema-lineage-receipt">LineageReceipt</h3>
 <p>What storing one RunEvent changed, as the workload store&#x27;s ingest result counts it.</p>
-<div class="table-scroll" tabindex="0">
+<div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
 <table>
 <thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
 <tbody>
@@ -648,7 +648,7 @@
 </div>
 <h3 id="schema-lineage-unsupported">LineageUnsupported</h3>
 <p>A valid JobEvent or DatasetEvent: received, not stored (spec 04).</p>
-<div class="table-scroll" tabindex="0">
+<div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
 <table>
 <thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
 <tbody>
@@ -660,7 +660,7 @@
 <p>What became of an attempt to link a workload identity (GLOSSARY: Link Outcome). One of linked, no_evidence, unmatched, ambiguous.</p>
 <h3 id="schema-link-resolution">LinkResolution</h3>
 <p>A Link Outcome, with the Identity Link only when the outcome is `linked`.</p>
-<div class="table-scroll" tabindex="0">
+<div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
 <table>
 <thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
 <tbody>
@@ -671,7 +671,7 @@
 </div>
 <h3 id="schema-model-execution">ModelExecution</h3>
 <p>One run of a dbt node within one invocation.</p>
-<div class="table-scroll" tabindex="0">
+<div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
 <table>
 <thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
 <tbody>
@@ -687,7 +687,7 @@
 </div>
 <h3 id="schema-provenance">Provenance</h3>
 <p>How one Allocation Snapshot was made, enough to reproduce any figure in it.</p>
-<div class="table-scroll" tabindex="0">
+<div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
 <table>
 <thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
 <tbody>
@@ -705,7 +705,7 @@
 </div>
 <h3 id="schema-query-claim">QueryClaim</h3>
 <p>A Query Execution whose Trusted Query Comment names a Model Execution, and what became of that claim (its Link Outcome): only `linked` makes an Identity Link; `ambiguous` and `unmatched` claims are shown so a missing link is explained, not hidden.</p>
-<div class="table-scroll" tabindex="0">
+<div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
 <table>
 <thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
 <tbody>
@@ -716,7 +716,7 @@
 </div>
 <h3 id="schema-query-correlation">QueryCorrelation</h3>
 <p>Identifiers extracted from a trusted query comment; the query text is not kept.</p>
-<div class="table-scroll" tabindex="0">
+<div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
 <table>
 <thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
 <tbody>
@@ -726,7 +726,7 @@
 </table>
 </div>
 <h3 id="schema-query-execution">QueryExecution</h3>
-<div class="table-scroll" tabindex="0">
+<div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
 <table>
 <thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
 <tbody>
@@ -751,7 +751,7 @@
 <p>One of conflicting_observations.</p>
 <h3 id="schema-rollup-amount">RollupAmount</h3>
 <p>One Roll-up total, in one currency and Cost Basis.</p>
-<div class="table-scroll" tabindex="0">
+<div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
 <table>
 <thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
 <tbody>
@@ -763,7 +763,7 @@
 </div>
 <h3 id="schema-rollup-entry">RollupEntry</h3>
 <p>What one Model Execution or Workload Run cost: a view over Allocations, never an Allocation (GLOSSARY Roll-up).</p>
-<div class="table-scroll" tabindex="0">
+<div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
 <table>
 <thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
 <tbody>
@@ -774,7 +774,7 @@
 </div>
 <h3 id="schema-rollup-page">RollupPage</h3>
 <p>One page of one Allocation Snapshot&#x27;s Roll-ups at one level, ordered by key.</p>
-<div class="table-scroll" tabindex="0">
+<div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
 <table>
 <thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
 <tbody>
@@ -789,7 +789,7 @@
 </div>
 <h3 id="schema-root-run-page">RootRunPage</h3>
 <p>The topmost Workload Runs, reported or only named as another run&#x27;s parent or root.</p>
-<div class="table-scroll" tabindex="0">
+<div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
 <table>
 <thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
 <tbody>
@@ -802,7 +802,7 @@
 </div>
 <h3 id="schema-run-lineage">RunLineage</h3>
 <p>One Workload Run and what surrounds it: its family, Data Assets, and the Identity Links that reach its Model Executions and their Query Executions (ADR 0022).</p>
-<div class="table-scroll" tabindex="0">
+<div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
 <table>
 <thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
 <tbody>
@@ -821,7 +821,7 @@
 </div>
 <h3 id="schema-served-snapshot">ServedSnapshot</h3>
 <p>The Allocation Snapshot a read served, and the Calculation Run that made it.</p>
-<div class="table-scroll" tabindex="0">
+<div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
 <table>
 <thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
 <tbody>
@@ -835,7 +835,7 @@
 </div>
 <h3 id="schema-snapshot-scope">SnapshotScope</h3>
 <p>What an Export Snapshot covers; a restatement replaces the snapshot for its scope.</p>
-<div class="table-scroll" tabindex="0">
+<div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
 <table>
 <thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
 <tbody>
@@ -850,7 +850,7 @@
 <p>One of query_execution, idle, unallocated.</p>
 <h3 id="schema-unallocated-amount">UnallocatedAmount</h3>
 <p>Unallocated amounts for one reason (the Allocation&#x27;s method), Adjustments aside.</p>
-<div class="table-scroll" tabindex="0">
+<div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
 <table>
 <thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
 <tbody>
@@ -861,7 +861,7 @@
 </div>
 <h3 id="schema-workload-run">WorkloadRun</h3>
 <p>One OpenLineage run as reported, including dbt-ol&#x27;s per-model runs (ADR 0022).</p>
-<div class="table-scroll" tabindex="0">
+<div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
 <table>
 <thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
 <tbody>

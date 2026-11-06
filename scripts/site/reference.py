@@ -318,7 +318,8 @@ def _table(headers: list[str], rows: list[str]) -> str:
     body = "\n".join(rows)
     # A wide table scrolls in its own box, which keyboard users can focus, not the whole page.
     return (
-        '<div class="table-scroll" tabindex="0">\n'
+        '<div class="table-scroll" tabindex="0" role="region"'
+        ' aria-label="Table, scrolls sideways">\n'
         f"<table>\n<thead><tr>{head}</tr></thead>\n<tbody>\n{body}\n</tbody>\n</table>\n</div>"
     )
 

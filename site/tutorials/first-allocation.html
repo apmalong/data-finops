@@ -13,7 +13,7 @@
 <!-- nav:start -->
 <a class="skip-link" href="#main">Skip to content</a>
 <header class="site-header"><a href="../index.html">data-finops</a></header>
-<nav aria-label="Site">
+<nav class="site-nav" aria-label="Site">
 <ul>
 <li><a href="index.html">Tutorials</a>
 <ul>
@@ -52,9 +52,9 @@
 
 <h2 id="before-you-start">Before you start</h2>
 <p>You need Python 3.12, <a href="https://docs.astral.sh/uv/">uv</a> and a source checkout, because the tutorial reads the fixtures in <code>fixtures/</code>:</p>
-<pre><code>git clone https://github.com/apmalong/data-finops.git
-cd data-finops
-uv sync --extra api --frozen</code></pre>
+<pre><code><span class="line">git clone https://github.com/apmalong/data-finops.git
+</span><span class="line">cd data-finops
+</span><span class="line">uv sync --extra api --frozen</span></code></pre>
 <p>Then activate the environment, so that <code>data-finops</code> is on your path: <code>source .venv/bin/activate</code>, or <code>.venv\Scripts\activate</code> on Windows. You can instead start each command below with <code>uv run</code>.</p>
 
 <h2 id="load">1. Load the bill and the workload</h2>

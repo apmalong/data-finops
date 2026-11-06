@@ -13,7 +13,7 @@
 <!-- nav:start -->
 <a class="skip-link" href="#main">Skip to content</a>
 <header class="site-header"><a href="../index.html">data-finops</a></header>
-<nav aria-label="Site">
+<nav class="site-nav" aria-label="Site">
 <ul>
 <li><a href="../tutorials/index.html">Tutorials</a></li>
 <li><a href="index.html">How-to guides</a>
@@ -87,8 +87,8 @@
 
 <h2 id="client">Point an OpenLineage client at it</h2>
 <p>For an OpenLineage client that reads its settings from the environment, such as the Python client that Airflow and dbt use:</p>
-<pre><code>OPENLINEAGE_URL=http://127.0.0.1:8000
-OPENLINEAGE_ENDPOINT=api/v1/lineage</code></pre>
+<pre><code><span class="line">OPENLINEAGE_URL=http://127.0.0.1:8000
+</span><span class="line">OPENLINEAGE_ENDPOINT=api/v1/lineage</span></code></pre>
 <p class="notice">Not run on this page: it configures a client outside data-finops.</p>
 <p>To receive events from another machine, <code>serve</code> needs a token, which the client sends as its API key. See <a href="serve-with-token.html">Serve with a token</a>.</p>
 <!-- pager:start -->

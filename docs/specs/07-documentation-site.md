@@ -19,7 +19,7 @@ One page per document under `site/`, each one Diátaxis type. Home is `index.htm
   - The nav lists the four sections and expands only the current one.
   - Each page has an "On this page" list of its `h2`s, between `<!-- onpage:start -->` and `<!-- onpage:end -->` after its `h1`. It is stamped from the finished page, generated reference included, and an `h2` without an `id` fails the build. On screens over about 1200px it is a right-hand column. On narrower screens it sits under the `h1`.
   - Previous and next links, in `nav.json` order, sit between `<!-- pager:start -->` and `<!-- pager:end -->` at the end of `main`.
-  - `build` puts each line of every run and output block in `<span class="line">`, so a long command wraps with a hanging indent instead of scrolling. The text the page runner reads is unchanged. A wide table scrolls inside its own focusable box, never the page.
+  - `build` puts each line of every plain-text code block (run and output blocks included) in `<span class="line">`, so a long command wraps with a hanging indent instead of scrolling. The text the page runner reads is unchanged. A wide table scrolls inside its own focusable box, never the page.
 - Every link is relative. Root-absolute links (`/…`) are refused, so the same files work from `file://`, a checkout and `https://apmalong.github.io/data-finops/`.
 
 ## Design and writing (`site/DESIGN.md`)

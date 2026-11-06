@@ -13,7 +13,7 @@
 <!-- nav:start -->
 <a class="skip-link" href="#main">Skip to content</a>
 <header class="site-header"><a href="../index.html">data-finops</a></header>
-<nav aria-label="Site">
+<nav class="site-nav" aria-label="Site">
 <ul>
 <li><a href="../tutorials/index.html">Tutorials</a></li>
 <li><a href="index.html">How-to guides</a>
@@ -53,7 +53,7 @@
 
 <h2 id="make">Make a token</h2>
 <p>A token is at least 16 characters. Make a long random one and keep it in a file only you can read:</p>
-<pre><code>python -c "import secrets; print(secrets.token_urlsafe(32))" &gt; finops.token</code></pre>
+<pre><code><span class="line">python -c "import secrets; print(secrets.token_urlsafe(32))" &gt; finops.token</span></code></pre>
 <p>This page uses <code>fixtures/docs/example.token</code>, which holds the dummy token <code>example-token-not-a-secret</code>. Never use it for a real server.</p>
 
 <h2 id="file">Serve with a token file</h2>
@@ -69,15 +69,15 @@
 
 <h2 id="variable">Serve with the token in the environment</h2>
 <p>Set <code>DATA_FINOPS_TOKEN</code> instead of passing <code>--token-file</code>:</p>
-<pre><code>export DATA_FINOPS_TOKEN="$(cat finops.token)"
-data-finops serve --db finops.sqlite</code></pre>
+<pre><code><span class="line">export DATA_FINOPS_TOKEN="$(cat finops.token)"
+</span><span class="line">data-finops serve --db finops.sqlite</span></code></pre>
 <p class="notice">Not run on this page: pages run with no <code>DATA_FINOPS_*</code> settings.</p>
 <p>Use the variable or a file, never both. With both, <code>serve</code> refuses to start:</p>
 <pre class="output"><span class="line">data-finops: set the token in DATA_FINOPS_TOKEN or a file, not both</span></pre>
 
 <h2 id="host">Serve off loopback</h2>
 <p>To accept requests from other machines, give <code>--host</code> with a token:</p>
-<pre><code>data-finops serve --db finops.sqlite --host 0.0.0.0 --token-file finops.token</code></pre>
+<pre><code><span class="line">data-finops serve --db finops.sqlite --host 0.0.0.0 --token-file finops.token</span></code></pre>
 <p>Without a token, <code>serve</code> refuses and exits with <code>2</code>:</p>
 <pre class="output"><span class="line">data-finops: refusing to serve on 0.0.0.0 without a token: set DATA_FINOPS_TOKEN or --token-file (ADR 0024)</span></pre>
 <ul>

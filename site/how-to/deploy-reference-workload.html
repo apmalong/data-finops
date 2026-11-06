@@ -13,7 +13,7 @@
 <!-- nav:start -->
 <a class="skip-link" href="#main">Skip to content</a>
 <header class="site-header"><a href="../index.html">data-finops</a></header>
-<nav aria-label="Site">
+<nav class="site-nav" aria-label="Site">
 <ul>
 <li><a href="../tutorials/index.html">Tutorials</a></li>
 <li><a href="index.html">How-to guides</a>
@@ -65,15 +65,15 @@
 
 <h2 id="configure">Configure the stack</h2>
 <p>Use a dedicated AWS profile with least privilege. In PowerShell, from the repository root:</p>
-<pre><code>cd examples/reference-workload
-uv sync
-$env:PULUMI_BACKEND_URL = "file://$((Resolve-Path ../..).Path)/.local/pulumi"
-$env:PULUMI_CONFIG_PASSPHRASE = "&lt;choose one; needed for every later command&gt;"
-pulumi stack init dev
-pulumi config set aws:profile &lt;your profile&gt;
-pulumi config set bytesScannedCutoffPerQuery 104857600
-pulumi config set budgetMonthlyUsd &lt;amount&gt;
-pulumi config set budgetEmail &lt;your email&gt;</code></pre>
+<pre><code><span class="line">cd examples/reference-workload
+</span><span class="line">uv sync
+</span><span class="line">$env:PULUMI_BACKEND_URL = "file://$((Resolve-Path ../..).Path)/.local/pulumi"
+</span><span class="line">$env:PULUMI_CONFIG_PASSPHRASE = "&lt;choose one; needed for every later command&gt;"
+</span><span class="line">pulumi stack init dev
+</span><span class="line">pulumi config set aws:profile &lt;your profile&gt;
+</span><span class="line">pulumi config set bytesScannedCutoffPerQuery 104857600
+</span><span class="line">pulumi config set budgetMonthlyUsd &lt;amount&gt;
+</span><span class="line">pulumi config set budgetEmail &lt;your email&gt;</span></code></pre>
 <ul>
 <li><code>PULUMI_BACKEND_URL</code> keeps the Pulumi state in the git-ignored <code>.local/pulumi</code>. The program refuses any backend that is not <code>file://</code>.</li>
 <li><code>bytesScannedCutoffPerQuery</code> is the most an Athena query may scan, in bytes. The default is 100 MiB, and the least is 10 MiB.</li>
@@ -82,19 +82,19 @@ pulumi config set budgetEmail &lt;your email&gt;</code></pre>
 </ul>
 
 <h2 id="deploy">Deploy</h2>
-<pre><code>pulumi preview
-pulumi up</code></pre>
+<pre><code><span class="line">pulumi preview
+</span><span class="line">pulumi up</span></code></pre>
 <p>The stack's outputs are the <code>bucket</code>, the <code>database</code> and the <code>workgroup</code>. The workload's runs need the bucket.</p>
 
 <h2 id="run">Run the workload and collect its outputs</h2>
 <p>The README gives the steps for dbt, run from WSL or Linux with <code>dbt-ol</code>, and for Airflow, run with Docker Compose. Their OpenLineage events land in the git-ignored <code>.local/openlineage/</code>. Before anything leaves your machine, anonymize the outputs with the secret described in <a href="../reference/exit-codes-and-environment.html#environment-heading">Exit codes and environment</a>:</p>
-<pre><code>$env:DATA_FINOPS_ANON_SECRET = "&lt;long random value&gt;"
-uv run python scripts/anonymize_focus_export.py &lt;downloaded-export-dir&gt; &lt;output-dir&gt;
-uv run python scripts/anonymize_workload_outputs.py &lt;outputs-dir&gt; &lt;output-dir&gt;</code></pre>
+<pre><code><span class="line">$env:DATA_FINOPS_ANON_SECRET = "&lt;long random value&gt;"
+</span><span class="line">uv run python scripts/anonymize_focus_export.py &lt;downloaded-export-dir&gt; &lt;output-dir&gt;
+</span><span class="line">uv run python scripts/anonymize_workload_outputs.py &lt;outputs-dir&gt; &lt;output-dir&gt;</span></code></pre>
 <p>Run these from the repository root. The output must be outside the repository or under <code>.local/</code>. The published sample is in <code>fixtures/reference-workload/</code>.</p>
 
 <h2 id="teardown">Tear it down</h2>
-<pre><code>pulumi destroy</code></pre>
+<pre><code><span class="line">pulumi destroy</span></code></pre>
 <p>This removes the bucket, with everything in it, the Glue database, the workgroup and the Budget. What <code>pulumi destroy</code> does not remove:</p>
 <ul>
 <li>the local state in <code>.local/pulumi</code> and the outputs in <code>.local/openlineage/</code>;</li>

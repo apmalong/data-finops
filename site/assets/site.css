@@ -60,12 +60,12 @@ body {
     justify-content: center;
   }
 }
-/* Wide screens: "On this page" becomes a right-hand column beside the page's text. */
+/* Wide screens: "On this page" floats into a right-hand column of main's padding, so the
+   page's text keeps its measure and its margins, whatever the number of elements. */
 @media (min-width: 1200px) {
   body { grid-template-columns: 14rem minmax(0, 58rem); }
-  main { display: grid; grid-template-columns: minmax(0, 44rem) 12rem; column-gap: 2rem; align-content: start; }
-  main > * { grid-column: 1; }
-  main > .on-page { grid-column: 2; grid-row: 1 / span 200; align-self: start; position: sticky; top: 16px; margin-top: 24px; }
+  body > main { padding-right: calc(14rem + 16px); }  /* beats the general main padding below */
+  main > .on-page { float: right; width: 12rem; margin: 0 -14rem 0 0; position: sticky; top: 16px; }
 }
 
 /* Keyboard users skip straight to the content; the link shows only when focused. */
@@ -77,13 +77,14 @@ body {
 .site-header a { color: var(--text); font-weight: 600; text-decoration: none; }
 
 /* The site nav lists the sections; build expands only the current one. */
-nav[aria-label="Site"] { grid-area: nav; padding: 16px; font-size: 0.94rem; }
-nav[aria-label="Site"] ul { list-style: none; margin: 0; padding: 0; }
-nav[aria-label="Site"] li { margin: 0 0 8px; }
-nav[aria-label="Site"] ul ul { margin: 8px 0 4px 12px; padding-left: 10px; border-left: 1px solid var(--rule); }
-nav[aria-label="Site"] a { color: var(--text-2); text-decoration: none; }
-nav[aria-label="Site"] a:hover { color: var(--link); text-decoration: underline; }
-nav[aria-label="Site"] a[aria-current="page"] { color: var(--text); font-weight: 600; }
+.site-nav { grid-area: nav; padding: 16px; font-size: 0.94rem; }
+.site-nav ul { list-style: none; margin: 0; padding: 0; }
+.site-nav li { margin: 0 0 8px; }
+.site-nav ul ul { margin: 8px 0 4px 12px; padding-left: 10px; border-left: 1px solid var(--rule); }
+/* Site nav and "On this page" links: quiet until hovered. */
+.site-nav a, .on-page a { color: var(--text-2); text-decoration: none; }
+.site-nav a:hover, .on-page a:hover { color: var(--link); text-decoration: underline; }
+.site-nav a[aria-current="page"] { color: var(--text); font-weight: 600; }
 
 main { grid-area: main; padding: 8px 16px 32px; min-width: 0; }
 footer { grid-area: footer; padding: 16px; border-top: 1px solid var(--rule); color: var(--text-3); font-size: 0.85rem; }
@@ -102,8 +103,6 @@ a { color: var(--link); }
 .on-page p { margin: 0 0 6px; color: var(--text-3); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; }
 .on-page ul { list-style: none; margin: 0; padding: 0; }
 .on-page li { margin: 0 0 6px; }
-.on-page a { color: var(--text-2); text-decoration: none; }
-.on-page a:hover { color: var(--link); text-decoration: underline; }
 
 /* Previous and next, in nav order, at the foot of each page. */
 .pager { display: flex; justify-content: space-between; gap: 16px; margin-top: 3rem; padding-top: 16px; border-top: 1px solid var(--rule); }

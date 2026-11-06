@@ -17,7 +17,7 @@ from scripts.site.reference import render_cli, render_contracts, render_glossary
 __all__ = ["SiteError", "build"]
 
 REQUIRED_REGIONS = ("head", "nav", "pager", "footer")  # every page has each exactly once
-# `onpage` is required too, but stamped last, from the page's finished h2s.
+LATE_REGIONS = ("onpage",)  # required too, but stamped last, from the finished page's h2s
 OPTIONAL_REGIONS = ("pages",)  # a section's index page may list its pages
 SOURCE = "https://github.com/apmalong/data-finops"
 
@@ -59,7 +59,8 @@ def build(repo: Path) -> dict[str, str]:
         for name in (*REQUIRED_REGIONS, *OPTIONAL_REGIONS):
             text = _stamp(text, entry.path, name, content[name], name in REQUIRED_REGIONS)
         text = _line_spans(_stamp_reference(repo, entry.path, text))
-        built[entry.path] = _stamp(text, entry.path, "onpage", _on_page(entry.path, text), True)
+        (late,) = LATE_REGIONS
+        built[entry.path] = _stamp(text, entry.path, late, _on_page(entry.path, text), True)
     return built
 
 
@@ -134,7 +135,7 @@ def _nav(nav: tuple[Entry, ...], current: str) -> str:
     return (
         '<a class="skip-link" href="#main">Skip to content</a>\n'
         f'<header class="site-header">{_link(current, home.path, home.title)}</header>\n'
-        f'<nav aria-label="Site">\n<ul>\n{items}\n</ul>\n</nav>'
+        f'<nav class="site-nav" aria-label="Site">\n<ul>\n{items}\n</ul>\n</nav>'
     )
 
 
@@ -149,23 +150,26 @@ def _pager(current: str, before: Entry | None, after: Entry | None) -> str:
     return '<nav class="pager" aria-label="Previous and next">\n' + "\n".join(links) + "\n</nav>"
 
 
-_RUN_OR_OUTPUT = re.compile(
-    r'(<pre><code class="run">|<pre class="output[^"]*">)(.*?)(</code></pre>|</pre>)', re.DOTALL
-)
-_LINE_SPAN = re.compile(r'<span class="line">|</span>')
+_PRE = re.compile(r"(<pre\b[^>]*>(?:<code\b[^>]*>)?)(.*?)((?:</code>)?</pre>)", re.DOTALL)
+_LINE_SPAN = re.compile(r'<span class="line">(.*?)</span>', re.DOTALL)
 _H2 = re.compile(r"<h2\b([^>]*)>(.*?)</h2>", re.DOTALL)
+_LINK_TAG = re.compile(r"</?a\b[^>]*>")
 
 
 def _line_spans(text: str) -> str:
-    """Each line of every run and output block in its own `<span class="line">`, so a long line
-    wraps with a hanging indent. The block's text, which the page runner reads, is unchanged."""
+    """Each line of every plain-text code block in its own `<span class="line">`, so a long
+    line wraps with a hanging indent. The block's text, which the page runner reads, is
+    unchanged. A block holding any other markup is left as written."""
 
     def spans(block: re.Match[str]) -> str:
-        lines = _LINE_SPAN.sub("", block[2]).split("\n")
+        plain = _LINE_SPAN.sub(r"\1", block[2])
+        if "<" in plain:
+            return block[0]
+        lines = plain.split("\n")
         inner = "".join(f'<span class="line">{line}\n</span>' for line in lines[:-1])
         return f'{block[1]}{inner}<span class="line">{lines[-1]}</span>{block[3]}'
 
-    return _RUN_OR_OUTPUT.sub(spans, text)
+    return _PRE.sub(spans, text)
 
 
 def _on_page(page: str, text: str) -> str:
@@ -175,7 +179,8 @@ def _on_page(page: str, text: str) -> str:
         anchor = re.search(r'\bid="([^"]+)"', heading[1])
         if anchor is None:
             raise SiteError(f"{page} has an h2 without an id: {heading[0][:60]}")
-        items.append(f'<li><a href="#{anchor[1]}">{heading[2].strip()}</a></li>')
+        label = _LINK_TAG.sub("", heading[2]).strip()  # a link inside a link is not allowed
+        items.append(f'<li><a href="#{anchor[1]}">{label}</a></li>')
     if not items:
         return ""
     return (
