@@ -57,10 +57,15 @@ class _Blocks(HTMLParser):
         self.blocks: list[_Block] = []
         self._current: _Block | None = None
         self._gap = False
+        self._in_windows = False  # a Windows tab's block: shown to readers, never run
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         classes = set((dict(attrs).get("class") or "").split())
-        if tag == "pre":
+        if self._in_windows:
+            return
+        if tag == "pre" and classes & {"shell-windows", "windows"}:
+            self._in_windows = True
+        elif tag == "pre":
             kind: Literal["checked", "other"] = (
                 "checked" if {"output", "checked"} <= classes else "other"
             )
@@ -76,8 +81,11 @@ class _Blocks(HTMLParser):
     def handle_endtag(self, tag: str) -> None:
         if tag == "pre":
             self._current = None
+            self._in_windows = False
 
     def handle_data(self, data: str) -> None:
+        if self._in_windows:
+            return
         if self._current is not None:
             self._current.text += data
         elif data.strip():

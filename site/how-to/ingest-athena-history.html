@@ -5,6 +5,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="stylesheet" href="../assets/site.css">
+<script src="../assets/site.js" defer></script>
 <!-- head:end -->
 <title>Ingest Athena query history - data-finops</title>
 <meta name="description" content="How to fetch Athena query history as a BatchGetQueryExecution response and load it into data-finops.">
@@ -53,14 +54,21 @@
 
 <h2 id="fetch">Fetch the history from AWS</h2>
 <p>List the Query Execution IDs of a workgroup, then fetch them with <code>BatchGetQueryExecution</code>, which takes at most 50 IDs per call:</p>
-<pre><code><span class="line">aws athena list-query-executions --work-group &lt;workgroup&gt; --max-items 50 --output json
+<div class="shell-tabs">
+<pre class="shell-posix"><code><span class="line">aws athena list-query-executions --work-group &lt;workgroup&gt; --max-items 50 --output json
 </span><span class="line">aws athena batch-get-query-execution --query-execution-ids &lt;id&gt; &lt;id&gt; … --output json &gt; query-executions.json</span></code></pre>
+<pre class="shell-windows"><code><span class="line">aws athena list-query-executions --work-group &lt;workgroup&gt; --max-items 50 --output json
+</span><span class="line">cmd /c "aws athena batch-get-query-execution --query-execution-ids &lt;id&gt; &lt;id&gt; … --output json &gt; query-executions.json"</span></code></pre>
+</div>
 <p class="notice">Not run on this page: it needs AWS credentials and an Athena workgroup.</p>
-<p>Save the response as it is. data-finops reads the plain <code>BatchGetQueryExecution</code> response, up to 512 MiB per file.</p>
+<p>Save the response as it is. In Windows PowerShell 5.1, <code>&gt;</code> saves a file as UTF-16, which data-finops cannot read, so the Windows version saves it through <code>cmd</code>. data-finops reads the plain <code>BatchGetQueryExecution</code> response, up to 512 MiB per file.</p>
 
 <h2 id="load">Load it</h2>
 <p>The response does not say which account and Region it came from, so give them alongside it:</p>
-<pre><code class="run"><span class="line">data-finops ingest athena fixtures/athena/query-executions.json --account-id 123456789012 --region us-east-1 --db finops.sqlite</span></code></pre>
+<div class="shell-tabs">
+<pre class="shell-posix"><code class="run"><span class="line">data-finops ingest athena fixtures/athena/query-executions.json --account-id 123456789012 --region us-east-1 --db finops.sqlite</span></code></pre>
+<pre class="shell-windows" data-derived=""><code><span class="line">data-finops ingest athena fixtures/athena/query-executions.json --account-id 123456789012 --region us-east-1 --db finops.sqlite</span></code></pre>
+</div>
 <pre class="output checked"><span class="line">athena: 2 accepted, 0 duplicates, 0 changed copies, 0 rejected</span></pre>
 <ul>
 <li><code>duplicates</code>: Query Executions already stored with the same content.</li>
@@ -71,7 +79,10 @@
 
 <h2 id="again">Load overlapping history</h2>
 <p>Fetches often overlap. Loading the same history again stores nothing new:</p>
-<pre><code class="run"><span class="line">data-finops ingest athena fixtures/athena/query-executions.json --account-id 123456789012 --region us-east-1 --db finops.sqlite</span></code></pre>
+<div class="shell-tabs">
+<pre class="shell-posix"><code class="run"><span class="line">data-finops ingest athena fixtures/athena/query-executions.json --account-id 123456789012 --region us-east-1 --db finops.sqlite</span></code></pre>
+<pre class="shell-windows" data-derived=""><code><span class="line">data-finops ingest athena fixtures/athena/query-executions.json --account-id 123456789012 --region us-east-1 --db finops.sqlite</span></code></pre>
+</div>
 <pre class="output checked"><span class="line">athena: 0 accepted, 2 duplicates, 0 changed copies, 0 rejected</span></pre>
 
 <h2 id="kept">What is kept</h2>

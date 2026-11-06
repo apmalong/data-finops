@@ -20,6 +20,12 @@ One page per document under `site/`, each one Diátaxis type. Home is `index.htm
   - Each page has an "On this page" list of its `h2`s, between `<!-- onpage:start -->` and `<!-- onpage:end -->` after its `h1`. It is stamped from the finished page, generated reference included, and an `h2` without an `id` fails the build. On screens over about 1200px it is a right-hand column. On narrower screens it sits under the `h1`.
   - Previous and next links, in `nav.json` order, sit between `<!-- pager:start -->` and `<!-- pager:end -->` at the end of `main`.
   - `build` puts each line of every plain-text code block (run and output blocks included) in `<span class="line">`, so a long command wraps with a hanging indent instead of scrolling. The text the page runner reads is unchanged. A wide table scrolls inside its own focusable box, never the page.
+- Every command example has Windows (PowerShell) and macOS/Linux versions (owner, 2026-11-06, #173):
+  - A page holds the macOS/Linux block, which the page runner runs. `build` puts a Windows version beside it, in a `shell-tabs` group.
+  - The Windows version is derived by fixed rules: `curl` becomes `curl.exe`; `export X=v` becomes `$env:X = "v"`; `X=v` becomes `$X = "v"`; an unquoted `@file` argument is quoted.
+  - A line the rules cannot translate fails the build, until a hand-written `<pre class="windows">` follows the block. Such lines include redirects (PowerShell 5.1 writes `>` as UTF-16), `&&`, pipes, `$(…)` other than `$(cat FILE)`, and line continuations.
+  - Output blocks and the CLI reference's `usage` blocks get no tabs.
+  - `site/assets/site.js` shows one version at a time, chosen by the reader's OS and then their last choice, kept in `localStorage`. Without it, both versions show, each labelled.
 - Every link is relative. Root-absolute links (`/…`) are refused, so the same files work from `file://`, a checkout and `https://apmalong.github.io/data-finops/`.
 
 ## Design and writing (`site/DESIGN.md`)

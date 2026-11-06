@@ -13,6 +13,7 @@ from pathlib import Path
 
 from scripts.site.nav import Entry, SiteError, parse_nav, walk
 from scripts.site.reference import render_cli, render_contracts, render_glossary, render_http
+from scripts.site.shells import shell_tabs
 
 __all__ = ["SiteError", "build"]
 
@@ -22,6 +23,7 @@ OPTIONAL_REGIONS = ("pages",)  # a section's index page may list its pages
 SOURCE = "https://github.com/apmalong/data-finops"
 
 STYLESHEET = "assets/site.css"
+SCRIPT = "assets/site.js"  # the shell tabs (#173); every page works without it
 # The footer claims no more than is true: one unversioned site, no release, no license (OQ-8).
 FOOTER = (
     "<footer>\n"
@@ -58,7 +60,7 @@ def build(repo: Path) -> dict[str, str]:
         text = source.read_text(encoding="utf-8")
         for name in (*REQUIRED_REGIONS, *OPTIONAL_REGIONS):
             text = _stamp(text, entry.path, name, content[name], name in REQUIRED_REGIONS)
-        text = _line_spans(_stamp_reference(repo, entry.path, text))
+        text = _line_spans(shell_tabs(entry.path, _stamp_reference(repo, entry.path, text)))
         (late,) = LATE_REGIONS
         built[entry.path] = _stamp(text, entry.path, late, _on_page(entry.path, text), True)
     return built
@@ -112,7 +114,8 @@ def _head(current: str) -> str:
     return (
         '<meta charset="utf-8">\n'
         '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
-        f'<link rel="stylesheet" href="{_relative(current, STYLESHEET)}">'
+        f'<link rel="stylesheet" href="{_relative(current, STYLESHEET)}">\n'
+        f'<script src="{_relative(current, SCRIPT)}" defer></script>'
     )
 
 

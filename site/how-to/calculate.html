@@ -5,6 +5,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="stylesheet" href="../assets/site.css">
+<script src="../assets/site.js" defer></script>
 <!-- head:end -->
 <title>Calculate Allocations - data-finops</title>
 <meta name="description" content="How to run a Calculation Run, which splits every Billing Line of each Snapshot Scope into Allocations.">
@@ -53,20 +54,33 @@
 
 <h2 id="load">Load the inputs first</h2>
 <p>A Calculation Run reads only what is stored when it starts. Load the Export Snapshot and the workload's Athena history, OpenLineage events and dbt artifacts first:</p>
-<pre><code class="run"><span class="line">data-finops ingest focus fixtures/focus/export-2026-10.json --db finops.sqlite
+<div class="shell-tabs">
+<pre class="shell-posix"><code class="run"><span class="line">data-finops ingest focus fixtures/focus/export-2026-10.json --db finops.sqlite
 </span><span class="line">data-finops ingest athena fixtures/athena/query-executions.json --account-id 123456789012 --region us-east-1 --db finops.sqlite
 </span><span class="line">data-finops ingest openlineage fixtures/openlineage/events.json --db finops.sqlite
 </span><span class="line">data-finops ingest dbt fixtures/dbt/manifest.json --db finops.sqlite
 </span><span class="line">data-finops ingest dbt fixtures/dbt/run_results.json --db finops.sqlite</span></code></pre>
+<pre class="shell-windows" data-derived=""><code><span class="line">data-finops ingest focus fixtures/focus/export-2026-10.json --db finops.sqlite
+</span><span class="line">data-finops ingest athena fixtures/athena/query-executions.json --account-id 123456789012 --region us-east-1 --db finops.sqlite
+</span><span class="line">data-finops ingest openlineage fixtures/openlineage/events.json --db finops.sqlite
+</span><span class="line">data-finops ingest dbt fixtures/dbt/manifest.json --db finops.sqlite
+</span><span class="line">data-finops ingest dbt fixtures/dbt/run_results.json --db finops.sqlite</span></code></pre>
+</div>
 <p>The how-to guides for <a href="ingest-focus-export.html">FOCUS</a>, <a href="ingest-athena-history.html">Athena</a>, <a href="receive-openlineage.html">OpenLineage</a> and <a href="ingest-dbt-artifacts.html">dbt</a> explain each input.</p>
 
 <h2 id="run">Run the calculation</h2>
-<pre><code class="run"><span class="line">data-finops calculate --db finops.sqlite</span></code></pre>
+<div class="shell-tabs">
+<pre class="shell-posix"><code class="run"><span class="line">data-finops calculate --db finops.sqlite</span></code></pre>
+<pre class="shell-windows" data-derived=""><code><span class="line">data-finops calculate --db finops.sqlite</span></code></pre>
+</div>
 <pre class="output checked"><span class="line">calculate: 123456789012 2026-10-01 aws-data-exports:FOCUS_1_2_AWS: new calc-…</span></pre>
 <p>It prints one line for each Snapshot Scope: the billing account, the Billing Period, the source, the outcome and the Calculation Run's ID. <code>new</code> means a new Allocation Snapshot is stored and current.</p>
 
 <h2 id="again">Run it again</h2>
-<pre><code class="run"><span class="line">data-finops calculate --db finops.sqlite</span></code></pre>
+<div class="shell-tabs">
+<pre class="shell-posix"><code class="run"><span class="line">data-finops calculate --db finops.sqlite</span></code></pre>
+<pre class="shell-windows" data-derived=""><code><span class="line">data-finops calculate --db finops.sqlite</span></code></pre>
+</div>
 <pre class="output checked"><span class="line">calculate: 123456789012 2026-10-01 aws-data-exports:FOCUS_1_2_AWS: replay calc-…</span></pre>
 <p>With the same inputs and the same Allocation Policy, nothing new is stored, and the line names the current Calculation Run. Load new inputs and calculate again to change the Allocations. An event the HTTP receiver takes in changes no Allocation until the next <code>calculate</code>.</p>
 

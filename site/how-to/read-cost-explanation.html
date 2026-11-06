@@ -5,6 +5,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="stylesheet" href="../assets/site.css">
+<script src="../assets/site.js" defer></script>
 <!-- head:end -->
 <title>Read a Cost Explanation - data-finops</title>
 <meta name="description" content="How to find one Allocation and read its Cost Explanation through the data-finops API.">
@@ -52,27 +53,47 @@
 
 <h2 id="setup">Calculate and serve</h2>
 <p>Load a bill and its workload, then calculate:</p>
-<pre><code class="run"><span class="line">data-finops ingest focus fixtures/focus/export-2026-10.json --db finops.sqlite
+<div class="shell-tabs">
+<pre class="shell-posix"><code class="run"><span class="line">data-finops ingest focus fixtures/focus/export-2026-10.json --db finops.sqlite
 </span><span class="line">data-finops ingest athena fixtures/athena/query-executions.json --account-id 123456789012 --region us-east-1 --db finops.sqlite
 </span><span class="line">data-finops ingest openlineage fixtures/openlineage/events.json --db finops.sqlite
 </span><span class="line">data-finops ingest dbt fixtures/dbt/manifest.json --db finops.sqlite
 </span><span class="line">data-finops ingest dbt fixtures/dbt/run_results.json --db finops.sqlite</span></code></pre>
-<pre><code class="run"><span class="line">data-finops calculate --db finops.sqlite
+<pre class="shell-windows" data-derived=""><code><span class="line">data-finops ingest focus fixtures/focus/export-2026-10.json --db finops.sqlite
+</span><span class="line">data-finops ingest athena fixtures/athena/query-executions.json --account-id 123456789012 --region us-east-1 --db finops.sqlite
+</span><span class="line">data-finops ingest openlineage fixtures/openlineage/events.json --db finops.sqlite
+</span><span class="line">data-finops ingest dbt fixtures/dbt/manifest.json --db finops.sqlite
+</span><span class="line">data-finops ingest dbt fixtures/dbt/run_results.json --db finops.sqlite</span></code></pre>
+</div>
+<div class="shell-tabs">
+<pre class="shell-posix"><code class="run"><span class="line">data-finops calculate --db finops.sqlite
 </span><span class="line">data-finops serve --db finops.sqlite</span></code></pre>
+<pre class="shell-windows" data-derived=""><code><span class="line">data-finops calculate --db finops.sqlite
+</span><span class="line">data-finops serve --db finops.sqlite</span></code></pre>
+</div>
 <pre class="output checked"><span class="line">calculate: 123456789012 2026-10-01 aws-data-exports:FOCUS_1_2_AWS: new calc-…
 </span><span class="line">serving finops.sqlite at http://127.0.0.1:8000/ (Ctrl+C to stop)</span></pre>
 <p><code>serve</code> keeps running, so run the rest in a second terminal. Set <code>CALCULATION_RUN_ID</code> to the ID <code>calculate</code> printed:</p>
-<pre><code><span class="line">CALCULATION_RUN_ID=calc-&lt;the ID calculate printed&gt;</span></code></pre>
+<div class="shell-tabs">
+<pre class="shell-posix"><code><span class="line">CALCULATION_RUN_ID=calc-&lt;the ID calculate printed&gt;</span></code></pre>
+<pre class="shell-windows" data-derived=""><code><span class="line">CALCULATION_RUN_ID=calc-&lt;the ID calculate printed&gt;</span></code></pre>
+</div>
 
 <h2 id="find">Find the Allocation</h2>
 <p>List the Calculation Run's direct Allocations:</p>
-<pre><code class="run"><span class="line">curl -s "http://127.0.0.1:8000/v1/allocations?calculation_run_id=$CALCULATION_RUN_ID&amp;cost_basis=BilledCost&amp;category=direct"</span></code></pre>
+<div class="shell-tabs">
+<pre class="shell-posix"><code class="run"><span class="line">curl -s "http://127.0.0.1:8000/v1/allocations?calculation_run_id=$CALCULATION_RUN_ID&amp;cost_basis=BilledCost&amp;category=direct"</span></code></pre>
+<pre class="shell-windows" data-derived=""><code><span class="line">curl.exe -s "http://127.0.0.1:8000/v1/allocations?calculation_run_id=$CALCULATION_RUN_ID&amp;cost_basis=BilledCost&amp;category=direct"</span></code></pre>
+</div>
 <pre class="output checked"><span class="line">{"calculation_run_id":"calc-…","total":1,…"items":[{"ref":"calc-…#0","allocation":{…"target_type":"query_execution","target_id":"q-001","amount":"6.00",…</span></pre>
 <p>Each item's <code>ref</code> addresses one Allocation as <code>&lt;calculation_run_id&gt;#&lt;position&gt;</code>. This one gives $6.00 to Query Execution <code>q-001</code>.</p>
 
 <h2 id="read">Read its Cost Explanation</h2>
 <p>Ask for <code>/v1/allocations/&lt;ref&gt;/explanation</code>, sending the <code>#</code> as <code>%23</code>:</p>
-<pre><code class="run"><span class="line">curl -s "http://127.0.0.1:8000/v1/allocations/$CALCULATION_RUN_ID%230/explanation"</span></code></pre>
+<div class="shell-tabs">
+<pre class="shell-posix"><code class="run"><span class="line">curl -s "http://127.0.0.1:8000/v1/allocations/$CALCULATION_RUN_ID%230/explanation"</span></code></pre>
+<pre class="shell-windows" data-derived=""><code><span class="line">curl.exe -s "http://127.0.0.1:8000/v1/allocations/$CALCULATION_RUN_ID%230/explanation"</span></code></pre>
+</div>
 <pre class="output checked"><span class="line">{"ref":"calc-…#0","billing_line_ref":"aws-focus-123456789012-2026-10-v1#0","billing_line":{"BilledCost":"6.00",…"ServiceName":"Amazon Athena",…"allocation":{…"category":"direct","method":"estimated_metered_share","confidence":"metered_estimate","coverage":"1",…"query_execution":{…"query_execution_id":"q-001",…"model_execution":{"invocation_id":"inv-001","node_id":"model.demo.orders",…"workload_runs":[{"run_id":"00000000-0000-4000-8000-000000000002",…"rollups":[{"level":"model_execution",…"amount":"6.00"}…</span></pre>
 <p>Read it in order:</p>
 <ol>

@@ -5,6 +5,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="stylesheet" href="../assets/site.css">
+<script src="../assets/site.js" defer></script>
 <!-- head:end -->
 <title>Receive OpenLineage events - data-finops</title>
 <meta name="description" content="How to load OpenLineage events into data-finops from a file, or receive them over HTTP from an OpenLineage client.">
@@ -52,7 +53,10 @@
 
 <h2 id="file">Load events from a file</h2>
 <p>The file holds a JSON array of events, or one event per line (JSON Lines):</p>
-<pre><code class="run"><span class="line">data-finops ingest openlineage fixtures/openlineage/events.json --db finops.sqlite</span></code></pre>
+<div class="shell-tabs">
+<pre class="shell-posix"><code class="run"><span class="line">data-finops ingest openlineage fixtures/openlineage/events.json --db finops.sqlite</span></code></pre>
+<pre class="shell-windows" data-derived=""><code><span class="line">data-finops ingest openlineage fixtures/openlineage/events.json --db finops.sqlite</span></code></pre>
+</div>
 <pre class="output checked"><span class="line">openlineage: 5 accepted, 0 duplicates, 0 changed copies, 0 unsupported, 0 rejected</span></pre>
 <ul>
 <li><code>duplicates</code>: events already stored with the same content. Loading the file again stores nothing.</li>
@@ -71,8 +75,12 @@
 
 <h2 id="http">Receive events over HTTP</h2>
 <p><code>serve</code> also runs the receiver, at <code>POST /api/v1/lineage</code>, the default endpoint of OpenLineage's HTTP transport. Each request carries one event:</p>
-<pre><code class="run"><span class="line">data-finops serve --db finops.sqlite
+<div class="shell-tabs">
+<pre class="shell-posix"><code class="run"><span class="line">data-finops serve --db finops.sqlite
 </span><span class="line">curl -s -X POST -H 'Content-Type: application/json' --data-binary @fixtures/openlineage/one-event.json http://127.0.0.1:8000/api/v1/lineage</span></code></pre>
+<pre class="shell-windows" data-derived=""><code><span class="line">data-finops serve --db finops.sqlite
+</span><span class="line">curl.exe -s -X POST -H 'Content-Type: application/json' --data-binary '@fixtures/openlineage/one-event.json' http://127.0.0.1:8000/api/v1/lineage</span></code></pre>
+</div>
 <pre class="output checked"><span class="line">serving finops.sqlite at http://127.0.0.1:8000/ (Ctrl+C to stop)
 </span><span class="line">{"accepted":1,"duplicates":0,"changed_copies":0}</span></pre>
 <p><code>serve</code> keeps running, so send events from a second terminal. The receiver screens each event exactly as it screens one item of a file:</p>
@@ -87,8 +95,12 @@
 
 <h2 id="client">Point an OpenLineage client at it</h2>
 <p>For an OpenLineage client that reads its settings from the environment, such as the Python client that Airflow and dbt use:</p>
-<pre><code><span class="line">OPENLINEAGE_URL=http://127.0.0.1:8000
-</span><span class="line">OPENLINEAGE_ENDPOINT=api/v1/lineage</span></code></pre>
+<div class="shell-tabs">
+<pre class="shell-posix"><code><span class="line">export OPENLINEAGE_URL=http://127.0.0.1:8000
+</span><span class="line">export OPENLINEAGE_ENDPOINT=api/v1/lineage</span></code></pre>
+<pre class="shell-windows" data-derived=""><code><span class="line">$env:OPENLINEAGE_URL = "http://127.0.0.1:8000"
+</span><span class="line">$env:OPENLINEAGE_ENDPOINT = "api/v1/lineage"</span></code></pre>
+</div>
 <p class="notice">Not run on this page: it configures a client outside data-finops.</p>
 <p>To receive events from another machine, <code>serve</code> needs a token, which the client sends as its API key. See <a href="serve-with-token.html">Serve with a token</a>.</p>
 <!-- pager:start -->

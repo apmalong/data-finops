@@ -5,6 +5,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="stylesheet" href="../assets/site.css">
+<script src="../assets/site.js" defer></script>
 <!-- head:end -->
 <title>Serve with a token - data-finops</title>
 <meta name="description" content="How to serve the data-finops API, dashboard and OpenLineage receiver behind a bearer token, and off loopback.">
@@ -53,13 +54,21 @@
 
 <h2 id="make">Make a token</h2>
 <p>A token is at least 16 characters. Make a long random one and keep it in a file only you can read:</p>
-<pre><code><span class="line">python -c "import secrets; print(secrets.token_urlsafe(32))" &gt; finops.token</span></code></pre>
+<div class="shell-tabs">
+<pre class="shell-posix"><code><span class="line">python -c "import secrets; print(secrets.token_urlsafe(32))" &gt; finops.token</span></code></pre>
+<pre class="shell-windows"><code><span class="line">python -c "import secrets; print(secrets.token_urlsafe(32))" | Set-Content -Encoding ascii finops.token</span></code></pre>
+</div>
 <p>This page uses <code>fixtures/docs/example.token</code>, which holds the dummy token <code>example-token-not-a-secret</code>. Never use it for a real server.</p>
 
 <h2 id="file">Serve with a token file</h2>
-<pre><code class="run"><span class="line">data-finops ingest focus fixtures/focus/export-2026-10.json --db finops.sqlite
+<div class="shell-tabs">
+<pre class="shell-posix"><code class="run"><span class="line">data-finops ingest focus fixtures/focus/export-2026-10.json --db finops.sqlite
 </span><span class="line">data-finops serve --db finops.sqlite --token-file fixtures/docs/example.token
 </span><span class="line">curl -s -H "Authorization: Bearer $(cat fixtures/docs/example.token)" http://127.0.0.1:8000/health</span></code></pre>
+<pre class="shell-windows" data-derived=""><code><span class="line">data-finops ingest focus fixtures/focus/export-2026-10.json --db finops.sqlite
+</span><span class="line">data-finops serve --db finops.sqlite --token-file fixtures/docs/example.token
+</span><span class="line">curl.exe -s -H "Authorization: Bearer $(cat fixtures/docs/example.token)" http://127.0.0.1:8000/health</span></code></pre>
+</div>
 <pre class="output checked"><span class="line">focus: new aws-focus-123456789012-2026-10-v1
 </span><span class="line">serving finops.sqlite at http://127.0.0.1:8000/ (Ctrl+C to stop)
 </span><span class="line">{"status":"ok"}</span></pre>
@@ -69,15 +78,22 @@
 
 <h2 id="variable">Serve with the token in the environment</h2>
 <p>Set <code>DATA_FINOPS_TOKEN</code> instead of passing <code>--token-file</code>:</p>
-<pre><code><span class="line">export DATA_FINOPS_TOKEN="$(cat finops.token)"
+<div class="shell-tabs">
+<pre class="shell-posix"><code><span class="line">export DATA_FINOPS_TOKEN="$(cat finops.token)"
 </span><span class="line">data-finops serve --db finops.sqlite</span></code></pre>
+<pre class="shell-windows" data-derived=""><code><span class="line">$env:DATA_FINOPS_TOKEN = "$(cat finops.token)"
+</span><span class="line">data-finops serve --db finops.sqlite</span></code></pre>
+</div>
 <p class="notice">Not run on this page: pages run with no <code>DATA_FINOPS_*</code> settings.</p>
 <p>Use the variable or a file, never both. With both, <code>serve</code> refuses to start:</p>
 <pre class="output"><span class="line">data-finops: set the token in DATA_FINOPS_TOKEN or a file, not both</span></pre>
 
 <h2 id="host">Serve off loopback</h2>
 <p>To accept requests from other machines, give <code>--host</code> with a token:</p>
-<pre><code><span class="line">data-finops serve --db finops.sqlite --host 0.0.0.0 --token-file finops.token</span></code></pre>
+<div class="shell-tabs">
+<pre class="shell-posix"><code><span class="line">data-finops serve --db finops.sqlite --host 0.0.0.0 --token-file finops.token</span></code></pre>
+<pre class="shell-windows" data-derived=""><code><span class="line">data-finops serve --db finops.sqlite --host 0.0.0.0 --token-file finops.token</span></code></pre>
+</div>
 <p>Without a token, <code>serve</code> refuses and exits with <code>2</code>:</p>
 <pre class="output"><span class="line">data-finops: refusing to serve on 0.0.0.0 without a token: set DATA_FINOPS_TOKEN or --token-file (ADR 0024)</span></pre>
 <ul>

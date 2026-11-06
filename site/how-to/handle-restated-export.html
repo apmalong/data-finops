@@ -5,6 +5,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="stylesheet" href="../assets/site.css">
+<script src="../assets/site.js" defer></script>
 <!-- head:end -->
 <title>Handle a restated export - data-finops</title>
 <meta name="description" content="How to load a restated Export Snapshot and recalculate, keeping the earlier Allocation Snapshot as history.">
@@ -52,32 +53,51 @@
 <p>A provider can publish a Billing Period again with changed Billing Lines. This guide loads the restated Export Snapshot and recalculates. Nothing earlier is overwritten.</p>
 
 <h2 id="before">Start from a calculated bill</h2>
-<pre><code class="run"><span class="line">data-finops ingest focus fixtures/focus/export-2026-10.json --db finops.sqlite
+<div class="shell-tabs">
+<pre class="shell-posix"><code class="run"><span class="line">data-finops ingest focus fixtures/focus/export-2026-10.json --db finops.sqlite
 </span><span class="line">data-finops calculate --db finops.sqlite
 </span><span class="line">data-finops serve --db finops.sqlite</span></code></pre>
+<pre class="shell-windows" data-derived=""><code><span class="line">data-finops ingest focus fixtures/focus/export-2026-10.json --db finops.sqlite
+</span><span class="line">data-finops calculate --db finops.sqlite
+</span><span class="line">data-finops serve --db finops.sqlite</span></code></pre>
+</div>
 <pre class="output checked"><span class="line">focus: new aws-focus-123456789012-2026-10-v1
 </span><span class="line">calculate: 123456789012 2026-10-01 aws-data-exports:FOCUS_1_2_AWS: new calc-…
 </span><span class="line">serving finops.sqlite at http://127.0.0.1:8000/ (Ctrl+C to stop)</span></pre>
 <p><code>serve</code> keeps running, so run the rest in a second terminal.</p>
 
 <h2 id="restated">Load the restated Export Snapshot and recalculate</h2>
-<pre><code class="run"><span class="line">data-finops ingest focus fixtures/focus/export-2026-10-restated.json --db finops.sqlite
+<div class="shell-tabs">
+<pre class="shell-posix"><code class="run"><span class="line">data-finops ingest focus fixtures/focus/export-2026-10-restated.json --db finops.sqlite
 </span><span class="line">data-finops calculate --db finops.sqlite</span></code></pre>
+<pre class="shell-windows" data-derived=""><code><span class="line">data-finops ingest focus fixtures/focus/export-2026-10-restated.json --db finops.sqlite
+</span><span class="line">data-finops calculate --db finops.sqlite</span></code></pre>
+</div>
 <pre class="output checked"><span class="line">focus: new aws-focus-123456789012-2026-10-v2
 </span><span class="line">calculate: 123456789012 2026-10-01 aws-data-exports:FOCUS_1_2_AWS: new calc-…</span></pre>
 <p>The restated Export Snapshot is published later, so it is now current. The earlier one becomes a Superseded Snapshot and is kept. A restatement replaces the whole Export Snapshot, never single Billing Lines (ADR 0015).</p>
 
 <h2 id="check">Check that the new Calculation Run is current</h2>
 <p>Set <code>CALCULATION_RUN_ID</code> to the ID the last <code>calculate</code> printed:</p>
-<pre><code><span class="line">CALCULATION_RUN_ID=calc-&lt;the ID calculate printed&gt;</span></code></pre>
-<pre><code class="run"><span class="line">curl -s "http://127.0.0.1:8000/v1/provenance?calculation_run_id=$CALCULATION_RUN_ID"</span></code></pre>
+<div class="shell-tabs">
+<pre class="shell-posix"><code><span class="line">CALCULATION_RUN_ID=calc-&lt;the ID calculate printed&gt;</span></code></pre>
+<pre class="shell-windows" data-derived=""><code><span class="line">CALCULATION_RUN_ID=calc-&lt;the ID calculate printed&gt;</span></code></pre>
+</div>
+<div class="shell-tabs">
+<pre class="shell-posix"><code class="run"><span class="line">curl -s "http://127.0.0.1:8000/v1/provenance?calculation_run_id=$CALCULATION_RUN_ID"</span></code></pre>
+<pre class="shell-windows" data-derived=""><code><span class="line">curl.exe -s "http://127.0.0.1:8000/v1/provenance?calculation_run_id=$CALCULATION_RUN_ID"</span></code></pre>
+</div>
 <pre class="output checked"><span class="line">{"calculation_run_id":"calc-…",…"is_current":true,"superseded_by":null,"export_snapshot":{"snapshot_id":"aws-focus-123456789012-2026-10-v2",…</span></pre>
 <p>Ask for the first Calculation Run's ID the same way: it answers <code>"is_current":false</code>, and <code>superseded_by</code> names the new run. Its Allocation Snapshot is kept as history.</p>
 
 <h2 id="late">An older Export Snapshot loaded late</h2>
 <p>Exports can arrive out of order. Into a new database file, load the restated Export Snapshot first, then the earlier one:</p>
-<pre><code class="run"><span class="line">data-finops ingest focus fixtures/focus/export-2026-10-restated.json --db late.sqlite
+<div class="shell-tabs">
+<pre class="shell-posix"><code class="run"><span class="line">data-finops ingest focus fixtures/focus/export-2026-10-restated.json --db late.sqlite
 </span><span class="line">data-finops ingest focus fixtures/focus/export-2026-10.json --db late.sqlite</span></code></pre>
+<pre class="shell-windows" data-derived=""><code><span class="line">data-finops ingest focus fixtures/focus/export-2026-10-restated.json --db late.sqlite
+</span><span class="line">data-finops ingest focus fixtures/focus/export-2026-10.json --db late.sqlite</span></code></pre>
+</div>
 <pre class="output checked"><span class="line">focus: new aws-focus-123456789012-2026-10-v2
 </span><span class="line">focus: superseded aws-focus-123456789012-2026-10-v1</span></pre>
 <p>The earlier publication is stored as a Superseded Snapshot, and the latest publication stays current, whatever the order of loading (ADR 0020). Loading an Export Snapshot that is already stored prints <code>replay</code> and stores nothing.</p>

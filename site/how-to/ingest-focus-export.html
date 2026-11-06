@@ -5,6 +5,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="stylesheet" href="../assets/site.css">
+<script src="../assets/site.js" defer></script>
 <!-- head:end -->
 <title>Ingest a FOCUS export - data-finops</title>
 <meta name="description" content="How to load an Export Snapshot into data-finops, from a FOCUS JSON file or an AWS Data Exports Delivery.">
@@ -52,7 +53,10 @@
 <p>This guide loads an Export Snapshot into a database file: all the Billing Lines of one billing account, Billing Period and source, as the provider published them. It comes from a FOCUS JSON file or from an AWS Data Exports Delivery.</p>
 
 <h2 id="json">Load an Export Snapshot from a JSON file</h2>
-<pre><code class="run"><span class="line">data-finops ingest focus fixtures/focus/export-2026-10.json --db finops.sqlite</span></code></pre>
+<div class="shell-tabs">
+<pre class="shell-posix"><code class="run"><span class="line">data-finops ingest focus fixtures/focus/export-2026-10.json --db finops.sqlite</span></code></pre>
+<pre class="shell-windows" data-derived=""><code><span class="line">data-finops ingest focus fixtures/focus/export-2026-10.json --db finops.sqlite</span></code></pre>
+</div>
 <pre class="output checked"><span class="line">focus: new aws-focus-123456789012-2026-10-v1</span></pre>
 <p>The database file is created if it does not exist. The line gives the outcome, then the Export Snapshot's ID:</p>
 <ul>
@@ -62,13 +66,19 @@
 </ul>
 
 <h2 id="again">Load it again safely</h2>
-<pre><code class="run"><span class="line">data-finops ingest focus fixtures/focus/export-2026-10.json --db finops.sqlite</span></code></pre>
+<div class="shell-tabs">
+<pre class="shell-posix"><code class="run"><span class="line">data-finops ingest focus fixtures/focus/export-2026-10.json --db finops.sqlite</span></code></pre>
+<pre class="shell-windows" data-derived=""><code><span class="line">data-finops ingest focus fixtures/focus/export-2026-10.json --db finops.sqlite</span></code></pre>
+</div>
 <pre class="output checked"><span class="line">focus: replay aws-focus-123456789012-2026-10-v1</span></pre>
 <p>A replay stores nothing, so you can rerun an ingest without making copies. Which Export Snapshot is current depends on the provider's publication time, never on the order you load them in (ADR 0020).</p>
 
 <h2 id="delivery">Load an AWS Data Exports Delivery</h2>
 <p>AWS Data Exports writes each Delivery as a manifest, <code>&lt;export&gt;-Manifest.json</code>, and its data files. Download both, then give <code>ingest focus</code> the manifest:</p>
-<pre><code><span class="line">data-finops ingest focus &lt;download-dir&gt;/&lt;export&gt;-Manifest.json --data-dir &lt;data-files-dir&gt; --db finops.sqlite</span></code></pre>
+<div class="shell-tabs">
+<pre class="shell-posix"><code><span class="line">data-finops ingest focus &lt;download-dir&gt;/&lt;export&gt;-Manifest.json --data-dir &lt;data-files-dir&gt; --db finops.sqlite</span></code></pre>
+<pre class="shell-windows" data-derived=""><code><span class="line">data-finops ingest focus &lt;download-dir&gt;/&lt;export&gt;-Manifest.json --data-dir &lt;data-files-dir&gt; --db finops.sqlite</span></code></pre>
+</div>
 <p class="notice">Not run on this page: it needs a Delivery downloaded from AWS.</p>
 <ul>
 <li><code>--data-dir</code> names where the data files were downloaded. Leave it out when they are beside the manifest.</li>
