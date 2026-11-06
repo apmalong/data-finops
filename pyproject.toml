@@ -27,6 +27,8 @@ packages = ["src/data_finops"]
 # (build-vs-reuse register) until httpx2 is reviewed.
 filterwarnings = ["ignore:Using `httpx` with `starlette.testclient` is deprecated"]
 testpaths = ["tests"]
+# The repository root, so tests import the dev tooling in scripts/site (spec 07).
+pythonpath = ["."]
 addopts = "-ra"
 [tool.ruff]
 target-version = "py312"
@@ -36,5 +38,7 @@ select = ["E", "F", "I", "B", "UP"]
 [tool.mypy]
 python_version = "3.12"
 strict = true
-mypy_path = "src"
+mypy_path = "src:."
+# scripts/site is the package scripts.site, never the stdlib site module.
+explicit_package_bases = true
 plugins = ["pydantic.mypy"]
