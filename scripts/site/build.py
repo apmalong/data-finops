@@ -1,19 +1,20 @@
 """Stamp the shared regions of every page from one source (spec 07, "Layout").
 
 `site/nav.json` lists every page. Each page marks the regions the build owns with
-`<!-- name:start -->` and `<!-- name:end -->` lines; everything else in a page is hand-written.
+`<!-- name:start -->` and `<!-- name:end -->`; everything else in a page is hand-written.
 """
 
 import html
-import json
 import posixpath
 import re
-from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 
-HOME = "index.html"
-SHARED = ("head", "nav", "footer")  # the regions every page must have
+from scripts.site.nav import Entry, SiteError, parse_nav, walk
+
+__all__ = ["SiteError", "build"]
+
+REQUIRED_REGIONS = ("head", "nav", "footer")  # every page has each exactly once
+OPTIONAL_REGIONS = ("pages",)  # a section's index page may list its pages
 SOURCE = "https://github.com/apmalong/data-finops"
 
 HEAD = (
@@ -28,48 +29,29 @@ FOOTER = (
 )
 
 
-class SiteError(Exception):
-    """The site cannot be built as it stands."""
-
-
-@dataclass(frozen=True)
-class Entry:
-    title: str
-    path: str  # relative to the site root
-    pages: tuple["Entry", ...] = ()
-
-
 def build(repo: Path) -> dict[str, str]:
-    """Every page in the nav as it should be committed, keyed by its path in `site/`."""
+    """Every page in the nav as it should be committed, keyed by its path in `site/`.
+
+    A page the nav lists but the site lacks is left to the checker to report.
+    """
     site = repo / "site"
     nav = parse_nav((site / "nav.json").read_text(encoding="utf-8"))
     built: dict[str, str] = {}
     for entry in walk(nav):
         source = site / entry.path
-        if source.is_file():
-            text = source.read_text(encoding="utf-8")
-            missing = [r for r in SHARED if f"<!-- {r}:start -->" not in text]
-            if missing:
-                raise SiteError(f"{entry.path} has no {', '.join(missing)} region")
-            text = _stamp(text, "head", HEAD)
-            text = _stamp(text, "nav", _nav(nav, entry.path))
-            text = _stamp(text, "pages", _pages(entry))
-            built[entry.path] = _stamp(text, "footer", FOOTER)
+        if not source.is_file():
+            continue
+        content = {
+            "head": HEAD,
+            "nav": _nav(nav, entry.path),
+            "footer": FOOTER,
+            "pages": _pages(entry),
+        }
+        text = source.read_text(encoding="utf-8")
+        for name in (*REQUIRED_REGIONS, *OPTIONAL_REGIONS):
+            text = _stamp(text, entry.path, name, content[name], name in REQUIRED_REGIONS)
+        built[entry.path] = text
     return built
-
-
-def parse_nav(text: str) -> tuple[Entry, ...]:
-    """The entries of `site/nav.json`, in order."""
-
-    def entry(raw: dict[str, Any]) -> Entry:
-        return Entry(raw["title"], raw["path"], tuple(entry(p) for p in raw.get("pages", [])))
-
-    return tuple(entry(raw) for raw in json.loads(text))
-
-
-def walk(entries: tuple[Entry, ...]) -> list[Entry]:
-    """Every entry, each section followed by its pages."""
-    return [e for top in entries for e in (top, *walk(top.pages))]
 
 
 def _link(current: str, entry_path: str, title: str) -> str:
@@ -79,6 +61,8 @@ def _link(current: str, entry_path: str, title: str) -> str:
 
 
 def _nav(nav: tuple[Entry, ...], current: str) -> str:
+    home, *sections = nav
+
     def items(entries: tuple[Entry, ...]) -> str:
         lines = []
         for e in entries:
@@ -87,21 +71,28 @@ def _nav(nav: tuple[Entry, ...], current: str) -> str:
         return "\n".join(lines)
 
     return (
-        f'<header class="site-header">{_link(current, HOME, "data-finops")}</header>\n'
-        f'<nav aria-label="Site">\n<ul>\n{items(tuple(e for e in nav if e.path != HOME))}\n'
-        "</ul>\n</nav>"
+        f'<header class="site-header">{_link(current, home.path, home.title)}</header>\n'
+        f'<nav aria-label="Site">\n<ul>\n{items(tuple(sections))}\n</ul>\n</nav>'
     )
 
 
 def _pages(section: Entry) -> str:
-    """The list of a section's pages, for its index page's optional `pages` region."""
+    """The list of a section's pages, for its index page's `pages` region."""
     if not section.pages:
         return "<p>No pages yet.</p>"
     items = "\n".join(f"<li>{_link(section.path, p.path, p.title)}</li>" for p in section.pages)
     return f"<ul>\n{items}\n</ul>"
 
 
-def _stamp(text: str, name: str, content: str) -> str:
-    pattern = re.compile(rf"(<!-- {name}:start -->\n).*?(<!-- {name}:end -->)", re.DOTALL)
-    stamped, count = pattern.subn(lambda m: f"{m.group(1)}{content}\n{m.group(2)}", text)
-    return stamped
+def _stamp(text: str, page: str, name: str, content: str, required: bool) -> str:
+    """`text` with its one `name` region holding `content`. Raises SiteError if malformed."""
+    start, end = f"<!-- {name}:start -->", f"<!-- {name}:end -->"
+    starts, ends = text.count(start), text.count(end)
+    if starts == ends == 0 and not required:
+        return text
+    if starts == ends == 0:
+        raise SiteError(f"{page} has no {name} region")
+    if not starts == ends == 1 or text.index(start) > text.index(end):
+        raise SiteError(f"{page} has a malformed {name} region: one {start} then one {end}")
+    pattern = re.compile(re.escape(start) + ".*?" + re.escape(end), re.DOTALL)
+    return pattern.sub(lambda _: f"{start}\n{content}\n{end}", text)

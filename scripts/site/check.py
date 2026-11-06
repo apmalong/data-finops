@@ -14,7 +14,7 @@ from pathlib import Path, PurePosixPath
 from typing import Literal
 from urllib.parse import unquote, urlsplit
 
-from scripts.site.build import parse_nav, walk
+from scripts.site.nav import SiteError, parse_nav, walk
 
 Rule = Literal[
     "account-id",
@@ -28,6 +28,8 @@ Rule = Literal[
     "missing-index",
     "missing-lang",
     "missing-title",
+    "missing-nav",
+    "bad-nav",
     "nav-entry-missing",
     "not-in-nav",
     "not-utf8",
@@ -199,13 +201,20 @@ def check_site(root: Path) -> list[Problem]:
         problems.extend(_page_rules(site, name, page))
     for name, text in texts.items():
         problems.extend(_text_rules(site, name, text))
-    if "nav.json" in texts:
+    if "nav.json" not in site.files:
+        problems.append(Problem("nav.json", 1, "missing-nav", "the site has no nav.json"))
+    elif "nav.json" in texts:
         problems.extend(_nav_rules(site, texts["nav.json"]))
     return sorted(problems)
 
 
 def _nav_rules(site: _Site, text: str) -> Iterator[Problem]:
-    listed = {entry.path for entry in walk(parse_nav(text))}
+    try:
+        nav = parse_nav(text)
+    except SiteError as error:
+        yield Problem("nav.json", 1, "bad-nav", str(error))
+        return
+    listed = {entry.path for entry in walk(nav)}
     lines = text.splitlines()
     for path in sorted(listed - site.files):
         line = next((n for n, t in enumerate(lines, 1) if f'"{path}"' in t), 1)

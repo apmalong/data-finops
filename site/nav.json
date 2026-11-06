@@ -1,5 +1,5 @@
 [
-  {"title": "Home", "path": "index.html"},
+  {"title": "data-finops", "path": "index.html"},
   {"title": "Tutorials", "path": "tutorials/index.html", "pages": []},
   {"title": "How-to guides", "path": "how-to/index.html", "pages": []},
   {"title": "Reference", "path": "reference/index.html", "pages": []},

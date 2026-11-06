@@ -56,7 +56,7 @@ def test_the_nav_links_relative_to_each_page_and_marks_the_current_one(tmp_path:
         },
     )
     nav = region(build(repo)["how-to/calculate.html"], "nav")
-    assert '<a href="../index.html">data-finops</a>' in nav
+    assert '<a href="../index.html">Home</a>' in nav  # the home entry's title
     assert '<a href="index.html">How-to guides</a>' in nav
     assert '<a href="calculate.html" aria-current="page">Calculate</a>' in nav
     assert nav.count("aria-current") == 1
@@ -72,7 +72,7 @@ def test_a_page_missing_a_shared_region_fails_the_build_naming_it(tmp_path: Path
             "how-to/calculate.html": page("Calculate"),
         },
     )
-    with pytest.raises(SiteError, match=r"how-to/index\.html.*footer"):
+    with pytest.raises(SiteError, match=r"how-to/index\.html has no footer region"):
         build(repo)
 
 
@@ -130,3 +130,71 @@ def test_the_committed_site_is_what_the_build_writes() -> None:
         if (REPO / "site" / path).read_text(encoding="utf-8") != text
     ]
     assert not stale, f"stale pages {stale}: run `python -m scripts.site build`"
+
+
+@pytest.mark.parametrize(
+    ("broken", "error"),
+    [
+        ("<!-- nav:start -->\nstale\n", r"index\.html.*nav"),
+        ("<!-- nav:start -->\n<!-- nav:end -->\n<!-- nav:start -->\n<!-- nav:end -->\n", "nav"),
+    ],
+    ids=["no end marker", "region twice"],
+)
+def test_a_malformed_region_fails_the_build(tmp_path: Path, broken: str, error: str) -> None:
+    home = page("Home", regions=("head", "footer")).replace("<main>", broken + "<main>")
+    repo = make_repo(
+        tmp_path,
+        NAV,
+        {
+            "index.html": home,
+            "how-to/index.html": page("How-to guides"),
+            "how-to/calculate.html": page("Calculate"),
+        },
+    )
+    with pytest.raises(SiteError, match=error):
+        build(repo)
+
+
+def test_markers_on_one_line_are_stamped(tmp_path: Path) -> None:
+    home = page("Home", regions=("head", "footer")).replace(
+        "<main>", "<!-- nav:start --><!-- nav:end -->\n<main>"
+    )
+    repo = make_repo(
+        tmp_path,
+        NAV,
+        {
+            "index.html": home,
+            "how-to/index.html": page("How-to guides"),
+            "how-to/calculate.html": page("Calculate"),
+        },
+    )
+    nav = region(build(repo)["index.html"], "nav")
+    assert '<a href="how-to/calculate.html">Calculate</a>' in nav
+
+
+@pytest.mark.parametrize(
+    "nav",
+    [
+        "[{",
+        '[{"title": "Home"}]',
+        '[{"title": "Home", "path": "index.html"}, {"title": "Again", "path": "index.html"}]',
+        '[{"title": "Home", "path": "index.html"}, {"title": "CSS", "path": "assets/site.css"}]',
+        '[{"title": "Home", "path": "index.html"}, {"title": "A", "path": "a.html#part"}]',
+        '[{"title": "A", "path": "a.html"}, {"title": "Home", "path": "index.html"}]',
+        '[{"title": "Home", "path": "index.html", "pages": [{"title": "A", "path": "a.html"}]}]',
+    ],
+    ids=[
+        "not JSON",
+        "no path",
+        "duplicate",
+        "not a page",
+        "fragment",
+        "home not first",
+        "home with pages",
+    ],
+)
+def test_a_malformed_nav_fails_the_build_saying_why(tmp_path: Path, nav: str) -> None:
+    repo = make_repo(tmp_path, [], {"index.html": page("Home"), "a.html": page("A")})
+    (repo / "site" / "nav.json").write_text(nav, encoding="utf-8")
+    with pytest.raises(SiteError, match="nav.json"):
+        build(repo)
