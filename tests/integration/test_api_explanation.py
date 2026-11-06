@@ -67,4 +67,5 @@ def test_the_app_serves_the_billing_line_at_its_configured_detail(
         response = client.get(_url(ref))
     assert (response.status_code, response.json()) == (200, expected)
     assert response.json()["billing_line_detail"] == detail.value
+    assert ("Tags" in response.json()["billing_line"]) is (detail is BillingLineDetail.FULL)
     valid_response("get", ROUTE, 200, response.json())

@@ -111,7 +111,7 @@
 <pre class="shell-posix"><code><span class="line">data-finops serve --db finops.sqlite --explanation-detail minimal</span></code></pre>
 <pre class="shell-windows" data-derived=""><code><span class="line">data-finops serve --db finops.sqlite --explanation-detail minimal</span></code></pre>
 </div>
-<p>Each Cost Explanation then shows <code>"billing_line_detail":"minimal"</code>. Its Billing Line keeps the columns data-finops computes with: the cost columns, accounts, periods, charge category and class, provider, service, SKU, region, <code>ResourceId</code>, <code>SubAccountId</code>, quantities and units, and their raw provider values. <code>Tags</code> is <code>null</code>, and every other column, such as <code>ChargeDescription</code> and the provider's <code>x_</code> columns, is left out. Amounts, Evidence and Roll-ups are the same at either level. A Deployment serves the minimal Billing Line unless its operator opts in to full.</p>
+<p>Each Cost Explanation then shows <code>"billing_line_detail":"minimal"</code>. Its Billing Line keeps the columns data-finops computes with: the cost columns, accounts, periods, charge category and class, provider, service, SKU, region, <code>ResourceId</code>, <code>SubAccountId</code>, quantities and units, and their raw provider values. <code>Tags</code> and every other column, such as <code>ChargeDescription</code> and the provider's <code>x_</code> columns, are left out. Amounts, Evidence and Roll-ups are the same at either level.</p>
 <!-- pager:start -->
 <nav class="pager" aria-label="Previous and next">
 <a rel="prev" href="handle-restated-export.html">Previous: Handle a restated export</a>

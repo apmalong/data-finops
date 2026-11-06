@@ -143,8 +143,7 @@ def create_app(
 ) -> FastAPI:
     """The API over the database file `db`; nothing is opened until a request needs it.
 
-    Cost Explanations show their Billing Line at `explanation_detail` (ADR 0028): in full
-    locally, minimal in a Deployment unless its operator opts in.
+    Cost Explanations show their Billing Line at `explanation_detail` (ADR 0028).
 
     With a `token`, every route, documentation included, needs `Authorization: Bearer
     <token>` (ADR 0024); without one, every route is open, for a loopback demo.

@@ -4,7 +4,7 @@ and never summed across currencies."""
 from enum import StrEnum
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from data_finops.attribution.engine import AllocationMethod
 from data_finops.contracts.allocation import Allocation, AllocationCategory, Confidence
@@ -234,13 +234,21 @@ class BillingLineDetail(StrEnum):
     every other column is withheld."""
 
 
+class MinimalBillingLine(FocusBillingLine):
+    """A Billing Line with only the columns `FocusBillingLine` declares and their raw values
+    (ADR 0028): `Tags` is always left out, and no other column is accepted."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid", title="MinimalBillingLine")
+    Tags: dict[str, str] | None = Field(default=None, exclude=True)
+
+
 class CostExplanation(_Response):
     """The chain behind one Allocation (GLOSSARY): its Billing Line, the Allocation, its
     Evidence resolved, and the Roll-ups it contributes to."""
 
     ref: str
     billing_line_ref: str
-    billing_line: FocusBillingLine
+    billing_line: MinimalBillingLine | FocusBillingLine
     """The Billing Line at `billing_line_detail`: in full, every column as exported, with the
     provider's raw values."""
     billing_line_detail: BillingLineDetail

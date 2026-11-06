@@ -25,6 +25,7 @@ from data_finops.billing.aws_data_exports import DeliveryError, is_manifest, loa
 from data_finops.billing.focus import load_export
 from data_finops.calculation import run_calculation
 from data_finops.ledger import Ledger, SnapshotConflictError
+from data_finops.reporting import BillingLineDetail
 from data_finops.workload.store import ArtifactOutcome, WorkloadStore
 
 
@@ -129,9 +130,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     serve.add_argument(
         "--explanation-detail",
-        choices=("full", "minimal"),
-        default="full",
-        help="how much of the Billing Line a Cost Explanation shows (default: full; ADR 0028)",
+        choices=[detail.value for detail in BillingLineDetail],
+        default=BillingLineDetail.FULL.value,
+        help="how much of the Billing Line a Cost Explanation shows (ADR 0028).",
     )
     serve.set_defaults(run=_serve)
 
@@ -243,7 +244,7 @@ def _serve(args: argparse.Namespace) -> int:
         args.port,
         args.token_file,
         args.start_server,
-        explanation_detail=args.explanation_detail,
+        explanation_detail=BillingLineDetail(args.explanation_detail),
     )
 
 
@@ -291,7 +292,7 @@ def _serve_database(
     start_server: StartServer,
     *,
     environ: Mapping[str, str] = os.environ,
-    explanation_detail: str = "full",
+    explanation_detail: BillingLineDetail = BillingLineDetail.FULL,
 ) -> int:
     api = _api()
     try:
@@ -303,9 +304,7 @@ def _serve_database(
             f"refusing to serve on {host} without a token: set {api.TOKEN_VARIABLE} or"
             " --token-file (ADR 0024)"
         )
-    app = api.create_app(
-        db, token=token, explanation_detail=api.BillingLineDetail(explanation_detail)
-    )
+    app = api.create_app(db, token=token, explanation_detail=explanation_detail)
     print(f"serving {db} at http://{host}:{port}/ (Ctrl+C to stop)")
     start_server(app, host, port)
     return OK

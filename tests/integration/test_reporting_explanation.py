@@ -222,11 +222,10 @@ def test_a_minimal_explanation_withholds_tags_and_every_undeclared_column(
     full = reporting.explanation(ref)
     minimal = reporting.explanation(ref, detail=BillingLineDetail.MINIMAL)
     assert minimal.billing_line_detail is BillingLineDetail.MINIMAL
-    shown = minimal.billing_line.model_dump()
-    assert set(shown) == DECLARED | {"Tags"}
-    assert shown["Tags"] is None
+    shown = minimal.model_dump(mode="json")["billing_line"]
+    assert set(shown) == DECLARED
     assert {k: shown[k] for k in DECLARED} == {
-        k: full.billing_line.model_dump()[k] for k in DECLARED
+        k: full.model_dump(mode="json")["billing_line"][k] for k in DECLARED
     }
     assert minimal.model_dump(exclude={"billing_line", "billing_line_detail"}) == full.model_dump(
         exclude={"billing_line", "billing_line_detail"}

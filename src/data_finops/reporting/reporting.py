@@ -52,6 +52,7 @@ from data_finops.reporting.models import (
     ExportSnapshotRead,
     InvocationLink,
     LineageModelExecution,
+    MinimalBillingLine,
     Provenance,
     QueryClaim,
     RollupAmount,
@@ -433,7 +434,7 @@ class Reporting:
         return CostExplanation(
             ref=ref,
             billing_line_ref=allocation.billing_line_ref,
-            billing_line=line if detail is BillingLineDetail.FULL else _minimal(line),
+            billing_line=line if detail is BillingLineDetail.FULL else _declared_columns_only(line),
             billing_line_detail=detail,
             allocation=allocation,
             unallocated_reason=(
@@ -619,18 +620,18 @@ def _allocation_ref(calculation_run_id: str, position: int) -> str:
     return f"{calculation_run_id}#{position}"
 
 
-def _minimal(line: FocusBillingLine) -> FocusBillingLine:
+def _declared_columns_only(line: FocusBillingLine) -> MinimalBillingLine:
     """The line with only its declared columns, `Tags` withheld (ADR 0028). Raw values are
     keyed by column path (spec 02); every shown column is a scalar, keyed by its bare name,
     so a path that is not a shown column's name belongs to a withheld one."""
-    shown = set(FocusBillingLine.model_fields) - {"Tags"}
+    shown = set(MinimalBillingLine.model_fields) - {"Tags"}
     declared = {name: getattr(line, name) for name in shown}
     raw = line.data_finops_raw_values
     if raw is not None:
         declared["data_finops_raw_values"] = {
             path: value for path, value in raw.items() if path in shown
         }
-    return FocusBillingLine.model_validate(declared)
+    return MinimalBillingLine.model_validate(declared)
 
 
 def _parse_allocation_ref(ref: str) -> tuple[str, int] | None:
