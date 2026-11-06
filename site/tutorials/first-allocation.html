@@ -5,6 +5,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="stylesheet" href="../assets/site.css">
+<script src="../assets/site.js" defer></script>
 <!-- head:end -->
 <title>Your first allocation - data-finops</title>
 <meta name="description" content="A tutorial: load a small synthetic bill and its workload metadata, allocate it, and follow $10.00 of cost to the Query Execution, Model Execution and Workload Runs that used it.">
@@ -52,9 +53,14 @@
 
 <h2 id="before-you-start">Before you start</h2>
 <p>You need Python 3.12, <a href="https://docs.astral.sh/uv/">uv</a> and a source checkout, because the tutorial reads the fixtures in <code>fixtures/</code>:</p>
-<pre><code><span class="line">git clone https://github.com/apmalong/data-finops.git
+<div class="shell-tabs">
+<pre class="shell-posix"><code><span class="line">git clone https://github.com/apmalong/data-finops.git
 </span><span class="line">cd data-finops
 </span><span class="line">uv sync --extra api --frozen</span></code></pre>
+<pre class="shell-windows" data-derived=""><code><span class="line">git clone https://github.com/apmalong/data-finops.git
+</span><span class="line">cd data-finops
+</span><span class="line">uv sync --extra api --frozen</span></code></pre>
+</div>
 <p>Then activate the environment, so that <code>data-finops</code> is on your path: <code>source .venv/bin/activate</code>, or <code>.venv\Scripts\activate</code> on Windows. You can instead start each command below with <code>uv run</code>.</p>
 
 <h2 id="load">1. Load the bill and the workload</h2>
@@ -65,13 +71,22 @@
 <li>the Airflow and dbt OpenLineage events;</li>
 <li>the dbt artifacts.</li>
 </ul>
-<pre><code class="run"><span class="line">data-finops ingest focus fixtures/focus/export-2026-10.json --db demo.sqlite
+<div class="shell-tabs">
+<pre class="shell-posix"><code class="run"><span class="line">data-finops ingest focus fixtures/focus/export-2026-10.json --db demo.sqlite
 </span><span class="line">data-finops ingest athena fixtures/athena/query-executions.json --account-id 123456789012 --region us-east-1 --db demo.sqlite
 </span><span class="line">data-finops ingest athena fixtures/athena/link-outcomes.json --account-id 123456789012 --region us-east-1 --db demo.sqlite
 </span><span class="line">data-finops ingest athena fixtures/athena/link-outcomes-restated.json --account-id 123456789012 --region us-east-1 --db demo.sqlite
 </span><span class="line">data-finops ingest openlineage fixtures/openlineage/events.json --db demo.sqlite
 </span><span class="line">data-finops ingest dbt fixtures/dbt/manifest.json --db demo.sqlite
 </span><span class="line">data-finops ingest dbt fixtures/dbt/run_results.json --db demo.sqlite</span></code></pre>
+<pre class="shell-windows" data-derived=""><code><span class="line">data-finops ingest focus fixtures/focus/export-2026-10.json --db demo.sqlite
+</span><span class="line">data-finops ingest athena fixtures/athena/query-executions.json --account-id 123456789012 --region us-east-1 --db demo.sqlite
+</span><span class="line">data-finops ingest athena fixtures/athena/link-outcomes.json --account-id 123456789012 --region us-east-1 --db demo.sqlite
+</span><span class="line">data-finops ingest athena fixtures/athena/link-outcomes-restated.json --account-id 123456789012 --region us-east-1 --db demo.sqlite
+</span><span class="line">data-finops ingest openlineage fixtures/openlineage/events.json --db demo.sqlite
+</span><span class="line">data-finops ingest dbt fixtures/dbt/manifest.json --db demo.sqlite
+</span><span class="line">data-finops ingest dbt fixtures/dbt/run_results.json --db demo.sqlite</span></code></pre>
+</div>
 <pre class="output checked"><span class="line">focus: new aws-focus-123456789012-2026-10-v1
 </span><span class="line">athena: 2 accepted, 0 duplicates, 0 changed copies, 0 rejected
 </span><span class="line">athena: 2 accepted, 0 duplicates, 0 changed copies, 0 rejected
@@ -82,14 +97,21 @@
 <p>Each command says what it stored. The last Athena file restates one Query Execution, so it is counted as a changed copy.</p>
 
 <h2 id="calculate">2. Calculate</h2>
-<pre><code class="run"><span class="line">data-finops calculate --db demo.sqlite</span></code></pre>
+<div class="shell-tabs">
+<pre class="shell-posix"><code class="run"><span class="line">data-finops calculate --db demo.sqlite</span></code></pre>
+<pre class="shell-windows" data-derived=""><code><span class="line">data-finops calculate --db demo.sqlite</span></code></pre>
+</div>
 <pre class="output checked"><span class="line">calculate: 123456789012 2026-10-01 aws-data-exports:FOCUS_1_2_AWS: new calc-…</span></pre>
 <p>The Calculation Run splits every Billing Line into Allocations and stores them as the current Allocation Snapshot. It prints one line per Snapshot Scope: the account, the Billing Period and the source, then the Calculation Run.</p>
 
 <h2 id="serve">3. See where the bill went</h2>
 <p>We serve the dashboard and the API over the database, and ask the API for the Cost Summary:</p>
-<pre><code class="run"><span class="line">data-finops serve --db demo.sqlite
+<div class="shell-tabs">
+<pre class="shell-posix"><code class="run"><span class="line">data-finops serve --db demo.sqlite
 </span><span class="line">curl -s 'http://127.0.0.1:8000/v1/costs/summary?cost_basis=BilledCost'</span></code></pre>
+<pre class="shell-windows" data-derived=""><code><span class="line">data-finops serve --db demo.sqlite
+</span><span class="line">curl.exe -s 'http://127.0.0.1:8000/v1/costs/summary?cost_basis=BilledCost'</span></code></pre>
+</div>
 <pre class="output checked"><span class="line">serving demo.sqlite at http://127.0.0.1:8000/ (Ctrl+C to stop)
 </span><span class="line">{"summaries":[…"currencies":[{"currency":"USD","billed":"10.00","allocated":[{"category":"direct","confidence":"metered_estimate","amount":"6.00","coverage_min":"1","coverage_max":"1"}],"unallocated":[{"reason":"ineligible","amount":"4.00"}],"adjustments":"0.00","reconciliation_delta":"0.00"}]}],"uncalculated_scopes":[]}</span></pre>
 <p><code>serve</code> keeps running, so run <code>curl</code> in a second terminal. Then open <a href="http://127.0.0.1:8000/">http://127.0.0.1:8000/</a> in a browser. The dashboard shows the same answer:</p>
@@ -101,8 +123,12 @@
 
 <h2 id="q-001">4. Follow $6.00 to its Query Execution, Model Execution and Workload Runs</h2>
 <p><strong>Direct</strong>, metered estimate, Coverage 1: <strong>6.00</strong>. It is an estimate, so it is always shown with its Confidence and Coverage. We ask which Allocation it is, and what it rolls up to:</p>
-<pre><code class="run"><span class="line">curl -s 'http://127.0.0.1:8000/v1/allocations?billing_account_id=123456789012&amp;billing_period=2026-10-01&amp;source=aws-data-exports:FOCUS_1_2_AWS&amp;cost_basis=BilledCost&amp;category=direct'
+<div class="shell-tabs">
+<pre class="shell-posix"><code class="run"><span class="line">curl -s 'http://127.0.0.1:8000/v1/allocations?billing_account_id=123456789012&amp;billing_period=2026-10-01&amp;source=aws-data-exports:FOCUS_1_2_AWS&amp;cost_basis=BilledCost&amp;category=direct'
 </span><span class="line">curl -s 'http://127.0.0.1:8000/v1/rollups?billing_account_id=123456789012&amp;billing_period=2026-10-01&amp;source=aws-data-exports:FOCUS_1_2_AWS&amp;level=model_execution'</span></code></pre>
+<pre class="shell-windows" data-derived=""><code><span class="line">curl.exe -s 'http://127.0.0.1:8000/v1/allocations?billing_account_id=123456789012&amp;billing_period=2026-10-01&amp;source=aws-data-exports:FOCUS_1_2_AWS&amp;cost_basis=BilledCost&amp;category=direct'
+</span><span class="line">curl.exe -s 'http://127.0.0.1:8000/v1/rollups?billing_account_id=123456789012&amp;billing_period=2026-10-01&amp;source=aws-data-exports:FOCUS_1_2_AWS&amp;level=model_execution'</span></code></pre>
+</div>
 <pre class="output checked"><span class="line">{"calculation_run_id":"calc-…","total":1,…"target_type":"query_execution","target_id":"q-001","amount":"6.00",…"method":"estimated_metered_share","confidence":"metered_estimate","coverage":"1",…}}]}
 </span><span class="line">{…"items":[{"key":"[\"inv-001\",\"model.demo.orders\"]","totals":[{"currency":"USD","cost_basis":"BilledCost","amount":"6.00"},…]}]}</span></pre>
 <p>The whole $6.00 Athena line goes to Query Execution <code>q-001</code>. The line bills exactly the Billable Usage of the Query Executions known in its billing scope, so Coverage is 1 and <code>q-001</code> gets the line by its Billable Usage. In the dashboard, click <strong>Direct</strong> to open its Cost Explanation:</p>
@@ -111,7 +137,10 @@
 
 <h2 id="customers">5. A Model Execution with no linked Query Execution gets nothing</h2>
 <p>We ask for the lineage of the dbt run, <code>00000000-0000-4000-8000-000000000002</code>:</p>
-<pre><code class="run"><span class="line">curl -s 'http://127.0.0.1:8000/v1/lineage?run_id=00000000-0000-4000-8000-000000000002'</span></code></pre>
+<div class="shell-tabs">
+<pre class="shell-posix"><code class="run"><span class="line">curl -s 'http://127.0.0.1:8000/v1/lineage?run_id=00000000-0000-4000-8000-000000000002'</span></code></pre>
+<pre class="shell-windows" data-derived=""><code><span class="line">curl.exe -s 'http://127.0.0.1:8000/v1/lineage?run_id=00000000-0000-4000-8000-000000000002'</span></code></pre>
+</div>
 <pre class="output checked"><span class="line">{"run_id":"00000000-0000-4000-8000-000000000002",…"node_id":"model.demo.customers",…"query_execution_id":"q-004",…"outcome":"ambiguous"…</span></pre>
 <p>Only <code>q-004</code> claims <code>model.demo.customers</code>, and its reports disagree, so its Link Outcome is <code>ambiguous</code>. With no Identity Link, nothing is invented for that Model Execution: it has no Roll-up. The dashboard shows the same under <strong>Workload Runs</strong>:</p>
 <img src="../assets/tutorial/dashboard-lineage.png" alt="The lineage of Workload Run 00000000-0000-4000-8000-000000000002: the runs above it, the dbt Workload Run below it, and its Identity Links, where model.demo.customers is claimed only by q-004, Link Outcome ambiguous, and model.demo.orders by q-001 and q-002, linked, and by q-004, ambiguous." width="1200" height="2400">
@@ -120,7 +149,8 @@
 <p>In the Cost Summary from step 3, <code>"unallocated":[{"reason":"ineligible","amount":"4.00"}]</code>. No policy allocates S3 storage yet, so its $4.00 stays Unallocated, named with its reason, and is never spread over the Query Executions. The dashboard shows it in the highlight colour.</p>
 
 <h2 id="replay">7. Load everything again: nothing changes</h2>
-<pre><code class="run"><span class="line">data-finops ingest focus fixtures/focus/export-2026-10.json --db demo.sqlite
+<div class="shell-tabs">
+<pre class="shell-posix"><code class="run"><span class="line">data-finops ingest focus fixtures/focus/export-2026-10.json --db demo.sqlite
 </span><span class="line">data-finops ingest athena fixtures/athena/query-executions.json --account-id 123456789012 --region us-east-1 --db demo.sqlite
 </span><span class="line">data-finops ingest athena fixtures/athena/link-outcomes.json --account-id 123456789012 --region us-east-1 --db demo.sqlite
 </span><span class="line">data-finops ingest athena fixtures/athena/link-outcomes-restated.json --account-id 123456789012 --region us-east-1 --db demo.sqlite
@@ -128,6 +158,15 @@
 </span><span class="line">data-finops ingest dbt fixtures/dbt/manifest.json --db demo.sqlite
 </span><span class="line">data-finops ingest dbt fixtures/dbt/run_results.json --db demo.sqlite
 </span><span class="line">data-finops calculate --db demo.sqlite</span></code></pre>
+<pre class="shell-windows" data-derived=""><code><span class="line">data-finops ingest focus fixtures/focus/export-2026-10.json --db demo.sqlite
+</span><span class="line">data-finops ingest athena fixtures/athena/query-executions.json --account-id 123456789012 --region us-east-1 --db demo.sqlite
+</span><span class="line">data-finops ingest athena fixtures/athena/link-outcomes.json --account-id 123456789012 --region us-east-1 --db demo.sqlite
+</span><span class="line">data-finops ingest athena fixtures/athena/link-outcomes-restated.json --account-id 123456789012 --region us-east-1 --db demo.sqlite
+</span><span class="line">data-finops ingest openlineage fixtures/openlineage/events.json --db demo.sqlite
+</span><span class="line">data-finops ingest dbt fixtures/dbt/manifest.json --db demo.sqlite
+</span><span class="line">data-finops ingest dbt fixtures/dbt/run_results.json --db demo.sqlite
+</span><span class="line">data-finops calculate --db demo.sqlite</span></code></pre>
+</div>
 <pre class="output checked"><span class="line">focus: replay aws-focus-123456789012-2026-10-v1
 </span><span class="line">athena: 0 accepted, 2 duplicates, 0 changed copies, 0 rejected
 </span><span class="line">athena: 0 accepted, 2 duplicates, 0 changed copies, 0 rejected
@@ -140,9 +179,14 @@
 
 <h2 id="restatement">8. The provider restates the bill</h2>
 <p>Providers republish a month when charges change. Here October is republished with $5.00 of S3, as <code>aws-focus-123456789012-2026-10-v2</code>:</p>
-<pre><code class="run"><span class="line">data-finops ingest focus fixtures/focus/export-2026-10-restated.json --db demo.sqlite
+<div class="shell-tabs">
+<pre class="shell-posix"><code class="run"><span class="line">data-finops ingest focus fixtures/focus/export-2026-10-restated.json --db demo.sqlite
 </span><span class="line">data-finops calculate --db demo.sqlite
 </span><span class="line">curl -s 'http://127.0.0.1:8000/v1/costs/summary?cost_basis=BilledCost'</span></code></pre>
+<pre class="shell-windows" data-derived=""><code><span class="line">data-finops ingest focus fixtures/focus/export-2026-10-restated.json --db demo.sqlite
+</span><span class="line">data-finops calculate --db demo.sqlite
+</span><span class="line">curl.exe -s 'http://127.0.0.1:8000/v1/costs/summary?cost_basis=BilledCost'</span></code></pre>
+</div>
 <pre class="output checked"><span class="line">focus: new aws-focus-123456789012-2026-10-v2
 </span><span class="line">calculate: 123456789012 2026-10-01 aws-data-exports:FOCUS_1_2_AWS: new calc-…
 </span><span class="line">{"summaries":[…"export_snapshot_id":"aws-focus-123456789012-2026-10-v2"},"currencies":[{"currency":"USD","billed":"11.00",…"unallocated":[{"reason":"ineligible","amount":"5.00"}],"adjustments":"0.00","reconciliation_delta":"0.00"}]}],"uncalculated_scopes":[]}</span></pre>

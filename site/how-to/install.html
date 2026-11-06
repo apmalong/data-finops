@@ -5,6 +5,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="stylesheet" href="../assets/site.css">
+<script src="../assets/site.js" defer></script>
 <!-- head:end -->
 <title>Install data-finops - data-finops</title>
 <meta name="description" content="How to install data-finops from a source checkout, with or without the api extra.">
@@ -60,18 +61,30 @@
 </ul>
 
 <h2 id="with-api">Install with the API and dashboard</h2>
-<pre><code><span class="line">git clone https://github.com/apmalong/data-finops.git
+<div class="shell-tabs">
+<pre class="shell-posix"><code><span class="line">git clone https://github.com/apmalong/data-finops.git
 </span><span class="line">cd data-finops
 </span><span class="line">uv sync --extra api --frozen
 </span><span class="line">uv run data-finops --help</span></code></pre>
+<pre class="shell-windows" data-derived=""><code><span class="line">git clone https://github.com/apmalong/data-finops.git
+</span><span class="line">cd data-finops
+</span><span class="line">uv sync --extra api --frozen
+</span><span class="line">uv run data-finops --help</span></code></pre>
+</div>
 <p>The <code>api</code> extra adds FastAPI and uvicorn. <code>serve</code> and <code>demo</code> need them to run the API, the dashboard and the OpenLineage receiver. <code>--frozen</code> installs exactly the versions in <code>uv.lock</code>.</p>
 
 <h2 id="base">Install without the extra</h2>
-<pre><code><span class="line">uv sync --frozen</span></code></pre>
+<div class="shell-tabs">
+<pre class="shell-posix"><code><span class="line">uv sync --frozen</span></code></pre>
+<pre class="shell-windows" data-derived=""><code><span class="line">uv sync --frozen</span></code></pre>
+</div>
 <p>The base package can <code>ingest</code> and <code>calculate</code>. <code>serve</code> and <code>demo</code> exit with <code>2</code> and say that the API needs the <code>api</code> extra. <code>demo</code> checks this before writing anything. Install it with <code>uv sync --extra api --frozen</code>.</p>
 
 <h2 id="demo">Try it with the demo</h2>
-<pre><code><span class="line">uv run data-finops demo</span></code></pre>
+<div class="shell-tabs">
+<pre class="shell-posix"><code><span class="line">uv run data-finops demo</span></code></pre>
+<pre class="shell-windows" data-derived=""><code><span class="line">uv run data-finops demo</span></code></pre>
+</div>
 <p><code>demo</code> loads the hand-written fixtures into a temporary database file, runs a Calculation Run and serves on loopback at <a href="http://127.0.0.1:8000/">http://127.0.0.1:8000/</a>. It reads the repository's <code>fixtures/</code> directory, so it needs a source checkout: an installed package does not include the fixtures. The database file is removed when <code>demo</code> stops.</p>
 <p>Next, follow the tutorial <a href="../tutorials/first-allocation.html">Your first allocation</a>, which runs the same steps one at a time.</p>
 <!-- pager:start -->

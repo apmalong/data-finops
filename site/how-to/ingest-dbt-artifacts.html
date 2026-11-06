@@ -5,6 +5,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="stylesheet" href="../assets/site.css">
+<script src="../assets/site.js" defer></script>
 <!-- head:end -->
 <title>Ingest dbt artifacts - data-finops</title>
 <meta name="description" content="How to load a dbt invocation's manifest.json and run_results.json into data-finops.">
@@ -53,14 +54,21 @@
 
 <h2 id="load">Load the manifest and the run results</h2>
 <p>Load each artifact with its own command, in either order:</p>
-<pre><code class="run"><span class="line">data-finops ingest dbt fixtures/dbt/manifest.json --db finops.sqlite
+<div class="shell-tabs">
+<pre class="shell-posix"><code class="run"><span class="line">data-finops ingest dbt fixtures/dbt/manifest.json --db finops.sqlite
 </span><span class="line">data-finops ingest dbt fixtures/dbt/run_results.json --db finops.sqlite</span></code></pre>
+<pre class="shell-windows" data-derived=""><code><span class="line">data-finops ingest dbt fixtures/dbt/manifest.json --db finops.sqlite
+</span><span class="line">data-finops ingest dbt fixtures/dbt/run_results.json --db finops.sqlite</span></code></pre>
+</div>
 <pre class="output checked"><span class="line">dbt: stored inv-001
 </span><span class="line">dbt: stored inv-001</span></pre>
 <p>Each line names the dbt invocation the artifact belongs to. Copy the artifacts out of <code>target/</code> after each invocation, because the next one overwrites them.</p>
 
 <h2 id="again">Load them again</h2>
-<pre><code class="run"><span class="line">data-finops ingest dbt fixtures/dbt/manifest.json --db finops.sqlite</span></code></pre>
+<div class="shell-tabs">
+<pre class="shell-posix"><code class="run"><span class="line">data-finops ingest dbt fixtures/dbt/manifest.json --db finops.sqlite</span></code></pre>
+<pre class="shell-windows" data-derived=""><code><span class="line">data-finops ingest dbt fixtures/dbt/manifest.json --db finops.sqlite</span></code></pre>
+</div>
 <pre class="output checked"><span class="line">dbt: duplicate inv-001</span></pre>
 <p>An artifact already stored with the same content stores nothing. Another artifact of the same kind for the same invocation prints <code>changed_copy</code>, and is kept beside the first.</p>
 

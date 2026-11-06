@@ -313,3 +313,16 @@ def test_calculation_run_id_needs_a_calculation_and_double_quotes(tmp_path: Path
     problems = run_page(path, REPO)
     assert where(problems) == [(3, 6), (5, 8)]
     assert "calculate" in problems[0].message and "single quotes" in problems[1].message
+
+
+def test_a_windows_block_between_a_run_block_and_its_output_is_skipped(tmp_path: Path) -> None:
+    path = page(
+        tmp_path,
+        '<div class="shell-tabs">\n'
+        '<pre class="shell-posix"><code class="run">'
+        f"data-finops ingest focus {EXPORT} --db d.sqlite</code></pre>\n"
+        '<pre class="shell-windows" data-derived=""><code>not run</code></pre>\n'
+        "</div>\n"
+        '<pre class="output checked">focus: new …</pre>',
+    )
+    assert run_page(path, REPO) == []

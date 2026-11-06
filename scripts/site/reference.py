@@ -32,7 +32,9 @@ def render_cli(parser: argparse.ArgumentParser) -> str:
             )
             parts.append(f"<p>Commands: {links}.</p>")
         else:
-            parts.append(f"<pre><code>{escape(command.format_usage().strip())}</code></pre>")
+            parts.append(
+                f'<pre class="usage"><code>{escape(command.format_usage().strip())}</code></pre>'
+            )
             rows = [_argument_row(a) for a in _documented(command)]
             parts.append(_table(["Argument", "Required", "Default", "Meaning"], rows))
         sections.append("\n".join(p for p in parts if p))

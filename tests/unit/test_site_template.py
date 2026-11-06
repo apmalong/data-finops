@@ -94,7 +94,7 @@ def test_each_line_of_a_plain_code_block_is_its_own_span(tmp_path: Path) -> None
     )
     built = three_sections(tmp_path, page("Calculate", body=body))["how-to/calculate.html"]
     assert (
-        '<pre><code class="run"><span class="line">data-finops ingest\n</span>'
+        '<pre class="shell-posix"><code class="run"><span class="line">data-finops ingest\n</span>'
         '<span class="line">data-finops calculate</span></code></pre>'
     ) in built
     assert (
@@ -102,7 +102,7 @@ def test_each_line_of_a_plain_code_block_is_its_own_span(tmp_path: Path) -> None
         '<span class="line">calculate: new</span></pre>'
     ) in built
     assert (
-        '<pre><code><span class="line">a plain block\n</span>'
+        '<pre class="shell-posix"><code><span class="line">a plain block\n</span>'
         '<span class="line">is spanned too</span></code></pre>'
     ) in built
     assert "<pre><code>kept <em>as</em>\nwritten</code></pre>" in built  # other markup: left
@@ -110,13 +110,13 @@ def test_each_line_of_a_plain_code_block_is_its_own_span(tmp_path: Path) -> None
 
 def test_a_line_added_to_a_built_block_gets_its_own_span(tmp_path: Path) -> None:
     edited = (
-        '<pre><code class="run"><span class="line">one\n</span>'
+        '<pre class="shell-posix"><code class="run"><span class="line">one\n</span>'
         '<span class="line">two</span>\nthree</code></pre>\n'
     )
     built = three_sections(tmp_path, page("Calculate", body=edited))["how-to/calculate.html"]
     assert (
-        '<pre><code class="run"><span class="line">one\n</span><span class="line">two\n</span>'
-        '<span class="line">three</span></code></pre>'
+        '<pre class="shell-posix"><code class="run"><span class="line">one\n</span>'
+        '<span class="line">two\n</span><span class="line">three</span></code></pre>'
     ) in built
 
 
