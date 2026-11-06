@@ -18,24 +18,25 @@ from scripts.site.nav import SiteError, parse_nav, walk
 
 Rule = Literal[
     "account-id",
+    "bad-nav",
     "broken-link",
     "duplicate-id",
     "external-url",
-    "low-contrast",
     "h1-count",
+    "low-contrast",
     "missing-alt",
     "missing-anchor",
     "missing-image",
     "missing-index",
     "missing-lang",
-    "missing-title",
     "missing-nav",
-    "bad-nav",
+    "missing-title",
     "nav-entry-missing",
     "not-in-nav",
     "not-utf8",
     "root-absolute-link",
     "unbalanced-tag",
+    "unchecked-colour",
 ]
 
 
@@ -52,6 +53,12 @@ _TWELVE_DIGITS = re.compile(r"(?<!\d)\d{12}(?!\d)")
 _EXTERNAL_URL = re.compile(r"https?://", re.IGNORECASE)
 _CSS_URL = re.compile(r"""url\(\s*(['"]?)(.*?)\1\s*\)|@import\s+(['"])(.*?)\3""", re.IGNORECASE)
 _TEXT = {".html", ".css", ".js", ".json", ".md", ".svg", ".txt"}
+
+MIN_CONTRAST = 4.5  # WCAG 2.2 AA for body text (spec 07)
+_COMMENT = re.compile(r"/\*.*?\*/", re.DOTALL)
+_BLOCK = re.compile(r"([^{}]*)\{([^{}]*)\}")  # an innermost block: selector, then body
+_DECLARATION = re.compile(r"--([\w-]+)\s*:\s*([^;{}]*?)\s*(?:!important\s*)?(?=;|$)")
+_HEX = re.compile(r"#([0-9a-fA-F]{6}|[0-9a-fA-F]{3})")
 
 # Elements with no end tag. The site closes every other element explicitly, which is stricter
 # than HTML's optional end tags and keeps "tags are balanced" (spec 07) checkable.
@@ -305,30 +312,34 @@ def _text_rules(site: _Site, name: str, text: str) -> Iterator[Problem]:
         yield from _contrast_rules(name, text)
 
 
-MIN_CONTRAST = 4.5  # WCAG 2.2 AA for body text (spec 07)
-_BLOCK = re.compile(r"\{([^{}]*)\}")
-_TOKEN = re.compile(r"--([\w-]+)\s*:\s*#([0-9a-fA-F]{6}|[0-9a-fA-F]{3})\s*;")
-
-
 def _contrast_rules(name: str, text: str) -> Iterator[Problem]:
-    """Each theme block's text tokens (`--text*`, `--link`) against its `--bg-*` tokens.
+    """Each theme block's text tokens (`--text*`, `--link*`) against its `--bg-*` tokens.
 
-    The first block that declares tokens is the base theme; every later one inherits from it.
+    The `:root` block is the base theme and every other block inherits from it. A text or
+    background token whose value is not a hex colour is reported, never skipped.
     """
-    base: dict[str, tuple[str, int]] = {}  # prop -> (hex colour, line)
+    text = _COMMENT.sub(lambda m: "\n" * m.group().count("\n"), text)
+    blocks: list[tuple[str, dict[str, tuple[str, int]]]] = []  # selector, token -> colour, line
     for block in _BLOCK.finditer(text):
-        declared = {
-            m.group(1): (m.group(2), text.count("\n", 0, block.start(1) + m.start()) + 1)
-            for m in _TOKEN.finditer(block.group(1))
-        }
-        if not declared:
-            continue
-        theme = {**base, **declared}
-        if not base:
-            base = declared
-        backgrounds = {t: v for t, v in theme.items() if t.startswith("bg-")}
+        declared: dict[str, tuple[str, int]] = {}
+        for match in _DECLARATION.finditer(block.group(2)):
+            prop, value = match.group(1), match.group(2)
+            line = text.count("\n", 0, block.start(2) + match.start()) + 1
+            if not _is_text(prop) and not prop.startswith("bg-"):
+                continue
+            if (hex_match := _HEX.fullmatch(value)) is None:
+                message = f"--{prop}: {value} is not a hex colour, so its contrast is unchecked"
+                yield Problem(name, line, "unchecked-colour", message)
+                continue
+            declared[prop] = (hex_match.group(1), line)
+        if declared:
+            blocks.append((block.group(1).strip(), declared))
+    base = next((d for selector, d in blocks if selector == ":root"), {})
+    for _selector, declared in blocks:
+        theme = declared if declared is base else {**base, **declared}
+        backgrounds = {p: v for p, v in theme.items() if p.startswith("bg-")}
         for prop, (colour, line) in theme.items():
-            if not (prop.startswith("text") or prop == "link"):
+            if not _is_text(prop):
                 continue
             for background, (bg_colour, bg_line) in backgrounds.items():
                 if prop not in declared and background not in declared:
@@ -336,9 +347,13 @@ def _contrast_rules(name: str, text: str) -> Iterator[Problem]:
                 ratio = _contrast(colour, bg_colour)
                 if ratio < MIN_CONTRAST:
                     where = line if prop in declared else bg_line
-                    message = f"--{prop} on --{background} is {ratio:.2f}:1, under 4.5:1"
+                    message = f"--{prop} on --{background} is {ratio:.2f}:1, under {MIN_CONTRAST}:1"
                     yield Problem(name, where, "low-contrast", message)
                     break
+
+
+def _is_text(prop: str) -> bool:
+    return prop.startswith("text") or prop == "link" or prop.startswith("link-")
 
 
 def _contrast(a: str, b: str) -> float:

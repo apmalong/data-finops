@@ -374,3 +374,26 @@ def test_text_tokens_need_4_5_to_1_contrast_on_every_background_in_every_theme(
         ("assets/site.css", "low-contrast", 10),
         ("assets/site.css", "low-contrast", 18),
     ]
+
+
+def test_contrast_reads_tokens_as_browsers_do_and_never_skips_one_silently(
+    tmp_path: Path,
+) -> None:
+    css = (
+        ".card { --bg-card: #fff; }\n"  # before :root, yet inherits it: --link-hover fails here
+        "/* --text: #fff; is a comment, not a token */\n"
+        ":root {\n"
+        "  --bg-page: #FFFFFF;\n"
+        "  --text: #000 !important;\n"
+        "  --link-hover: #aaaaaa;\n"  # 2.32:1 on white: fails
+        "  --text-2: rgb(0 0 0);\n"  # not hex: cannot be checked
+        "  --text-3: #999999}\n"  # no final semicolon; 2.85:1 on white: fails
+    )
+    site = make_site(tmp_path, {"index.html": page("<p>x</p>"), "assets/site.css": css})
+    assert rules(check_site(site)) == [
+        ("assets/site.css", "low-contrast", 1),
+        ("assets/site.css", "low-contrast", 1),
+        ("assets/site.css", "low-contrast", 6),
+        ("assets/site.css", "unchecked-colour", 7),
+        ("assets/site.css", "low-contrast", 8),
+    ]

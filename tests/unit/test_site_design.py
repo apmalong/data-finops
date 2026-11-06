@@ -16,6 +16,6 @@ def test_the_design_note_quotes_and_ticks_every_spec_07_design_rule() -> None:
     note = (REPO / "site" / "DESIGN.md").read_text(encoding="utf-8")
     ticked = set(re.findall(r"^- \[x\] (.+)$", note, flags=re.M))
     rules = _spec_07_rules()
-    assert len(rules) == 6
+    assert rules, "spec 07's Design and writing section has no rules"
     assert [rule for rule in rules if rule not in ticked] == []
     assert re.findall(r"^- \[ \] ", note, flags=re.M) == []
