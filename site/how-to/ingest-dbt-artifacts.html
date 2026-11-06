@@ -13,13 +13,9 @@
 <!-- nav:start -->
 <a class="skip-link" href="#main">Skip to content</a>
 <header class="site-header"><a href="../index.html">data-finops</a></header>
-<nav aria-label="Site">
+<nav class="site-nav" aria-label="Site">
 <ul>
-<li><a href="../tutorials/index.html">Tutorials</a>
-<ul>
-<li><a href="../tutorials/first-allocation.html">Your first allocation</a></li>
-</ul>
-</li>
+<li><a href="../tutorials/index.html">Tutorials</a></li>
 <li><a href="index.html">How-to guides</a>
 <ul>
 <li><a href="install.html">Install data-finops</a></li>
@@ -34,44 +30,38 @@
 <li><a href="deploy-reference-workload.html">Deploy the reference workload</a></li>
 </ul>
 </li>
-<li><a href="../reference/index.html">Reference</a>
-<ul>
-<li><a href="../reference/cli.html">Command line</a></li>
-<li><a href="../reference/http-api.html">HTTP API</a></li>
-<li><a href="../reference/data-contracts.html">Data contracts</a></li>
-<li><a href="../reference/exit-codes-and-environment.html">Exit codes and environment</a></li>
-<li><a href="../reference/glossary.html">Glossary</a></li>
-</ul>
-</li>
-<li><a href="../explanation/index.html">Explanation</a>
-<ul>
-<li><a href="../explanation/bill-is-authoritative.html">The bill is authoritative</a></li>
-<li><a href="../explanation/allocation-and-coverage.html">Allocation and Coverage</a></li>
-<li><a href="../explanation/identity-links-and-evidence.html">Identity Links and Evidence</a></li>
-<li><a href="../explanation/export-snapshots-and-restatements.html">Export Snapshots and restatements</a></li>
-<li><a href="../explanation/security-model.html">Security model</a></li>
-<li><a href="../explanation/decision-records.html">Decision records</a></li>
-</ul>
-</li>
+<li><a href="../reference/index.html">Reference</a></li>
+<li><a href="../explanation/index.html">Explanation</a></li>
 <li><a href="../contributing.html">Contributing</a></li>
 </ul>
 </nav>
 <!-- nav:end -->
 <main id="main">
 <h1>Ingest dbt artifacts</h1>
+<!-- onpage:start -->
+<nav class="on-page" aria-label="On this page">
+<p>On this page</p>
+<ul>
+<li><a href="#load">Load the manifest and the run results</a></li>
+<li><a href="#again">Load them again</a></li>
+<li><a href="#rejected">If an artifact is rejected</a></li>
+<li><a href="#comment">Let Query Executions name their Model Execution</a></li>
+</ul>
+</nav>
+<!-- onpage:end -->
 <p>A dbt invocation writes <code>manifest.json</code> and <code>run_results.json</code> to its <code>target/</code> directory. The manifest gives the dbt Nodes, and the run results give the Model Executions. This guide loads both.</p>
 
 <h2 id="load">Load the manifest and the run results</h2>
 <p>Load each artifact with its own command, in either order:</p>
-<pre><code class="run">data-finops ingest dbt fixtures/dbt/manifest.json --db finops.sqlite
-data-finops ingest dbt fixtures/dbt/run_results.json --db finops.sqlite</code></pre>
-<pre class="output checked">dbt: stored inv-001
-dbt: stored inv-001</pre>
+<pre><code class="run"><span class="line">data-finops ingest dbt fixtures/dbt/manifest.json --db finops.sqlite
+</span><span class="line">data-finops ingest dbt fixtures/dbt/run_results.json --db finops.sqlite</span></code></pre>
+<pre class="output checked"><span class="line">dbt: stored inv-001
+</span><span class="line">dbt: stored inv-001</span></pre>
 <p>Each line names the dbt invocation the artifact belongs to. Copy the artifacts out of <code>target/</code> after each invocation, because the next one overwrites them.</p>
 
 <h2 id="again">Load them again</h2>
-<pre><code class="run">data-finops ingest dbt fixtures/dbt/manifest.json --db finops.sqlite</code></pre>
-<pre class="output checked">dbt: duplicate inv-001</pre>
+<pre><code class="run"><span class="line">data-finops ingest dbt fixtures/dbt/manifest.json --db finops.sqlite</span></code></pre>
+<pre class="output checked"><span class="line">dbt: duplicate inv-001</span></pre>
 <p>An artifact already stored with the same content stores nothing. Another artifact of the same kind for the same invocation prints <code>changed_copy</code>, and is kept beside the first.</p>
 
 <h2 id="rejected">If an artifact is rejected</h2>
@@ -79,6 +69,12 @@ dbt: stored inv-001</pre>
 
 <h2 id="comment">Let Query Executions name their Model Execution</h2>
 <p>dbt artifacts do not name the Athena Query Executions a Model Execution issued. To link them, configure dbt to send a Trusted Query Comment with the <code>invocation_id</code> and <code>node_id</code> of each dbt Node it runs. dbt's default query comment has no <code>invocation_id</code>. The configuration is in the <a href="https://github.com/apmalong/data-finops/blob/main/examples/reference-workload/README.md">reference workload's README</a>. Then <a href="ingest-athena-history.html">ingest the Athena history</a>.</p>
+<!-- pager:start -->
+<nav class="pager" aria-label="Previous and next">
+<a rel="prev" href="ingest-athena-history.html">Previous: Ingest Athena query history</a>
+<a rel="next" href="receive-openlineage.html">Next: Receive OpenLineage events</a>
+</nav>
+<!-- pager:end -->
 </main>
 <!-- footer:start -->
 <footer>

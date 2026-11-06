@@ -13,13 +13,9 @@
 <!-- nav:start -->
 <a class="skip-link" href="#main">Skip to content</a>
 <header class="site-header"><a href="../index.html">data-finops</a></header>
-<nav aria-label="Site">
+<nav class="site-nav" aria-label="Site">
 <ul>
-<li><a href="../tutorials/index.html">Tutorials</a>
-<ul>
-<li><a href="../tutorials/first-allocation.html">Your first allocation</a></li>
-</ul>
-</li>
+<li><a href="../tutorials/index.html">Tutorials</a></li>
 <li><a href="index.html">How-to guides</a>
 <ul>
 <li><a href="install.html">Install data-finops</a></li>
@@ -34,50 +30,44 @@
 <li><a href="deploy-reference-workload.html">Deploy the reference workload</a></li>
 </ul>
 </li>
-<li><a href="../reference/index.html">Reference</a>
-<ul>
-<li><a href="../reference/cli.html">Command line</a></li>
-<li><a href="../reference/http-api.html">HTTP API</a></li>
-<li><a href="../reference/data-contracts.html">Data contracts</a></li>
-<li><a href="../reference/exit-codes-and-environment.html">Exit codes and environment</a></li>
-<li><a href="../reference/glossary.html">Glossary</a></li>
-</ul>
-</li>
-<li><a href="../explanation/index.html">Explanation</a>
-<ul>
-<li><a href="../explanation/bill-is-authoritative.html">The bill is authoritative</a></li>
-<li><a href="../explanation/allocation-and-coverage.html">Allocation and Coverage</a></li>
-<li><a href="../explanation/identity-links-and-evidence.html">Identity Links and Evidence</a></li>
-<li><a href="../explanation/export-snapshots-and-restatements.html">Export Snapshots and restatements</a></li>
-<li><a href="../explanation/security-model.html">Security model</a></li>
-<li><a href="../explanation/decision-records.html">Decision records</a></li>
-</ul>
-</li>
+<li><a href="../reference/index.html">Reference</a></li>
+<li><a href="../explanation/index.html">Explanation</a></li>
 <li><a href="../contributing.html">Contributing</a></li>
 </ul>
 </nav>
 <!-- nav:end -->
 <main id="main">
 <h1>Calculate Allocations</h1>
+<!-- onpage:start -->
+<nav class="on-page" aria-label="On this page">
+<p>On this page</p>
+<ul>
+<li><a href="#load">Load the inputs first</a></li>
+<li><a href="#run">Run the calculation</a></li>
+<li><a href="#again">Run it again</a></li>
+<li><a href="#nothing">When there is nothing to calculate</a></li>
+</ul>
+</nav>
+<!-- onpage:end -->
 <p>This guide runs a Calculation Run. It splits every Billing Line of the current Export Snapshots into Allocations, and stores them as the current Allocation Snapshot of each Snapshot Scope.</p>
 
 <h2 id="load">Load the inputs first</h2>
 <p>A Calculation Run reads only what is stored when it starts. Load the Export Snapshot and the workload's Athena history, OpenLineage events and dbt artifacts first:</p>
-<pre><code class="run">data-finops ingest focus fixtures/focus/export-2026-10.json --db finops.sqlite
-data-finops ingest athena fixtures/athena/query-executions.json --account-id 123456789012 --region us-east-1 --db finops.sqlite
-data-finops ingest openlineage fixtures/openlineage/events.json --db finops.sqlite
-data-finops ingest dbt fixtures/dbt/manifest.json --db finops.sqlite
-data-finops ingest dbt fixtures/dbt/run_results.json --db finops.sqlite</code></pre>
+<pre><code class="run"><span class="line">data-finops ingest focus fixtures/focus/export-2026-10.json --db finops.sqlite
+</span><span class="line">data-finops ingest athena fixtures/athena/query-executions.json --account-id 123456789012 --region us-east-1 --db finops.sqlite
+</span><span class="line">data-finops ingest openlineage fixtures/openlineage/events.json --db finops.sqlite
+</span><span class="line">data-finops ingest dbt fixtures/dbt/manifest.json --db finops.sqlite
+</span><span class="line">data-finops ingest dbt fixtures/dbt/run_results.json --db finops.sqlite</span></code></pre>
 <p>The how-to guides for <a href="ingest-focus-export.html">FOCUS</a>, <a href="ingest-athena-history.html">Athena</a>, <a href="receive-openlineage.html">OpenLineage</a> and <a href="ingest-dbt-artifacts.html">dbt</a> explain each input.</p>
 
 <h2 id="run">Run the calculation</h2>
-<pre><code class="run">data-finops calculate --db finops.sqlite</code></pre>
-<pre class="output checked">calculate: 123456789012 2026-10-01 aws-data-exports:FOCUS_1_2_AWS: new calc-…</pre>
+<pre><code class="run"><span class="line">data-finops calculate --db finops.sqlite</span></code></pre>
+<pre class="output checked"><span class="line">calculate: 123456789012 2026-10-01 aws-data-exports:FOCUS_1_2_AWS: new calc-…</span></pre>
 <p>It prints one line for each Snapshot Scope: the billing account, the Billing Period, the source, the outcome and the Calculation Run's ID. <code>new</code> means a new Allocation Snapshot is stored and current.</p>
 
 <h2 id="again">Run it again</h2>
-<pre><code class="run">data-finops calculate --db finops.sqlite</code></pre>
-<pre class="output checked">calculate: 123456789012 2026-10-01 aws-data-exports:FOCUS_1_2_AWS: replay calc-…</pre>
+<pre><code class="run"><span class="line">data-finops calculate --db finops.sqlite</span></code></pre>
+<pre class="output checked"><span class="line">calculate: 123456789012 2026-10-01 aws-data-exports:FOCUS_1_2_AWS: replay calc-…</span></pre>
 <p>With the same inputs and the same Allocation Policy, nothing new is stored, and the line names the current Calculation Run. Load new inputs and calculate again to change the Allocations. An event the HTTP receiver takes in changes no Allocation until the next <code>calculate</code>.</p>
 
 <h2 id="nothing">When there is nothing to calculate</h2>
@@ -86,6 +76,12 @@ data-finops ingest dbt fixtures/dbt/run_results.json --db finops.sqlite</code></
 <li>A <code>--db</code> path with no database file there exits with <code>2</code>.</li>
 </ul>
 <p>Next, <a href="read-cost-explanation.html">read a Cost Explanation</a>, or <a href="handle-restated-export.html">handle a restated export</a>.</p>
+<!-- pager:start -->
+<nav class="pager" aria-label="Previous and next">
+<a rel="prev" href="receive-openlineage.html">Previous: Receive OpenLineage events</a>
+<a rel="next" href="handle-restated-export.html">Next: Handle a restated export</a>
+</nav>
+<!-- pager:end -->
 </main>
 <!-- footer:start -->
 <footer>

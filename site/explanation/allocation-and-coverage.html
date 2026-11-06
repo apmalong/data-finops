@@ -13,36 +13,11 @@
 <!-- nav:start -->
 <a class="skip-link" href="#main">Skip to content</a>
 <header class="site-header"><a href="../index.html">data-finops</a></header>
-<nav aria-label="Site">
+<nav class="site-nav" aria-label="Site">
 <ul>
-<li><a href="../tutorials/index.html">Tutorials</a>
-<ul>
-<li><a href="../tutorials/first-allocation.html">Your first allocation</a></li>
-</ul>
-</li>
-<li><a href="../how-to/index.html">How-to guides</a>
-<ul>
-<li><a href="../how-to/install.html">Install data-finops</a></li>
-<li><a href="../how-to/ingest-focus-export.html">Ingest a FOCUS export</a></li>
-<li><a href="../how-to/ingest-athena-history.html">Ingest Athena query history</a></li>
-<li><a href="../how-to/ingest-dbt-artifacts.html">Ingest dbt artifacts</a></li>
-<li><a href="../how-to/receive-openlineage.html">Receive OpenLineage events</a></li>
-<li><a href="../how-to/calculate.html">Calculate Allocations</a></li>
-<li><a href="../how-to/handle-restated-export.html">Handle a restated export</a></li>
-<li><a href="../how-to/read-cost-explanation.html">Read a Cost Explanation</a></li>
-<li><a href="../how-to/serve-with-token.html">Serve with a token</a></li>
-<li><a href="../how-to/deploy-reference-workload.html">Deploy the reference workload</a></li>
-</ul>
-</li>
-<li><a href="../reference/index.html">Reference</a>
-<ul>
-<li><a href="../reference/cli.html">Command line</a></li>
-<li><a href="../reference/http-api.html">HTTP API</a></li>
-<li><a href="../reference/data-contracts.html">Data contracts</a></li>
-<li><a href="../reference/exit-codes-and-environment.html">Exit codes and environment</a></li>
-<li><a href="../reference/glossary.html">Glossary</a></li>
-</ul>
-</li>
+<li><a href="../tutorials/index.html">Tutorials</a></li>
+<li><a href="../how-to/index.html">How-to guides</a></li>
+<li><a href="../reference/index.html">Reference</a></li>
 <li><a href="index.html">Explanation</a>
 <ul>
 <li><a href="bill-is-authoritative.html">The bill is authoritative</a></li>
@@ -59,6 +34,19 @@
 <!-- nav:end -->
 <main id="main">
 <h1>Allocation and Coverage</h1>
+<!-- onpage:start -->
+<nav class="on-page" aria-label="On this page">
+<p>On this page</p>
+<ul>
+<li><a href="#deterministic">The same inputs give the same Allocations</a></li>
+<li><a href="#targets">Three Allocation Targets</a></li>
+<li><a href="#coverage">A Metered Share needs measured Coverage</a></li>
+<li><a href="#scope">Billing scope is accounting, not Evidence</a></li>
+<li><a href="#worked">A worked example</a></li>
+<li><a href="#policy">The current Athena policy</a></li>
+</ul>
+</nav>
+<!-- onpage:end -->
 <p>This page explains how a <a href="../reference/glossary.html#calculation-run">Calculation Run</a> splits a <a href="../reference/glossary.html#billing-line">Billing Line</a>, and why it splits a metered line only as far as <a href="../reference/glossary.html#coverage">Coverage</a> allows. The decisions are in <a href="https://github.com/apmalong/data-finops/blob/main/docs/adr/0007-deterministic-cost-allocation.md">ADR 0007</a>, <a href="https://github.com/apmalong/data-finops/blob/main/docs/adr/0016-allocate-to-query-executions-with-roll-ups.md">ADR 0016</a>, <a href="https://github.com/apmalong/data-finops/blob/main/docs/adr/0017-metered-share-requires-coverage.md">ADR 0017</a> and <a href="https://github.com/apmalong/data-finops/blob/main/docs/adr/0023-billing-scope-is-accounting-scope.md">ADR 0023</a>, and the rules are in <a href="https://github.com/apmalong/data-finops/blob/main/docs/specs/03-attribution.md">spec 03</a>. They stay authoritative.</p>
 
 <h2 id="deterministic">The same inputs give the same Allocations</h2>
@@ -105,6 +93,12 @@
 </ul>
 <p>Units are decimal: 1 MB is 10<sup>6</sup> bytes.</p>
 <p class="notice">The Athena policies are provisional until <a href="https://github.com/apmalong/data-finops/issues/91">issue #91</a> checks them against a real FOCUS export. If a check fails, a new policy version is made, and Allocations made with this one keep it.</p>
+<!-- pager:start -->
+<nav class="pager" aria-label="Previous and next">
+<a rel="prev" href="bill-is-authoritative.html">Previous: The bill is authoritative</a>
+<a rel="next" href="identity-links-and-evidence.html">Next: Identity Links and Evidence</a>
+</nav>
+<!-- pager:end -->
 </main>
 <!-- footer:start -->
 <footer>

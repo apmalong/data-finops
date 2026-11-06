@@ -42,22 +42,30 @@
 
 * { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }
+/* Readable template (#171): 17px body, about 68ch of prose per line, 1.6 line height. */
 body {
   margin: 0;
   background: var(--bg-page);
   color: var(--text);
-  font: 16px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif;
+  font: 17px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   grid-template-areas: "header" "nav" "main" "footer";
 }
 @media (min-width: 900px) {
   body {
-    grid-template-columns: 15rem minmax(0, 46rem);
+    grid-template-columns: 14rem minmax(0, 44rem);
     grid-template-areas: "header header" "nav main" "nav footer";
     column-gap: 3rem;
     justify-content: center;
   }
+}
+/* Wide screens: "On this page" floats into a right-hand column of main's padding, so the
+   page's text keeps its measure and its margins, whatever the number of elements. */
+@media (min-width: 1200px) {
+  body { grid-template-columns: 14rem minmax(0, 58rem); }
+  body > main { padding-right: calc(14rem + 16px); }  /* beats the general main padding below */
+  main > .on-page { float: right; width: 12rem; margin: 0 -14rem 0 0; position: sticky; top: 16px; }
 }
 
 /* Keyboard users skip straight to the content; the link shows only when focused. */
@@ -68,35 +76,56 @@ body {
 .site-header { grid-area: header; padding: 16px; border-bottom: 1px solid var(--rule); }
 .site-header a { color: var(--text); font-weight: 600; text-decoration: none; }
 
-nav { grid-area: nav; padding: 16px; font-size: 0.95rem; }
-nav ul { list-style: none; margin: 0; padding: 0; }
-nav li { margin: 0 0 6px; }
-nav ul ul { margin: 6px 0 0 12px; }
-nav a { color: var(--text-2); text-decoration: none; }
-nav a:hover { color: var(--link); text-decoration: underline; }
-nav a[aria-current="page"] { color: var(--text); font-weight: 600; }
+/* The site nav lists the sections; build expands only the current one. */
+.site-nav { grid-area: nav; padding: 16px; font-size: 0.94rem; }
+.site-nav ul { list-style: none; margin: 0; padding: 0; }
+.site-nav li { margin: 0 0 8px; }
+.site-nav ul ul { margin: 8px 0 4px 12px; padding-left: 10px; border-left: 1px solid var(--rule); }
+/* Site nav and "On this page" links: quiet until hovered. */
+.site-nav a, .on-page a { color: var(--text-2); text-decoration: none; }
+.site-nav a:hover, .on-page a:hover { color: var(--link); text-decoration: underline; }
+.site-nav a[aria-current="page"] { color: var(--text); font-weight: 600; }
 
 main { grid-area: main; padding: 8px 16px 32px; min-width: 0; }
 footer { grid-area: footer; padding: 16px; border-top: 1px solid var(--rule); color: var(--text-3); font-size: 0.85rem; }
 
-h1 { font-size: 1.75rem; line-height: 1.2; margin: 16px 0 12px; font-weight: 600; }
-h2 { font-size: 1.25rem; margin: 32px 0 8px; font-weight: 600; }
-h3 { font-size: 1.05rem; margin: 24px 0 6px; font-weight: 600; }
-p, ul, ol { margin: 0 0 12px; }
+/* A distinct heading scale, with room above each h2 so sections read as sections. */
+h1 { font-size: 2.1rem; line-height: 1.15; margin: 20px 0 16px; font-weight: 650; letter-spacing: -0.01em; }
+h2 { font-size: 1.45rem; line-height: 1.25; margin: 2.6rem 0 0.7rem; font-weight: 650; }
+h3 { font-size: 1.15rem; line-height: 1.3; margin: 1.8rem 0 0.5rem; font-weight: 650; }
+p, ul, ol { margin: 0 0 1rem; }
+p, li { max-width: 68ch; }
+li { margin-bottom: 0.3rem; }
 a { color: var(--link); }
 
-code { font: 0.9em ui-monospace, "Cascadia Mono", Consolas, monospace; }
+/* "On this page": the page's h2s, under the h1 on narrow screens. */
+.on-page { font-size: 0.9rem; margin: 0 0 1.5rem; }
+.on-page p { margin: 0 0 6px; color: var(--text-3); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; }
+.on-page ul { list-style: none; margin: 0; padding: 0; }
+.on-page li { margin: 0 0 6px; }
+
+/* Previous and next, in nav order, at the foot of each page. */
+.pager { display: flex; justify-content: space-between; gap: 16px; margin-top: 3rem; padding-top: 16px; border-top: 1px solid var(--rule); }
+.pager a[rel="next"] { margin-left: auto; text-align: right; }
+
+code { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-size: 0.88em; }
+p > code, li > code { overflow-wrap: anywhere; }  /* long IDs and URLs in prose wrap too */
+/* Long commands wrap instead of scrolling. build puts each line in a span, so a wrapped line
+   keeps a hanging indent and still reads as one command. */
 pre {
   background: var(--bg-surface);
   border: 1px solid var(--rule);
   border-radius: 6px;
-  padding: 12px;
-  overflow-x: auto;
-  line-height: 1.45;
+  padding: 12px 14px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.5;
 }
+pre .line { display: block; padding-left: 2ch; text-indent: -2ch; }
 
 /* Tables where exact amounts matter: right-aligned tabular figures, light rules only. */
-table { border-collapse: collapse; margin: 0 0 16px; }
+.table-scroll { overflow-x: auto; margin: 0 0 16px; }
+table { border-collapse: collapse; }
 th, td { padding: 4px 12px 4px 0; text-align: left; border-bottom: 1px solid var(--rule); vertical-align: top; }
 td.amount, th.amount { text-align: right; font-variant-numeric: tabular-nums; }
 

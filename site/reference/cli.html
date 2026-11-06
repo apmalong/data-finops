@@ -13,27 +13,10 @@
 <!-- nav:start -->
 <a class="skip-link" href="#main">Skip to content</a>
 <header class="site-header"><a href="../index.html">data-finops</a></header>
-<nav aria-label="Site">
+<nav class="site-nav" aria-label="Site">
 <ul>
-<li><a href="../tutorials/index.html">Tutorials</a>
-<ul>
-<li><a href="../tutorials/first-allocation.html">Your first allocation</a></li>
-</ul>
-</li>
-<li><a href="../how-to/index.html">How-to guides</a>
-<ul>
-<li><a href="../how-to/install.html">Install data-finops</a></li>
-<li><a href="../how-to/ingest-focus-export.html">Ingest a FOCUS export</a></li>
-<li><a href="../how-to/ingest-athena-history.html">Ingest Athena query history</a></li>
-<li><a href="../how-to/ingest-dbt-artifacts.html">Ingest dbt artifacts</a></li>
-<li><a href="../how-to/receive-openlineage.html">Receive OpenLineage events</a></li>
-<li><a href="../how-to/calculate.html">Calculate Allocations</a></li>
-<li><a href="../how-to/handle-restated-export.html">Handle a restated export</a></li>
-<li><a href="../how-to/read-cost-explanation.html">Read a Cost Explanation</a></li>
-<li><a href="../how-to/serve-with-token.html">Serve with a token</a></li>
-<li><a href="../how-to/deploy-reference-workload.html">Deploy the reference workload</a></li>
-</ul>
-</li>
+<li><a href="../tutorials/index.html">Tutorials</a></li>
+<li><a href="../how-to/index.html">How-to guides</a></li>
 <li><a href="index.html">Reference</a>
 <ul>
 <li><a href="cli.html" aria-current="page">Command line</a></li>
@@ -43,22 +26,28 @@
 <li><a href="glossary.html">Glossary</a></li>
 </ul>
 </li>
-<li><a href="../explanation/index.html">Explanation</a>
-<ul>
-<li><a href="../explanation/bill-is-authoritative.html">The bill is authoritative</a></li>
-<li><a href="../explanation/allocation-and-coverage.html">Allocation and Coverage</a></li>
-<li><a href="../explanation/identity-links-and-evidence.html">Identity Links and Evidence</a></li>
-<li><a href="../explanation/export-snapshots-and-restatements.html">Export Snapshots and restatements</a></li>
-<li><a href="../explanation/security-model.html">Security model</a></li>
-<li><a href="../explanation/decision-records.html">Decision records</a></li>
-</ul>
-</li>
+<li><a href="../explanation/index.html">Explanation</a></li>
 <li><a href="../contributing.html">Contributing</a></li>
 </ul>
 </nav>
 <!-- nav:end -->
 <main id="main">
 <h1>Command line</h1>
+<!-- onpage:start -->
+<nav class="on-page" aria-label="On this page">
+<p>On this page</p>
+<ul>
+<li><a href="#ingest"><code>data-finops ingest</code></a></li>
+<li><a href="#ingest-focus"><code>data-finops ingest focus</code></a></li>
+<li><a href="#ingest-openlineage"><code>data-finops ingest openlineage</code></a></li>
+<li><a href="#ingest-dbt"><code>data-finops ingest dbt</code></a></li>
+<li><a href="#ingest-athena"><code>data-finops ingest athena</code></a></li>
+<li><a href="#calculate"><code>data-finops calculate</code></a></li>
+<li><a href="#serve"><code>data-finops serve</code></a></li>
+<li><a href="#demo"><code>data-finops demo</code></a></li>
+</ul>
+</nav>
+<!-- onpage:end -->
 <p>Every <code>data-finops</code> command, with its usage and its arguments. This page is generated from the command line's own parser, so it says what <code>data-finops --help</code> says. Run <code>data-finops &lt;command&gt; --help</code> for the same text in a terminal.</p>
 <p><code>--db</code> names the database file every command reads and writes; it is created on first use. <code>serve</code> needs the optional <code>api</code> extra.</p>
 <!-- reference:start -->
@@ -68,7 +57,8 @@
 <p>Commands: <a href="#ingest-focus"><code>data-finops ingest focus</code></a>, <a href="#ingest-openlineage"><code>data-finops ingest openlineage</code></a>, <a href="#ingest-dbt"><code>data-finops ingest dbt</code></a>, <a href="#ingest-athena"><code>data-finops ingest athena</code></a>.</p>
 <h2 id="ingest-focus"><code>data-finops ingest focus</code></h2>
 <p>a FOCUS Export Snapshot (JSON), or an AWS Data Exports Delivery by its downloaded &lt;export&gt;-Manifest.json</p>
-<pre><code>usage: data-finops ingest focus [-h] [--data-dir DATA_DIR] --db DB path</code></pre>
+<pre><code><span class="line">usage: data-finops ingest focus [-h] [--data-dir DATA_DIR] --db DB path</span></code></pre>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
 <table>
 <thead><tr><th>Argument</th><th>Required</th><th>Default</th><th>Meaning</th></tr></thead>
 <tbody>
@@ -77,9 +67,11 @@
 <tr><td><code>--db DB</code></td><td>required</td><td></td><td>the database file</td></tr>
 </tbody>
 </table>
+</div>
 <h2 id="ingest-openlineage"><code>data-finops ingest openlineage</code></h2>
 <p>OpenLineage events (JSON array or JSON Lines)</p>
-<pre><code>usage: data-finops ingest openlineage [-h] --db DB path</code></pre>
+<pre><code><span class="line">usage: data-finops ingest openlineage [-h] --db DB path</span></code></pre>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
 <table>
 <thead><tr><th>Argument</th><th>Required</th><th>Default</th><th>Meaning</th></tr></thead>
 <tbody>
@@ -87,9 +79,11 @@
 <tr><td><code>--db DB</code></td><td>required</td><td></td><td>the database file</td></tr>
 </tbody>
 </table>
+</div>
 <h2 id="ingest-dbt"><code>data-finops ingest dbt</code></h2>
 <p>a dbt manifest.json or run_results.json</p>
-<pre><code>usage: data-finops ingest dbt [-h] --db DB path</code></pre>
+<pre><code><span class="line">usage: data-finops ingest dbt [-h] --db DB path</span></code></pre>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
 <table>
 <thead><tr><th>Argument</th><th>Required</th><th>Default</th><th>Meaning</th></tr></thead>
 <tbody>
@@ -97,11 +91,13 @@
 <tr><td><code>--db DB</code></td><td>required</td><td></td><td>the database file</td></tr>
 </tbody>
 </table>
+</div>
 <h2 id="ingest-athena"><code>data-finops ingest athena</code></h2>
 <p>an Athena BatchGetQueryExecution response</p>
-<pre><code>usage: data-finops ingest athena [-h] --account-id ACCOUNT_ID --region REGION
-                                 --db DB
-                                 path</code></pre>
+<pre><code><span class="line">usage: data-finops ingest athena [-h] --account-id ACCOUNT_ID --region REGION
+</span><span class="line">                                 --db DB
+</span><span class="line">                                 path</span></code></pre>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
 <table>
 <thead><tr><th>Argument</th><th>Required</th><th>Default</th><th>Meaning</th></tr></thead>
 <tbody>
@@ -111,19 +107,23 @@
 <tr><td><code>--db DB</code></td><td>required</td><td></td><td>the database file</td></tr>
 </tbody>
 </table>
+</div>
 <h2 id="calculate"><code>data-finops calculate</code></h2>
 <p>start a Calculation Run for every Snapshot Scope</p>
-<pre><code>usage: data-finops calculate [-h] --db DB</code></pre>
+<pre><code><span class="line">usage: data-finops calculate [-h] --db DB</span></code></pre>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
 <table>
 <thead><tr><th>Argument</th><th>Required</th><th>Default</th><th>Meaning</th></tr></thead>
 <tbody>
 <tr><td><code>--db DB</code></td><td>required</td><td></td><td>the database file</td></tr>
 </tbody>
 </table>
+</div>
 <h2 id="serve"><code>data-finops serve</code></h2>
 <p>serve the API and dashboard over a database</p>
-<pre><code>usage: data-finops serve [-h] --db DB [--host HOST] [--port PORT]
-                         [--token-file TOKEN_FILE]</code></pre>
+<pre><code><span class="line">usage: data-finops serve [-h] --db DB [--host HOST] [--port PORT]
+</span><span class="line">                         [--token-file TOKEN_FILE]</span></code></pre>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
 <table>
 <thead><tr><th>Argument</th><th>Required</th><th>Default</th><th>Meaning</th></tr></thead>
 <tbody>
@@ -133,16 +133,25 @@
 <tr><td><code>--token-file TOKEN_FILE</code></td><td>optional</td><td></td><td>a file holding the bearer token (or set DATA_FINOPS_TOKEN); required off loopback</td></tr>
 </tbody>
 </table>
+</div>
 <h2 id="demo"><code>data-finops demo</code></h2>
 <p>load the fixtures into a new database, calculate and serve on loopback</p>
-<pre><code>usage: data-finops demo [-h] [--port PORT]</code></pre>
+<pre><code><span class="line">usage: data-finops demo [-h] [--port PORT]</span></code></pre>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
 <table>
 <thead><tr><th>Argument</th><th>Required</th><th>Default</th><th>Meaning</th></tr></thead>
 <tbody>
 <tr><td><code>--port PORT</code></td><td>optional</td><td>8000</td><td></td></tr>
 </tbody>
 </table>
+</div>
 <!-- reference:end -->
+<!-- pager:start -->
+<nav class="pager" aria-label="Previous and next">
+<a rel="prev" href="index.html">Previous: Reference</a>
+<a rel="next" href="http-api.html">Next: HTTP API</a>
+</nav>
+<!-- pager:end -->
 </main>
 <!-- footer:start -->
 <footer>

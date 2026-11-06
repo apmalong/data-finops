@@ -13,13 +13,9 @@
 <!-- nav:start -->
 <a class="skip-link" href="#main">Skip to content</a>
 <header class="site-header"><a href="../index.html">data-finops</a></header>
-<nav aria-label="Site">
+<nav class="site-nav" aria-label="Site">
 <ul>
-<li><a href="../tutorials/index.html">Tutorials</a>
-<ul>
-<li><a href="../tutorials/first-allocation.html">Your first allocation</a></li>
-</ul>
-</li>
+<li><a href="../tutorials/index.html">Tutorials</a></li>
 <li><a href="index.html">How-to guides</a>
 <ul>
 <li><a href="install.html">Install data-finops</a></li>
@@ -34,57 +30,50 @@
 <li><a href="deploy-reference-workload.html">Deploy the reference workload</a></li>
 </ul>
 </li>
-<li><a href="../reference/index.html">Reference</a>
-<ul>
-<li><a href="../reference/cli.html">Command line</a></li>
-<li><a href="../reference/http-api.html">HTTP API</a></li>
-<li><a href="../reference/data-contracts.html">Data contracts</a></li>
-<li><a href="../reference/exit-codes-and-environment.html">Exit codes and environment</a></li>
-<li><a href="../reference/glossary.html">Glossary</a></li>
-</ul>
-</li>
-<li><a href="../explanation/index.html">Explanation</a>
-<ul>
-<li><a href="../explanation/bill-is-authoritative.html">The bill is authoritative</a></li>
-<li><a href="../explanation/allocation-and-coverage.html">Allocation and Coverage</a></li>
-<li><a href="../explanation/identity-links-and-evidence.html">Identity Links and Evidence</a></li>
-<li><a href="../explanation/export-snapshots-and-restatements.html">Export Snapshots and restatements</a></li>
-<li><a href="../explanation/security-model.html">Security model</a></li>
-<li><a href="../explanation/decision-records.html">Decision records</a></li>
-</ul>
-</li>
+<li><a href="../reference/index.html">Reference</a></li>
+<li><a href="../explanation/index.html">Explanation</a></li>
 <li><a href="../contributing.html">Contributing</a></li>
 </ul>
 </nav>
 <!-- nav:end -->
 <main id="main">
 <h1>Read a Cost Explanation</h1>
+<!-- onpage:start -->
+<nav class="on-page" aria-label="On this page">
+<p>On this page</p>
+<ul>
+<li><a href="#setup">Calculate and serve</a></li>
+<li><a href="#find">Find the Allocation</a></li>
+<li><a href="#read">Read its Cost Explanation</a></li>
+</ul>
+</nav>
+<!-- onpage:end -->
 <p>A Cost Explanation shows why one Allocation got its amount: the Billing Line it came from, the Allocation, its Evidence and the Roll-ups it adds to. This guide finds an Allocation through the API and reads its Cost Explanation (spec 06).</p>
 
 <h2 id="setup">Calculate and serve</h2>
 <p>Load a bill and its workload, then calculate:</p>
-<pre><code class="run">data-finops ingest focus fixtures/focus/export-2026-10.json --db finops.sqlite
-data-finops ingest athena fixtures/athena/query-executions.json --account-id 123456789012 --region us-east-1 --db finops.sqlite
-data-finops ingest openlineage fixtures/openlineage/events.json --db finops.sqlite
-data-finops ingest dbt fixtures/dbt/manifest.json --db finops.sqlite
-data-finops ingest dbt fixtures/dbt/run_results.json --db finops.sqlite</code></pre>
-<pre><code class="run">data-finops calculate --db finops.sqlite
-data-finops serve --db finops.sqlite</code></pre>
-<pre class="output checked">calculate: 123456789012 2026-10-01 aws-data-exports:FOCUS_1_2_AWS: new calc-…
-serving finops.sqlite at http://127.0.0.1:8000/ (Ctrl+C to stop)</pre>
+<pre><code class="run"><span class="line">data-finops ingest focus fixtures/focus/export-2026-10.json --db finops.sqlite
+</span><span class="line">data-finops ingest athena fixtures/athena/query-executions.json --account-id 123456789012 --region us-east-1 --db finops.sqlite
+</span><span class="line">data-finops ingest openlineage fixtures/openlineage/events.json --db finops.sqlite
+</span><span class="line">data-finops ingest dbt fixtures/dbt/manifest.json --db finops.sqlite
+</span><span class="line">data-finops ingest dbt fixtures/dbt/run_results.json --db finops.sqlite</span></code></pre>
+<pre><code class="run"><span class="line">data-finops calculate --db finops.sqlite
+</span><span class="line">data-finops serve --db finops.sqlite</span></code></pre>
+<pre class="output checked"><span class="line">calculate: 123456789012 2026-10-01 aws-data-exports:FOCUS_1_2_AWS: new calc-…
+</span><span class="line">serving finops.sqlite at http://127.0.0.1:8000/ (Ctrl+C to stop)</span></pre>
 <p><code>serve</code> keeps running, so run the rest in a second terminal. Set <code>CALCULATION_RUN_ID</code> to the ID <code>calculate</code> printed:</p>
-<pre><code>CALCULATION_RUN_ID=calc-&lt;the ID calculate printed&gt;</code></pre>
+<pre><code><span class="line">CALCULATION_RUN_ID=calc-&lt;the ID calculate printed&gt;</span></code></pre>
 
 <h2 id="find">Find the Allocation</h2>
 <p>List the Calculation Run's direct Allocations:</p>
-<pre><code class="run">curl -s "http://127.0.0.1:8000/v1/allocations?calculation_run_id=$CALCULATION_RUN_ID&amp;cost_basis=BilledCost&amp;category=direct"</code></pre>
-<pre class="output checked">{"calculation_run_id":"calc-…","total":1,…"items":[{"ref":"calc-…#0","allocation":{…"target_type":"query_execution","target_id":"q-001","amount":"6.00",…</pre>
+<pre><code class="run"><span class="line">curl -s "http://127.0.0.1:8000/v1/allocations?calculation_run_id=$CALCULATION_RUN_ID&amp;cost_basis=BilledCost&amp;category=direct"</span></code></pre>
+<pre class="output checked"><span class="line">{"calculation_run_id":"calc-…","total":1,…"items":[{"ref":"calc-…#0","allocation":{…"target_type":"query_execution","target_id":"q-001","amount":"6.00",…</span></pre>
 <p>Each item's <code>ref</code> addresses one Allocation as <code>&lt;calculation_run_id&gt;#&lt;position&gt;</code>. This one gives $6.00 to Query Execution <code>q-001</code>.</p>
 
 <h2 id="read">Read its Cost Explanation</h2>
 <p>Ask for <code>/v1/allocations/&lt;ref&gt;/explanation</code>, sending the <code>#</code> as <code>%23</code>:</p>
-<pre><code class="run">curl -s "http://127.0.0.1:8000/v1/allocations/$CALCULATION_RUN_ID%230/explanation"</code></pre>
-<pre class="output checked">{"ref":"calc-…#0","billing_line_ref":"aws-focus-123456789012-2026-10-v1#0","billing_line":{"BilledCost":"6.00",…"ServiceName":"Amazon Athena",…"allocation":{…"category":"direct","method":"estimated_metered_share","confidence":"metered_estimate","coverage":"1",…"query_execution":{…"query_execution_id":"q-001",…"model_execution":{"invocation_id":"inv-001","node_id":"model.demo.orders",…"workload_runs":[{"run_id":"00000000-0000-4000-8000-000000000002",…"rollups":[{"level":"model_execution",…"amount":"6.00"}…</pre>
+<pre><code class="run"><span class="line">curl -s "http://127.0.0.1:8000/v1/allocations/$CALCULATION_RUN_ID%230/explanation"</span></code></pre>
+<pre class="output checked"><span class="line">{"ref":"calc-…#0","billing_line_ref":"aws-focus-123456789012-2026-10-v1#0","billing_line":{"BilledCost":"6.00",…"ServiceName":"Amazon Athena",…"allocation":{…"category":"direct","method":"estimated_metered_share","confidence":"metered_estimate","coverage":"1",…"query_execution":{…"query_execution_id":"q-001",…"model_execution":{"invocation_id":"inv-001","node_id":"model.demo.orders",…"workload_runs":[{"run_id":"00000000-0000-4000-8000-000000000002",…"rollups":[{"level":"model_execution",…"amount":"6.00"}…</span></pre>
 <p>Read it in order:</p>
 <ol>
 <li><code>billing_line</code>: the Billing Line exactly as exported, every FOCUS column included.</li>
@@ -93,6 +82,12 @@ serving finops.sqlite at http://127.0.0.1:8000/ (Ctrl+C to stop)</pre>
 <li><code>rollups</code>: each Roll-up the Allocation adds to, in its currency and Cost Basis.</li>
 </ol>
 <p>For an Unallocated Allocation, <code>unallocated_reason</code> says why it is Unallocated, such as <code>ineligible</code>. The dashboard shows the same Cost Explanation when you click an Allocation.</p>
+<!-- pager:start -->
+<nav class="pager" aria-label="Previous and next">
+<a rel="prev" href="handle-restated-export.html">Previous: Handle a restated export</a>
+<a rel="next" href="serve-with-token.html">Next: Serve with a token</a>
+</nav>
+<!-- pager:end -->
 </main>
 <!-- footer:start -->
 <footer>

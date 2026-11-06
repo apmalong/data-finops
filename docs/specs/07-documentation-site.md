@@ -15,11 +15,17 @@ One page per document under `site/`, each one Diátaxis type. Home is `index.htm
 - `site/index.html`, `site/{tutorials,how-to,reference,explanation}/`, `site/assets/` (`site.css`, optional `site.js`, SVGs, screenshots), `site/nav.json`, `site/DESIGN.md`.
 - Every page has the same `<head>`, header, nav and footer. The nav sits between `<!-- nav:start -->` and `<!-- nav:end -->` and is stamped from `site/nav.json`.
 - The footer says the site describes `main`, that nothing is released yet, and that the license isn't chosen yet (OQ-8). It makes no license claim until OQ-8 is decided.
+- The readable template (owner, 2026-11-06, #171) restyles the same HTML:
+  - The nav lists the four sections and expands only the current one.
+  - Each page has an "On this page" list of its `h2`s, between `<!-- onpage:start -->` and `<!-- onpage:end -->` after its `h1`. It is stamped from the finished page, generated reference included, and an `h2` without an `id` fails the build. On screens over about 1200px it is a right-hand column. On narrower screens it sits under the `h1`.
+  - Previous and next links, in `nav.json` order, sit between `<!-- pager:start -->` and `<!-- pager:end -->` at the end of `main`.
+  - `build` puts each line of every plain-text code block (run and output blocks included) in `<span class="line">`, so a long command wraps with a hanging indent instead of scrolling. The text the page runner reads is unchanged. A wide table scrolls inside its own focusable box, never the page.
 - Every link is relative. Root-absolute links (`/…`) are refused, so the same files work from `file://`, a checkout and `https://apmalong.github.io/data-finops/`.
 
 ## Design and writing (`site/DESIGN.md`)
 - The dashboard's visual rules (spec 06): Tufte and Few, light and dark through `prefers-color-scheme`, a system font stack, muted colour used only to draw attention.
 - `site.css` starts as a copy of the dashboard's tokens and evolves separately. Foreground and background token pairs reach at least 4.5:1 contrast in both themes.
+- Readable: a 17px body, prose lines of at most about 68ch, a 1.6 line height, and a distinct heading scale with room above each `h2`.
 - Accessible: `lang`, one `<h1>`, ordered headings, alt text on every image, visible focus, and the nav usable by keyboard. Pages work without JavaScript.
 - No `http(s)://` in CSS or JS. Outbound links in page text are fine.
 - Diagrams are committed SVGs rendered from D2 sources in `docs/architecture/` (`d2 --layout elk`). There is no Mermaid.

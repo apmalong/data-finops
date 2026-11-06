@@ -13,36 +13,11 @@
 <!-- nav:start -->
 <a class="skip-link" href="#main">Skip to content</a>
 <header class="site-header"><a href="../index.html">data-finops</a></header>
-<nav aria-label="Site">
+<nav class="site-nav" aria-label="Site">
 <ul>
-<li><a href="../tutorials/index.html">Tutorials</a>
-<ul>
-<li><a href="../tutorials/first-allocation.html">Your first allocation</a></li>
-</ul>
-</li>
-<li><a href="../how-to/index.html">How-to guides</a>
-<ul>
-<li><a href="../how-to/install.html">Install data-finops</a></li>
-<li><a href="../how-to/ingest-focus-export.html">Ingest a FOCUS export</a></li>
-<li><a href="../how-to/ingest-athena-history.html">Ingest Athena query history</a></li>
-<li><a href="../how-to/ingest-dbt-artifacts.html">Ingest dbt artifacts</a></li>
-<li><a href="../how-to/receive-openlineage.html">Receive OpenLineage events</a></li>
-<li><a href="../how-to/calculate.html">Calculate Allocations</a></li>
-<li><a href="../how-to/handle-restated-export.html">Handle a restated export</a></li>
-<li><a href="../how-to/read-cost-explanation.html">Read a Cost Explanation</a></li>
-<li><a href="../how-to/serve-with-token.html">Serve with a token</a></li>
-<li><a href="../how-to/deploy-reference-workload.html">Deploy the reference workload</a></li>
-</ul>
-</li>
-<li><a href="../reference/index.html">Reference</a>
-<ul>
-<li><a href="../reference/cli.html">Command line</a></li>
-<li><a href="../reference/http-api.html">HTTP API</a></li>
-<li><a href="../reference/data-contracts.html">Data contracts</a></li>
-<li><a href="../reference/exit-codes-and-environment.html">Exit codes and environment</a></li>
-<li><a href="../reference/glossary.html">Glossary</a></li>
-</ul>
-</li>
+<li><a href="../tutorials/index.html">Tutorials</a></li>
+<li><a href="../how-to/index.html">How-to guides</a></li>
+<li><a href="../reference/index.html">Reference</a></li>
 <li><a href="index.html">Explanation</a>
 <ul>
 <li><a href="bill-is-authoritative.html">The bill is authoritative</a></li>
@@ -59,6 +34,18 @@
 <!-- nav:end -->
 <main id="main">
 <h1>Identity Links and Evidence</h1>
+<!-- onpage:start -->
+<nav class="on-page" aria-label="On this page">
+<p>On this page</p>
+<ul>
+<li><a href="#explicit">Only explicit Evidence links</a></li>
+<li><a href="#comment">The Trusted Query Comment</a></li>
+<li><a href="#outcomes">Link Outcomes</a></li>
+<li><a href="#as-reported">Stored as reported, never merged</a></li>
+<li><a href="#no-link">What a missing link costs</a></li>
+</ul>
+</nav>
+<!-- onpage:end -->
 <p>A <a href="../reference/glossary.html#roll-up">Roll-up</a> says which Model Execution or Workload Run an Allocation adds up to. It is only as good as the link behind it. This page explains what counts as <a href="../reference/glossary.html#evidence">Evidence</a> for an <a href="../reference/glossary.html#identity-link">Identity Link</a>, and what happens when there is none. The decisions are in <a href="https://github.com/apmalong/data-finops/blob/main/docs/adr/0006-explicit-identity-evidence.md">ADR 0006</a> and <a href="https://github.com/apmalong/data-finops/blob/main/docs/adr/0022-openlineage-runs-stored-as-reported.md">ADR 0022</a>, with details in <a href="https://github.com/apmalong/data-finops/blob/main/docs/specs/03-attribution.md">spec 03</a> and <a href="https://github.com/apmalong/data-finops/blob/main/docs/specs/04-integrations.md">spec 04</a>. They stay authoritative.</p>
 
 <h2 id="explicit">Only explicit Evidence links</h2>
@@ -88,6 +75,12 @@
 
 <h2 id="no-link">What a missing link costs</h2>
 <p>A missing Identity Link never moves money. A Query Execution without one still gets its share of the <a href="../reference/glossary.html#billing-line">Billing Line</a>, because billing scope is accounting, not Evidence (<a href="https://github.com/apmalong/data-finops/blob/main/docs/adr/0023-billing-scope-is-accounting-scope.md">ADR 0023</a>). It just has no Roll-up to a Model Execution or Workload Run. So a broken comment configuration shows up as Allocations that roll up to nothing, not as Allocations given to the wrong Model Execution.</p>
+<!-- pager:start -->
+<nav class="pager" aria-label="Previous and next">
+<a rel="prev" href="allocation-and-coverage.html">Previous: Allocation and Coverage</a>
+<a rel="next" href="export-snapshots-and-restatements.html">Next: Export Snapshots and restatements</a>
+</nav>
+<!-- pager:end -->
 </main>
 <!-- footer:start -->
 <footer>

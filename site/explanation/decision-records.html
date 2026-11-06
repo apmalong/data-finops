@@ -13,36 +13,11 @@
 <!-- nav:start -->
 <a class="skip-link" href="#main">Skip to content</a>
 <header class="site-header"><a href="../index.html">data-finops</a></header>
-<nav aria-label="Site">
+<nav class="site-nav" aria-label="Site">
 <ul>
-<li><a href="../tutorials/index.html">Tutorials</a>
-<ul>
-<li><a href="../tutorials/first-allocation.html">Your first allocation</a></li>
-</ul>
-</li>
-<li><a href="../how-to/index.html">How-to guides</a>
-<ul>
-<li><a href="../how-to/install.html">Install data-finops</a></li>
-<li><a href="../how-to/ingest-focus-export.html">Ingest a FOCUS export</a></li>
-<li><a href="../how-to/ingest-athena-history.html">Ingest Athena query history</a></li>
-<li><a href="../how-to/ingest-dbt-artifacts.html">Ingest dbt artifacts</a></li>
-<li><a href="../how-to/receive-openlineage.html">Receive OpenLineage events</a></li>
-<li><a href="../how-to/calculate.html">Calculate Allocations</a></li>
-<li><a href="../how-to/handle-restated-export.html">Handle a restated export</a></li>
-<li><a href="../how-to/read-cost-explanation.html">Read a Cost Explanation</a></li>
-<li><a href="../how-to/serve-with-token.html">Serve with a token</a></li>
-<li><a href="../how-to/deploy-reference-workload.html">Deploy the reference workload</a></li>
-</ul>
-</li>
-<li><a href="../reference/index.html">Reference</a>
-<ul>
-<li><a href="../reference/cli.html">Command line</a></li>
-<li><a href="../reference/http-api.html">HTTP API</a></li>
-<li><a href="../reference/data-contracts.html">Data contracts</a></li>
-<li><a href="../reference/exit-codes-and-environment.html">Exit codes and environment</a></li>
-<li><a href="../reference/glossary.html">Glossary</a></li>
-</ul>
-</li>
+<li><a href="../tutorials/index.html">Tutorials</a></li>
+<li><a href="../how-to/index.html">How-to guides</a></li>
+<li><a href="../reference/index.html">Reference</a></li>
 <li><a href="index.html">Explanation</a>
 <ul>
 <li><a href="bill-is-authoritative.html">The bill is authoritative</a></li>
@@ -59,7 +34,11 @@
 <!-- nav:end -->
 <main id="main">
 <h1>Decision records</h1>
+<!-- onpage:start -->
+
+<!-- onpage:end -->
 <p>Each significant design decision is an architecture decision record (ADR) in <code>docs/adr/</code>. A decision is never changed silently. A later ADR refines, amends or replaces it, or an amendment is added to the ADR itself, and its status says so. The ADRs are authoritative. This page only lists them, and a test checks that it lists every one, with the title and status its file gives.</p>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
 <table id="decision-records">
 <thead>
 <tr><th scope="col">ADR</th><th scope="col">Decision</th><th scope="col">Status</th></tr>
@@ -92,7 +71,14 @@
 <tr><td><a href="https://github.com/apmalong/data-finops/blob/main/docs/adr/0025-documentation-site-diataxis-hand-written-html.md">0025</a></td><td>The documentation site follows Diátaxis, is hand-written HTML and is deployed as committed</td><td>Accepted (design, 2026-11-05)</td></tr>
 </tbody>
 </table>
+</div>
 <p>The status shown is the first sentence of each ADR's status line. The rest of that line, such as which ADR it refines, is in the ADR itself. Open questions not yet decided are tracked in <a href="https://github.com/apmalong/data-finops/blob/main/docs/implementation/open-questions.md">open-questions.md</a>.</p>
+<!-- pager:start -->
+<nav class="pager" aria-label="Previous and next">
+<a rel="prev" href="security-model.html">Previous: Security model</a>
+<a rel="next" href="../contributing.html">Next: Contributing</a>
+</nav>
+<!-- pager:end -->
 </main>
 <!-- footer:start -->
 <footer>

@@ -13,13 +13,9 @@
 <!-- nav:start -->
 <a class="skip-link" href="#main">Skip to content</a>
 <header class="site-header"><a href="../index.html">data-finops</a></header>
-<nav aria-label="Site">
+<nav class="site-nav" aria-label="Site">
 <ul>
-<li><a href="../tutorials/index.html">Tutorials</a>
-<ul>
-<li><a href="../tutorials/first-allocation.html">Your first allocation</a></li>
-</ul>
-</li>
+<li><a href="../tutorials/index.html">Tutorials</a></li>
 <li><a href="index.html">How-to guides</a>
 <ul>
 <li><a href="install.html">Install data-finops</a></li>
@@ -34,31 +30,26 @@
 <li><a href="deploy-reference-workload.html" aria-current="page">Deploy the reference workload</a></li>
 </ul>
 </li>
-<li><a href="../reference/index.html">Reference</a>
-<ul>
-<li><a href="../reference/cli.html">Command line</a></li>
-<li><a href="../reference/http-api.html">HTTP API</a></li>
-<li><a href="../reference/data-contracts.html">Data contracts</a></li>
-<li><a href="../reference/exit-codes-and-environment.html">Exit codes and environment</a></li>
-<li><a href="../reference/glossary.html">Glossary</a></li>
-</ul>
-</li>
-<li><a href="../explanation/index.html">Explanation</a>
-<ul>
-<li><a href="../explanation/bill-is-authoritative.html">The bill is authoritative</a></li>
-<li><a href="../explanation/allocation-and-coverage.html">Allocation and Coverage</a></li>
-<li><a href="../explanation/identity-links-and-evidence.html">Identity Links and Evidence</a></li>
-<li><a href="../explanation/export-snapshots-and-restatements.html">Export Snapshots and restatements</a></li>
-<li><a href="../explanation/security-model.html">Security model</a></li>
-<li><a href="../explanation/decision-records.html">Decision records</a></li>
-</ul>
-</li>
+<li><a href="../reference/index.html">Reference</a></li>
+<li><a href="../explanation/index.html">Explanation</a></li>
 <li><a href="../contributing.html">Contributing</a></li>
 </ul>
 </nav>
 <!-- nav:end -->
 <main id="main">
 <h1>Deploy the reference workload</h1>
+<!-- onpage:start -->
+<nav class="on-page" aria-label="On this page">
+<p>On this page</p>
+<ul>
+<li><a href="#cost">What it deploys and costs</a></li>
+<li><a href="#configure">Configure the stack</a></li>
+<li><a href="#deploy">Deploy</a></li>
+<li><a href="#run">Run the workload and collect its outputs</a></li>
+<li><a href="#teardown">Tear it down</a></li>
+</ul>
+</nav>
+<!-- onpage:end -->
 <p>The reference workload is a small Athena, dbt and Airflow pipeline in a real AWS account. It produces a real bill, real Athena history and real OpenLineage events, to check data-finops against more than the hand-written fixtures (ADR 0021). This guide deploys it with Pulumi, runs it and tears it down. The full steps are in <a href="https://github.com/apmalong/data-finops/blob/main/examples/reference-workload/README.md">the reference workload's README</a>.</p>
 <p class="notice">Not run on this page. It creates resources in a real AWS account and costs real money. The owner approves every <code>pulumi preview</code>, <code>pulumi up</code>, workload run and <code>pulumi destroy</code> against a real account.</p>
 
@@ -74,15 +65,15 @@
 
 <h2 id="configure">Configure the stack</h2>
 <p>Use a dedicated AWS profile with least privilege. In PowerShell, from the repository root:</p>
-<pre><code>cd examples/reference-workload
-uv sync
-$env:PULUMI_BACKEND_URL = "file://$((Resolve-Path ../..).Path)/.local/pulumi"
-$env:PULUMI_CONFIG_PASSPHRASE = "&lt;choose one; needed for every later command&gt;"
-pulumi stack init dev
-pulumi config set aws:profile &lt;your profile&gt;
-pulumi config set bytesScannedCutoffPerQuery 104857600
-pulumi config set budgetMonthlyUsd &lt;amount&gt;
-pulumi config set budgetEmail &lt;your email&gt;</code></pre>
+<pre><code><span class="line">cd examples/reference-workload
+</span><span class="line">uv sync
+</span><span class="line">$env:PULUMI_BACKEND_URL = "file://$((Resolve-Path ../..).Path)/.local/pulumi"
+</span><span class="line">$env:PULUMI_CONFIG_PASSPHRASE = "&lt;choose one; needed for every later command&gt;"
+</span><span class="line">pulumi stack init dev
+</span><span class="line">pulumi config set aws:profile &lt;your profile&gt;
+</span><span class="line">pulumi config set bytesScannedCutoffPerQuery 104857600
+</span><span class="line">pulumi config set budgetMonthlyUsd &lt;amount&gt;
+</span><span class="line">pulumi config set budgetEmail &lt;your email&gt;</span></code></pre>
 <ul>
 <li><code>PULUMI_BACKEND_URL</code> keeps the Pulumi state in the git-ignored <code>.local/pulumi</code>. The program refuses any backend that is not <code>file://</code>.</li>
 <li><code>bytesScannedCutoffPerQuery</code> is the most an Athena query may scan, in bytes. The default is 100 MiB, and the least is 10 MiB.</li>
@@ -91,25 +82,31 @@ pulumi config set budgetEmail &lt;your email&gt;</code></pre>
 </ul>
 
 <h2 id="deploy">Deploy</h2>
-<pre><code>pulumi preview
-pulumi up</code></pre>
+<pre><code><span class="line">pulumi preview
+</span><span class="line">pulumi up</span></code></pre>
 <p>The stack's outputs are the <code>bucket</code>, the <code>database</code> and the <code>workgroup</code>. The workload's runs need the bucket.</p>
 
 <h2 id="run">Run the workload and collect its outputs</h2>
 <p>The README gives the steps for dbt, run from WSL or Linux with <code>dbt-ol</code>, and for Airflow, run with Docker Compose. Their OpenLineage events land in the git-ignored <code>.local/openlineage/</code>. Before anything leaves your machine, anonymize the outputs with the secret described in <a href="../reference/exit-codes-and-environment.html#environment-heading">Exit codes and environment</a>:</p>
-<pre><code>$env:DATA_FINOPS_ANON_SECRET = "&lt;long random value&gt;"
-uv run python scripts/anonymize_focus_export.py &lt;downloaded-export-dir&gt; &lt;output-dir&gt;
-uv run python scripts/anonymize_workload_outputs.py &lt;outputs-dir&gt; &lt;output-dir&gt;</code></pre>
+<pre><code><span class="line">$env:DATA_FINOPS_ANON_SECRET = "&lt;long random value&gt;"
+</span><span class="line">uv run python scripts/anonymize_focus_export.py &lt;downloaded-export-dir&gt; &lt;output-dir&gt;
+</span><span class="line">uv run python scripts/anonymize_workload_outputs.py &lt;outputs-dir&gt; &lt;output-dir&gt;</span></code></pre>
 <p>Run these from the repository root. The output must be outside the repository or under <code>.local/</code>. The published sample is in <code>fixtures/reference-workload/</code>.</p>
 
 <h2 id="teardown">Tear it down</h2>
-<pre><code>pulumi destroy</code></pre>
+<pre><code><span class="line">pulumi destroy</span></code></pre>
 <p>This removes the bucket, with everything in it, the Glue database, the workgroup and the Budget. What <code>pulumi destroy</code> does not remove:</p>
 <ul>
 <li>the local state in <code>.local/pulumi</code> and the outputs in <code>.local/openlineage/</code>;</li>
 <li>the WSL virtual environment, <code>.venv-linux</code>.</li>
 </ul>
 <p>The recorded teardown, and how to recreate the stack, are tracked in <a href="https://github.com/apmalong/data-finops/issues/26">issue #26</a>.</p>
+<!-- pager:start -->
+<nav class="pager" aria-label="Previous and next">
+<a rel="prev" href="serve-with-token.html">Previous: Serve with a token</a>
+<a rel="next" href="../reference/index.html">Next: Reference</a>
+</nav>
+<!-- pager:end -->
 </main>
 <!-- footer:start -->
 <footer>

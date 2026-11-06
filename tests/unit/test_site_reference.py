@@ -341,3 +341,13 @@ def test_a_contract_field_naming_an_enum_definition_spells_out_its_values() -> N
         "<tr><td><code>kind</code></td><td>required</td>"
         "<td>Kind: one of &quot;a&quot;, &quot;b&quot;</td><td></td></tr>" in html
     )
+
+
+def test_every_table_scrolls_in_its_own_focusable_box_rather_than_the_page() -> None:
+    rendered = render_http(OPENAPI)
+    assert rendered.count("<table>") > 0
+    assert rendered.count(
+        '<div class="table-scroll" tabindex="0" role="region"'
+        ' aria-label="Table, scrolls sideways">\n<table>'
+    ) == rendered.count("<table>")
+    assert rendered.count("</table>\n</div>") == rendered.count("<table>")
