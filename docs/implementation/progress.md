@@ -137,3 +137,66 @@ Spec #80, tickets #81–#90 (#91 waits on #25); decisions from the design sessio
   - Roll-ups: $6.00 per Cost Basis to `model.demo.orders` and to the dbt run, the Airflow task and the DAG run.
 - Gates on the final branch: `uv run pytest -q` → 450 passed; `uv run ruff check .` → All checks passed; `uv run ruff format --check .` → 126 files already formatted; `uv run mypy src` → no issues in 30 source files; `uv run bandit -q -r src scripts` → no issues.
 - Not in M4 (per spec #80): Evidence-linked credit allocation, shared or idle pools derived from billing, heuristic allocation, pools other than Athena on-demand, API and command line (M5), AWS fetching (M6). Known limits: the Athena policies are provisional until #91; a database file created before M4's tables gains them on open, but one created before M3's columns is still refused.
+
+## M5: API and HTML demo (2026-11-05)
+Spec #103, tickets #104–#119; decisions from the design session recorded in PR #102 (ADR 0024; spec 06; GLOSSARY: Cost Summary, Cost Explanation; OQ-6 decided for local use). Each ticket was written test-first at the agreed seams: the read model, the API's test client and `main(argv)` on a temporary SQLite file. Each was mutation-checked and reviewed on the Standards and Spec axes; the mutation results and review fixes are in each PR (#120–#134).
+
+- **What was built:**
+  - #104 one OpenLineage event ingested from bytes;
+  - #105–#106 the Cost Summary, in the read model and over HTTP;
+  - #107 the OpenLineage receiver, `POST /api/v1/lineage` (1 MiB, Problem Details);
+  - #108 the bearer token (ADR 0024);
+  - #109 the Allocations list;
+  - #110 the Cost Explanation;
+  - #111 Roll-ups;
+  - #112 reconciliation;
+  - #113 provenance and the restated fixture;
+  - #114 lineage;
+  - #115–#116 the command line: `ingest`, `calculate`, `serve` (loopback by default) and `demo`;
+  - #117–#118 the dashboard: the Cost Summary, then the Cost Explanation and lineage on demand, after Tufte and Few (spec 06's eight rules, `api/dashboard/DESIGN.md`).
+  - The OpenAPI 3.1 document is checked in as `schemas/openapi.json` and tested for drift.
+- **Exit criterion** ("the walkthrough passes as written"), #119. `examples/demo/README.md` is rewritten as `data-finops` commands, with what to see at each step. `uv run pytest tests/integration/test_m5_exit.py` → 7 passed. Each step runs through the command line and is read back through the API's test client:
+  - steps 1–2 print `focus: new aws-focus-123456789012-2026-10-v1` first and `calculate: … new calc-…` last;
+  - the bill is $10.00, with a Reconciliation Delta of 0.00, under its Calculation Run, time and policy version;
+  - `q-001` gets $6.00 Direct, metered estimate, Coverage 1. Its Cost Explanation holds the $6.00 Billing Line, the Allocation, the Query Execution, Model Execution `model.demo.orders`, and the dbt run, Airflow task and DAG run, nearest first. The Roll-ups are $6.00 each, to `["inv-001","model.demo.orders"]` and to the three Workload Runs;
+  - `model.demo.customers` is claimed only by `q-004`, `ambiguous`, and has no Roll-up. `model.demo.orders` is claimed by `q-001`, `linked`;
+  - $4.00 is Unallocated, `ineligible`;
+  - running every ingest and the calculation again prints `replay`, and the Cost Summary is unchanged;
+  - `export-2026-10-restated.json` makes `aws-focus-123456789012-2026-10-v2` current, and the bill becomes $11.00. The previous Calculation Run is kept, with `is_current: false` and `superseded_by` naming the new run, and its $6.00 and $4.00 Allocations can still be read.
+  - Mutation checks: 2 killed, 0 survived. Each step-7 replay storing a new Allocation Snapshot was caught, and so was provenance losing `superseded_by`.
+- **The README Quick start, run from a clean clone** of the branch: `git clone`, then `uv sync --extra api --frozen` (5 s), then `data-finops demo --port 8765`.
+  - It printed each ingest, `calculate: … new calc-…` and `serving … at http://127.0.0.1:8765/`.
+  - `/health` → `{"status":"ok"}`; `/` → 307 to `/dashboard/`.
+  - `/v1/costs/summary` → billed 10.00, allocated 6.00 at Coverage 1, Unallocated 4.00 `ineligible`.
+  - Headless Edge rendered the live dashboard: `docs/implementation/screenshots/m5-exit-live-demo.png`.
+- **Manual browser pass against the five-minute budget (spec 01, "Offline demo <= 5 minutes on developer laptop after dependencies installed"):** passed by the owner on 2026-11-06. The dashboard loaded near instantly, well within the budget. Screenshot: `docs/implementation/screenshots/m5-manual-pass.png`.
+  - **Bug found on the first try:** the dashboard showed "Could not load: The request could not be completed." About half of its concurrent requests returned 500, 93 of 180 in a reproduction against `data-finops demo`.
+    - Cause: FastAPI ran the sync `Reporting` dependency and the sync endpoint in different threadpool threads, and SQLite refuses a connection used outside the thread that opened it (`ProgrammingError`, hidden behind the 500).
+    - Why it was missed: the test client and the headless screenshot sent one request at a time.
+    - Fix: each endpoint opens and closes its own `Reporting`. After it, 180 of 180 returned 200.
+    - `tests/integration/test_api_concurrency.py` sends the dashboard's reads, a Cost Explanation and a receiver write concurrently through `httpx.ASGITransport`. It fails on the old code and passes on the new.
+  - **What local timing does not show:** the fixtures are two lines. On the owner's real anonymized 2026-10 Delivery (7,984 Billing Lines, one small account), from a new database:
+    ```text
+    ingest focus           1.35 s
+    calculate              1.17 s
+    GET /v1/costs/summary  0.65 s
+    GET /v1/allocations    0.28 s   (Unallocated, 1,000 per page)
+    GET /v1/reconciliation 0.83 s   (100 per page)
+    GET /v1/rollups        0.28 s
+    ```
+    A large account bills millions of lines a month. Throughput at that size is not measured; it belongs with M6's deployment work.
+- **Gates on the branch:**
+  - `uv run pytest -q` → 724 passed;
+  - `uv run ruff check .` → All checks passed;
+  - `uv run ruff format --check .` → 163 files already formatted;
+  - `uv run mypy src` → no issues in 38 source files;
+  - `uv run bandit -q -r src scripts` → no issues.
+- **Not in M5 (per spec #103):**
+  - fetching from AWS, and deployment (M6);
+  - a PyPI package;
+  - authentication beyond one static token (ADR 0024).
+- **Known limits:**
+  - the Athena policies are provisional until #91;
+  - with a token configured, a browser cannot send it, so the dashboard is for the token-free loopback demo;
+  - the Workload Runs Roll-up names each run by its run ID, not by what it ran.
+
