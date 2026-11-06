@@ -212,7 +212,7 @@ sequenceDiagram
     API-->>Browser: JSON
 ```
 
-Every route reads through `reporting`, which returns response models and holds no SQL. The OpenAPI 3.1 document is `schemas/openapi.json`, which a test keeps in step with the app. The dashboard follows spec 06's rules after Tufte and Few (`src/data_finops/api/dashboard/DESIGN.md`).
+Every route reads through `reporting`, which returns response models and holds no SQL. Each request opens and closes its own read connections in the thread that serves it, because SQLite refuses a connection used from another thread (found in M5's browser pass, `tests/integration/test_api_concurrency.py`). The OpenAPI 3.1 document is `schemas/openapi.json`, which a test keeps in step with the app. The dashboard follows spec 06's rules after Tufte and Few (`src/data_finops/api/dashboard/DESIGN.md`).
 
 ## Database
 
