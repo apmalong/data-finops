@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+<!-- head:start -->
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="../assets/site.css">
+<!-- head:end -->
+<title>Allocation and Coverage - data-finops</title>
+<meta name="description" content="How data-finops splits a Billing Line into Allocations, and why a Metered Share needs measured Coverage.">
+</head>
+<body>
+<!-- nav:start -->
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="site-header"><a href="../index.html">data-finops</a></header>
+<nav aria-label="Site">
+<ul>
+<li><a href="../tutorials/index.html">Tutorials</a>
+<ul>
+<li><a href="../tutorials/first-allocation.html">Your first allocation</a></li>
+</ul>
+</li>
+<li><a href="../how-to/index.html">How-to guides</a>
+<ul>
+<li><a href="../how-to/install.html">Install data-finops</a></li>
+<li><a href="../how-to/ingest-focus-export.html">Ingest a FOCUS export</a></li>
+<li><a href="../how-to/ingest-athena-history.html">Ingest Athena query history</a></li>
+<li><a href="../how-to/ingest-dbt-artifacts.html">Ingest dbt artifacts</a></li>
+<li><a href="../how-to/receive-openlineage.html">Receive OpenLineage events</a></li>
+<li><a href="../how-to/calculate.html">Calculate Allocations</a></li>
+<li><a href="../how-to/handle-restated-export.html">Handle a restated export</a></li>
+<li><a href="../how-to/read-cost-explanation.html">Read a Cost Explanation</a></li>
+<li><a href="../how-to/serve-with-token.html">Serve with a token</a></li>
+<li><a href="../how-to/deploy-reference-workload.html">Deploy the reference workload</a></li>
+</ul>
+</li>
+<li><a href="../reference/index.html">Reference</a>
+<ul>
+<li><a href="../reference/cli.html">Command line</a></li>
+<li><a href="../reference/http-api.html">HTTP API</a></li>
+<li><a href="../reference/data-contracts.html">Data contracts</a></li>
+<li><a href="../reference/exit-codes-and-environment.html">Exit codes and environment</a></li>
+<li><a href="../reference/glossary.html">Glossary</a></li>
+</ul>
+</li>
+<li><a href="index.html">Explanation</a>
+<ul>
+<li><a href="bill-is-authoritative.html">The bill is authoritative</a></li>
+<li><a href="allocation-and-coverage.html" aria-current="page">Allocation and Coverage</a></li>
+<li><a href="identity-links-and-evidence.html">Identity Links and Evidence</a></li>
+<li><a href="export-snapshots-and-restatements.html">Export Snapshots and restatements</a></li>
+<li><a href="security-model.html">Security model</a></li>
+<li><a href="decision-records.html">Decision records</a></li>
+</ul>
+</li>
+<li><a href="../contributing.html">Contributing</a></li>
+</ul>
+</nav>
+<!-- nav:end -->
+<main id="main">
+<h1>Allocation and Coverage</h1>
+<p>This page explains how a <a href="../reference/glossary.html#calculation-run">Calculation Run</a> splits a <a href="../reference/glossary.html#billing-line">Billing Line</a>, and why it splits a metered line only as far as <a href="../reference/glossary.html#coverage">Coverage</a> allows. The decisions are in <a href="https://github.com/apmalong/data-finops/blob/main/docs/adr/0007-deterministic-cost-allocation.md">ADR 0007</a>, <a href="https://github.com/apmalong/data-finops/blob/main/docs/adr/0016-allocate-to-query-executions-with-roll-ups.md">ADR 0016</a>, <a href="https://github.com/apmalong/data-finops/blob/main/docs/adr/0017-metered-share-requires-coverage.md">ADR 0017</a> and <a href="https://github.com/apmalong/data-finops/blob/main/docs/adr/0023-billing-scope-is-accounting-scope.md">ADR 0023</a>, and the rules are in <a href="https://github.com/apmalong/data-finops/blob/main/docs/specs/03-attribution.md">spec 03</a>. They stay authoritative.</p>
+
+<h2 id="deterministic">The same inputs give the same Allocations</h2>
+<p>A Calculation Run is deterministic. It uses decimal amounts, stable rounding and a versioned <a href="../reference/glossary.html#allocation-policy">Allocation Policy</a>. Running it again on the same inputs stores nothing new. A changed policy gets a new version, and the Allocations it made before keep the old one, so any number can be traced to the rules that made it.</p>
+
+<h2 id="targets">Three Allocation Targets</h2>
+<p>Every <a href="../reference/glossary.html#allocation">Allocation</a> goes to one of three <a href="../reference/glossary.html#allocation-target">Allocation Targets</a>:</p>
+<ul>
+<li>a <a href="../reference/glossary.html#query-execution">Query Execution</a>, the unit a provider actually bills for;</li>
+<li><a href="../reference/glossary.html#idle">Idle</a>, capacity that was paid for but had no observed activity;</li>
+<li><a href="../reference/glossary.html#unallocated">Unallocated</a>, money with no Evidence, named with its reason.</li>
+</ul>
+<p>A Model Execution or Workload Run is never a target. It gets money only as a <a href="../reference/glossary.html#roll-up">Roll-up</a> over its Identity Links. Failed and retried work is charged to its Query Execution and shown with its status, so a failure's cost stays visible.</p>
+
+<h2 id="coverage">A Metered Share needs measured Coverage</h2>
+<p>An Athena on-demand Billing Line bills a quantity of data scanned. Each Query Execution in the line's billing scope has a <a href="../reference/glossary.html#billable-usage">Billable Usage</a>: what the provider bills for it, which is not always what it scanned. Coverage compares the two:</p>
+<p>Coverage = known Billable Usage ÷ the Billing Line's billed quantity.</p>
+<img src="../assets/explanation/coverage.svg" alt="Coverage is the known Billable Usage of the Query Executions in a Billing Line's billing scope, divided by the line's billed quantity. At Coverage 1, the whole line is split by Billable Usage into Metered Shares. Below 1, the covered fraction is split into Metered Shares and the rest is Unallocated with the reason coverage_remainder. Above 1, the whole line is Unallocated with the reason coverage_exceeded, and flagged." width="930" height="735">
+<ul>
+<li>At Coverage 1, the line is split by Billable Usage. Each share is a <a href="../reference/glossary.html#metered-share">Metered Share</a>: Allocation Category <code>direct</code>, <a href="../reference/glossary.html#confidence">Confidence</a> <code>metered_estimate</code>.</li>
+<li>Below 1, some of the history is missing. Only the covered fraction is split. The remainder is Unallocated as <code>coverage_remainder</code>, rather than spread over the Query Executions that happen to be known.</li>
+<li>Above 1, the known history claims more than was billed, which means something is wrong. The whole line is Unallocated as <code>coverage_exceeded</code>, and flagged.</li>
+</ul>
+<p>Coverage counts as 1 within half a unit of the last digit the provider bills in. A Metered Share is an estimate, so it is never labelled as exact.</p>
+
+<h2 id="scope">Billing scope is accounting, not Evidence</h2>
+<p>A Query Execution is in a Billing Line's billing scope when it ran in the same account, Region and workgroup, and completed within the line's charge period. That makes it share the line's cost. It does not say which Model Execution ran it. A Query Execution with no Identity Link still counts toward Coverage and still gets its Metered Share. It just has no Roll-up (ADR 0023).</p>
+
+<h2 id="worked">A worked example</h2>
+<p>The tutorial's bill has one Athena Billing Line of $6.00, for 0.001 TB scanned in workgroup <code>demo</code>. Two Query Executions are in its billing scope:</p>
+<ul>
+<li><code>q-001</code> succeeded and scanned 1,000,000,000 bytes. Its Billable Usage is 1,000 MB, or 0.001 TB.</li>
+<li><code>q-002</code> is DDL that scanned 0 bytes. Its Billable Usage is 0.</li>
+</ul>
+<p>Known Billable Usage is 0.001 TB, the same as the billed quantity, so Coverage is 1. <code>q-001</code> gets a $6.00 Metered Share. Its Trusted Query Comment names Model Execution <code>model.demo.orders</code>, so the $6.00 rolls up to it. The bill's $4.00 S3 storage line is outside every policy, so it is Unallocated as <code>ineligible</code>.</p>
+
+<h2 id="policy">The current Athena policy</h2>
+<p>Calculation Runs record their policy version, today <code>allocation-engine/1+line-classification/1+athena-billable-usage/1+athena-billing-scope/1</code>. <code>athena-billable-usage/1</code> bills a failed Query Execution 0, and DDL that scanned 0 bytes 0. Every other Query Execution is rounded up to the next MB, with a minimum of 10 MB.</p>
+<p class="notice">The Athena policies are provisional until <a href="https://github.com/apmalong/data-finops/issues/91">issue #91</a> checks them against a real FOCUS export. If a check fails, a new policy version is made, and Allocations made with this one keep it.</p>
+</main>
+<!-- footer:start -->
+<footer>
+<p>This site describes the <code>main</code> branch. Nothing is released yet. No license has been chosen yet. Source on <a href="https://github.com/apmalong/data-finops">GitHub</a>.</p>
+</footer>
+<!-- footer:end -->
+</body>
+</html>

@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+<!-- head:start -->
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="../assets/site.css">
+<!-- head:end -->
+<title>Export Snapshots and restatements - data-finops</title>
+<meta name="description" content="Why data-finops stores whole Export Snapshots, never changes them, and decides which one is current by publication time.">
+</head>
+<body>
+<!-- nav:start -->
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="site-header"><a href="../index.html">data-finops</a></header>
+<nav aria-label="Site">
+<ul>
+<li><a href="../tutorials/index.html">Tutorials</a>
+<ul>
+<li><a href="../tutorials/first-allocation.html">Your first allocation</a></li>
+</ul>
+</li>
+<li><a href="../how-to/index.html">How-to guides</a>
+<ul>
+<li><a href="../how-to/install.html">Install data-finops</a></li>
+<li><a href="../how-to/ingest-focus-export.html">Ingest a FOCUS export</a></li>
+<li><a href="../how-to/ingest-athena-history.html">Ingest Athena query history</a></li>
+<li><a href="../how-to/ingest-dbt-artifacts.html">Ingest dbt artifacts</a></li>
+<li><a href="../how-to/receive-openlineage.html">Receive OpenLineage events</a></li>
+<li><a href="../how-to/calculate.html">Calculate Allocations</a></li>
+<li><a href="../how-to/handle-restated-export.html">Handle a restated export</a></li>
+<li><a href="../how-to/read-cost-explanation.html">Read a Cost Explanation</a></li>
+<li><a href="../how-to/serve-with-token.html">Serve with a token</a></li>
+<li><a href="../how-to/deploy-reference-workload.html">Deploy the reference workload</a></li>
+</ul>
+</li>
+<li><a href="../reference/index.html">Reference</a>
+<ul>
+<li><a href="../reference/cli.html">Command line</a></li>
+<li><a href="../reference/http-api.html">HTTP API</a></li>
+<li><a href="../reference/data-contracts.html">Data contracts</a></li>
+<li><a href="../reference/exit-codes-and-environment.html">Exit codes and environment</a></li>
+<li><a href="../reference/glossary.html">Glossary</a></li>
+</ul>
+</li>
+<li><a href="index.html">Explanation</a>
+<ul>
+<li><a href="bill-is-authoritative.html">The bill is authoritative</a></li>
+<li><a href="allocation-and-coverage.html">Allocation and Coverage</a></li>
+<li><a href="identity-links-and-evidence.html">Identity Links and Evidence</a></li>
+<li><a href="export-snapshots-and-restatements.html" aria-current="page">Export Snapshots and restatements</a></li>
+<li><a href="security-model.html">Security model</a></li>
+<li><a href="decision-records.html">Decision records</a></li>
+</ul>
+</li>
+<li><a href="../contributing.html">Contributing</a></li>
+</ul>
+</nav>
+<!-- nav:end -->
+<main id="main">
+<h1>Export Snapshots and restatements</h1>
+<p>Providers publish a Billing Period's bill more than once, as charges settle and credits arrive. This page explains how data-finops keeps every publication, and which one it uses. The decisions are in <a href="https://github.com/apmalong/data-finops/blob/main/docs/adr/0015-focus-billing-lines-and-export-snapshots.md">ADR 0015</a>, <a href="https://github.com/apmalong/data-finops/blob/main/docs/adr/0019-no-row-deduplication-within-export-snapshots.md">ADR 0019</a> and <a href="https://github.com/apmalong/data-finops/blob/main/docs/adr/0020-current-snapshot-is-latest-publication.md">ADR 0020</a>, with the calculation side in <a href="https://github.com/apmalong/data-finops/blob/main/docs/specs/03-attribution.md">spec 03</a>. They stay authoritative. To do it, see <a href="../how-to/handle-restated-export.html">Handle a restated export</a>.</p>
+
+<h2 id="unit">The whole Export Snapshot is the unit</h2>
+<p>An <a href="../reference/glossary.html#export-snapshot">Export Snapshot</a> is every <a href="../reference/glossary.html#billing-line">Billing Line</a> of one <a href="../reference/glossary.html#snapshot-scope">Snapshot Scope</a> (a billing account, a <a href="../reference/glossary.html#billing-period">Billing Period</a> and a source), as the provider published it at one time. A restatement replaces the whole Export Snapshot. data-finops never patches single Billing Lines, because a provider's restatement can change, add or remove any of them.</p>
+<p>Within an Export Snapshot, rows are never deduplicated. Two identical rows are two Billing Lines, each identified by its snapshot and position. Merging them would drop money the provider billed, and the Ledger's totals would no longer equal the provider's.</p>
+
+<h2 id="immutable">Stored Export Snapshots never change</h2>
+<p>Each load has one of three outcomes:</p>
+<ul>
+<li><strong>New:</strong> new content is stored. It is reported as <code>new</code> if it is now current, or as <code>superseded</code> if a later publication is current.</li>
+<li><strong>Replay:</strong> content equal to the current Export Snapshot, or an ID already stored with the same content, stores nothing.</li>
+<li><strong>Rejected:</strong> an ID already stored with different content is refused, because what was stored is never rewritten.</li>
+</ul>
+
+<h2 id="current">The latest publication is current</h2>
+<p>For each Snapshot Scope, the current Export Snapshot is the one the provider published last, with ties broken by the higher ID. It never depends on the order you load them in, so a late-arriving earlier publication cannot take over. The publication time comes only from the provider's own metadata. For an AWS Data Exports <a href="../reference/glossary.html#delivery">Delivery</a>, that is the creation time in the manifest's data folder, never a file time or the time of loading.</p>
+<p>Earlier publications become <a href="../reference/glossary.html#superseded-snapshot">Superseded Snapshots</a>. They are kept as history.</p>
+
+<h2 id="allocations">Allocations follow, and keep their history</h2>
+<p>A <a href="../reference/glossary.html#calculation-run">Calculation Run</a> allocates the current Export Snapshot of each Snapshot Scope. After a restatement, the next run makes a new <a href="../reference/glossary.html#allocation-snapshot">Allocation Snapshot</a>, and the earlier one is kept, not overwritten. Its provenance shows that it is no longer current and which run superseded it. The API still serves it when asked for by its Calculation Run ID, so a figure reported last week can always be explained as it was then.</p>
+<p>A Calculation Run whose inputs equal the current Allocation Snapshot's stores nothing. Inputs equal to a superseded one's make a new Allocation Snapshot, so going back to an earlier state is recorded too.</p>
+</main>
+<!-- footer:start -->
+<footer>
+<p>This site describes the <code>main</code> branch. Nothing is released yet. No license has been chosen yet. Source on <a href="https://github.com/apmalong/data-finops">GitHub</a>.</p>
+</footer>
+<!-- footer:end -->
+</body>
+</html>

@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+<!-- head:start -->
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="../assets/site.css">
+<!-- head:end -->
+<title>Decision records - data-finops</title>
+<meta name="description" content="Every architecture decision record of data-finops, with its status, linked to its file on GitHub.">
+</head>
+<body>
+<!-- nav:start -->
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="site-header"><a href="../index.html">data-finops</a></header>
+<nav aria-label="Site">
+<ul>
+<li><a href="../tutorials/index.html">Tutorials</a>
+<ul>
+<li><a href="../tutorials/first-allocation.html">Your first allocation</a></li>
+</ul>
+</li>
+<li><a href="../how-to/index.html">How-to guides</a>
+<ul>
+<li><a href="../how-to/install.html">Install data-finops</a></li>
+<li><a href="../how-to/ingest-focus-export.html">Ingest a FOCUS export</a></li>
+<li><a href="../how-to/ingest-athena-history.html">Ingest Athena query history</a></li>
+<li><a href="../how-to/ingest-dbt-artifacts.html">Ingest dbt artifacts</a></li>
+<li><a href="../how-to/receive-openlineage.html">Receive OpenLineage events</a></li>
+<li><a href="../how-to/calculate.html">Calculate Allocations</a></li>
+<li><a href="../how-to/handle-restated-export.html">Handle a restated export</a></li>
+<li><a href="../how-to/read-cost-explanation.html">Read a Cost Explanation</a></li>
+<li><a href="../how-to/serve-with-token.html">Serve with a token</a></li>
+<li><a href="../how-to/deploy-reference-workload.html">Deploy the reference workload</a></li>
+</ul>
+</li>
+<li><a href="../reference/index.html">Reference</a>
+<ul>
+<li><a href="../reference/cli.html">Command line</a></li>
+<li><a href="../reference/http-api.html">HTTP API</a></li>
+<li><a href="../reference/data-contracts.html">Data contracts</a></li>
+<li><a href="../reference/exit-codes-and-environment.html">Exit codes and environment</a></li>
+<li><a href="../reference/glossary.html">Glossary</a></li>
+</ul>
+</li>
+<li><a href="index.html">Explanation</a>
+<ul>
+<li><a href="bill-is-authoritative.html">The bill is authoritative</a></li>
+<li><a href="allocation-and-coverage.html">Allocation and Coverage</a></li>
+<li><a href="identity-links-and-evidence.html">Identity Links and Evidence</a></li>
+<li><a href="export-snapshots-and-restatements.html">Export Snapshots and restatements</a></li>
+<li><a href="security-model.html">Security model</a></li>
+<li><a href="decision-records.html" aria-current="page">Decision records</a></li>
+</ul>
+</li>
+<li><a href="../contributing.html">Contributing</a></li>
+</ul>
+</nav>
+<!-- nav:end -->
+<main id="main">
+<h1>Decision records</h1>
+<p>Each significant design decision is an architecture decision record (ADR) in <code>docs/adr/</code>. An ADR is never silently changed: a later ADR refines, amends or replaces it, and says so in its status. The ADRs are authoritative. This page only lists them, and a test checks that it lists every one, with the title and status its file gives.</p>
+<table id="decision-records">
+<thead>
+<tr><th scope="col">ADR</th><th scope="col">Decision</th><th scope="col">Status</th></tr>
+</thead>
+<tbody>
+<tr><td><a href="https://github.com/apmalong/data-finops/blob/main/docs/adr/0001-customer-managed-and-open-source.md">0001</a></td><td>Customer-managed and open source</td><td>Accepted (design)</td></tr>
+<tr><td><a href="https://github.com/apmalong/data-finops/blob/main/docs/adr/0002-python-core-and-pulumi-python.md">0002</a></td><td>Python core and Pulumi Python</td><td>Accepted (design)</td></tr>
+<tr><td><a href="https://github.com/apmalong/data-finops/blob/main/docs/adr/0003-authoritative-billing-ledger.md">0003</a></td><td>Authoritative billing ledger</td><td>Accepted (design)</td></tr>
+<tr><td><a href="https://github.com/apmalong/data-finops/blob/main/docs/adr/0004-openlineage-protocol-and-optional-otel.md">0004</a></td><td>OpenLineage protocol and optional OTel</td><td>Accepted (design)</td></tr>
+<tr><td><a href="https://github.com/apmalong/data-finops/blob/main/docs/adr/0005-no-default-elementary-dependency.md">0005</a></td><td>No default Elementary dependency</td><td>Accepted (design)</td></tr>
+<tr><td><a href="https://github.com/apmalong/data-finops/blob/main/docs/adr/0006-explicit-identity-evidence.md">0006</a></td><td>Explicit identity evidence</td><td>Accepted (design)</td></tr>
+<tr><td><a href="https://github.com/apmalong/data-finops/blob/main/docs/adr/0007-deterministic-cost-allocation.md">0007</a></td><td>Deterministic cost allocation</td><td>Accepted (design)</td></tr>
+<tr><td><a href="https://github.com/apmalong/data-finops/blob/main/docs/adr/0008-selective-third-party-reuse.md">0008</a></td><td>Selective third-party reuse</td><td>Accepted (design)</td></tr>
+<tr><td><a href="https://github.com/apmalong/data-finops/blob/main/docs/adr/0009-small-default-runtime.md">0009</a></td><td>Small default runtime</td><td>Accepted (design)</td></tr>
+<tr><td><a href="https://github.com/apmalong/data-finops/blob/main/docs/adr/0010-read-only-recommendations.md">0010</a></td><td>Read-only recommendations</td><td>Accepted (design)</td></tr>
+<tr><td><a href="https://github.com/apmalong/data-finops/blob/main/docs/adr/0011-extensible-adapter-contracts.md">0011</a></td><td>Extensible adapter contracts</td><td>Accepted (design)</td></tr>
+<tr><td><a href="https://github.com/apmalong/data-finops/blob/main/docs/adr/0012-security-and-privacy-by-default.md">0012</a></td><td>Security and privacy by default</td><td>Accepted (design)</td></tr>
+<tr><td><a href="https://github.com/apmalong/data-finops/blob/main/docs/adr/0013-reproducible-local-bootstrap.md">0013</a></td><td>Offline-first reproducible development and golden oracles</td><td>Accepted</td></tr>
+<tr><td><a href="https://github.com/apmalong/data-finops/blob/main/docs/adr/0014-standards-first-and-build-vs-reuse.md">0014</a></td><td>Standards-first architecture and build-versus-reuse gate</td><td>Accepted (design policy; upstream versions unverified)</td></tr>
+<tr><td><a href="https://github.com/apmalong/data-finops/blob/main/docs/adr/0015-focus-billing-lines-and-export-snapshots.md">0015</a></td><td>FOCUS billing lines and export-snapshot revisions</td><td>Accepted (design, 2026-11-01)</td></tr>
+<tr><td><a href="https://github.com/apmalong/data-finops/blob/main/docs/adr/0016-allocate-to-query-executions-with-roll-ups.md">0016</a></td><td>Allocate to Query Executions; everything above is a Roll-up</td><td>Accepted (design, 2026-11-01)</td></tr>
+<tr><td><a href="https://github.com/apmalong/data-finops/blob/main/docs/adr/0017-metered-share-requires-coverage.md">0017</a></td><td>A Metered Share requires measured Coverage</td><td>Accepted (design, 2026-11-01)</td></tr>
+<tr><td><a href="https://github.com/apmalong/data-finops/blob/main/docs/adr/0018-sqlite-ledger-store-and-pyarrow-reader.md">0018</a></td><td>SQLite ledger store; pyarrow for Parquet</td><td>Accepted (2026-11-01)</td></tr>
+<tr><td><a href="https://github.com/apmalong/data-finops/blob/main/docs/adr/0019-no-row-deduplication-within-export-snapshots.md">0019</a></td><td>No row deduplication within an Export Snapshot</td><td>Accepted (2026-11-01)</td></tr>
+<tr><td><a href="https://github.com/apmalong/data-finops/blob/main/docs/adr/0020-current-snapshot-is-latest-publication.md">0020</a></td><td>The current Export Snapshot is the latest publication</td><td>Accepted (2026-11-01, decided in #9); amended 2026-11-05 (#12)</td></tr>
+<tr><td><a href="https://github.com/apmalong/data-finops/blob/main/docs/adr/0021-reference-workload-for-real-validation.md">0021</a></td><td>A reference workload for validation against real billing</td><td>Accepted (2026-11-01)</td></tr>
+<tr><td><a href="https://github.com/apmalong/data-finops/blob/main/docs/adr/0022-openlineage-runs-stored-as-reported.md">0022</a></td><td>OpenLineage runs are stored as reported and linked, never merged</td><td>Accepted (2026-11-01)</td></tr>
+<tr><td><a href="https://github.com/apmalong/data-finops/blob/main/docs/adr/0023-billing-scope-is-accounting-scope.md">0023</a></td><td>A Billing Line's scope is accounting scope, not Evidence</td><td>Accepted (design, 2026-11-02)</td></tr>
+<tr><td><a href="https://github.com/apmalong/data-finops/blob/main/docs/adr/0024-local-receiver-ingress-and-token.md">0024</a></td><td>The OpenLineage receiver is loopback by default and token-gated off it</td><td>Accepted (design, 2026-11-03)</td></tr>
+<tr><td><a href="https://github.com/apmalong/data-finops/blob/main/docs/adr/0025-documentation-site-diataxis-hand-written-html.md">0025</a></td><td>The documentation site follows Diátaxis, is hand-written HTML and is deployed as committed</td><td>Accepted (design, 2026-11-05)</td></tr>
+</tbody>
+</table>
+<p>The status shown is the first sentence of each ADR's status line. The rest of that line, such as which ADR it refines, is in the ADR itself. Open questions not yet decided are tracked in <a href="https://github.com/apmalong/data-finops/blob/main/docs/implementation/open-questions.md">open-questions.md</a>.</p>
+</main>
+<!-- footer:start -->
+<footer>
+<p>This site describes the <code>main</code> branch. Nothing is released yet. No license has been chosen yet. Source on <a href="https://github.com/apmalong/data-finops">GitHub</a>.</p>
+</footer>
+<!-- footer:end -->
+</body>
+</html>

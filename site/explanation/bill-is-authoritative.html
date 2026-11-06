@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+<!-- head:start -->
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="../assets/site.css">
+<!-- head:end -->
+<title>The bill is authoritative - data-finops</title>
+<meta name="description" content="Why data-finops treats the cloud bill as the source of truth, and how Reconciliation keeps every Allocation true to it.">
+</head>
+<body>
+<!-- nav:start -->
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="site-header"><a href="../index.html">data-finops</a></header>
+<nav aria-label="Site">
+<ul>
+<li><a href="../tutorials/index.html">Tutorials</a>
+<ul>
+<li><a href="../tutorials/first-allocation.html">Your first allocation</a></li>
+</ul>
+</li>
+<li><a href="../how-to/index.html">How-to guides</a>
+<ul>
+<li><a href="../how-to/install.html">Install data-finops</a></li>
+<li><a href="../how-to/ingest-focus-export.html">Ingest a FOCUS export</a></li>
+<li><a href="../how-to/ingest-athena-history.html">Ingest Athena query history</a></li>
+<li><a href="../how-to/ingest-dbt-artifacts.html">Ingest dbt artifacts</a></li>
+<li><a href="../how-to/receive-openlineage.html">Receive OpenLineage events</a></li>
+<li><a href="../how-to/calculate.html">Calculate Allocations</a></li>
+<li><a href="../how-to/handle-restated-export.html">Handle a restated export</a></li>
+<li><a href="../how-to/read-cost-explanation.html">Read a Cost Explanation</a></li>
+<li><a href="../how-to/serve-with-token.html">Serve with a token</a></li>
+<li><a href="../how-to/deploy-reference-workload.html">Deploy the reference workload</a></li>
+</ul>
+</li>
+<li><a href="../reference/index.html">Reference</a>
+<ul>
+<li><a href="../reference/cli.html">Command line</a></li>
+<li><a href="../reference/http-api.html">HTTP API</a></li>
+<li><a href="../reference/data-contracts.html">Data contracts</a></li>
+<li><a href="../reference/exit-codes-and-environment.html">Exit codes and environment</a></li>
+<li><a href="../reference/glossary.html">Glossary</a></li>
+</ul>
+</li>
+<li><a href="index.html">Explanation</a>
+<ul>
+<li><a href="bill-is-authoritative.html" aria-current="page">The bill is authoritative</a></li>
+<li><a href="allocation-and-coverage.html">Allocation and Coverage</a></li>
+<li><a href="identity-links-and-evidence.html">Identity Links and Evidence</a></li>
+<li><a href="export-snapshots-and-restatements.html">Export Snapshots and restatements</a></li>
+<li><a href="security-model.html">Security model</a></li>
+<li><a href="decision-records.html">Decision records</a></li>
+</ul>
+</li>
+<li><a href="../contributing.html">Contributing</a></li>
+</ul>
+</nav>
+<!-- nav:end -->
+<main id="main">
+<h1>The bill is authoritative</h1>
+<p>data-finops never decides how much something cost. The cloud provider's bill does. Workload metadata only decides where the bill's money goes. This page explains that rule and how data-finops checks it. The decisions are in <a href="https://github.com/apmalong/data-finops/blob/main/docs/adr/0003-authoritative-billing-ledger.md">ADR 0003</a>, <a href="https://github.com/apmalong/data-finops/blob/main/docs/adr/0015-focus-billing-lines-and-export-snapshots.md">ADR 0015</a> and <a href="https://github.com/apmalong/data-finops/blob/main/docs/adr/0016-allocate-to-query-executions-with-roll-ups.md">ADR 0016</a>, and the pipeline is in <a href="https://github.com/apmalong/data-finops/blob/main/docs/specs/03-attribution.md">spec 03</a>. They stay authoritative.</p>
+
+<h2 id="money">Metadata moves money, never makes it</h2>
+<p>A provider's bill arrives as an <a href="../reference/glossary.html#export-snapshot">Export Snapshot</a> of <a href="../reference/glossary.html#billing-line">Billing Lines</a>, kept in the <a href="../reference/glossary.html#ledger">Ledger</a> exactly as published: every cost column, credits, currencies and revisions. A <a href="../reference/glossary.html#calculation-run">Calculation Run</a> splits each Billing Line into <a href="../reference/glossary.html#allocation">Allocations</a>. Query history, dbt artifacts and OpenLineage events say which <a href="../reference/glossary.html#query-execution">Query Execution</a> used what. They never add a cent. A query scanning more data does not raise the bill. It only takes a larger share of what the bill already says.</p>
+<p>So an Allocation can be an estimate, while the totals stay exact. Every Billing Line is split exactly once, and its Allocations sum to its amount, negative <a href="../reference/glossary.html#adjustment">Adjustments</a> included.</p>
+<img src="../assets/explanation/bill-to-roll-ups.svg" alt="An Export Snapshot holds Billing Lines totalling 10.00 USD. A Billing Line splits into Allocations that sum to it: 6.00 USD to Query Execution q-001, and 4.00 USD Unallocated with the reason ineligible. Idle is the third kind of Allocation Target. Through an Identity Link, the 6.00 USD rolls up to Model Execution model.demo.orders and then to its Workload Runs. Roll-ups are sums, never further Allocations." width="1044" height="1394">
+
+<h2 id="unallocated">What cannot be explained stays Unallocated</h2>
+<p>Money with no Evidence is not spread over whatever ran nearby. It becomes <a href="../reference/glossary.html#unallocated">Unallocated</a>, with its reason, and is shown, never hidden or guessed. In the tutorial's bill, the $4.00 S3 storage line stays Unallocated as <code>ineligible</code>, because no Allocation Policy allocates storage yet. A bill that is half Unallocated is still a true bill. A bill whose Unallocated money has been quietly spread is not.</p>
+<p>Above a Query Execution, nothing is allocated again. A <a href="../reference/glossary.html#model-execution">Model Execution</a> or a <a href="../reference/glossary.html#workload-run">Workload Run</a> gets money only as a <a href="../reference/glossary.html#roll-up">Roll-up</a>: a sum of the Allocations linked to it. So a Roll-up can never hold more than the bill gave out.</p>
+
+<h2 id="reconciliation">Reconciliation proves it</h2>
+<p><a href="../reference/glossary.html#reconciliation">Reconciliation</a> is exact, for each Billing Line, currency and <a href="../reference/glossary.html#cost-basis">Cost Basis</a>. It is checked twice:</p>
+<ul>
+<li>When an Export Snapshot is loaded, the Ledger's totals must equal the provider's. Rows are never deduplicated, so nothing the provider billed is lost (<a href="https://github.com/apmalong/data-finops/blob/main/docs/adr/0019-no-row-deduplication-within-export-snapshots.md">ADR 0019</a>).</li>
+<li>After a Calculation Run, the Allocations must sum to the Billing Lines.</li>
+</ul>
+<p>The <a href="../reference/glossary.html#reconciliation-delta">Reconciliation Delta</a> is the signed difference, and it is zero when Reconciliation holds. <code>/v1/reconciliation</code> reports it. An Allocation to a Billing Line the bill lacks, or in the wrong currency, counts against a billed amount of zero, so invented money shows as a delta and cannot hide.</p>
+
+<h2 id="cost-basis">Each Cost Basis reconciles on its own</h2>
+<p>A FOCUS Billing Line has several cost columns, such as BilledCost and EffectiveCost. Each one is reconciled separately, and none is derived from another. The default view is BilledCost, because it matches the invoice. EffectiveCost, which spreads commitments and discounts, can be selected instead. See <a href="../reference/http-api.html">HTTP API</a> for the <code>cost_basis</code> parameter.</p>
+</main>
+<!-- footer:start -->
+<footer>
+<p>This site describes the <code>main</code> branch. Nothing is released yet. No license has been chosen yet. Source on <a href="https://github.com/apmalong/data-finops">GitHub</a>.</p>
+</footer>
+<!-- footer:end -->
+</body>
+</html>

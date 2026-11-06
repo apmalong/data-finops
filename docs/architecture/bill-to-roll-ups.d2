@@ -1,0 +1,31 @@
+# The bill is authoritative: every Billing Line is split into Allocations that sum to it,
+# and everything above a Query Execution is a Roll-up (ADR 0003, ADR 0016).
+# Render: d2 --layout elk docs/architecture/bill-to-roll-ups.d2 site/assets/explanation/bill-to-roll-ups.svg
+direction: down
+
+classes: {
+  bill: {style: {fill: "#ffffff"; stroke: "#1f1f1c"; border-radius: 6; font-size: 20}}
+  target: {style: {fill: "#ffffff"; stroke: "#55544f"; border-radius: 6; font-size: 20}}
+  attention: {style: {fill: "#ffffff"; stroke: "#b4532a"; border-radius: 6; font-size: 20}}
+  rollup: {style: {fill: "#f4f3ef"; stroke: "#8a8983"; stroke-dash: 3; border-radius: 6; font-size: 20}}
+}
+
+snapshot: "Export Snapshot\n(as the provider published it)" {class: bill}
+line: "Billing Line\n10.00 USD in all" {class: bill}
+snapshot -> line: "one row each"
+
+allocations: "Allocations: they sum to the Billing Line" {
+  qe: "Query Execution\nq-001, 6.00 USD" {class: target}
+  idle: "Idle" {class: target}
+  unallocated: "Unallocated, with its reason\nineligible, 4.00 USD" {class: attention}
+}
+line -> allocations.qe
+line -> allocations.idle
+line -> allocations.unallocated
+
+rollups: "Roll-ups: sums, never further Allocations" {
+  model: "Model Execution\nmodel.demo.orders, 6.00 USD" {class: rollup}
+  run: "Workload Runs\ndbt run, Airflow task and DAG run, 6.00 USD each" {class: rollup}
+}
+allocations.qe -> rollups.model: "Identity Link"
+rollups.model -> rollups.run

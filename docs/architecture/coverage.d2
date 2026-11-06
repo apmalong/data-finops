@@ -1,0 +1,22 @@
+# How Coverage decides a metered Billing Line's Allocations (ADR 0017, spec 03 "M4 structure").
+# Render: d2 --layout elk docs/architecture/coverage.d2 site/assets/explanation/coverage.svg
+direction: down
+
+classes: {
+  step: {style: {fill: "#ffffff"; stroke: "#1f1f1c"; border-radius: 6; font-size: 20}}
+  share: {style: {fill: "#ffffff"; stroke: "#55544f"; border-radius: 6; font-size: 20}}
+  attention: {style: {fill: "#ffffff"; stroke: "#b4532a"; border-radius: 6; font-size: 20}}
+}
+
+line: "Billing Line\nbilled quantity" {class: step}
+usage: "Billable Usage\nof each Query Execution\nin its billing scope" {class: step}
+coverage: "Coverage =\nknown Billable Usage\n/ billed quantity" {class: step}
+line -> coverage
+usage -> coverage
+
+one: "Coverage = 1\nthe whole line\nis split into\nMetered Shares" {class: share}
+less: "Coverage < 1\nthe covered fraction\nis split into Metered Shares\nthe rest is Unallocated\ncoverage_remainder" {class: attention}
+more: "Coverage > 1\nthe whole line\nis Unallocated\ncoverage_exceeded\nand flagged" {class: attention}
+coverage -> one
+coverage -> less
+coverage -> more
