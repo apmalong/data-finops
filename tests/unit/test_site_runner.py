@@ -2,6 +2,8 @@
 
 from pathlib import Path
 
+import pytest
+
 from scripts.site.runner import RunProblem, run_page
 
 REPO = Path(__file__).resolve().parents[2]
@@ -112,7 +114,7 @@ def test_curl_needs_a_served_api_and_only_reads(tmp_path: Path) -> None:
     )
     problems = run_page(path, REPO)
     assert where(problems) == [(1, 4), (3, 7)]
-    assert "serve" in problems[0].message and "-H" in problems[1].message
+    assert "curl needs the API" in problems[0].message and "-H" in problems[1].message
 
 
 def test_a_line_the_shell_could_not_split_is_named_not_fatal(tmp_path: Path) -> None:
@@ -120,3 +122,66 @@ def test_a_line_the_shell_could_not_split_is_named_not_fatal(tmp_path: Path) -> 
     problems = run_page(path, REPO)
     assert where(problems) == [(1, 4)]
     assert "quotation" in problems[0].message
+
+
+def test_a_page_runs_the_same_whatever_data_finops_settings_the_caller_has(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("DATA_FINOPS_TOKEN", "a-token-the-page-never-mentions")
+    path = page(
+        tmp_path,
+        INGEST + '<pre><code class="run">data-finops serve --db d.sqlite\n'
+        "curl -s http://127.0.0.1:8000/health</code></pre>\n"
+        '<pre class="output checked">serving …\n{"status":"ok"}</pre>',
+    )
+    assert run_page(path, REPO) == []
+
+
+def test_checked_output_that_follows_no_run_block_is_reported(tmp_path: Path) -> None:
+    path = page(
+        tmp_path,
+        '<pre class="output checked">focus: new …</pre>\n'
+        + INGEST
+        + "<hr>\n"
+        + '<pre class="output checked">focus: new …</pre>\n'
+        + INGEST
+        + "Bare text between.\n"
+        + '<pre class="output checked">focus: replay …</pre>\n'
+        + INGEST
+        + '<pre class="output">illustrative, not checked</pre>'
+        + '<pre class="output checked">focus: replay …</pre>\n'
+        + INGEST
+        + '<pre class="output checked">focus: replay …</pre>',
+    )
+    problems = run_page(path, REPO)
+    assert [(p.block, p.line) for p in problems] == [(0, 4), (1, 7), (2, 10), (3, 12)]
+    assert all("follows no run block" in p.message for p in problems)
+
+
+SERVE = '<pre><code class="run">data-finops serve --db d.sqlite --port 8123</code></pre>\n'
+
+
+def test_demo_cannot_run_in_a_page(tmp_path: Path) -> None:
+    path = page(tmp_path, '<pre><code class="run">data-finops demo</code></pre>')
+    problems = run_page(path, REPO)
+    assert where(problems) == [(1, 4)]
+    assert "demo" in problems[0].message
+
+
+def test_curl_must_name_the_served_address_and_get_a_success(tmp_path: Path) -> None:
+    path = page(
+        tmp_path,
+        INGEST
+        + SERVE
+        + '<pre><code class="run">curl -s http://127.0.0.1:8000/health</code></pre>\n'
+        + '<pre><code class="run">curl -s http://127.0.0.1:8123/v1/nowhere</code></pre>\n'
+        + '<pre><code class="run">curl -s http://127.0.0.1:8123/health</code></pre>',
+    )
+    problems = run_page(path, REPO)
+    assert where(problems) == [(3, 6), (4, 7)]
+    assert "http://127.0.0.1:8123" in problems[0].message and "404" in problems[1].message
+
+
+def test_lines_of_checked_output_count_from_where_its_text_starts(tmp_path: Path) -> None:
+    path = page(tmp_path, INGEST + '<pre class="output checked">\nfocus: old …</pre>')
+    assert where(run_page(path, REPO)) == [(1, 6)]
