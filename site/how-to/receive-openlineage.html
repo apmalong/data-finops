@@ -15,11 +15,7 @@
 <header class="site-header"><a href="../index.html">data-finops</a></header>
 <nav aria-label="Site">
 <ul>
-<li><a href="../tutorials/index.html">Tutorials</a>
-<ul>
-<li><a href="../tutorials/first-allocation.html">Your first allocation</a></li>
-</ul>
-</li>
+<li><a href="../tutorials/index.html">Tutorials</a></li>
 <li><a href="index.html">How-to guides</a>
 <ul>
 <li><a href="install.html">Install data-finops</a></li>
@@ -34,37 +30,30 @@
 <li><a href="deploy-reference-workload.html">Deploy the reference workload</a></li>
 </ul>
 </li>
-<li><a href="../reference/index.html">Reference</a>
-<ul>
-<li><a href="../reference/cli.html">Command line</a></li>
-<li><a href="../reference/http-api.html">HTTP API</a></li>
-<li><a href="../reference/data-contracts.html">Data contracts</a></li>
-<li><a href="../reference/exit-codes-and-environment.html">Exit codes and environment</a></li>
-<li><a href="../reference/glossary.html">Glossary</a></li>
-</ul>
-</li>
-<li><a href="../explanation/index.html">Explanation</a>
-<ul>
-<li><a href="../explanation/bill-is-authoritative.html">The bill is authoritative</a></li>
-<li><a href="../explanation/allocation-and-coverage.html">Allocation and Coverage</a></li>
-<li><a href="../explanation/identity-links-and-evidence.html">Identity Links and Evidence</a></li>
-<li><a href="../explanation/export-snapshots-and-restatements.html">Export Snapshots and restatements</a></li>
-<li><a href="../explanation/security-model.html">Security model</a></li>
-<li><a href="../explanation/decision-records.html">Decision records</a></li>
-</ul>
-</li>
+<li><a href="../reference/index.html">Reference</a></li>
+<li><a href="../explanation/index.html">Explanation</a></li>
 <li><a href="../contributing.html">Contributing</a></li>
 </ul>
 </nav>
 <!-- nav:end -->
 <main id="main">
 <h1>Receive OpenLineage events</h1>
+<!-- onpage:start -->
+<nav class="on-page" aria-label="On this page">
+<p>On this page</p>
+<ul>
+<li><a href="#file">Load events from a file</a></li>
+<li><a href="#http">Receive events over HTTP</a></li>
+<li><a href="#client">Point an OpenLineage client at it</a></li>
+</ul>
+</nav>
+<!-- onpage:end -->
 <p>OpenLineage RunEvents tell data-finops about Workload Runs: an Airflow DAG run, the dbt run inside it, and how they nest. This guide loads them from a file, then receives them over HTTP.</p>
 
 <h2 id="file">Load events from a file</h2>
 <p>The file holds a JSON array of events, or one event per line (JSON Lines):</p>
-<pre><code class="run">data-finops ingest openlineage fixtures/openlineage/events.json --db finops.sqlite</code></pre>
-<pre class="output checked">openlineage: 5 accepted, 0 duplicates, 0 changed copies, 0 unsupported, 0 rejected</pre>
+<pre><code class="run"><span class="line">data-finops ingest openlineage fixtures/openlineage/events.json --db finops.sqlite</span></code></pre>
+<pre class="output checked"><span class="line">openlineage: 5 accepted, 0 duplicates, 0 changed copies, 0 unsupported, 0 rejected</span></pre>
 <ul>
 <li><code>duplicates</code>: events already stored with the same content. Loading the file again stores nothing.</li>
 <li><code>changed copies</code>: an event already stored, reported again with different content. Both are kept.</li>
@@ -72,20 +61,20 @@
 <li><code>rejected</code>: an event that is not a valid RunEvent. The rest of the file is stored, and the command exits with <code>1</code>.</li>
 </ul>
 <p>Each unsupported or rejected event is named by its position and the reason, never by its content. For example:</p>
-<pre class="output">openlineage: 3 accepted, 0 duplicates, 0 changed copies, 2 unsupported, 4 rejected
-  2: not valid JSON
-  3: invalid RunEvent: run/runId (format)
-  4: invalid RunEvent: eventTime (format)
-  5: invalid ParentRunFacet: (event) (required)
-  6: unsupported JobEvent
-  7: unsupported DatasetEvent</pre>
+<pre class="output"><span class="line">openlineage: 3 accepted, 0 duplicates, 0 changed copies, 2 unsupported, 4 rejected
+</span><span class="line">  2: not valid JSON
+</span><span class="line">  3: invalid RunEvent: run/runId (format)
+</span><span class="line">  4: invalid RunEvent: eventTime (format)
+</span><span class="line">  5: invalid ParentRunFacet: (event) (required)
+</span><span class="line">  6: unsupported JobEvent
+</span><span class="line">  7: unsupported DatasetEvent</span></pre>
 
 <h2 id="http">Receive events over HTTP</h2>
 <p><code>serve</code> also runs the receiver, at <code>POST /api/v1/lineage</code>, the default endpoint of OpenLineage's HTTP transport. Each request carries one event:</p>
-<pre><code class="run">data-finops serve --db finops.sqlite
-curl -s -X POST -H 'Content-Type: application/json' --data-binary @fixtures/openlineage/one-event.json http://127.0.0.1:8000/api/v1/lineage</code></pre>
-<pre class="output checked">serving finops.sqlite at http://127.0.0.1:8000/ (Ctrl+C to stop)
-{"accepted":1,"duplicates":0,"changed_copies":0}</pre>
+<pre><code class="run"><span class="line">data-finops serve --db finops.sqlite
+</span><span class="line">curl -s -X POST -H 'Content-Type: application/json' --data-binary @fixtures/openlineage/one-event.json http://127.0.0.1:8000/api/v1/lineage</span></code></pre>
+<pre class="output checked"><span class="line">serving finops.sqlite at http://127.0.0.1:8000/ (Ctrl+C to stop)
+</span><span class="line">{"accepted":1,"duplicates":0,"changed_copies":0}</span></pre>
 <p><code>serve</code> keeps running, so send events from a second terminal. The receiver screens each event exactly as it screens one item of a file:</p>
 <ul>
 <li><code>201</code> with the counts above when the event is stored, or was already there.</li>
@@ -102,6 +91,12 @@ curl -s -X POST -H 'Content-Type: application/json' --data-binary @fixtures/open
 OPENLINEAGE_ENDPOINT=api/v1/lineage</code></pre>
 <p class="notice">Not run on this page: it configures a client outside data-finops.</p>
 <p>To receive events from another machine, <code>serve</code> needs a token, which the client sends as its API key. See <a href="serve-with-token.html">Serve with a token</a>.</p>
+<!-- pager:start -->
+<nav class="pager" aria-label="Previous and next">
+<a rel="prev" href="ingest-dbt-artifacts.html">Previous: Ingest dbt artifacts</a>
+<a rel="next" href="calculate.html">Next: Calculate Allocations</a>
+</nav>
+<!-- pager:end -->
 </main>
 <!-- footer:start -->
 <footer>

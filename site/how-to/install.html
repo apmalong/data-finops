@@ -15,11 +15,7 @@
 <header class="site-header"><a href="../index.html">data-finops</a></header>
 <nav aria-label="Site">
 <ul>
-<li><a href="../tutorials/index.html">Tutorials</a>
-<ul>
-<li><a href="../tutorials/first-allocation.html">Your first allocation</a></li>
-</ul>
-</li>
+<li><a href="../tutorials/index.html">Tutorials</a></li>
 <li><a href="index.html">How-to guides</a>
 <ul>
 <li><a href="install.html" aria-current="page">Install data-finops</a></li>
@@ -34,31 +30,25 @@
 <li><a href="deploy-reference-workload.html">Deploy the reference workload</a></li>
 </ul>
 </li>
-<li><a href="../reference/index.html">Reference</a>
-<ul>
-<li><a href="../reference/cli.html">Command line</a></li>
-<li><a href="../reference/http-api.html">HTTP API</a></li>
-<li><a href="../reference/data-contracts.html">Data contracts</a></li>
-<li><a href="../reference/exit-codes-and-environment.html">Exit codes and environment</a></li>
-<li><a href="../reference/glossary.html">Glossary</a></li>
-</ul>
-</li>
-<li><a href="../explanation/index.html">Explanation</a>
-<ul>
-<li><a href="../explanation/bill-is-authoritative.html">The bill is authoritative</a></li>
-<li><a href="../explanation/allocation-and-coverage.html">Allocation and Coverage</a></li>
-<li><a href="../explanation/identity-links-and-evidence.html">Identity Links and Evidence</a></li>
-<li><a href="../explanation/export-snapshots-and-restatements.html">Export Snapshots and restatements</a></li>
-<li><a href="../explanation/security-model.html">Security model</a></li>
-<li><a href="../explanation/decision-records.html">Decision records</a></li>
-</ul>
-</li>
+<li><a href="../reference/index.html">Reference</a></li>
+<li><a href="../explanation/index.html">Explanation</a></li>
 <li><a href="../contributing.html">Contributing</a></li>
 </ul>
 </nav>
 <!-- nav:end -->
 <main id="main">
 <h1>Install data-finops</h1>
+<!-- onpage:start -->
+<nav class="on-page" aria-label="On this page">
+<p>On this page</p>
+<ul>
+<li><a href="#needs">What you need</a></li>
+<li><a href="#with-api">Install with the API and dashboard</a></li>
+<li><a href="#base">Install without the extra</a></li>
+<li><a href="#demo">Try it with the demo</a></li>
+</ul>
+</nav>
+<!-- onpage:end -->
 <p>This guide installs the <code>data-finops</code> command from a source checkout. Nothing is released yet, so there is no package on PyPI to install.</p>
 <p class="notice">Not run on this page: it changes your machine.</p>
 
@@ -84,6 +74,12 @@ uv run data-finops --help</code></pre>
 <pre><code>uv run data-finops demo</code></pre>
 <p><code>demo</code> loads the hand-written fixtures into a temporary database file, runs a Calculation Run and serves on loopback at <a href="http://127.0.0.1:8000/">http://127.0.0.1:8000/</a>. It reads the repository's <code>fixtures/</code> directory, so it needs a source checkout: an installed package does not include the fixtures. The database file is removed when <code>demo</code> stops.</p>
 <p>Next, follow the tutorial <a href="../tutorials/first-allocation.html">Your first allocation</a>, which runs the same steps one at a time.</p>
+<!-- pager:start -->
+<nav class="pager" aria-label="Previous and next">
+<a rel="prev" href="index.html">Previous: How-to guides</a>
+<a rel="next" href="ingest-focus-export.html">Next: Ingest a FOCUS export</a>
+</nav>
+<!-- pager:end -->
 </main>
 <!-- footer:start -->
 <footer>

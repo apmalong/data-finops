@@ -15,25 +15,8 @@
 <header class="site-header"><a href="../index.html">data-finops</a></header>
 <nav aria-label="Site">
 <ul>
-<li><a href="../tutorials/index.html">Tutorials</a>
-<ul>
-<li><a href="../tutorials/first-allocation.html">Your first allocation</a></li>
-</ul>
-</li>
-<li><a href="../how-to/index.html">How-to guides</a>
-<ul>
-<li><a href="../how-to/install.html">Install data-finops</a></li>
-<li><a href="../how-to/ingest-focus-export.html">Ingest a FOCUS export</a></li>
-<li><a href="../how-to/ingest-athena-history.html">Ingest Athena query history</a></li>
-<li><a href="../how-to/ingest-dbt-artifacts.html">Ingest dbt artifacts</a></li>
-<li><a href="../how-to/receive-openlineage.html">Receive OpenLineage events</a></li>
-<li><a href="../how-to/calculate.html">Calculate Allocations</a></li>
-<li><a href="../how-to/handle-restated-export.html">Handle a restated export</a></li>
-<li><a href="../how-to/read-cost-explanation.html">Read a Cost Explanation</a></li>
-<li><a href="../how-to/serve-with-token.html">Serve with a token</a></li>
-<li><a href="../how-to/deploy-reference-workload.html">Deploy the reference workload</a></li>
-</ul>
-</li>
+<li><a href="../tutorials/index.html">Tutorials</a></li>
+<li><a href="../how-to/index.html">How-to guides</a></li>
 <li><a href="index.html">Reference</a>
 <ul>
 <li><a href="cli.html">Command line</a></li>
@@ -43,22 +26,26 @@
 <li><a href="glossary.html" aria-current="page">Glossary</a></li>
 </ul>
 </li>
-<li><a href="../explanation/index.html">Explanation</a>
-<ul>
-<li><a href="../explanation/bill-is-authoritative.html">The bill is authoritative</a></li>
-<li><a href="../explanation/allocation-and-coverage.html">Allocation and Coverage</a></li>
-<li><a href="../explanation/identity-links-and-evidence.html">Identity Links and Evidence</a></li>
-<li><a href="../explanation/export-snapshots-and-restatements.html">Export Snapshots and restatements</a></li>
-<li><a href="../explanation/security-model.html">Security model</a></li>
-<li><a href="../explanation/decision-records.html">Decision records</a></li>
-</ul>
-</li>
+<li><a href="../explanation/index.html">Explanation</a></li>
 <li><a href="../contributing.html">Contributing</a></li>
 </ul>
 </nav>
 <!-- nav:end -->
 <main id="main">
 <h1>Glossary</h1>
+<!-- onpage:start -->
+<nav class="on-page" aria-label="On this page">
+<p>On this page</p>
+<ul>
+<li><a href="#area-billing">Billing</a></li>
+<li><a href="#area-workload-identity">Workload identity</a></li>
+<li><a href="#area-lineage">Lineage</a></li>
+<li><a href="#area-allocation">Allocation</a></li>
+<li><a href="#area-reconciliation">Reconciliation</a></li>
+<li><a href="#area-flagged-ambiguities">Flagged ambiguities</a></li>
+</ul>
+</nav>
+<!-- onpage:end -->
 <p>The terms data-finops uses, in its pages, its API and its code. Most terms also say what to avoid saying instead. This page is generated from <a href="https://github.com/apmalong/data-finops/blob/main/GLOSSARY.md"><code>GLOSSARY.md</code></a>.</p>
 <!-- reference:start -->
 <p>Attributes authoritative cloud charges to the data workloads that caused them, without creating, losing or double-counting money. Terms here are settled; contested terms are tracked in <code>docs/implementation/open-questions.md</code> until resolved.</p>
@@ -199,6 +186,12 @@
 <li><code>no_evidence</code> names two things: a Link Outcome (a Query Execution without a Trusted Query Comment) and an Unallocated reason (a shared pool with no positive weight, #86). They never meet: Link Outcomes describe Identity Links, Unallocated reasons describe money. Say which one you mean.</li>
 </ul>
 <!-- reference:end -->
+<!-- pager:start -->
+<nav class="pager" aria-label="Previous and next">
+<a rel="prev" href="exit-codes-and-environment.html">Previous: Exit codes and environment</a>
+<a rel="next" href="../explanation/index.html">Next: Explanation</a>
+</nav>
+<!-- pager:end -->
 </main>
 <!-- footer:start -->
 <footer>

@@ -16,7 +16,8 @@ from scripts.site.reference import render_cli, render_contracts, render_glossary
 
 __all__ = ["SiteError", "build"]
 
-REQUIRED_REGIONS = ("head", "nav", "footer")  # every page has each exactly once
+REQUIRED_REGIONS = ("head", "nav", "pager", "footer")  # every page has each exactly once
+# `onpage` is required too, but stamped last, from the page's finished h2s.
 OPTIONAL_REGIONS = ("pages",)  # a section's index page may list its pages
 SOURCE = "https://github.com/apmalong/data-finops"
 
@@ -37,21 +38,28 @@ def build(repo: Path) -> dict[str, str]:
     """
     site = repo / "site"
     nav = parse_nav((site / "nav.json").read_text(encoding="utf-8"))
+    order = list(walk(nav))
     built: dict[str, str] = {}
-    for entry in walk(nav):
+    for index, entry in enumerate(order):
         source = site / entry.path
         if not source.is_file():
             continue
         content = {
             "head": _head(entry.path),
             "nav": _nav(nav, entry.path),
+            "pager": _pager(
+                entry.path,
+                order[index - 1] if index else None,
+                order[index + 1] if index + 1 < len(order) else None,
+            ),
             "footer": FOOTER,
             "pages": _pages(entry),
         }
         text = source.read_text(encoding="utf-8")
         for name in (*REQUIRED_REGIONS, *OPTIONAL_REGIONS):
             text = _stamp(text, entry.path, name, content[name], name in REQUIRED_REGIONS)
-        built[entry.path] = _stamp_reference(repo, entry.path, text)
+        text = _line_spans(_stamp_reference(repo, entry.path, text))
+        built[entry.path] = _stamp(text, entry.path, "onpage", _on_page(entry.path, text), True)
     return built
 
 
@@ -114,19 +122,66 @@ def _link(current: str, entry_path: str, title: str) -> str:
 
 
 def _nav(nav: tuple[Entry, ...], current: str) -> str:
+    """The site nav: every section, with only the current section's pages listed."""
     home, *sections = nav
-
-    def items(entries: tuple[Entry, ...]) -> str:
-        lines = []
-        for e in entries:
-            children = f"\n<ul>\n{items(e.pages)}\n</ul>\n" if e.pages else ""
-            lines.append(f"<li>{_link(current, e.path, e.title)}{children}</li>")
-        return "\n".join(lines)
-
+    lines = []
+    for section in sections:
+        inside = current == section.path or any(p.path == current for p in section.pages)
+        pages = "\n".join(f"<li>{_link(current, p.path, p.title)}</li>" for p in section.pages)
+        children = f"\n<ul>\n{pages}\n</ul>\n" if inside and section.pages else ""
+        lines.append(f"<li>{_link(current, section.path, section.title)}{children}</li>")
+    items = "\n".join(lines)
     return (
         '<a class="skip-link" href="#main">Skip to content</a>\n'
         f'<header class="site-header">{_link(current, home.path, home.title)}</header>\n'
-        f'<nav aria-label="Site">\n<ul>\n{items(tuple(sections))}\n</ul>\n</nav>'
+        f'<nav aria-label="Site">\n<ul>\n{items}\n</ul>\n</nav>'
+    )
+
+
+def _pager(current: str, before: Entry | None, after: Entry | None) -> str:
+    """Links to the pages before and after `current`, in nav order."""
+    links = [
+        f'<a rel="{rel}" href="{html.escape(_relative(current, entry.path))}">'
+        f"{label}: {html.escape(entry.title)}</a>"
+        for rel, label, entry in (("prev", "Previous", before), ("next", "Next", after))
+        if entry is not None
+    ]
+    return '<nav class="pager" aria-label="Previous and next">\n' + "\n".join(links) + "\n</nav>"
+
+
+_RUN_OR_OUTPUT = re.compile(
+    r'(<pre><code class="run">|<pre class="output[^"]*">)(.*?)(</code></pre>|</pre>)', re.DOTALL
+)
+_LINE_SPAN = re.compile(r'<span class="line">|</span>')
+_H2 = re.compile(r"<h2\b([^>]*)>(.*?)</h2>", re.DOTALL)
+
+
+def _line_spans(text: str) -> str:
+    """Each line of every run and output block in its own `<span class="line">`, so a long line
+    wraps with a hanging indent. The block's text, which the page runner reads, is unchanged."""
+
+    def spans(block: re.Match[str]) -> str:
+        lines = _LINE_SPAN.sub("", block[2]).split("\n")
+        inner = "".join(f'<span class="line">{line}\n</span>' for line in lines[:-1])
+        return f'{block[1]}{inner}<span class="line">{lines[-1]}</span>{block[3]}'
+
+    return _RUN_OR_OUTPUT.sub(spans, text)
+
+
+def _on_page(page: str, text: str) -> str:
+    """The "On this page" list of the page's h2s, or nothing when it has none."""
+    items = []
+    for heading in _H2.finditer(text):
+        anchor = re.search(r'\bid="([^"]+)"', heading[1])
+        if anchor is None:
+            raise SiteError(f"{page} has an h2 without an id: {heading[0][:60]}")
+        items.append(f'<li><a href="#{anchor[1]}">{heading[2].strip()}</a></li>')
+    if not items:
+        return ""
+    return (
+        '<nav class="on-page" aria-label="On this page">\n<p>On this page</p>\n<ul>\n'
+        + "\n".join(items)
+        + "\n</ul>\n</nav>"
     )
 
 

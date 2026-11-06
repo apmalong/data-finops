@@ -15,11 +15,7 @@
 <header class="site-header"><a href="../index.html">data-finops</a></header>
 <nav aria-label="Site">
 <ul>
-<li><a href="../tutorials/index.html">Tutorials</a>
-<ul>
-<li><a href="../tutorials/first-allocation.html">Your first allocation</a></li>
-</ul>
-</li>
+<li><a href="../tutorials/index.html">Tutorials</a></li>
 <li><a href="index.html">How-to guides</a>
 <ul>
 <li><a href="install.html">Install data-finops</a></li>
@@ -34,31 +30,26 @@
 <li><a href="deploy-reference-workload.html" aria-current="page">Deploy the reference workload</a></li>
 </ul>
 </li>
-<li><a href="../reference/index.html">Reference</a>
-<ul>
-<li><a href="../reference/cli.html">Command line</a></li>
-<li><a href="../reference/http-api.html">HTTP API</a></li>
-<li><a href="../reference/data-contracts.html">Data contracts</a></li>
-<li><a href="../reference/exit-codes-and-environment.html">Exit codes and environment</a></li>
-<li><a href="../reference/glossary.html">Glossary</a></li>
-</ul>
-</li>
-<li><a href="../explanation/index.html">Explanation</a>
-<ul>
-<li><a href="../explanation/bill-is-authoritative.html">The bill is authoritative</a></li>
-<li><a href="../explanation/allocation-and-coverage.html">Allocation and Coverage</a></li>
-<li><a href="../explanation/identity-links-and-evidence.html">Identity Links and Evidence</a></li>
-<li><a href="../explanation/export-snapshots-and-restatements.html">Export Snapshots and restatements</a></li>
-<li><a href="../explanation/security-model.html">Security model</a></li>
-<li><a href="../explanation/decision-records.html">Decision records</a></li>
-</ul>
-</li>
+<li><a href="../reference/index.html">Reference</a></li>
+<li><a href="../explanation/index.html">Explanation</a></li>
 <li><a href="../contributing.html">Contributing</a></li>
 </ul>
 </nav>
 <!-- nav:end -->
 <main id="main">
 <h1>Deploy the reference workload</h1>
+<!-- onpage:start -->
+<nav class="on-page" aria-label="On this page">
+<p>On this page</p>
+<ul>
+<li><a href="#cost">What it deploys and costs</a></li>
+<li><a href="#configure">Configure the stack</a></li>
+<li><a href="#deploy">Deploy</a></li>
+<li><a href="#run">Run the workload and collect its outputs</a></li>
+<li><a href="#teardown">Tear it down</a></li>
+</ul>
+</nav>
+<!-- onpage:end -->
 <p>The reference workload is a small Athena, dbt and Airflow pipeline in a real AWS account. It produces a real bill, real Athena history and real OpenLineage events, to check data-finops against more than the hand-written fixtures (ADR 0021). This guide deploys it with Pulumi, runs it and tears it down. The full steps are in <a href="https://github.com/apmalong/data-finops/blob/main/examples/reference-workload/README.md">the reference workload's README</a>.</p>
 <p class="notice">Not run on this page. It creates resources in a real AWS account and costs real money. The owner approves every <code>pulumi preview</code>, <code>pulumi up</code>, workload run and <code>pulumi destroy</code> against a real account.</p>
 
@@ -110,6 +101,12 @@ uv run python scripts/anonymize_workload_outputs.py &lt;outputs-dir&gt; &lt;outp
 <li>the WSL virtual environment, <code>.venv-linux</code>.</li>
 </ul>
 <p>The recorded teardown, and how to recreate the stack, are tracked in <a href="https://github.com/apmalong/data-finops/issues/26">issue #26</a>.</p>
+<!-- pager:start -->
+<nav class="pager" aria-label="Previous and next">
+<a rel="prev" href="serve-with-token.html">Previous: Serve with a token</a>
+<a rel="next" href="../reference/index.html">Next: Reference</a>
+</nav>
+<!-- pager:end -->
 </main>
 <!-- footer:start -->
 <footer>

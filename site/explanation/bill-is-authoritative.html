@@ -15,34 +15,9 @@
 <header class="site-header"><a href="../index.html">data-finops</a></header>
 <nav aria-label="Site">
 <ul>
-<li><a href="../tutorials/index.html">Tutorials</a>
-<ul>
-<li><a href="../tutorials/first-allocation.html">Your first allocation</a></li>
-</ul>
-</li>
-<li><a href="../how-to/index.html">How-to guides</a>
-<ul>
-<li><a href="../how-to/install.html">Install data-finops</a></li>
-<li><a href="../how-to/ingest-focus-export.html">Ingest a FOCUS export</a></li>
-<li><a href="../how-to/ingest-athena-history.html">Ingest Athena query history</a></li>
-<li><a href="../how-to/ingest-dbt-artifacts.html">Ingest dbt artifacts</a></li>
-<li><a href="../how-to/receive-openlineage.html">Receive OpenLineage events</a></li>
-<li><a href="../how-to/calculate.html">Calculate Allocations</a></li>
-<li><a href="../how-to/handle-restated-export.html">Handle a restated export</a></li>
-<li><a href="../how-to/read-cost-explanation.html">Read a Cost Explanation</a></li>
-<li><a href="../how-to/serve-with-token.html">Serve with a token</a></li>
-<li><a href="../how-to/deploy-reference-workload.html">Deploy the reference workload</a></li>
-</ul>
-</li>
-<li><a href="../reference/index.html">Reference</a>
-<ul>
-<li><a href="../reference/cli.html">Command line</a></li>
-<li><a href="../reference/http-api.html">HTTP API</a></li>
-<li><a href="../reference/data-contracts.html">Data contracts</a></li>
-<li><a href="../reference/exit-codes-and-environment.html">Exit codes and environment</a></li>
-<li><a href="../reference/glossary.html">Glossary</a></li>
-</ul>
-</li>
+<li><a href="../tutorials/index.html">Tutorials</a></li>
+<li><a href="../how-to/index.html">How-to guides</a></li>
+<li><a href="../reference/index.html">Reference</a></li>
 <li><a href="index.html">Explanation</a>
 <ul>
 <li><a href="bill-is-authoritative.html" aria-current="page">The bill is authoritative</a></li>
@@ -59,6 +34,17 @@
 <!-- nav:end -->
 <main id="main">
 <h1>The bill is authoritative</h1>
+<!-- onpage:start -->
+<nav class="on-page" aria-label="On this page">
+<p>On this page</p>
+<ul>
+<li><a href="#money">Metadata moves money, never makes it</a></li>
+<li><a href="#unallocated">What cannot be explained stays Unallocated</a></li>
+<li><a href="#reconciliation">Reconciliation proves it</a></li>
+<li><a href="#cost-basis">Each Cost Basis reconciles on its own</a></li>
+</ul>
+</nav>
+<!-- onpage:end -->
 <p>data-finops never decides how much something cost. The cloud provider's bill does. Workload metadata only decides where the bill's money goes. This page explains that rule and how data-finops checks it. The decisions are in <a href="https://github.com/apmalong/data-finops/blob/main/docs/adr/0003-authoritative-billing-ledger.md">ADR 0003</a>, <a href="https://github.com/apmalong/data-finops/blob/main/docs/adr/0015-focus-billing-lines-and-export-snapshots.md">ADR 0015</a> and <a href="https://github.com/apmalong/data-finops/blob/main/docs/adr/0016-allocate-to-query-executions-with-roll-ups.md">ADR 0016</a>, and the pipeline is in <a href="https://github.com/apmalong/data-finops/blob/main/docs/specs/03-attribution.md">spec 03</a>. They stay authoritative.</p>
 
 <h2 id="money">Metadata moves money, never makes it</h2>
@@ -80,6 +66,12 @@
 
 <h2 id="cost-basis">Each Cost Basis reconciles on its own</h2>
 <p>A FOCUS Billing Line has several cost columns, such as BilledCost and EffectiveCost. Each one is reconciled separately, and none is derived from another. The default view is BilledCost, because it matches the invoice. EffectiveCost, which spreads commitments and discounts, can be selected instead. See <a href="../reference/http-api.html">HTTP API</a> for the <code>cost_basis</code> parameter.</p>
+<!-- pager:start -->
+<nav class="pager" aria-label="Previous and next">
+<a rel="prev" href="index.html">Previous: Explanation</a>
+<a rel="next" href="allocation-and-coverage.html">Next: Allocation and Coverage</a>
+</nav>
+<!-- pager:end -->
 </main>
 <!-- footer:start -->
 <footer>

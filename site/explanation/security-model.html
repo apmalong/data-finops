@@ -15,34 +15,9 @@
 <header class="site-header"><a href="../index.html">data-finops</a></header>
 <nav aria-label="Site">
 <ul>
-<li><a href="../tutorials/index.html">Tutorials</a>
-<ul>
-<li><a href="../tutorials/first-allocation.html">Your first allocation</a></li>
-</ul>
-</li>
-<li><a href="../how-to/index.html">How-to guides</a>
-<ul>
-<li><a href="../how-to/install.html">Install data-finops</a></li>
-<li><a href="../how-to/ingest-focus-export.html">Ingest a FOCUS export</a></li>
-<li><a href="../how-to/ingest-athena-history.html">Ingest Athena query history</a></li>
-<li><a href="../how-to/ingest-dbt-artifacts.html">Ingest dbt artifacts</a></li>
-<li><a href="../how-to/receive-openlineage.html">Receive OpenLineage events</a></li>
-<li><a href="../how-to/calculate.html">Calculate Allocations</a></li>
-<li><a href="../how-to/handle-restated-export.html">Handle a restated export</a></li>
-<li><a href="../how-to/read-cost-explanation.html">Read a Cost Explanation</a></li>
-<li><a href="../how-to/serve-with-token.html">Serve with a token</a></li>
-<li><a href="../how-to/deploy-reference-workload.html">Deploy the reference workload</a></li>
-</ul>
-</li>
-<li><a href="../reference/index.html">Reference</a>
-<ul>
-<li><a href="../reference/cli.html">Command line</a></li>
-<li><a href="../reference/http-api.html">HTTP API</a></li>
-<li><a href="../reference/data-contracts.html">Data contracts</a></li>
-<li><a href="../reference/exit-codes-and-environment.html">Exit codes and environment</a></li>
-<li><a href="../reference/glossary.html">Glossary</a></li>
-</ul>
-</li>
+<li><a href="../tutorials/index.html">Tutorials</a></li>
+<li><a href="../how-to/index.html">How-to guides</a></li>
+<li><a href="../reference/index.html">Reference</a></li>
 <li><a href="index.html">Explanation</a>
 <ul>
 <li><a href="bill-is-authoritative.html">The bill is authoritative</a></li>
@@ -59,6 +34,19 @@
 <!-- nav:end -->
 <main id="main">
 <h1>Security model</h1>
+<!-- onpage:start -->
+<nav class="on-page" aria-label="On this page">
+<p>On this page</p>
+<ul>
+<li><a href="#loopback">Loopback by default</a></li>
+<li><a href="#token">One bearer token</a></li>
+<li><a href="#bounded">Bounded payloads</a></li>
+<li><a href="#no-echo">Errors never echo input</a></li>
+<li><a href="#minimal">Only the metadata needed is kept</a></li>
+<li><a href="#fixtures">Anonymized samples</a></li>
+</ul>
+</nav>
+<!-- onpage:end -->
 <p>data-finops reads bills and workload metadata, which can reveal a lot about a business. This page explains how it limits who can reach it, what it accepts and what it keeps. The decisions are in <a href="https://github.com/apmalong/data-finops/blob/main/docs/adr/0012-security-and-privacy-by-default.md">ADR 0012</a> and <a href="https://github.com/apmalong/data-finops/blob/main/docs/adr/0024-local-receiver-ingress-and-token.md">ADR 0024</a>, with the threat model in <a href="https://github.com/apmalong/data-finops/blob/main/docs/specs/05-security-operations.md">spec 05</a>, what is kept in <a href="https://github.com/apmalong/data-finops/blob/main/docs/specs/04-integrations.md">spec 04</a> and the API's errors in <a href="https://github.com/apmalong/data-finops/blob/main/docs/specs/06-api-and-dashboard.md">spec 06</a>. They stay authoritative.</p>
 
 <h2 id="loopback">Loopback by default</h2>
@@ -96,6 +84,12 @@
 
 <h2 id="fixtures">Anonymized samples</h2>
 <p>The real-world sample in <code>fixtures/reference-workload/</code> was anonymized before it was committed. Values were replaced with keyed pseudonyms, account IDs were replaced, and SQL was cut down. The scripts and their secret are described in <a href="../reference/exit-codes-and-environment.html#environment-heading">Exit codes and environment</a>.</p>
+<!-- pager:start -->
+<nav class="pager" aria-label="Previous and next">
+<a rel="prev" href="export-snapshots-and-restatements.html">Previous: Export Snapshots and restatements</a>
+<a rel="next" href="decision-records.html">Next: Decision records</a>
+</nav>
+<!-- pager:end -->
 </main>
 <!-- footer:start -->
 <footer>

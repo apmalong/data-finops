@@ -316,7 +316,11 @@ def _inline(text: str) -> str:
 def _table(headers: list[str], rows: list[str]) -> str:
     head = "".join(f"<th>{escape(h)}</th>" for h in headers)
     body = "\n".join(rows)
-    return f"<table>\n<thead><tr>{head}</tr></thead>\n<tbody>\n{body}\n</tbody>\n</table>"
+    # A wide table scrolls in its own box, which keyboard users can focus, not the whole page.
+    return (
+        '<div class="table-scroll" tabindex="0">\n'
+        f"<table>\n<thead><tr>{head}</tr></thead>\n<tbody>\n{body}\n</tbody>\n</table>\n</div>"
+    )
 
 
 def _text(text: str | None) -> str:

@@ -15,11 +15,7 @@
 <header class="site-header"><a href="../index.html">data-finops</a></header>
 <nav aria-label="Site">
 <ul>
-<li><a href="../tutorials/index.html">Tutorials</a>
-<ul>
-<li><a href="../tutorials/first-allocation.html">Your first allocation</a></li>
-</ul>
-</li>
+<li><a href="../tutorials/index.html">Tutorials</a></li>
 <li><a href="index.html">How-to guides</a>
 <ul>
 <li><a href="install.html">Install data-finops</a></li>
@@ -34,36 +30,30 @@
 <li><a href="deploy-reference-workload.html">Deploy the reference workload</a></li>
 </ul>
 </li>
-<li><a href="../reference/index.html">Reference</a>
-<ul>
-<li><a href="../reference/cli.html">Command line</a></li>
-<li><a href="../reference/http-api.html">HTTP API</a></li>
-<li><a href="../reference/data-contracts.html">Data contracts</a></li>
-<li><a href="../reference/exit-codes-and-environment.html">Exit codes and environment</a></li>
-<li><a href="../reference/glossary.html">Glossary</a></li>
-</ul>
-</li>
-<li><a href="../explanation/index.html">Explanation</a>
-<ul>
-<li><a href="../explanation/bill-is-authoritative.html">The bill is authoritative</a></li>
-<li><a href="../explanation/allocation-and-coverage.html">Allocation and Coverage</a></li>
-<li><a href="../explanation/identity-links-and-evidence.html">Identity Links and Evidence</a></li>
-<li><a href="../explanation/export-snapshots-and-restatements.html">Export Snapshots and restatements</a></li>
-<li><a href="../explanation/security-model.html">Security model</a></li>
-<li><a href="../explanation/decision-records.html">Decision records</a></li>
-</ul>
-</li>
+<li><a href="../reference/index.html">Reference</a></li>
+<li><a href="../explanation/index.html">Explanation</a></li>
 <li><a href="../contributing.html">Contributing</a></li>
 </ul>
 </nav>
 <!-- nav:end -->
 <main id="main">
 <h1>Ingest a FOCUS export</h1>
+<!-- onpage:start -->
+<nav class="on-page" aria-label="On this page">
+<p>On this page</p>
+<ul>
+<li><a href="#json">Load an Export Snapshot from a JSON file</a></li>
+<li><a href="#again">Load it again safely</a></li>
+<li><a href="#delivery">Load an AWS Data Exports Delivery</a></li>
+<li><a href="#refused">If the ingest is refused</a></li>
+</ul>
+</nav>
+<!-- onpage:end -->
 <p>This guide loads an Export Snapshot into a database file: all the Billing Lines of one billing account, Billing Period and source, as the provider published them. It comes from a FOCUS JSON file or from an AWS Data Exports Delivery.</p>
 
 <h2 id="json">Load an Export Snapshot from a JSON file</h2>
-<pre><code class="run">data-finops ingest focus fixtures/focus/export-2026-10.json --db finops.sqlite</code></pre>
-<pre class="output checked">focus: new aws-focus-123456789012-2026-10-v1</pre>
+<pre><code class="run"><span class="line">data-finops ingest focus fixtures/focus/export-2026-10.json --db finops.sqlite</span></code></pre>
+<pre class="output checked"><span class="line">focus: new aws-focus-123456789012-2026-10-v1</span></pre>
 <p>The database file is created if it does not exist. The line gives the outcome, then the Export Snapshot's ID:</p>
 <ul>
 <li><code>new</code>: it is stored, and it is now the current Export Snapshot of its Snapshot Scope.</li>
@@ -72,8 +62,8 @@
 </ul>
 
 <h2 id="again">Load it again safely</h2>
-<pre><code class="run">data-finops ingest focus fixtures/focus/export-2026-10.json --db finops.sqlite</code></pre>
-<pre class="output checked">focus: replay aws-focus-123456789012-2026-10-v1</pre>
+<pre><code class="run"><span class="line">data-finops ingest focus fixtures/focus/export-2026-10.json --db finops.sqlite</span></code></pre>
+<pre class="output checked"><span class="line">focus: replay aws-focus-123456789012-2026-10-v1</span></pre>
 <p>A replay stores nothing, so you can rerun an ingest without making copies. Which Export Snapshot is current depends on the provider's publication time, never on the order you load them in (ADR 0020).</p>
 
 <h2 id="delivery">Load an AWS Data Exports Delivery</h2>
@@ -92,6 +82,12 @@
 <li>An Export Snapshot with the same ID is already stored with other content. Stored Export Snapshots never change.</li>
 </ul>
 <p>See <a href="../reference/exit-codes-and-environment.html">Exit codes and environment</a>. Next, <a href="calculate.html">calculate the Allocations</a>.</p>
+<!-- pager:start -->
+<nav class="pager" aria-label="Previous and next">
+<a rel="prev" href="install.html">Previous: Install data-finops</a>
+<a rel="next" href="ingest-athena-history.html">Next: Ingest Athena query history</a>
+</nav>
+<!-- pager:end -->
 </main>
 <!-- footer:start -->
 <footer>

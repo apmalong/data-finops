@@ -15,11 +15,7 @@
 <header class="site-header"><a href="../index.html">data-finops</a></header>
 <nav aria-label="Site">
 <ul>
-<li><a href="../tutorials/index.html">Tutorials</a>
-<ul>
-<li><a href="../tutorials/first-allocation.html">Your first allocation</a></li>
-</ul>
-</li>
+<li><a href="../tutorials/index.html">Tutorials</a></li>
 <li><a href="index.html">How-to guides</a>
 <ul>
 <li><a href="install.html">Install data-finops</a></li>
@@ -34,31 +30,25 @@
 <li><a href="deploy-reference-workload.html">Deploy the reference workload</a></li>
 </ul>
 </li>
-<li><a href="../reference/index.html">Reference</a>
-<ul>
-<li><a href="../reference/cli.html">Command line</a></li>
-<li><a href="../reference/http-api.html">HTTP API</a></li>
-<li><a href="../reference/data-contracts.html">Data contracts</a></li>
-<li><a href="../reference/exit-codes-and-environment.html">Exit codes and environment</a></li>
-<li><a href="../reference/glossary.html">Glossary</a></li>
-</ul>
-</li>
-<li><a href="../explanation/index.html">Explanation</a>
-<ul>
-<li><a href="../explanation/bill-is-authoritative.html">The bill is authoritative</a></li>
-<li><a href="../explanation/allocation-and-coverage.html">Allocation and Coverage</a></li>
-<li><a href="../explanation/identity-links-and-evidence.html">Identity Links and Evidence</a></li>
-<li><a href="../explanation/export-snapshots-and-restatements.html">Export Snapshots and restatements</a></li>
-<li><a href="../explanation/security-model.html">Security model</a></li>
-<li><a href="../explanation/decision-records.html">Decision records</a></li>
-</ul>
-</li>
+<li><a href="../reference/index.html">Reference</a></li>
+<li><a href="../explanation/index.html">Explanation</a></li>
 <li><a href="../contributing.html">Contributing</a></li>
 </ul>
 </nav>
 <!-- nav:end -->
 <main id="main">
 <h1>Ingest Athena query history</h1>
+<!-- onpage:start -->
+<nav class="on-page" aria-label="On this page">
+<p>On this page</p>
+<ul>
+<li><a href="#fetch">Fetch the history from AWS</a></li>
+<li><a href="#load">Load it</a></li>
+<li><a href="#again">Load overlapping history</a></li>
+<li><a href="#kept">What is kept</a></li>
+</ul>
+</nav>
+<!-- onpage:end -->
 <p>Athena's query history gives the Query Executions behind an Athena bill: how much each one scanned and, through its Trusted Query Comment, which Model Execution issued it. This guide fetches the history from AWS and loads it.</p>
 
 <h2 id="fetch">Fetch the history from AWS</h2>
@@ -70,8 +60,8 @@ aws athena batch-get-query-execution --query-execution-ids &lt;id&gt; &lt;id&gt;
 
 <h2 id="load">Load it</h2>
 <p>The response does not say which account and Region it came from, so give them alongside it:</p>
-<pre><code class="run">data-finops ingest athena fixtures/athena/query-executions.json --account-id 123456789012 --region us-east-1 --db finops.sqlite</code></pre>
-<pre class="output checked">athena: 2 accepted, 0 duplicates, 0 changed copies, 0 rejected</pre>
+<pre><code class="run"><span class="line">data-finops ingest athena fixtures/athena/query-executions.json --account-id 123456789012 --region us-east-1 --db finops.sqlite</span></code></pre>
+<pre class="output checked"><span class="line">athena: 2 accepted, 0 duplicates, 0 changed copies, 0 rejected</span></pre>
 <ul>
 <li><code>duplicates</code>: Query Executions already stored with the same content.</li>
 <li><code>changed copies</code>: a Query Execution already stored, reported again with different content. Both are kept, and the Query Execution is flagged as having conflicting observations.</li>
@@ -81,11 +71,17 @@ aws athena batch-get-query-execution --query-execution-ids &lt;id&gt; &lt;id&gt;
 
 <h2 id="again">Load overlapping history</h2>
 <p>Fetches often overlap. Loading the same history again stores nothing new:</p>
-<pre><code class="run">data-finops ingest athena fixtures/athena/query-executions.json --account-id 123456789012 --region us-east-1 --db finops.sqlite</code></pre>
-<pre class="output checked">athena: 0 accepted, 2 duplicates, 0 changed copies, 0 rejected</pre>
+<pre><code class="run"><span class="line">data-finops ingest athena fixtures/athena/query-executions.json --account-id 123456789012 --region us-east-1 --db finops.sqlite</span></code></pre>
+<pre class="output checked"><span class="line">athena: 0 accepted, 2 duplicates, 0 changed copies, 0 rejected</span></pre>
 
 <h2 id="kept">What is kept</h2>
 <p>Only allowlisted metadata is stored: identity, workgroup, statement type, catalog and database, state, times, error category and type, numeric statistics and engine version. Query text, execution parameters and error messages are dropped. From the Trusted Query Comment, only its <code>invocation_id</code> and <code>node_id</code> are kept. To send that comment, see <a href="ingest-dbt-artifacts.html#comment">Ingest dbt artifacts</a>.</p>
+<!-- pager:start -->
+<nav class="pager" aria-label="Previous and next">
+<a rel="prev" href="ingest-focus-export.html">Previous: Ingest a FOCUS export</a>
+<a rel="next" href="ingest-dbt-artifacts.html">Next: Ingest dbt artifacts</a>
+</nav>
+<!-- pager:end -->
 </main>
 <!-- footer:start -->
 <footer>

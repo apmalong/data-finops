@@ -15,34 +15,9 @@
 <header class="site-header"><a href="../index.html">data-finops</a></header>
 <nav aria-label="Site">
 <ul>
-<li><a href="../tutorials/index.html">Tutorials</a>
-<ul>
-<li><a href="../tutorials/first-allocation.html">Your first allocation</a></li>
-</ul>
-</li>
-<li><a href="../how-to/index.html">How-to guides</a>
-<ul>
-<li><a href="../how-to/install.html">Install data-finops</a></li>
-<li><a href="../how-to/ingest-focus-export.html">Ingest a FOCUS export</a></li>
-<li><a href="../how-to/ingest-athena-history.html">Ingest Athena query history</a></li>
-<li><a href="../how-to/ingest-dbt-artifacts.html">Ingest dbt artifacts</a></li>
-<li><a href="../how-to/receive-openlineage.html">Receive OpenLineage events</a></li>
-<li><a href="../how-to/calculate.html">Calculate Allocations</a></li>
-<li><a href="../how-to/handle-restated-export.html">Handle a restated export</a></li>
-<li><a href="../how-to/read-cost-explanation.html">Read a Cost Explanation</a></li>
-<li><a href="../how-to/serve-with-token.html">Serve with a token</a></li>
-<li><a href="../how-to/deploy-reference-workload.html">Deploy the reference workload</a></li>
-</ul>
-</li>
-<li><a href="../reference/index.html">Reference</a>
-<ul>
-<li><a href="../reference/cli.html">Command line</a></li>
-<li><a href="../reference/http-api.html">HTTP API</a></li>
-<li><a href="../reference/data-contracts.html">Data contracts</a></li>
-<li><a href="../reference/exit-codes-and-environment.html">Exit codes and environment</a></li>
-<li><a href="../reference/glossary.html">Glossary</a></li>
-</ul>
-</li>
+<li><a href="../tutorials/index.html">Tutorials</a></li>
+<li><a href="../how-to/index.html">How-to guides</a></li>
+<li><a href="../reference/index.html">Reference</a></li>
 <li><a href="index.html">Explanation</a>
 <ul>
 <li><a href="bill-is-authoritative.html">The bill is authoritative</a></li>
@@ -59,6 +34,17 @@
 <!-- nav:end -->
 <main id="main">
 <h1>Export Snapshots and restatements</h1>
+<!-- onpage:start -->
+<nav class="on-page" aria-label="On this page">
+<p>On this page</p>
+<ul>
+<li><a href="#unit">The whole Export Snapshot is the unit</a></li>
+<li><a href="#immutable">Stored Export Snapshots never change</a></li>
+<li><a href="#current">The latest publication is current</a></li>
+<li><a href="#allocations">Allocations follow, and keep their history</a></li>
+</ul>
+</nav>
+<!-- onpage:end -->
 <p>Providers publish a Billing Period's bill more than once, as charges settle and credits arrive. This page explains how data-finops keeps every publication, and which one it uses. The decisions are in <a href="https://github.com/apmalong/data-finops/blob/main/docs/adr/0015-focus-billing-lines-and-export-snapshots.md">ADR 0015</a>, <a href="https://github.com/apmalong/data-finops/blob/main/docs/adr/0019-no-row-deduplication-within-export-snapshots.md">ADR 0019</a> and <a href="https://github.com/apmalong/data-finops/blob/main/docs/adr/0020-current-snapshot-is-latest-publication.md">ADR 0020</a>, with the calculation side in <a href="https://github.com/apmalong/data-finops/blob/main/docs/specs/03-attribution.md">spec 03</a>. They stay authoritative. To do it, see <a href="../how-to/handle-restated-export.html">Handle a restated export</a>.</p>
 
 <h2 id="unit">The whole Export Snapshot is the unit</h2>
@@ -80,6 +66,12 @@
 <h2 id="allocations">Allocations follow, and keep their history</h2>
 <p>A <a href="../reference/glossary.html#calculation-run">Calculation Run</a> allocates the current Export Snapshot of each Snapshot Scope. After a restatement, the next run makes a new <a href="../reference/glossary.html#allocation-snapshot">Allocation Snapshot</a>, and the earlier one is kept, not overwritten. Its provenance shows that it is no longer current and which run superseded it. The API still serves it when asked for by its Calculation Run ID, so a figure reported last week can always be explained as it was then.</p>
 <p>A Calculation Run whose inputs equal the current Allocation Snapshot's stores nothing. Inputs equal to a superseded one's make a new Allocation Snapshot, so going back to an earlier state is recorded too.</p>
+<!-- pager:start -->
+<nav class="pager" aria-label="Previous and next">
+<a rel="prev" href="identity-links-and-evidence.html">Previous: Identity Links and Evidence</a>
+<a rel="next" href="security-model.html">Next: Security model</a>
+</nav>
+<!-- pager:end -->
 </main>
 <!-- footer:start -->
 <footer>

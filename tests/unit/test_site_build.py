@@ -21,14 +21,18 @@ NAV = [
 ]
 
 
-def page(name: str, *, regions: tuple[str, ...] = ("head", "nav", "footer")) -> str:
+ALL = ("head", "nav", "onpage", "pager", "footer")
+NO_NAV = tuple(r for r in ALL if r != "nav")
+
+
+def page(name: str, *, regions: tuple[str, ...] = ALL, body: str = "") -> str:
     def region(r: str) -> str:
         return f"<!-- {r}:start -->\nstale\n<!-- {r}:end -->\n" if r in regions else ""
 
     return (
         f'<!doctype html>\n<html lang="en">\n<head>\n{region("head")}<title>{name}</title>\n'
-        f"</head>\n<body>\n{region('nav')}<main>\n<h1>{name}</h1>\n</main>\n{region('footer')}"
-        "</body>\n</html>\n"
+        f"</head>\n<body>\n{region('nav')}<main>\n<h1>{name}</h1>\n{region('onpage')}{body}"
+        f"{region('pager')}</main>\n{region('footer')}</body>\n</html>\n"
     )
 
 
@@ -70,7 +74,7 @@ def test_a_page_missing_a_shared_region_fails_the_build_naming_it(tmp_path: Path
         NAV,
         {
             "index.html": page("Home"),
-            "how-to/index.html": page("How-to guides", regions=("head", "nav")),
+            "how-to/index.html": page("How-to guides", regions=("head", "nav", "onpage", "pager")),
             "how-to/calculate.html": page("Calculate"),
         },
     )
@@ -148,7 +152,7 @@ def test_the_committed_site_is_what_the_build_writes() -> None:
     ids=["no end marker", "region twice"],
 )
 def test_a_malformed_region_fails_the_build(tmp_path: Path, broken: str, error: str) -> None:
-    home = page("Home", regions=("head", "footer")).replace("<main>", broken + "<main>")
+    home = page("Home", regions=NO_NAV).replace("<main>", broken + "<main>")
     repo = make_repo(
         tmp_path,
         NAV,
@@ -163,7 +167,7 @@ def test_a_malformed_region_fails_the_build(tmp_path: Path, broken: str, error: 
 
 
 def test_markers_on_one_line_are_stamped(tmp_path: Path) -> None:
-    home = page("Home", regions=("head", "footer")).replace(
+    home = page("Home", regions=NO_NAV).replace(
         "<main>", "<!-- nav:start --><!-- nav:end -->\n<main>"
     )
     repo = make_repo(
@@ -176,7 +180,7 @@ def test_markers_on_one_line_are_stamped(tmp_path: Path) -> None:
         },
     )
     nav = region(build(repo)["index.html"], "nav")
-    assert '<a href="how-to/calculate.html">Calculate</a>' in nav
+    assert '<a href="how-to/index.html">How-to guides</a>' in nav
 
 
 @pytest.mark.parametrize(
