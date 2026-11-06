@@ -42,8 +42,10 @@ Stdlib only, dev tooling outside the wheel, under ruff and mypy. Two parts impor
   - Every page is in `nav.json`, and every `nav.json` entry exists.
 
 ## Runnable pages
-- A `<pre><code class="run">` block holds only `data-finops …` lines, split with `shlex`, using repo-relative fixture paths. They run in order through `main(argv)` from a temporary working directory.
-- A `serve` line opens FastAPI's test client over that database. A `curl` line in a `run` block is a GET through that client.
+- A `<pre><code class="run">` block holds only `data-finops …` and `curl …` lines, split with `shlex`, using repo-relative fixture paths. They run in order through `main(argv)` from a temporary working directory.
+- A `serve` line opens FastAPI's test client over that database. A `curl` line in a `run` block goes through that client. It takes `-s`, `-X GET|POST`, `-H 'Name: value'` and `--data-binary @file` (with a Content-Type header), as in curl, and nothing else. A non-2xx answer is a problem.
+- In a `run` line, `$CALCULATION_RUN_ID` stands for the Calculation Run that the last `calculate` printed, and `$(cat FILE)` for the file's text. A line must not put either in single quotes, where a shell would not expand it.
+- The token how-to sends the dummy `fixtures/docs/example.token` with `$(cat …)`. No page writes a token into a command, so the secret scan has nothing to flag.
 - A `<pre class="output checked">` right after a `run` block must match the output, with `…` standing for any text within a line. Other output blocks are illustrative.
 - Commands with placeholders (`<your-export>`) are never marked `run`. Steps that need AWS are labelled as not run.
 - `first-allocation` and every offline how-to (`install` excepted) have runnable blocks. `test_m5_exit.py` runs the tutorial page, and `examples/demo/README.md` becomes a pointer to it.

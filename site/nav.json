@@ -3,7 +3,16 @@
   {"title": "Tutorials", "path": "tutorials/index.html", "pages": [
     {"title": "Your first allocation", "path": "tutorials/first-allocation.html"}
   ]},
-  {"title": "How-to guides", "path": "how-to/index.html", "pages": []},
+  {"title": "How-to guides", "path": "how-to/index.html", "pages": [
+    {"title": "Ingest a FOCUS export", "path": "how-to/ingest-focus-export.html"},
+    {"title": "Ingest Athena query history", "path": "how-to/ingest-athena-history.html"},
+    {"title": "Ingest dbt artifacts", "path": "how-to/ingest-dbt-artifacts.html"},
+    {"title": "Receive OpenLineage events", "path": "how-to/receive-openlineage.html"},
+    {"title": "Calculate Allocations", "path": "how-to/calculate.html"},
+    {"title": "Handle a restated export", "path": "how-to/handle-restated-export.html"},
+    {"title": "Read a Cost Explanation", "path": "how-to/read-cost-explanation.html"},
+    {"title": "Serve with a token", "path": "how-to/serve-with-token.html"}
+  ]},
   {"title": "Reference", "path": "reference/index.html", "pages": [
     {"title": "Command line", "path": "reference/cli.html"},
     {"title": "HTTP API", "path": "reference/http-api.html"},

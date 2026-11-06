@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+<!-- head:start -->
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="../assets/site.css">
+<!-- head:end -->
+<title>Ingest Athena query history - data-finops</title>
+<meta name="description" content="How to fetch Athena query history as a BatchGetQueryExecution response and load it into data-finops.">
+</head>
+<body>
+<!-- nav:start -->
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="site-header"><a href="../index.html">data-finops</a></header>
+<nav aria-label="Site">
+<ul>
+<li><a href="../tutorials/index.html">Tutorials</a>
+<ul>
+<li><a href="../tutorials/first-allocation.html">Your first allocation</a></li>
+</ul>
+</li>
+<li><a href="index.html">How-to guides</a>
+<ul>
+<li><a href="ingest-focus-export.html">Ingest a FOCUS export</a></li>
+<li><a href="ingest-athena-history.html" aria-current="page">Ingest Athena query history</a></li>
+<li><a href="ingest-dbt-artifacts.html">Ingest dbt artifacts</a></li>
+<li><a href="receive-openlineage.html">Receive OpenLineage events</a></li>
+<li><a href="calculate.html">Calculate Allocations</a></li>
+<li><a href="handle-restated-export.html">Handle a restated export</a></li>
+<li><a href="read-cost-explanation.html">Read a Cost Explanation</a></li>
+<li><a href="serve-with-token.html">Serve with a token</a></li>
+</ul>
+</li>
+<li><a href="../reference/index.html">Reference</a>
+<ul>
+<li><a href="../reference/cli.html">Command line</a></li>
+<li><a href="../reference/http-api.html">HTTP API</a></li>
+<li><a href="../reference/data-contracts.html">Data contracts</a></li>
+<li><a href="../reference/exit-codes-and-environment.html">Exit codes and environment</a></li>
+<li><a href="../reference/glossary.html">Glossary</a></li>
+</ul>
+</li>
+<li><a href="../explanation/index.html">Explanation</a></li>
+<li><a href="../contributing.html">Contributing</a></li>
+</ul>
+</nav>
+<!-- nav:end -->
+<main id="main">
+<h1>Ingest Athena query history</h1>
+<p>Athena's query history gives the Query Executions behind an Athena bill: how much each one scanned and, through its Trusted Query Comment, which Model Execution issued it. This guide fetches the history from AWS and loads it.</p>
+
+<h2 id="fetch">Fetch the history from AWS</h2>
+<p>List the Query Execution IDs of a workgroup, then fetch them with <code>BatchGetQueryExecution</code>, which takes at most 50 IDs per call:</p>
+<pre><code>aws athena list-query-executions --work-group &lt;workgroup&gt; --max-items 50 --output json
+aws athena batch-get-query-execution --query-execution-ids &lt;id&gt; &lt;id&gt; … --output json &gt; query-executions.json</code></pre>
+<p class="notice">Not run on this page: it needs AWS credentials and an Athena workgroup.</p>
+<p>Save the response as it is. data-finops reads the plain <code>BatchGetQueryExecution</code> response, up to 512 MiB per file.</p>
+
+<h2 id="load">Load it</h2>
+<p>The response does not say which account and Region it came from, so give them alongside it:</p>
+<pre><code class="run">data-finops ingest athena fixtures/athena/query-executions.json --account-id 123456789012 --region us-east-1 --db finops.sqlite</code></pre>
+<pre class="output checked">athena: 2 accepted, 0 duplicates, 0 changed copies, 0 rejected</pre>
+<ul>
+<li><code>duplicates</code>: Query Executions already stored with the same content.</li>
+<li><code>changed copies</code>: a Query Execution already stored, reported again with different content. Both are kept, and the Query Execution is flagged as having conflicting observations.</li>
+<li><code>rejected</code>: an entry that fails validation. It is named by its position and the reason, never by its content. The rest is stored, and the command exits with <code>1</code>.</li>
+</ul>
+<p>A file that is not a <code>BatchGetQueryExecution</code> response prints <code>athena: rejected:</code> with the reason. Nothing from it is stored, and the command exits with <code>1</code>.</p>
+
+<h2 id="again">Load overlapping history</h2>
+<p>Fetches often overlap. Loading the same history again stores nothing new:</p>
+<pre><code class="run">data-finops ingest athena fixtures/athena/query-executions.json --account-id 123456789012 --region us-east-1 --db finops.sqlite</code></pre>
+<pre class="output checked">athena: 0 accepted, 2 duplicates, 0 changed copies, 0 rejected</pre>
+
+<h2 id="kept">What is kept</h2>
+<p>Only allowlisted metadata is stored: identity, workgroup, statement type, catalog and database, state, times, error category and type, numeric statistics and engine version. Query text, execution parameters and error messages are dropped. From the Trusted Query Comment, only its <code>invocation_id</code> and <code>node_id</code> are kept. To send that comment, see <a href="ingest-dbt-artifacts.html#comment">Ingest dbt artifacts</a>.</p>
+</main>
+<!-- footer:start -->
+<footer>
+<p>This site describes the <code>main</code> branch. Nothing is released yet. No license has been chosen yet. Source on <a href="https://github.com/apmalong/data-finops">GitHub</a>.</p>
+</footer>
+<!-- footer:end -->
+</body>
+</html>

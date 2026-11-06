@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+<!-- head:start -->
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="../assets/site.css">
+<!-- head:end -->
+<title>Ingest a FOCUS export - data-finops</title>
+<meta name="description" content="How to load an Export Snapshot into data-finops, from a FOCUS JSON file or an AWS Data Exports Delivery.">
+</head>
+<body>
+<!-- nav:start -->
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="site-header"><a href="../index.html">data-finops</a></header>
+<nav aria-label="Site">
+<ul>
+<li><a href="../tutorials/index.html">Tutorials</a>
+<ul>
+<li><a href="../tutorials/first-allocation.html">Your first allocation</a></li>
+</ul>
+</li>
+<li><a href="index.html">How-to guides</a>
+<ul>
+<li><a href="ingest-focus-export.html" aria-current="page">Ingest a FOCUS export</a></li>
+<li><a href="ingest-athena-history.html">Ingest Athena query history</a></li>
+<li><a href="ingest-dbt-artifacts.html">Ingest dbt artifacts</a></li>
+<li><a href="receive-openlineage.html">Receive OpenLineage events</a></li>
+<li><a href="calculate.html">Calculate Allocations</a></li>
+<li><a href="handle-restated-export.html">Handle a restated export</a></li>
+<li><a href="read-cost-explanation.html">Read a Cost Explanation</a></li>
+<li><a href="serve-with-token.html">Serve with a token</a></li>
+</ul>
+</li>
+<li><a href="../reference/index.html">Reference</a>
+<ul>
+<li><a href="../reference/cli.html">Command line</a></li>
+<li><a href="../reference/http-api.html">HTTP API</a></li>
+<li><a href="../reference/data-contracts.html">Data contracts</a></li>
+<li><a href="../reference/exit-codes-and-environment.html">Exit codes and environment</a></li>
+<li><a href="../reference/glossary.html">Glossary</a></li>
+</ul>
+</li>
+<li><a href="../explanation/index.html">Explanation</a></li>
+<li><a href="../contributing.html">Contributing</a></li>
+</ul>
+</nav>
+<!-- nav:end -->
+<main id="main">
+<h1>Ingest a FOCUS export</h1>
+<p>This guide loads an Export Snapshot into a database file: all the Billing Lines of one billing account, Billing Period and source, as the provider published them. It comes from a FOCUS JSON file or from an AWS Data Exports Delivery.</p>
+
+<h2 id="json">Load an Export Snapshot from a JSON file</h2>
+<pre><code class="run">data-finops ingest focus fixtures/focus/export-2026-10.json --db finops.sqlite</code></pre>
+<pre class="output checked">focus: new aws-focus-123456789012-2026-10-v1</pre>
+<p>The database file is created if it does not exist. The line gives the outcome, then the Export Snapshot's ID:</p>
+<ul>
+<li><code>new</code>: it is stored, and it is now the current Export Snapshot of its Snapshot Scope.</li>
+<li><code>superseded</code>: it is stored as a Superseded Snapshot, because a later publication of the same Snapshot Scope is current.</li>
+<li><code>replay</code>: nothing is stored, because the same content is already there.</li>
+</ul>
+
+<h2 id="again">Load it again safely</h2>
+<pre><code class="run">data-finops ingest focus fixtures/focus/export-2026-10.json --db finops.sqlite</code></pre>
+<pre class="output checked">focus: replay aws-focus-123456789012-2026-10-v1</pre>
+<p>A replay stores nothing, so you can rerun an ingest without making copies. Which Export Snapshot is current depends on the provider's publication time, never on the order you load them in (ADR 0020).</p>
+
+<h2 id="delivery">Load an AWS Data Exports Delivery</h2>
+<p>AWS Data Exports writes each Delivery as a manifest, <code>&lt;export&gt;-Manifest.json</code>, and its data files. Download both, then give <code>ingest focus</code> the manifest:</p>
+<pre><code>data-finops ingest focus &lt;download-dir&gt;/&lt;export&gt;-Manifest.json --data-dir &lt;data-files-dir&gt; --db finops.sqlite</code></pre>
+<p class="notice">Not run on this page: it needs a Delivery downloaded from AWS.</p>
+<ul>
+<li><code>--data-dir</code> names where the data files were downloaded. Leave it out when they are beside the manifest.</li>
+<li>The publication time comes from the manifest, never from file times or the time you load it.</li>
+</ul>
+
+<h2 id="refused">If the ingest is refused</h2>
+<p>Nothing is stored, and the command exits with <code>2</code>:</p>
+<ul>
+<li>The file is not a FOCUS Export Snapshot, or the Delivery is not usable. The message names the file, never its content.</li>
+<li>An Export Snapshot with the same ID is already stored with other content. Stored Export Snapshots never change.</li>
+</ul>
+<p>See <a href="../reference/exit-codes-and-environment.html">Exit codes and environment</a>. Next, <a href="calculate.html">calculate the Allocations</a>.</p>
+</main>
+<!-- footer:start -->
+<footer>
+<p>This site describes the <code>main</code> branch. Nothing is released yet. No license has been chosen yet. Source on <a href="https://github.com/apmalong/data-finops">GitHub</a>.</p>
+</footer>
+<!-- footer:end -->
+</body>
+</html>

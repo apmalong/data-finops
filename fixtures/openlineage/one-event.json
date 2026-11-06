@@ -1,0 +1,16 @@
+{
+  "eventType": "COMPLETE",
+  "eventTime": "2026-10-02T01:02:00Z",
+  "producer": "https://example.invalid/data-finops-demo/airflow",
+  "schemaURL": "https://openlineage.io/spec/2-0-2/OpenLineage.json#/$defs/RunEvent",
+  "job": {
+    "namespace": "demo-airflow",
+    "name": "daily_orders.dbt_run"
+  },
+  "run": {
+    "runId": "00000000-0000-4000-8000-000000000011",
+    "facets": {}
+  },
+  "inputs": [],
+  "outputs": []
+}
