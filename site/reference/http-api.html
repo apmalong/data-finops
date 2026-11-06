@@ -390,6 +390,8 @@
 </tbody>
 </table>
 </div>
+<h3 id="schema-billing-line-detail">BillingLineDetail</h3>
+<p>How much of the Billing Line a Cost Explanation shows (ADR 0028). One of full, minimal.</p>
 <h3 id="schema-confidence">Confidence</h3>
 <p>One of direct_verified, metered_estimate, heuristic_estimate.</p>
 <h3 id="schema-cost-basis">CostBasis</h3>
@@ -403,6 +405,7 @@
 <tr><td><code>ref</code></td><td>required</td><td>string</td><td></td></tr>
 <tr><td><code>billing_line_ref</code></td><td>required</td><td>string</td><td></td></tr>
 <tr><td><code>billing_line</code></td><td>required</td><td>FocusBillingLine</td><td></td></tr>
+<tr><td><code>billing_line_detail</code></td><td>required</td><td>BillingLineDetail: one of &quot;full&quot;, &quot;minimal&quot;</td><td></td></tr>
 <tr><td><code>allocation</code></td><td>required</td><td>Allocation</td><td></td></tr>
 <tr><td><code>unallocated_reason</code></td><td>required</td><td>string, or null</td><td></td></tr>
 <tr><td><code>query_execution</code></td><td>required</td><td>QueryExecution, or null</td><td></td></tr>

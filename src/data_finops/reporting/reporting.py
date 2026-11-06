@@ -41,6 +41,7 @@ from data_finops.reporting.models import (
     AllocationLineReconciliation,
     AllocationPage,
     AllocationReconciliation,
+    BillingLineDetail,
     CostExplanation,
     CostSummaries,
     CostSummary,
@@ -415,9 +416,12 @@ class Reporting:
             for execution in executions
         ]
 
-    def explanation(self, ref: str) -> CostExplanation:
+    def explanation(
+        self, ref: str, *, detail: BillingLineDetail = BillingLineDetail.FULL
+    ) -> CostExplanation:
         """The Cost Explanation of the Allocation at `ref` (`<calculation_run_id>#<position>`),
-        current or superseded; NotFound for an unknown or malformed reference."""
+        current or superseded, its Billing Line shown at `detail` (ADR 0028); NotFound for an
+        unknown or malformed reference."""
         parsed = _parse_allocation_ref(ref)
         stored = self._ledger.allocation_snapshot(parsed[0]) if parsed else None
         if parsed is None or stored is None or parsed[1] >= len(stored.allocations):
@@ -429,7 +433,8 @@ class Reporting:
         return CostExplanation(
             ref=ref,
             billing_line_ref=allocation.billing_line_ref,
-            billing_line=line,
+            billing_line=line if detail is BillingLineDetail.FULL else _minimal(line),
+            billing_line_detail=detail,
             allocation=allocation,
             unallocated_reason=(
                 allocation.method if allocation.category is AllocationCategory.UNALLOCATED else None
@@ -612,6 +617,20 @@ _ROLLUPS: dict[RollupLevel, Callable[[list[Allocation]], dict[str, tuple[RollupT
 def _allocation_ref(calculation_run_id: str, position: int) -> str:
     """An Allocation's address, `<calculation_run_id>#<position>` (spec 06)."""
     return f"{calculation_run_id}#{position}"
+
+
+def _minimal(line: FocusBillingLine) -> FocusBillingLine:
+    """The line with only its declared columns, `Tags` withheld (ADR 0028). Raw values are
+    keyed by column path (spec 02); every shown column is a scalar, keyed by its bare name,
+    so a path that is not a shown column's name belongs to a withheld one."""
+    shown = set(FocusBillingLine.model_fields) - {"Tags"}
+    declared = {name: getattr(line, name) for name in shown}
+    raw = line.data_finops_raw_values
+    if raw is not None:
+        declared["data_finops_raw_values"] = {
+            path: value for path, value in raw.items() if path in shown
+        }
+    return FocusBillingLine.model_validate(declared)
 
 
 def _parse_allocation_ref(ref: str) -> tuple[str, int] | None:

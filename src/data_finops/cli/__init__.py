@@ -127,6 +127,12 @@ def build_parser() -> argparse.ArgumentParser:
         type=Path,
         help="a file holding the bearer token (or set DATA_FINOPS_TOKEN); required off loopback",
     )
+    serve.add_argument(
+        "--explanation-detail",
+        choices=("full", "minimal"),
+        default="full",
+        help="how much of the Billing Line a Cost Explanation shows (default: full; ADR 0028)",
+    )
     serve.set_defaults(run=_serve)
 
     demo = commands.add_parser(
@@ -231,7 +237,14 @@ def _calculate(args: argparse.Namespace) -> int:
 def _serve(args: argparse.Namespace) -> int:
     if not args.db.is_file():
         raise _Failure(f"no database at {args.db}")
-    return _serve_database(args.db, args.host, args.port, args.token_file, args.start_server)
+    return _serve_database(
+        args.db,
+        args.host,
+        args.port,
+        args.token_file,
+        args.start_server,
+        explanation_detail=args.explanation_detail,
+    )
 
 
 def _demo(args: argparse.Namespace) -> int:
@@ -278,6 +291,7 @@ def _serve_database(
     start_server: StartServer,
     *,
     environ: Mapping[str, str] = os.environ,
+    explanation_detail: str = "full",
 ) -> int:
     api = _api()
     try:
@@ -289,7 +303,9 @@ def _serve_database(
             f"refusing to serve on {host} without a token: set {api.TOKEN_VARIABLE} or"
             " --token-file (ADR 0024)"
         )
-    app = api.create_app(db, token=token)
+    app = api.create_app(
+        db, token=token, explanation_detail=api.BillingLineDetail(explanation_detail)
+    )
     print(f"serving {db} at http://{host}:{port}/ (Ctrl+C to stop)")
     start_server(app, host, port)
     return OK

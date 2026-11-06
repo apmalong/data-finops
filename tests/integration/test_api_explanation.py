@@ -11,7 +11,7 @@ from fixture_database import ACCOUNT, fill
 from openapi_contract import valid_response
 
 from data_finops.api import create_app
-from data_finops.reporting import Reporting
+from data_finops.reporting import BillingLineDetail, Reporting
 
 PROBLEM = "application/problem+json"
 ROUTE = "/v1/allocations/{ref}/explanation"
@@ -54,3 +54,17 @@ def test_an_unknown_reference_is_a_problem_that_does_not_echo_it(
     assert (response.status_code, response.headers["content-type"]) == (404, PROBLEM)
     assert "secret" not in response.text
     valid_response("get", ROUTE, 404, response.json())
+
+
+@pytest.mark.parametrize("detail", list(BillingLineDetail))
+def test_the_app_serves_the_billing_line_at_its_configured_detail(
+    database: Path, detail: BillingLineDetail
+) -> None:
+    with Reporting(database) as reporting:
+        ref = reporting.allocations(billing_account_id=ACCOUNT).items[0].ref
+        expected = reporting.explanation(ref, detail=detail).model_dump(mode="json")
+    with TestClient(create_app(database, explanation_detail=detail)) as client:
+        response = client.get(_url(ref))
+    assert (response.status_code, response.json()) == (200, expected)
+    assert response.json()["billing_line_detail"] == detail.value
+    valid_response("get", ROUTE, 200, response.json())

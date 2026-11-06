@@ -2693,6 +2693,15 @@
         "title": "AllocationReconciliation",
         "description": "One Allocation Snapshot's Allocations against the Export Snapshot its Calculation Run\nread: per-currency totals over every line, and one page of the lines."
       },
+      "BillingLineDetail": {
+        "type": "string",
+        "enum": [
+          "full",
+          "minimal"
+        ],
+        "title": "BillingLineDetail",
+        "description": "How much of the Billing Line a Cost Explanation shows (ADR 0028)."
+      },
       "Confidence": {
         "type": "string",
         "enum": [
@@ -2725,6 +2734,9 @@
           },
           "billing_line": {
             "$ref": "#/components/schemas/FocusBillingLine"
+          },
+          "billing_line_detail": {
+            "$ref": "#/components/schemas/BillingLineDetail"
           },
           "allocation": {
             "$ref": "#/components/schemas/Allocation"
@@ -2781,6 +2793,7 @@
           "ref",
           "billing_line_ref",
           "billing_line",
+          "billing_line_detail",
           "allocation",
           "unallocated_reason",
           "query_execution",
