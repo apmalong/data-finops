@@ -19,6 +19,9 @@ data-finops = "data_finops.cli:main"
 # The HTTP API and dashboard (spec 06). Exact pins: the newest releases at least two weeks
 # old when added (build-vs-reuse register); starlette is pinned because fastapi leaves it open.
 api = ["fastapi==0.156.4", "starlette==1.9.0", "uvicorn==0.54.0"]
+# The AWS collectors (spec 08; `providers.aws`): the newest boto3 and botocore at least two
+# weeks old when added (build-vs-reuse register, #179).
+aws = ["boto3==1.43.118", "botocore==1.43.118"]
 dev = ["httpx==0.28.1", "pytest>=8,<10", "pytest-cov>=5,<8", "hypothesis>=6,<7", "ruff>=0.9,<1", "mypy>=1.14,<2", "pip-audit>=2,<3", "pre-commit>=4,<5", "bandit>=1.8,<2", "build>=1,<2", "types-jsonschema>=4.23,<5"]
 [tool.hatch.build.targets.wheel]
 packages = ["src/data_finops"]
@@ -42,3 +45,7 @@ mypy_path = "src:."
 # scripts/site is the package scripts.site, never the stdlib site module.
 explicit_package_bases = true
 plugins = ["pydantic.mypy"]
+[[tool.mypy.overrides]]
+# botocore ships no type hints; `providers.aws` types its clients with its own Protocols (#179).
+module = ["boto3", "boto3.*", "botocore", "botocore.*"]
+ignore_missing_imports = true
