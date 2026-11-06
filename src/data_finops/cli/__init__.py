@@ -270,9 +270,16 @@ def _boto3_s3(settings: CollectionSettings) -> Any:
     """An S3 client for the settings' profile and region; boto3 is the `aws` extra."""
     try:
         import boto3
+        from botocore.exceptions import BotoCoreError
     except ImportError:
         raise _Failure("collect needs the aws extra: uv sync --extra aws") from None
-    return boto3.Session(profile_name=settings.profile, region_name=settings.region).client("s3")
+    try:
+        session = boto3.Session(profile_name=settings.profile, region_name=settings.region)
+        return session.client("s3")
+    except BotoCoreError as error:  # its message may name the profile: say what kind only
+        raise _Failure(
+            f"cannot make an AWS client ({type(error).__name__}): check the profile and region"
+        ) from None
 
 
 def _serve(args: argparse.Namespace) -> int:

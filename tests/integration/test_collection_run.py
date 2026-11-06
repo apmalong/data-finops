@@ -16,9 +16,10 @@ from aws_stubs import (
 )
 from fixture_database import ACCOUNT, EXPORT, FIXTURES
 
-from data_finops.collection import CollectionSettings, run_collection
+from data_finops.collection import CollectionSettings, CollectionSummary, run_collection
 from data_finops.collection.run import MAX_INBOX_FILE_BYTES
 from data_finops.ledger import Ledger
+from data_finops.lineage.validation import MAX_EVENT_BYTES
 from data_finops.reporting import Reporting
 from data_finops.workload.store import WorkloadStore
 
@@ -210,3 +211,48 @@ def test_a_dbt_artifact_over_the_cap_or_unreadable_is_rejected_by_key(tmp_path: 
     assert dbt.rejected[0].reason == "too large"
     assert summary.exit_code == 1
     assert "secret" not in summary.model_dump_json()
+
+
+MIXED = (FIXTURES / "openlineage" / "invalid" / "mixed.jsonl").read_bytes().split(b"\n")
+
+
+def _collect_one(db: Path, key: str, data: bytes) -> CollectionSummary:
+    s3 = s3_client()
+    with stubbed(s3) as stubber:
+        expect_listing(stubber, DBT, {})
+        expect_listing(stubber, OPENLINEAGE, {key: data})
+        expect_get(stubber, key, data)
+        return run_collection(db, SETTINGS, s3=s3)
+
+
+def test_a_changed_copy_of_an_event_is_stored_once_and_counted_once(tmp_path: Path) -> None:
+    db = tmp_path / "data-finops.sqlite"
+    event = json.loads(EVENTS)[0]
+    changed = event | {"producer": "https://example.invalid/another-producer"}
+    _collect_one(db, f"{OPENLINEAGE}a.json", json.dumps(event).encode("utf-8"))
+    summary = _collect_one(db, f"{OPENLINEAGE}b.json", json.dumps(changed).encode("utf-8"))
+    assert (summary.sources["openlineage"].stored, summary.exit_code) == (1, 0)
+
+
+def test_unsupported_events_are_listed_by_key_and_position_without_failing_the_run(
+    tmp_path: Path,
+) -> None:
+    key = f"{OPENLINEAGE}kinds.jsonl"
+    data = b"\n".join([json.dumps(json.loads(EVENTS)[0]).encode("utf-8"), MIXED[5], MIXED[6]])
+    summary = _collect_one(tmp_path / "data-finops.sqlite", key, data)
+    assert summary.warnings == [
+        f"{key}#2: unsupported JobEvent",
+        f"{key}#3: unsupported DatasetEvent",
+    ]
+    assert (summary.sources["openlineage"].rejected, summary.exit_code) == ([], 0)
+
+
+def test_an_event_over_the_event_cap_is_rejected_by_key_and_position(tmp_path: Path) -> None:
+    key = f"{OPENLINEAGE}big.jsonl"
+    event = json.loads(EVENTS)[0]
+    big = event | {"producer": "x" * MAX_EVENT_BYTES}
+    data = b"\n".join([json.dumps(event).encode("utf-8"), json.dumps(big).encode("utf-8")])
+    summary = _collect_one(tmp_path / "data-finops.sqlite", key, data)
+    assert [(r.item, r.reason) for r in summary.sources["openlineage"].rejected] == [
+        (f"{key}#2", "too large")
+    ]

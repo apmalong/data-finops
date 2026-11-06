@@ -61,7 +61,8 @@
 <li>The database file is not a data-finops database.</li>
 <li>A FOCUS file is not a FOCUS Export Snapshot or a usable AWS Data Exports Delivery.</li>
 <li><code>serve</code> refused to start, for example because of the token rules below.</li>
-<li><code>collect</code> was given a settings file it refuses, or could not read a source, for example because AWS denied access. When a source could not be read, the other sources were still collected and Allocations were calculated on what was stored, so for <code>collect</code> a <code>2</code> means at least one source was missed.</li>
+<li><code>collect</code> was given a settings file it refuses.</li>
+<li><code>collect</code> could not read a source, for example because AWS denied access. This is the one <code>2</code> after which something was done: <code>collect</code> still collected the other sources and calculated Allocations.</li>
 </ul>
 </dd>
 </dl>

@@ -3,12 +3,13 @@
 import tempfile
 import tomllib
 from collections import defaultdict
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
 from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, computed_field
 
 from data_finops.calculation import run_calculation
+from data_finops.dbt.artifacts import MAX_ARTIFACT_BYTES
 from data_finops.ledger import Ledger
 from data_finops.providers.aws import (
     AwsSourceError,
@@ -18,15 +19,15 @@ from data_finops.providers.aws import (
     list_objects,
     read_object,
 )
-from data_finops.workload.store import ArtifactOutcome, WorkloadStore
+from data_finops.workload.store import ArtifactOutcome, InboxOutcome, WorkloadStore
 
 DBT_INBOX = "inbox/dbt/"
 OPENLINEAGE_INBOX = "inbox/openlineage/"
 DBT_ARTIFACTS = ("manifest.json", "run_results.json")
 """What one invocation folder holds, in the order it is ingested."""
-MAX_INBOX_FILE_BYTES = 512 * 1024 * 1024
-"""The cap on one Inbox file, as on every other input file (spec 04); each event within an
-OpenLineage file is still capped at 1 MiB by the screening it goes through."""
+MAX_INBOX_FILE_BYTES = MAX_ARTIFACT_BYTES
+"""The cap on one Inbox file, the same 512 MiB as on every other input file (spec 04); each
+event within an OpenLineage file is still capped at 1 MiB by the screening it goes through."""
 
 OK, REJECTED, FAILED = 0, 1, 2
 """Exit codes, as the command line's (spec 05, spec 08 §6)."""
@@ -50,7 +51,7 @@ class CollectionSettings:
                 values = tomllib.load(file)
             except tomllib.TOMLDecodeError:
                 raise ValueError("the settings file is not valid TOML") from None
-        unknown = sorted(set(values) - set(_SETTINGS))
+        unknown = sorted(set(values) - {setting.name for setting in fields(cls)})
         if unknown:
             raise ValueError(f"unknown setting {', '.join(unknown)}")
         for key in ("bucket", "region"):
@@ -60,10 +61,6 @@ class CollectionSettings:
             if not isinstance(value, str) or not value:
                 raise ValueError(f"{key} must be a non-empty string")
         return cls(**values)
-
-
-_SETTINGS = ("bucket", "region", "profile")
-"""The keys of the settings file, as the fields of CollectionSettings."""
 
 
 class _Summary(BaseModel):
@@ -79,7 +76,6 @@ class RejectedItem(_Summary):
 class SourceSummary(_Summary):
     stored: int = 0
     duplicates: int = 0
-    unsupported: int = 0
     rejected: list[RejectedItem] = []
     failed: str | None = None
     """Why the source could not be read (an AWS error code), or None."""
@@ -111,7 +107,7 @@ def run_collection(db: Path, settings: CollectionSettings, *, s3: S3Reader) -> C
             # order is for readability, never correctness.
             warnings: list[str] = []
             dbt = _collect_dbt(store, s3, settings.bucket, Path(scratch), warnings)
-            openlineage = _collect_openlineage(store, s3, settings.bucket, Path(scratch))
+            openlineage = _collect_openlineage(store, s3, settings.bucket, Path(scratch), warnings)
     with Ledger(db) as ledger, WorkloadStore(db) as store:
         runs = [
             run_calculation(ledger, store, scope).calculation_run_id for scope in ledger.scopes()
@@ -129,16 +125,11 @@ class _Tally:
 
     stored: int = 0
     duplicates: int = 0
-    unsupported: int = 0
     rejected: list[RejectedItem] = field(default_factory=list)
 
     def summary(self, failed: str | None = None) -> SourceSummary:
         return SourceSummary(
-            stored=self.stored,
-            duplicates=self.duplicates,
-            unsupported=self.unsupported,
-            rejected=self.rejected,
-            failed=failed,
+            stored=self.stored, duplicates=self.duplicates, rejected=self.rejected, failed=failed
         )
 
 
@@ -153,7 +144,7 @@ def _fetch_new(
         path.write_bytes(read_object(s3, bucket, obj, MAX_INBOX_FILE_BYTES))
     except TooLarge:
         tally.rejected.append(RejectedItem(item=obj.key, reason="too large"))
-        store.record_inbox_object(obj.key, obj.etag, "rejected")
+        store.record_inbox_object(obj.key, obj.etag, InboxOutcome.REJECTED)
         return None
     return path
 
@@ -180,22 +171,25 @@ def _collect_dbt(
                 if path is None:
                     continue
                 result = store.ingest_dbt_artifact(path)
+                outcome = InboxOutcome.COLLECTED
                 if result.outcome is ArtifactOutcome.REJECTED:
                     tally.rejected.append(RejectedItem(item=obj.key, reason=str(result.reason)))
+                    outcome = InboxOutcome.REJECTED
                 elif result.outcome is ArtifactOutcome.DUPLICATE:
                     tally.duplicates += 1
-                else:
+                else:  # stored, or a changed copy kept beside the first
                     tally.stored += 1
-                store.record_inbox_object(obj.key, obj.etag, result.outcome.value)
+                store.record_inbox_object(obj.key, obj.etag, outcome)
     except AwsSourceError as error:
         return tally.summary(failed=str(error))
     return tally.summary()
 
 
 def _collect_openlineage(
-    store: WorkloadStore, s3: S3Reader, bucket: str, scratch: Path
+    store: WorkloadStore, s3: S3Reader, bucket: str, scratch: Path, warnings: list[str]
 ) -> SourceSummary:
-    """Every OpenLineage event file in the Inbox not yet collected, screened as a file."""
+    """Every OpenLineage event file in the Inbox not yet collected, screened as a file;
+    events of a kind data-finops does not read are listed as warnings, not rejections."""
     tally = _Tally()
     try:
         for obj in list_objects(s3, bucket, OPENLINEAGE_INBOX):
@@ -203,14 +197,20 @@ def _collect_openlineage(
             if path is None:
                 continue
             result = store.ingest_events(path)
-            tally.stored += result.accepted + result.changed_copies
+            tally.stored += result.accepted  # changed copies are stored, so counted here
             tally.duplicates += result.duplicates
-            tally.unsupported += len(result.unsupported)
             tally.rejected += [
                 RejectedItem(item=f"{obj.key}#{r.position}", reason=r.reason)
                 for r in result.rejected
             ]
-            store.record_inbox_object(obj.key, obj.etag, "collected")
+            warnings += [f"{obj.key}#{r.position}: {r.reason}" for r in result.unsupported]
+            nothing_stored = result.accepted == result.duplicates == 0 and not result.unsupported
+            outcome = (
+                InboxOutcome.REJECTED
+                if nothing_stored and result.rejected
+                else InboxOutcome.COLLECTED
+            )
+            store.record_inbox_object(obj.key, obj.etag, outcome)
     except AwsSourceError as error:
         return tally.summary(failed=str(error))
     return tally.summary()

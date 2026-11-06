@@ -106,3 +106,20 @@ def test_without_the_aws_extra_collect_says_how_to_install_it(
     argv = ["collect", "--db", str(tmp_path / "x.sqlite"), "--config", str(config)]
     assert main(argv) == 2
     assert "--extra aws" in capsys.readouterr().err
+
+
+def test_collect_with_an_unknown_profile_says_so_without_naming_it(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    for variable in ("AWS_CONFIG_FILE", "AWS_SHARED_CREDENTIALS_FILE"):
+        empty = tmp_path / variable
+        empty.write_text("", encoding="utf-8")
+        monkeypatch.setenv(variable, str(empty))
+    monkeypatch.delenv("AWS_PROFILE", raising=False)
+    text = f'bucket = "{BUCKET}"\nregion = "us-east-1"\nprofile = "secret-profile"\n'
+    config = _config(tmp_path, text)
+    argv = ["collect", "--db", str(tmp_path / "x.sqlite"), "--config", str(config)]
+    assert main(argv) == 2
+    err = capsys.readouterr().err
+    assert "profile" in err
+    assert "secret" not in err

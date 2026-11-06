@@ -193,6 +193,15 @@ class IngestResult:
         return Counter(r.kind for r in (*self.rejected, *self.unsupported))
 
 
+class InboxOutcome(StrEnum):
+    """What a Collection Run made of one Inbox object (spec 08 §4)."""
+
+    COLLECTED = "collected"
+    """Ingested: some or all of it stored, or already stored."""
+    REJECTED = "rejected"
+    """Nothing in it could be stored: too large, or rejected whole."""
+
+
 class ArtifactOutcome(StrEnum):
     STORED = "stored"
     DUPLICATE = "duplicate"
@@ -403,13 +412,13 @@ class WorkloadStore:
         ).fetchone()
         return row is not None
 
-    def record_inbox_object(self, key: str, etag: str, outcome: str) -> None:
+    def record_inbox_object(self, key: str, etag: str, outcome: InboxOutcome) -> None:
         """Record that this version of an Inbox object was collected, and with what outcome;
         recording it again changes nothing."""
         with self._write_transaction():
             self._connection.execute(
                 "INSERT OR IGNORE INTO workload_inbox_object (key, etag, outcome) VALUES (?, ?, ?)",
-                (key, etag, outcome),
+                (key, etag, outcome.value),
             )
 
     def workload_run(self, run_id: str) -> WorkloadRun | None:
