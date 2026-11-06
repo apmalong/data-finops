@@ -26,7 +26,7 @@ One page per document under `site/`, each one Diátaxis type. Home is `index.htm
 - Writing: glossary terms capitalised as in GLOSSARY, never their avoided synonyms. Short declarative sentences. Explanation pages cite their ADRs and specs, which stay authoritative. The only account ID is the placeholder `123456789012`. No real account IDs, bucket names, credentials or SQL literals appear.
 
 ## The site tool (`scripts/site/`)
-Stdlib only, dev tooling outside the wheel, under ruff and mypy. The page runner is the exception: it imports data_finops and FastAPI to run commands, and only tests import it, so `check` stays stdlib-only for the Pages workflow. It has two commands: `python -m scripts.site build` rewrites the generated pages and nav, and `python -m scripts.site check` reports problems and exits non-zero on any.
+Stdlib only, dev tooling outside the wheel, under ruff and mypy. Two parts import data_finops: the page runner (with FastAPI) to run commands, which only tests import, and `build`'s CLI reference, which loads the command line's parser only when it renders that page. So `check` stays stdlib-only for the Pages workflow. It has two commands: `python -m scripts.site build` rewrites the generated pages and nav, and `python -m scripts.site check` reports problems and exits non-zero on any.
 
 - **CLI reference:** walked from `data_finops.cli`'s argparse parser, covering every command, argument, default and help string.
 - **HTTP API reference:** from `schemas/openapi.json`, covering every path, method, parameter, response and Problem Details.

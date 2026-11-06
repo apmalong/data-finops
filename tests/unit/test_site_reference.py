@@ -5,7 +5,13 @@ import argparse
 import pytest
 
 from scripts.site.nav import SiteError
-from scripts.site.reference import render_cli, render_contracts, render_glossary, render_http
+from scripts.site.reference import (
+    describe,
+    render_cli,
+    render_contracts,
+    render_glossary,
+    render_http,
+)
 
 
 def toy_parser() -> argparse.ArgumentParser:
@@ -151,7 +157,7 @@ def test_the_contracts_reference_lists_each_schema_its_fields_and_definitions() 
         "<tr><td><code>amount</code></td><td>required</td>"
         "<td>string, matching ^-?[0-9]+$</td><td>A Decimal string</td></tr>"
     ) in html
-    assert "<tr><td><code>kind</code></td><td>required</td><td>Kind</td><td></td></tr>" in html
+    assert "<td><code>kind</code></td><td>required</td><td>Kind: one of" in html
     assert (
         "<tr><td><code>tags</code></td><td>optional</td><td>list of string</td><td></td></tr>"
         in html
@@ -225,3 +231,115 @@ def test_flagged_ambiguities_hold_only_bullets() -> None:
     text = GLOSSARY.replace('- "Query cost"', 'A sentence.\n- "Query cost"', 1)
     with pytest.raises(SiteError, match="GLOSSARY.md:22:"):
         render_glossary(text)
+
+
+def test_the_cli_reference_gives_groups_their_own_section_and_misses_no_command() -> None:
+    parser = toy_parser()
+    commands = next(a for a in parser._actions if isinstance(a, argparse._SubParsersAction))
+    quiet = commands.add_parser("calculate")  # added without help=
+    quiet.add_argument("--basis", choices=["BilledCost", "ListCost"], help="the Cost Basis")
+    html = render_cli(parser)
+    assert html.startswith("<p>Do &lt;things&gt;.</p>")
+    assert '<h2 id="ingest"><code>tool ingest</code></h2>\n<p>load one input</p>' in html
+    assert '<a href="#ingest-focus"><code>tool ingest focus</code></a>' in html
+    assert '<h2 id="calculate"><code>tool calculate</code></h2>' in html
+    assert "<td>the Cost Basis One of BilledCost, ListCost.</td>" in html
+
+
+COMPONENTS = {
+    "components": {
+        "schemas": {
+            "CostBasis": {
+                "type": "string",
+                "enum": ["BilledCost", "ListCost"],
+                "title": "CostBasis",
+            },
+            "Page": {
+                "type": "object",
+                "description": "One page.",
+                "required": ["total"],
+                "properties": {
+                    "total": {"type": "integer"},
+                    "basis": {"$ref": "#/components/schemas/CostBasis"},
+                },
+            },
+        }
+    }
+}
+
+
+def test_the_http_reference_explains_its_schemas_and_spells_out_enums() -> None:
+    document = {
+        **OPENAPI,
+        **COMPONENTS,
+        "paths": {
+            **OPENAPI["paths"],
+            "/v1/basis": {
+                "head": {"summary": "Probe", "responses": {"200": {"description": "OK"}}},
+                "get": {
+                    "summary": "Basis",
+                    "parameters": [
+                        {
+                            "name": "cost_basis",
+                            "in": "query",
+                            "schema": {
+                                "$ref": "#/components/schemas/CostBasis",
+                                "default": "BilledCost",
+                            },
+                        }
+                    ],
+                    "responses": {
+                        "200": {
+                            "description": "OK",
+                            "content": {
+                                "application/json": {
+                                    "schema": {"$ref": "#/components/schemas/Page"}
+                                }
+                            },
+                        }
+                    },
+                },
+            },
+        },
+    }
+    html = render_http(document)
+    assert (
+        "<td>CostBasis: one of &quot;BilledCost&quot;, &quot;ListCost&quot;, "
+        "default &quot;BilledCost&quot;</td>"
+        in html
+    )
+    assert '<td><code>application/json</code>: <a href="#schema-page">Page</a></td>' in html
+    assert '<h2 id="head-v1-basis"><code>HEAD /v1/basis</code>: Probe</h2>' in html
+    assert '<h2 id="schemas">Schemas</h2>' in html
+    assert '<h3 id="schema-page">Page</h3>\n<p>One page.</p>' in html
+    assert "<tr><td><code>total</code></td><td>required</td><td>integer</td><td></td></tr>" in html
+    assert '<h3 id="schema-cost-basis">CostBasis</h3>' in html
+
+
+def test_an_unknown_key_under_a_path_fails_rather_than_being_dropped() -> None:
+    with pytest.raises(SiteError, match="/v1/things.*fetch"):
+        render_http({"paths": {"/v1/things": {"fetch": {}}}})
+
+
+def test_describe_reads_json_values_as_json_and_combines_schemas() -> None:
+    assert describe({"const": None}) == "always null"
+    assert describe({"enum": [True, "a"]}) == 'one of true, "a"'
+    assert describe({"type": "boolean", "default": False}) == "boolean, default false"
+    assert (
+        describe({"allOf": [{"type": "string"}, {"maxLength": 3}]})
+        == "string and at most 3 characters"
+    )
+    assert describe({"anyOf": []}) == ""
+    assert (
+        describe({"type": "object", "additionalProperties": {"type": "string"}})
+        == "object of string"
+    )
+
+
+def test_a_contract_field_naming_an_enum_definition_spells_out_its_values() -> None:
+    html = render_contracts({"thing.schema.json": THING})
+    assert (
+        "<tr><td><code>kind</code></td><td>required</td>"
+        "<td>Kind: one of &quot;a&quot;, &quot;b&quot;</td><td></td></tr>"
+        in html
+    )

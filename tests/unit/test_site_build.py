@@ -1,4 +1,6 @@
-"""The site generator (spec 07, "The site tool"), tested only through `build` and the drift test."""
+"""The site generator (spec 07, "The site tool"), tested through `build` and the drift test.
+
+The reference renderers are tested on small inputs in test_site_reference.py."""
 
 import json
 from pathlib import Path

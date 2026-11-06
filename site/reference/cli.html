@@ -39,6 +39,10 @@
 <p>Every <code>data-finops</code> command, with its usage and its arguments. This page is generated from the command line's own parser, so it says what <code>data-finops --help</code> says. Run <code>data-finops &lt;command&gt; --help</code> for the same text in a terminal.</p>
 <p><code>--db</code> names the database file every command reads and writes; it is created on first use. <code>serve</code> needs the optional <code>api</code> extra.</p>
 <!-- reference:start -->
+<p>Load billing and workload inputs, then allocate the bill.</p>
+<h2 id="ingest"><code>data-finops ingest</code></h2>
+<p>load one input file into a database</p>
+<p>Commands: <a href="#ingest-focus"><code>data-finops ingest focus</code></a>, <a href="#ingest-openlineage"><code>data-finops ingest openlineage</code></a>, <a href="#ingest-dbt"><code>data-finops ingest dbt</code></a>, <a href="#ingest-athena"><code>data-finops ingest athena</code></a>.</p>
 <h2 id="ingest-focus"><code>data-finops ingest focus</code></h2>
 <p>a FOCUS Export Snapshot (JSON), or an AWS Data Exports Delivery by its downloaded &lt;export&gt;-Manifest.json</p>
 <pre><code>usage: data-finops ingest focus [-h] [--data-dir DATA_DIR] --db DB path</code></pre>
