@@ -1,0 +1,83 @@
+# What feeds data-finops, what it keeps, and who reads it (as built through M5).
+# Render: d2 --layout elk docs/architecture/system-context.d2 docs/architecture/system-context.svg
+direction: right
+
+classes: {
+  source: {
+    style: {fill: "#f1f5f9"; stroke: "#64748b"; border-radius: 6}
+  }
+  module: {
+    style: {fill: "#ffffff"; stroke: "#334155"; border-radius: 6}
+  }
+  store: {
+    shape: cylinder
+    style: {fill: "#f8fafc"; stroke: "#475569"; font-size: 13}
+  }
+  reader: {
+    shape: person
+    style: {fill: "#eef2ff"; stroke: "#4338ca"}
+  }
+  later: {
+    style: {stroke-dash: 4; fill: "#ffffff"; stroke: "#94a3b8"; font-color: "#64748b"; border-radius: 6}
+  }
+}
+
+aws: Customer AWS account {
+  class: source
+  exports: Data Exports\nFOCUS 1.2 Deliveries, Parquet in S3 {class: source}
+  athena: Athena\nquery history (BatchGetQueryExecution) {class: source}
+}
+workload: Workload (e.g. the reference workload, ADR 0021) {
+  class: source
+  airflow: Airflow\nOpenLineage provider {class: source}
+  dbt: dbt-athena run by dbt-ol\nOpenLineage events · manifest.json · run_results.json {class: source}
+}
+
+product: data-finops (Python package, runs locally) {
+  cli: cli\ndata-finops ingest · calculate · serve · demo {class: module}
+
+  readers: Readers: screen before anything is written {
+    focus: billing.focus · billing.aws_data_exports\nFOCUS JSON, Parquet, a Delivery by its manifest {class: module}
+    lineage: lineage\nOpenLineage events (bundled schemas) {class: module}
+    dbt: dbt\nartifacts (manifest v12, run results v6) {class: module}
+    athena: providers.athena\nquery history (allowlisted metadata only) {class: module}
+  }
+
+  sqlite: "One SQLite file, WAL (ADR 0018)" {
+    ledger: Ledger\nExport Snapshots · Billing Lines\nAllocation Snapshots: the only cost authority {class: store}
+    store: Workload store\nWorkload Runs · Model Executions · dbt Nodes\nData Assets · Lineage Edges · Query Executions {class: store}
+  }
+
+  identity: identity\nIdentity Links on explicit Evidence\n(derived when asked) {class: module}
+  calculation: calculation\nthe Calculation Run {class: module}
+  engine: attribution\npure engine: Cost Pools, Coverage, Roll-ups {class: module}
+  policy: providers.athena_billing\nBillable Usage, billing scope {class: module}
+  reporting: reporting\nread model: Cost Summary, Cost Explanation,\nRoll-ups, reconciliation, provenance, lineage {class: module}
+  api: api (optional extra)\nread API · OpenLineage receiver · dashboard\nloopback by default, bearer token (ADR 0024) {class: module}
+
+  cli -> readers: ingest
+  readers -> sqlite: screened records only
+  sqlite.store -> identity
+  cli -> calculation: calculate
+  calculation -> sqlite: reads the current Export Snapshot and Query Executions,\nstores an Allocation Snapshot
+  calculation -> policy
+  calculation -> engine
+  reporting -> sqlite: read only
+  api -> reporting: every read
+  api -> sqlite.store: POST /api/v1/lineage, one event per request
+  cli -> api: serve · demo
+}
+
+people: FinOps and data engineers {class: reader}
+scripts: scripts/\nanonymize real outputs → fixtures {class: module}
+m6: M6: fetch from S3 and Athena,\ndeploy on AWS (Pulumi) {class: later}
+
+aws.exports -> product.readers.focus: downloaded files
+aws.athena -> product.readers.athena: response JSON
+workload.dbt -> product.readers.dbt: artifact files
+workload.dbt -> product.readers.lineage: event files
+workload.airflow -> product.readers.lineage: event files
+workload.airflow -> product.api: OpenLineage HTTP transport {style.stroke-dash: 2}
+product.api -> people: dashboard and JSON
+aws -> scripts: real outputs {style.stroke-dash: 2}
+m6 -> aws {class: later}

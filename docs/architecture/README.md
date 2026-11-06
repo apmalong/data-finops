@@ -1,20 +1,25 @@
 # Architecture diagrams
 
-What M0–M3 built, drawn from the code as it stands. Terms are the ones in [`GLOSSARY.md`](../../GLOSSARY.md); decisions are in [`docs/adr/`](../adr/). Anything not built yet is drawn dashed and grey, with the milestone that brings it.
+What M0–M5 built, drawn from the code as it stands. Terms are the ones in [`GLOSSARY.md`](../../GLOSSARY.md); decisions are in [`docs/adr/`](../adr/). Anything not built yet is drawn dashed and grey, with the milestone that brings it.
 
 | Diagram | Answers | Tool |
 |---|---|---|
-| [System context](#system-context) | What feeds data-finops, what it keeps, what comes next | draw.io |
+| [System context](#system-context) | What feeds data-finops, what it keeps, who reads it, what comes next | D2 |
 | [Ingest flow](#ingest-flow) | What happens to each input, and what is refused | D2 |
 | [Domain model](#domain-model) | How the glossary terms relate | Mermaid |
 | [Event ingest sequence](#event-ingest-sequence) | One OpenLineage file, call by call | Mermaid |
+| [Calculation Run](#calculation-run) | How a Snapshot Scope's bill becomes an Allocation Snapshot | Mermaid |
+| [Reading the results](#reading-the-results) | How the dashboard and the API answer | Mermaid |
 | [Database](#database) | Every table and column in the shared SQLite file | D2, generated |
 
 ## System context
 
-![System context](system-context.drawio.svg)
+![System context](system-context.svg)
 
-The product reads files today. It makes no AWS calls, and anonymized copies of real outputs become fixtures through `scripts/`. The Ledger is the only cost authority. Lineage and dbt records explain work and never carry money (ADR 0003).
+- **Inputs:** the product reads files through `data-finops ingest`, and receives OpenLineage events one at a time over HTTP. It makes no AWS calls. Fetching from S3 and Athena, and deployment, come with M6. Anonymized copies of real outputs become fixtures through `scripts/`.
+- **Stores:** the Ledger is the only cost authority. Lineage and dbt records explain work and never carry money (ADR 0003).
+- **Calculating:** `calculation` is the only module that brings the two stores together with the pure `attribution` engine and the Athena policies.
+- **Reading:** `reporting` reads both stores for the API and the dashboard, read-only (architecture-boundaries.md).
 
 ## Ingest flow
 
@@ -22,8 +27,8 @@ The product reads files today. It makes no AWS calls, and anonymized copies of r
 
 Each input is checked before anything is written.
 
-- **Billing** is all or nothing per Export Snapshot: an invalid export raises a validation error, and a snapshot ID already stored with other content raises `SnapshotConflictError`. A restatement is a new snapshot. It becomes current and the earlier one is kept as history (ADR 0020).
-- **OpenLineage** files are screened event by event, so one bad event does not stop the rest of the file. The exception is a JSON array that cannot be parsed at all, which is rejected as a whole.
+- **Billing** is all or nothing per Export Snapshot. It is read from a JSON Export Snapshot, or from an AWS Data Exports Delivery by its manifest, whose S3 folder gives `published_at` (ADR 0020 amendment). An invalid export or Delivery is refused, and a snapshot ID already stored with other content raises `SnapshotConflictError`. A restatement is a new snapshot. It becomes current and the earlier one is kept as history (ADR 0020).
+- **OpenLineage** events arrive in files or one per HTTP request (`POST /api/v1/lineage`, ADR 0024) and take the same path. Files are screened event by event, so one bad event does not stop the rest of the file. The exception is a JSON array that cannot be parsed at all, which is rejected as a whole.
 - **dbt** artifacts are accepted or refused as whole files.
 - **Athena** query history is refused whole when it is not a BatchGetQueryExecution response, is too large, or records another account or region; otherwise it is screened entry by entry. Query text and free-text failure reasons are removed before storage.
 
@@ -69,7 +74,19 @@ classDiagram
         Link Outcome, Evidence, policy version
     }
     class Allocation {
-        <<M4, planned>>
+        amount per Cost Basis and currency
+        Category, Method, Confidence, Coverage
+        Evidence, policy version
+    }
+    class AllocationSnapshot["Allocation Snapshot"] {
+        one Calculation Run
+        input digest, current or superseded
+    }
+    class CostPool["Cost Pool"] {
+        metered (Coverage) · ineligible · adjustment
+    }
+    class RollUp["Roll-up"] {
+        a view, never an Allocation
     }
 
     ExportSnapshot "1" *-- "many" BillingLine
@@ -80,8 +97,13 @@ classDiagram
     IdentityLink --> QueryExecution : source, by Trusted Query Comment
     IdentityLink --> WorkloadRun : source or target, by dbt-ol facets
     IdentityLink --> ModelExecution : target
-    Allocation ..> BillingLine : share of its Cost Pool
-    Allocation ..> QueryExecution : Allocation Target
+    AllocationSnapshot "1" *-- "many" Allocation
+    AllocationSnapshot --> ExportSnapshot : partitions
+    BillingLine "many" --> "1" CostPool : classified into
+    Allocation --> BillingLine : part of
+    Allocation --> QueryExecution : Allocation Target (or Unallocated)
+    RollUp --> ModelExecution : sum over linked queries
+    RollUp --> WorkloadRun : sum over linked queries
 ```
 
 Identity Links (M3) connect workload records using only explicit Evidence, never time overlap (ADR 0006):
@@ -92,7 +114,11 @@ Identity Links (M3) connect workload records using only explicit Evidence, never
 
 Links are derived from stored observations when asked, so arrival order does not matter. Each attempt has a Link Outcome, and only `linked` makes a link: missing Evidence is `no_evidence`, Evidence naming something nobody reported is `unmatched`, and disagreeing reports are `ambiguous`.
 
-There are still no links between billing records and workload records. Allocation (M4) will assign shares of Billing Lines' Cost Pools to Query Executions, and Model Executions and Workload Runs then receive cost only as Roll-ups over their Identity Links.
+Allocation (M4) is where billing meets the workload.
+- A Calculation Run partitions every Billing Line of the current Export Snapshot into Allocations.
+- A metered line is shared among the Query Executions in its billing scope by Billable Usage, as far as Coverage allows (ADR 0017).
+- Everything else is Unallocated, with its reason.
+- Model Executions and Workload Runs receive cost only as Roll-ups over their Identity Links (ADR 0016).
 
 ## Event ingest sequence
 
@@ -125,6 +151,69 @@ sequenceDiagram
     Note over Caller,DB: workload_run() later derives status, times, parent and root from the stored events, so arrival order never matters
 ```
 
+## Calculation Run
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant CLI as data-finops calculate
+    participant Calc as calculation.run_calculation
+    participant Ledger
+    participant Store as WorkloadStore
+    participant Policy as providers.athena_billing
+    participant Engine as attribution.allocate
+
+    CLI->>Ledger: scopes()
+    loop each Snapshot Scope
+        CLI->>Calc: run_calculation(ledger, store, scope)
+        Calc->>Ledger: current_snapshot(scope)
+        loop each Billing Line
+            alt Credit or Adjustment
+                Calc->>Calc: Adjustment pool (Unallocated, signed)
+            else Athena on-demand usage
+                Calc->>Store: query_executions(account, region)
+                Calc->>Policy: in_billing_scope · billable_bytes
+                Calc->>Store: Identity Links → Evidence
+                Calc->>Calc: metered Cost Pool with each query's Billable Usage
+            else anything else
+                Calc->>Calc: Ineligible pool (Unallocated)
+            end
+        end
+        Calc->>Engine: allocate(pooled lines, policy version, run ID)
+        Engine-->>Calc: Allocations by Coverage, largest remainder per line and Cost Basis
+        Calc->>Ledger: store_allocations(scope, input digest, export snapshot ID)
+        Ledger-->>CLI: new (current), or replay when the input digest equals the current one
+    end
+```
+
+The engine is pure: it never touches a store, a clock or a provider policy, so the same inputs give the same Allocations. The policy version names every rule that shaped them: the engine's, line classification and both Athena policies (spec 03).
+
+## Reading the results
+
+```mermaid
+sequenceDiagram
+    participant Browser as dashboard (static HTML, CSS, JS)
+    participant API as api (FastAPI)
+    participant Read as reporting.Reporting
+    participant Stores as Ledger + WorkloadStore
+
+    Browser->>API: GET /v1/costs/summary?cost_basis=…
+    API->>Read: cost_summary(...)
+    Read->>Stores: current Allocation Snapshot per scope, its Export Snapshot
+    Read-->>API: Cost Summary per currency
+    API-->>Browser: JSON
+    Browser->>API: an amount → GET /v1/allocations, then /v1/allocations/{ref}/explanation
+    API->>Read: allocations(...) · explanation(ref)
+    Read-->>API: Cost Explanation: Billing Line, Allocation, Evidence nearest first, Roll-ups
+    API-->>Browser: JSON
+    Browser->>API: a Workload Run → GET /v1/lineage?run_id=…
+    API->>Read: lineage(run_id)
+    Read-->>API: the run, its ancestors and children, Identity Links and Data Assets
+    API-->>Browser: JSON
+```
+
+Every route reads through `reporting`, which returns response models and holds no SQL. The OpenAPI 3.1 document is `schemas/openapi.json`, which a test keeps in step with the app. The dashboard follows spec 06's rules after Tufte and Few (`src/data_finops/api/dashboard/DESIGN.md`).
+
 ## Database
 
 ![Database](database.svg)
@@ -137,7 +226,7 @@ Generated from the schema: the Ledger and the workload store each create their t
 |---|---|---|
 | `database.d2`, `database.svg` | any table or column (a test fails until you do) | `uv run python scripts/database_diagram.py`, then `d2 --layout elk docs/architecture/database.d2 docs/architecture/database.svg` |
 | `ingest-flow.svg` | `ingest-flow.d2` | `d2 --layout elk docs/architecture/ingest-flow.d2 docs/architecture/ingest-flow.svg` |
-| `system-context.drawio.svg` | the system's inputs, packages or stores | open it in draw.io (desktop, or the VS Code draw.io extension) and save; the file stays an SVG |
-| Mermaid blocks | the glossary or the ingest path | edit this file; GitHub draws them |
+| `system-context.svg` | `system-context.d2` (the system's inputs, packages, stores or readers) | `d2 --layout elk docs/architecture/system-context.d2 docs/architecture/system-context.svg` |
+| Mermaid blocks | the glossary, the ingest path, the Calculation Run or the read path | edit this file; GitHub draws them |
 
-Tools: D2 0.9.0 (`winget install Terrastruct.D2`), draw.io desktop 32.6.1 (`winget install JGraph.Draw`) or the `hediet.vscode-drawio` extension. CI checks only `database.d2` against the schema, not whether the SVGs are up to date with their sources.
+Tools: D2 0.9.0 (`winget install Terrastruct.D2`). CI checks only `database.d2` against the schema, not whether the SVGs are up to date with their sources.

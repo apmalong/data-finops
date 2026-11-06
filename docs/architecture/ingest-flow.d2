@@ -1,4 +1,5 @@
-# How each input reaches the shared SQLite file (M1–M3).
+# How each input reaches the shared SQLite file (as built through M5).
+# Files arrive through `data-finops ingest <kind>`; OpenLineage events also over HTTP.
 # Render: d2 --layout elk docs/architecture/ingest-flow.d2 docs/architecture/ingest-flow.svg
 direction: right
 
@@ -28,15 +29,15 @@ classes: {
 }
 
 # Billing: authoritative cost
-focus: FOCUS export\n(JSON fixture, or Parquet files\n+ publication metadata) {class: input}
+focus: FOCUS export\nJSON Export Snapshot, or an AWS Data Exports\nDelivery by its <export>-Manifest.json {class: input}
 billing: {
   label: Billing → Ledger
-  read: billing.focus\nload_export / load_parquet_export\ndecimals kept exact, Parquet: sha256 per file {class: step}
+  read: billing.focus.load_export (JSON)\nbilling.aws_data_exports.load_delivery (Delivery):\nonly listed files, FOCUS 1.2, published_at = CreatedAt\nfrom the S3 folder (ADR 0020) · decimals exact · sha256 per file {class: step}
   import: Ledger.import_snapshot\nSnapshot Scope = account, Billing Period, source {class: step}
   new: new (current) {class: outcome}
   superseded: superseded (history) {class: outcome}
   replay: replay (nothing stored) {class: outcome}
-  invalid: invalid export: validation error\nraised, nothing stored {class: refused}
+  invalid: invalid export or Delivery: refused,\nnothing stored (exit 2, named by file) {class: refused}
   conflict: SnapshotConflictError\nsame ID, other content {class: refused}
   read -> import
   read -> invalid
@@ -54,16 +55,17 @@ billing.new -> ledger_tables
 billing.superseded -> ledger_tables
 
 # OpenLineage: Workload Runs and lineage
-events: OpenLineage events\n(JSON array or JSON Lines) {class: input}
+events: OpenLineage event file\n(JSON array or JSON Lines) {class: input}
+receiver: POST /api/v1/lineage\none event per request, at most 1 MiB,\nloopback by default, bearer token (ADR 0024) {class: input}
 lineage: {
-  label: WorkloadStore.ingest_events
-  screen: lineage.validation.screen_events\nper event, against bundled schemas\n(RunEvent 2-0-2, ParentRunFacet 1-1-0) {class: step}
-  rejected: rejected by kind, never stored\n(an unparseable JSON array: whole file)\nnot UTF-8 · not JSON · too large · too deep\ninvalid RunEvent / ParentRunFacet / … {class: refused}
-  unsupported: unsupported, reported\nJobEvent · DatasetEvent {class: outcome}
+  label: WorkloadStore.ingest_events (file) · ingest_event (one event)
+  screen: lineage.validation.screen_events / screen_event\nper event, against bundled schemas\n(RunEvent 2-0-2, ParentRunFacet 1-1-0) {class: step}
+  rejected: rejected by kind, never stored (HTTP 400, or 413 when too large)\n(an unparseable JSON array: whole file)\nnot UTF-8 · not JSON · too large · too deep\ninvalid RunEvent / ParentRunFacet / … {class: refused}
+  unsupported: unsupported, reported (HTTP 202)\nJobEvent · DatasetEvent {class: outcome}
   clean: remove SQL query text and stack traces\neventTime to UTC · sha256 of stored JSON {class: step}
   key: key = run · event type · time + digest {class: step}
-  stored: stored {class: outcome}
-  duplicate: duplicate (nothing stored) {class: outcome}
+  stored: stored (HTTP 201) {class: outcome}
+  duplicate: duplicate, nothing stored (HTTP 201) {class: outcome}
   changed: changed copy, kept beside\nand flagged on the run {class: outcome}
   screen -> rejected
   screen -> unsupported
@@ -78,6 +80,7 @@ workload_events: Workload store: OpenLineage {
   workload_lineage_edge {class: table}
 }
 events -> lineage.screen
+receiver -> lineage.screen
 lineage.stored -> workload_events
 lineage.changed -> workload_events
 
@@ -113,7 +116,7 @@ queries: {
   screen: providers.athena.screen_query_history\nper entry, at most 512 MiB {class: step}
   refused: whole file refused, nothing stored\ntoo large · not a BatchGetQueryExecution response\naccount or region disagrees {class: refused}
   rejected: rejected by position and field,\nnever stored or echoed {class: refused}
-  comment: identity.trusted_query_comment\nfirst line only: invocation_id, node_id {class: step}
+  comment: identity.links.trusted_query_comment\nfirst line only: invocation_id, node_id {class: step}
   clean: keep allowlisted metadata + comment IDs\n(no query text) · sha256 of stored JSON {class: step}
   key: key = account · region · query ID + digest {class: step}
   stored: stored {class: outcome}
