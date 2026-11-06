@@ -50,6 +50,8 @@ class Problem:
 
 PLACEHOLDER_ACCOUNT = "123456789012"
 _TWELVE_DIGITS = re.compile(r"(?<!\d)\d{12}(?!\d)")
+# A UUID ends in 12 hex digits that can all be decimal; it is an identifier, never an account.
+_UUID = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", re.IGNORECASE)
 _EXTERNAL_URL = re.compile(r"https?://", re.IGNORECASE)
 _CSS_URL = re.compile(r"""url\(\s*(['"]?)(.*?)\1\s*\)|@import\s+(['"])(.*?)\3""", re.IGNORECASE)
 _TEXT = {".html", ".css", ".js", ".json", ".md", ".svg", ".txt"}
@@ -301,7 +303,8 @@ def _code_rules(
 
 def _text_rules(site: _Site, name: str, text: str) -> Iterator[Problem]:
     for line, content in enumerate(text.splitlines(), start=1):
-        if any(m.group() != PLACEHOLDER_ACCOUNT for m in _TWELVE_DIGITS.finditer(content)):
+        without_uuids = _UUID.sub("", content)
+        if any(m.group() != PLACEHOLDER_ACCOUNT for m in _TWELVE_DIGITS.finditer(without_uuids)):
             # Never echo the number: it may be a real account ID (ADR 0012).
             message = f"a 12-digit number other than {PLACEHOLDER_ACCOUNT}"
             yield Problem(name, line, "account-id", message)

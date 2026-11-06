@@ -102,6 +102,7 @@ class _Session:
 
 def run_page(page: Path, repo: Path) -> list[RunProblem]:
     """Every problem running `page`'s commands, or none when the page is true."""
+    fixtures = (repo / "fixtures").resolve()  # before the working directory changes
     parser = _Blocks()
     parser.feed(page.read_text(encoding="utf-8"))
     parser.close()
@@ -111,7 +112,7 @@ def run_page(page: Path, repo: Path) -> list[RunProblem]:
         contextlib.chdir(work),
         _without_data_finops_settings(),
     ):
-        shutil.copytree(repo / "fixtures", Path(work) / "fixtures")
+        shutil.copytree(fixtures, Path(work) / "fixtures")
         session = _Session()
         try:
             block_number = 0
