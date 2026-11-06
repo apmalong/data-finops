@@ -32,6 +32,8 @@ Pulumi Python stack in `examples/reference-workload/` (S3, Glue database, Athena
 ## M6: AWS deployment (optional after M5)
 Pulumi Python components, private API, scheduled read-only ingestion, encrypted storage, cost limits, deployment docs and teardown. **Exit:** preview policies validated; deployment only with explicit user authorization and credentials.
 
+Designed 2026-11-06 (spec 08; ADRs 0026–0028; research notes `docs/research/m6-*.md`): reusable components in `infra/pulumi/aws/` for one account; two Lambda functions without a VPC sharing one SQLite file in S3, the scheduled collector its only writer by S3 conditional write; a read-only JSON API behind an `AWS_IAM` Function URL, the dashboard used locally; ingress by scheduled pull from S3 Inboxes (ADR 0024 point 6); AWS collectors in `providers.aws` behind an `aws` extra, and `data-finops collect`; a minimal Cost Explanation by default in a Deployment (#110); a custom Python policy pack validated offline with unit tests and `pulumi policy analyze` on mock-generated state, in a new `infra` CI job. **Exit (refined):** tests of the components, the policy pack and the package pass offline in CI and the pack rejects non-compliant fixtures; the owner's deploy-and-verify wizard is optional and recorded only if run. #26 (reference workload teardown) joins M6 as its last owner-only step; #91 stays an M4 follow-up.
+
 ## Deferred
 GCP, Snowflake, dbt Elementary optional tables, dlt, Dagster, OTel, BI connectors, automatic optimization, multi-account aggregation, enterprise auth.
 

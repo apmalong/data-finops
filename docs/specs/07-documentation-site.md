@@ -6,7 +6,7 @@ Decided in the D design session (2026-11-05, #135). Format and structure are in 
 One page per document under `site/`, each one Diátaxis type. Home is `index.html`, with an index page for each type.
 
 - **Tutorials:** `first-allocation` (the demo walkthrough). "Instrument an Airflow and dbt workload" waits until after M6 and #26, since it costs real AWS money.
-- **How-to guides:** `install`, `ingest-focus-export`, `receive-openlineage`, `ingest-dbt-artifacts`, `ingest-athena-history`, `calculate`, `handle-restated-export`, `serve-with-token`, `read-cost-explanation`, `deploy-reference-workload` (teardown steps link to the reference workload).
+- **How-to guides:** `install`, `ingest-focus-export`, `receive-openlineage`, `ingest-dbt-artifacts`, `ingest-athena-history`, `calculate`, `handle-restated-export`, `serve-with-token`, `read-cost-explanation`, `deploy-reference-workload` (teardown steps link to the reference workload). M6 adds `deploy-to-aws`, `send-to-inbox`, `read-deployment` and `tear-down-deployment`, a generated `deployment-settings` reference page and a `deployment-architecture` explanation (spec 08).
 - **Reference:** `cli`, `http-api`, `data-contracts` (generated); `exit-codes-and-environment` (hand-written); `glossary` (generated).
 - **Explanation:** `bill-is-authoritative`, `allocation-and-coverage`, `identity-links-and-evidence`, `export-snapshots-and-restatements`, `security-model`, `decision-records` (an index of ADR titles linking to GitHub, never copies). The Athena policy text names the policy version and says it is provisional until #91 closes.
 - `contributing.html` links to the specs, ADRs, plan, progress and research on GitHub.

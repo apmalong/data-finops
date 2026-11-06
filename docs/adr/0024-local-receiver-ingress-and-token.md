@@ -23,3 +23,6 @@ The local demo needs no secret. Exposing the receiver on a network requires a de
 
 ## Revisit triggers
 Several teams send events to one receiver and need separate credentials; the M6 deployment fixes the production ingress pattern.
+
+## Amendment (2026-11-06, M6)
+Point 6 is decided by ADR 0027: a Deployment receives OpenLineage events by scheduled pull from an S3 Inbox, authenticated by IAM. The receiver stays a local and self-hosted feature and is not mounted by the deployed API (ADR 0026).

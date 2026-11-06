@@ -43,6 +43,7 @@
 <li><a href="#area-lineage">Lineage</a></li>
 <li><a href="#area-allocation">Allocation</a></li>
 <li><a href="#area-reconciliation">Reconciliation</a></li>
+<li><a href="#area-deployment">Deployment</a></li>
 <li><a href="#area-flagged-ambiguities">Flagged ambiguities</a></li>
 </ul>
 </nav>
@@ -179,6 +180,21 @@
 <dt id="allocation-snapshot">Allocation Snapshot</dt>
 <dd>The complete set of Allocations produced by one Calculation Run. Any period may be recalculated; doing so creates a new snapshot and moves the current pointer.</dd>
 <dd class="avoid">Avoid: result, rerun output</dd>
+</dl>
+<h2 id="area-deployment">Deployment</h2>
+<dl>
+<dt id="deployment">Deployment</dt>
+<dd>One Pulumi stack of data-finops in one AWS account (ADR 0026, spec 08).</dd>
+<dd class="avoid">Avoid: install, environment</dd>
+<dt id="collection-run">Collection Run</dt>
+<dd>One execution of the collector: it fetches every source a Deployment reads, ingests it, then starts one Calculation Run.</dd>
+<dd class="avoid">Avoid: job, sync, refresh</dd>
+<dt id="inbox">Inbox</dt>
+<dd>The bucket prefix producers write OpenLineage events and dbt artifacts to, for the next Collection Run to pull (ADR 0027).</dd>
+<dd class="avoid">Avoid: drop zone, landing area</dd>
+<dt id="collection-watermark">Collection Watermark</dt>
+<dd>What a Deployment has already collected, per source: the Delivery folders ingested, the Athena query IDs stored and the Inbox keys processed. It is never a clock time alone.</dd>
+<dd class="avoid">Avoid: checkpoint, cursor</dd>
 </dl>
 <h2 id="area-flagged-ambiguities">Flagged ambiguities</h2>
 <ul>
