@@ -169,9 +169,24 @@ Spec #103, tickets #104–#119; decisions from the design session recorded in PR
   - `/health` → `{"status":"ok"}`; `/` → 307 to `/dashboard/`.
   - `/v1/costs/summary` → billed 10.00, allocated 6.00 at Coverage 1, Unallocated 4.00 `ineligible`.
   - Headless Edge rendered the live dashboard: `docs/implementation/screenshots/m5-exit-live-demo.png`.
-- **Manual browser pass against the five-minute budget (spec 01):** pending the owner. M5 is complete once it is recorded here.
+- **Manual browser pass against the five-minute budget (spec 01, "Offline demo <= 5 minutes on developer laptop after dependencies installed"):** passed by the owner on 2026-11-06. The dashboard loaded near instantly, well within the budget. Screenshot: `docs/implementation/screenshots/m5-manual-pass.png`.
+  - **Bug found on the first try:** the dashboard showed "Could not load: The request could not be completed." About half of its concurrent requests returned 500, 93 of 180 in a reproduction against `data-finops demo`.
+    - Cause: FastAPI ran the sync `Reporting` dependency and the sync endpoint in different threadpool threads, and SQLite refuses a connection used outside the thread that opened it (`ProgrammingError`, hidden behind the 500).
+    - Why it was missed: the test client and the headless screenshot sent one request at a time.
+    - Fix: each endpoint opens and closes its own `Reporting`. After it, 180 of 180 returned 200.
+    - `tests/integration/test_api_concurrency.py` sends the dashboard's reads, a Cost Explanation and a receiver write concurrently through `httpx.ASGITransport`. It fails on the old code and passes on the new.
+  - **What local timing does not show:** the fixtures are two lines. On the owner's real anonymized 2026-10 Delivery (7,984 Billing Lines, one small account), from a new database:
+    ```text
+    ingest focus           1.35 s
+    calculate              1.17 s
+    GET /v1/costs/summary  0.65 s
+    GET /v1/allocations    0.28 s   (Unallocated, 1,000 per page)
+    GET /v1/reconciliation 0.83 s   (100 per page)
+    GET /v1/rollups        0.28 s
+    ```
+    A large account bills millions of lines a month. Throughput at that size is not measured; it belongs with M6's deployment work.
 - **Gates on the branch:**
-  - `uv run pytest -q` → 723 passed;
+  - `uv run pytest -q` → 724 passed;
   - `uv run ruff check .` → All checks passed;
   - `uv run ruff format --check .` → 163 files already formatted;
   - `uv run mypy src` → no issues in 38 source files;
