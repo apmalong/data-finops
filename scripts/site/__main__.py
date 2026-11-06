@@ -18,9 +18,17 @@ def main(argv: list[str] | None = None) -> int:
 
     problems = check_site(args.root)
     for p in problems:
-        print(f"{p.path}:{p.line}: {p.rule}: {p.message}")
+        print(f"{_shown(args.root / p.path)}:{p.line}: {p.rule}: {p.message}")
     print(f"{len(problems)} problem(s) in {args.root}", file=sys.stderr)
     return 1 if problems else 0
+
+
+def _shown(path: Path) -> str:
+    """The path relative to the working directory when it is under it, so editors can open it."""
+    try:
+        return path.resolve().relative_to(Path.cwd()).as_posix()
+    except ValueError:
+        return path.as_posix()
 
 
 if __name__ == "__main__":

@@ -20,7 +20,7 @@ jobs:
       - run: uv run ruff format --check .
       - run: uv run mypy src scripts/site
       - run: uv run pytest --cov=data_finops --cov-report=term-missing
-      - run: uv run bandit -q -r src
+      - run: uv run bandit -q -r src scripts/site
       - name: Audit dependencies and write CycloneDX SBOM
         run: uv run pip-audit --format cyclonedx-json --output sbom.cdx.json
       - uses: actions/upload-artifact@v4

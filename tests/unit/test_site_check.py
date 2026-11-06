@@ -79,13 +79,27 @@ def test_anchors_are_checked_through_parent_paths_and_links_may_not_leave_the_si
 
 
 def test_root_absolute_links_are_reported_even_when_the_file_exists(tmp_path: Path) -> None:
+    site = make_site(tmp_path, {"index.html": page('<p><a href="/index.html">x</a></p>')})
+    assert rules(check_site(site)) == [("index.html", "root-absolute-link", BODY)]
+
+
+def test_pages_may_link_out_but_never_load_an_asset_from_outside(tmp_path: Path) -> None:
     site = make_site(
         tmp_path,
-        {"index.html": page('<p><a href="/index.html">x</a> <a href="//example.org/a">y</a></p>')},
+        {
+            "index.html": page(
+                '<p><a href="https://diataxis.fr/">out</a> <a href="//example.org/">out</a>\n'
+                '<img src="https://x.example/a.png" alt="A">\n'
+                '<link rel="stylesheet" href="//x.example/b.css">\n'
+                '<script src="HTTPS://x.example/c.js"></script>\n'
+                '<img src="data:image/gif;base64,R0lGODlhAQABAAAAACw=" alt="Dot"></p>'
+            ),
+        },
     )
     assert rules(check_site(site)) == [
-        ("index.html", "root-absolute-link", BODY),
-        ("index.html", "root-absolute-link", BODY),
+        ("index.html", "external-url", BODY + 1),
+        ("index.html", "external-url", BODY + 2),
+        ("index.html", "external-url", BODY + 3),
     ]
 
 
@@ -203,3 +217,84 @@ def test_an_element_still_open_at_the_end_of_the_file_is_reported(tmp_path: Path
     truncated = page("<p>x</p>").removesuffix("</html>\n")
     site = make_site(tmp_path, {"index.html": truncated})
     assert rules(check_site(site)) == [("index.html", "unbalanced-tag", 2)]
+
+
+def test_external_urls_are_refused_inside_a_page_s_styles_and_scripts(tmp_path: Path) -> None:
+    site = make_site(
+        tmp_path,
+        {
+            "index.html": page(
+                '<p style="background: url(http://x.example/a.png)">x</p>\n'
+                "<style>p { background: url(https://x.example/b.png); }</style>\n"
+                '<script>fetch("https://x.example/");</script>'
+            ),
+        },
+    )
+    assert rules(check_site(site)) == [
+        ("index.html", "external-url", BODY),
+        ("index.html", "external-url", BODY + 1),
+        ("index.html", "external-url", BODY + 2),
+    ]
+
+
+def test_css_urls_must_be_relative_and_resolve(tmp_path: Path) -> None:
+    site = make_site(
+        tmp_path,
+        {
+            "index.html": page("<p>x</p>"),
+            "assets/site.css": (
+                "a { background: url('mark.svg'); }\n"
+                'b { background: url("/mark.svg"); }\n'
+                "i { background: url(gone.svg); }\n"
+                "u { background: url(data:image/svg+xml;base64,PHN2Zy8+); }\n"
+            ),
+            "assets/mark.svg": "<svg/>",
+        },
+    )
+    assert rules(check_site(site)) == [
+        ("assets/site.css", "root-absolute-link", 2),
+        ("assets/site.css", "broken-link", 3),
+    ]
+
+
+def test_encoded_paths_encoded_anchors_and_directory_links_resolve(tmp_path: Path) -> None:
+    site = make_site(
+        tmp_path,
+        {
+            "index.html": page(
+                '<p><a href="a%20b.html#caf%C3%A9">x</a> <a href="ref/">y</a> '
+                '<a href="empty/">z</a></p>'
+            ),
+            "a b.html": page('<p id="café">x</p>'),
+            "ref/index.html": page("<p>x</p>"),
+            "empty/.keep": "",
+        },
+    )
+    assert rules(check_site(site)) == [("index.html", "broken-link", BODY)]
+
+
+def test_links_resolve_case_sensitively_as_on_github_pages(tmp_path: Path) -> None:
+    site = make_site(
+        tmp_path,
+        {"index.html": page('<p id="a"><a href="Index.HTML#a">x</a></p>')},
+    )
+    assert rules(check_site(site)) == [("index.html", "broken-link", BODY)]
+
+
+def test_a_self_closed_title_does_not_swallow_the_page(tmp_path: Path) -> None:
+    site = make_site(
+        tmp_path,
+        {"index.html": page("<p>x</p>").replace("<title>A page</title>", "<title/>")},
+    )
+    assert rules(check_site(site)) == [("index.html", "missing-title", 1)]
+
+
+def test_a_file_that_is_not_utf8_is_reported_not_fatal(tmp_path: Path) -> None:
+    site = make_site(tmp_path, {"index.html": page("<p>x</p>")})
+    (site / "assets").mkdir()
+    (site / "assets" / "LOGO.SVG").write_bytes(b"<svg>\xff 210987654321</svg>")
+    (site / "notes.MD").write_text("210987654321", encoding="utf-8")
+    assert rules(check_site(site)) == [
+        ("assets/LOGO.SVG", "not-utf8", 1),
+        ("notes.MD", "account-id", 1),
+    ]
