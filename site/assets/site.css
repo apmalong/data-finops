@@ -1,0 +1,110 @@
+/* data-finops documentation site (spec 07; rules in site/DESIGN.md).
+   Tokens start from the dashboard's (src/data_finops/api/dashboard/dashboard.css) and evolve
+   separately. Text tokens (--text*, --link) must reach 4.5:1 on every --bg-* token in every
+   theme block: `python -m scripts.site check` computes it. The dashboard's light --ink-3
+   (#75746f, 4.44:1 on the page) is darkened here to pass. */
+
+:root {
+  color-scheme: light;
+  --bg-page: #f9f9f7;
+  --bg-surface: #fcfcfb;
+  --text: #0b0b0b;
+  --text-2: #52514e;
+  --text-3: #6b6a65;
+  --link: #1f5fae;
+  --rule: #e4e3df;
+  --attention: #eb6834;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg-page: #0d0d0d;
+    --bg-surface: #1a1a19;
+    --text: #f0efec;
+    --text-2: #c3c2b7;
+    --text-3: #9a998f;
+    --link: #6aa6ef;
+    --rule: #33332f;
+    --attention: #d95926;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg-page: #0d0d0d;
+  --bg-surface: #1a1a19;
+  --text: #f0efec;
+  --text-2: #c3c2b7;
+  --text-3: #9a998f;
+  --link: #6aa6ef;
+  --rule: #33332f;
+  --attention: #d95926;
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--bg-page);
+  color: var(--text);
+  font: 16px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: "header" "nav" "main" "footer";
+}
+@media (min-width: 900px) {
+  body {
+    grid-template-columns: 15rem minmax(0, 46rem);
+    grid-template-areas: "header header" "nav main" "nav footer";
+    column-gap: 3rem;
+    justify-content: center;
+  }
+}
+
+/* Keyboard users skip straight to the content; the link shows only when focused. */
+.skip-link { position: absolute; left: 16px; top: -100px; background: var(--bg-surface); padding: 8px 12px; }
+.skip-link:focus { top: 8px; }
+:focus-visible { outline: 2px solid var(--link); outline-offset: 2px; }
+
+.site-header { grid-area: header; padding: 16px; border-bottom: 1px solid var(--rule); }
+.site-header a { color: var(--text); font-weight: 600; text-decoration: none; }
+
+nav { grid-area: nav; padding: 16px; font-size: 0.95rem; }
+nav ul { list-style: none; margin: 0; padding: 0; }
+nav li { margin: 0 0 6px; }
+nav ul ul { margin: 6px 0 0 12px; }
+nav a { color: var(--text-2); text-decoration: none; }
+nav a:hover { color: var(--link); text-decoration: underline; }
+nav a[aria-current="page"] { color: var(--text); font-weight: 600; }
+
+main { grid-area: main; padding: 8px 16px 32px; min-width: 0; }
+footer { grid-area: footer; padding: 16px; border-top: 1px solid var(--rule); color: var(--text-3); font-size: 0.85rem; }
+
+h1 { font-size: 1.75rem; line-height: 1.2; margin: 16px 0 12px; font-weight: 600; }
+h2 { font-size: 1.25rem; margin: 32px 0 8px; font-weight: 600; }
+h3 { font-size: 1.05rem; margin: 24px 0 6px; font-weight: 600; }
+p, ul, ol { margin: 0 0 12px; }
+a { color: var(--link); }
+
+code { font: 0.9em ui-monospace, "Cascadia Mono", Consolas, monospace; }
+pre {
+  background: var(--bg-surface);
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  padding: 12px;
+  overflow-x: auto;
+  line-height: 1.45;
+}
+
+/* Tables where exact amounts matter: right-aligned tabular figures, light rules only. */
+table { border-collapse: collapse; margin: 0 0 16px; }
+th, td { padding: 4px 12px 4px 0; text-align: left; border-bottom: 1px solid var(--rule); vertical-align: top; }
+td.amount, th.amount { text-align: right; font-variant-numeric: tabular-nums; }
+
+/* Draws attention, never decorates: a notice that the reader must not miss. */
+.notice { border-left: 3px solid var(--attention); padding: 4px 12px; color: var(--text-2); }
+
+img { max-width: 100%; height: auto; }
+
+@media (forced-colors: active) {
+  .notice { border-left-color: CanvasText; }
+}

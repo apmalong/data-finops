@@ -17,9 +17,7 @@ REQUIRED_REGIONS = ("head", "nav", "footer")  # every page has each exactly once
 OPTIONAL_REGIONS = ("pages",)  # a section's index page may list its pages
 SOURCE = "https://github.com/apmalong/data-finops"
 
-HEAD = (
-    '<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1">'
-)
+STYLESHEET = "assets/site.css"
 # The footer claims no more than is true: one unversioned site, no release, no license (OQ-8).
 FOOTER = (
     "<footer>\n"
@@ -42,7 +40,7 @@ def build(repo: Path) -> dict[str, str]:
         if not source.is_file():
             continue
         content = {
-            "head": HEAD,
+            "head": _head(entry.path),
             "nav": _nav(nav, entry.path),
             "footer": FOOTER,
             "pages": _pages(entry),
@@ -54,8 +52,20 @@ def build(repo: Path) -> dict[str, str]:
     return built
 
 
+def _relative(current: str, target: str) -> str:
+    return posixpath.relpath(target, posixpath.dirname(current) or ".")
+
+
+def _head(current: str) -> str:
+    return (
+        '<meta charset="utf-8">\n'
+        '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
+        f'<link rel="stylesheet" href="{_relative(current, STYLESHEET)}">'
+    )
+
+
 def _link(current: str, entry_path: str, title: str) -> str:
-    href = posixpath.relpath(entry_path, posixpath.dirname(current) or ".")
+    href = _relative(current, entry_path)
     here = ' aria-current="page"' if entry_path == current else ""
     return f'<a href="{html.escape(href)}"{here}>{html.escape(title)}</a>'
 
@@ -71,6 +81,7 @@ def _nav(nav: tuple[Entry, ...], current: str) -> str:
         return "\n".join(lines)
 
     return (
+        '<a class="skip-link" href="#main">Skip to content</a>\n'
         f'<header class="site-header">{_link(current, home.path, home.title)}</header>\n'
         f'<nav aria-label="Site">\n<ul>\n{items(tuple(sections))}\n</ul>\n</nav>'
     )

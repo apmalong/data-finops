@@ -24,6 +24,8 @@ FastAPI OpenLineage receiver (`POST /api/v1/lineage`, one event per request, reu
 ## D: Documentation site
 A site for people who run data-finops, organised by Diátaxis (tutorials, how-to guides, reference, explanation): hand-written HTML in `site/`, deployed as committed to GitHub Pages from `main` (ADR 0025, spec 07, #135). A stdlib tool in `scripts/site/` generates the CLI, HTTP API, data-contract and Glossary reference pages, stamps the shared nav, and checks links, structure and privacy rules, with a drift test. The tutorial "Your first allocation" replaces `examples/demo/README.md` as the walkthrough's source, and a test runs its commands. **Exit:** the site is live on Pages; the site checks, drift test and page-runner tests pass in CI; a manual pass (light and dark screenshots, keyboard-only nav, the tutorial followed from the live site in under five minutes) is recorded in progress.md.
 
+D's tickets go in nine PRs (owner, 2026-11-05; AGENTS.md): #144; #145; #146; #147; #148–#151; #152; #153–#155; #156–#159; #160.
+
 ## Reference workload (supports M2–M4 validation; ADR 0021)
 Pulumi Python stack in `examples/reference-workload/` (S3, Glue database, Athena workgroup with a per-query scan limit) and a tiny dbt-athena project run with `dbt-ol`, as its own uv project. Produces real Athena billing lines, query history, dbt artifacts and OpenLineage events, anonymized before use. Airflow deferred until M3 needs it. **Exit:** stack previews and deploys only with owner approval; a run produces artifacts and events; Athena charges appear in the FOCUS export; teardown verified.
 

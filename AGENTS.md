@@ -24,6 +24,10 @@ All development follows Matt Pocock's engineering skills (`mattpocock-skills` pl
 5. **Standards gate:** before any collector, parser, serializer, lineage model, telemetry format, allocation algorithm or integration, apply ADR 0014 (see the section below).
 6. **Pull request:** body follows the `pr` skill (Summary, Evidence, Merge Danger). `main` is protected: a PR and a passing `quality` check are required.
 7. **Documentation:** every ticket names the Diátaxis documentation type it changes (tutorial, how-to, reference, explanation, or none) in a `## Documentation` section, and done includes that change (ADR 0025, spec 07). The code-review Spec reviewer checks it against the diff.
+   *Milestone D exception (owner, 2026-11-05):*
+   - Content-only tickets (site pages) skip `tdd`, mutation checks and the Standards reviewer. Each page is written, then built and checked with `python -m scripts.site build` and `check`; its page runner test and the full suite run once; one reviewer checks accuracy against the ADRs and specs and the writing rules.
+   - Tooling tickets keep the full loop.
+   - D's remaining tickets are grouped into PRs that each close every ticket they contain, with a section per ticket. The grouping is in `docs/implementation/plan.md`, section D.
 8. **Close a milestone** only with runnable verification: record commands and output in `progress.md` and update affected docs.
 9. Bugs use `diagnosing-bugs`; issue intake uses `triage` with the labels in `docs/agents/triage-labels.md`.
 
