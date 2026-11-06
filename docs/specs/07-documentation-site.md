@@ -53,7 +53,7 @@ Stdlib only, dev tooling outside the wheel, under ruff and mypy. It has two comm
 
 ## Build and deploy
 - **PRs:** the site tests run in pytest inside the existing required `quality` job, with no new required check.
-- **Deploy:** `.github/workflows/pages.yml` runs on push to `main` and on `workflow_dispatch`. It has only `pages: write` and `id-token: write` permissions, pins `actions/upload-pages-artifact` and `actions/deploy-pages` to commit SHAs, and uploads `site/` as is.
+- **Deploy:** `.github/workflows/pages.yml` runs on push to `main` and on `workflow_dispatch`. It has only `contents: read`, `pages: write` and `id-token: write` permissions, pins `actions/upload-pages-artifact` and `actions/deploy-pages` to commit SHAs, and uploads `site/` as is.
 - **Pages setting:** the owner sets the Pages source to "GitHub Actions". The agent asks first.
 - **README:** keeps status, a three-line quick start, a link to the site and the contributor "Start here".
 
