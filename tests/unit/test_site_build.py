@@ -217,3 +217,58 @@ def test_the_nav_starts_with_a_link_that_skips_to_the_content(tmp_path: Path) ->
     )
     nav = region(build(repo)["how-to/calculate.html"], "nav")
     assert nav.startswith('<a class="skip-link" href="#main">Skip to content</a>')
+
+
+def test_a_reference_page_is_stamped_from_its_source_in_the_repository(tmp_path: Path) -> None:
+    nav = [*NAV, {"title": "Glossary", "path": "reference/glossary.html"}]
+    glossary = page("Glossary").replace(
+        "</main>", "<!-- reference:start -->\n<!-- reference:end -->\n</main>"
+    )
+    repo = make_repo(
+        tmp_path,
+        nav,
+        {
+            "index.html": page("Home"),
+            "how-to/index.html": page("How-to guides"),
+            "how-to/calculate.html": page("Calculate"),
+            "reference/glossary.html": glossary,
+        },
+    )
+    (repo / "GLOSSARY.md").write_text(
+        "# T\n\n## Billing\n\n**Billing Line**:\nOne FOCUS row.\n", encoding="utf-8"
+    )
+    stamped = region(build(repo)["reference/glossary.html"], "reference")
+    assert '<dt id="billing-line">Billing Line</dt>' in stamped
+
+
+def test_a_reference_region_on_a_page_with_no_source_fails_the_build(tmp_path: Path) -> None:
+    stray = page("Calculate").replace(
+        "</main>", "<!-- reference:start -->\n<!-- reference:end -->\n</main>"
+    )
+    repo = make_repo(
+        tmp_path,
+        NAV,
+        {
+            "index.html": page("Home"),
+            "how-to/index.html": page("How-to guides"),
+            "how-to/calculate.html": stray,
+        },
+    )
+    with pytest.raises(SiteError, match="how-to/calculate.html.*reference"):
+        build(repo)
+
+
+def test_a_reference_page_without_its_region_fails_the_build(tmp_path: Path) -> None:
+    nav = [*NAV, {"title": "Glossary", "path": "reference/glossary.html"}]
+    repo = make_repo(
+        tmp_path,
+        nav,
+        {
+            "index.html": page("Home"),
+            "how-to/index.html": page("How-to guides"),
+            "how-to/calculate.html": page("Calculate"),
+            "reference/glossary.html": page("Glossary"),
+        },
+    )
+    with pytest.raises(SiteError, match="reference/glossary.html has no reference region"):
+        build(repo)

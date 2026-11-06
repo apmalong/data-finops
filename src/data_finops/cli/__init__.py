@@ -61,6 +61,11 @@ def main(argv: Sequence[str] | None = None, *, start_server: StartServer | None 
     return code
 
 
+def build_parser() -> argparse.ArgumentParser:
+    """The command line's parser, for the generated CLI reference (spec 07)."""
+    return _parser()
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="data-finops", description="Load billing and workload inputs, then allocate the bill."

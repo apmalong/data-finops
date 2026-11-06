@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="en">
+<head>
+<!-- head:start -->
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="../assets/site.css">
+<!-- head:end -->
+<title>Glossary - data-finops</title>
+<meta name="description" content="The terms data-finops uses, what each means, and what to avoid saying instead.">
+</head>
+<body>
+<!-- nav:start -->
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="site-header"><a href="../index.html">data-finops</a></header>
+<nav aria-label="Site">
+<ul>
+<li><a href="../tutorials/index.html">Tutorials</a>
+<ul>
+<li><a href="../tutorials/first-allocation.html">Your first allocation</a></li>
+</ul>
+</li>
+<li><a href="../how-to/index.html">How-to guides</a></li>
+<li><a href="index.html">Reference</a>
+<ul>
+<li><a href="cli.html">Command line</a></li>
+<li><a href="http-api.html">HTTP API</a></li>
+<li><a href="data-contracts.html">Data contracts</a></li>
+<li><a href="glossary.html" aria-current="page">Glossary</a></li>
+</ul>
+</li>
+<li><a href="../explanation/index.html">Explanation</a></li>
+<li><a href="../contributing.html">Contributing</a></li>
+</ul>
+</nav>
+<!-- nav:end -->
+<main id="main">
+<h1>Glossary</h1>
+<p>The terms data-finops uses, in its pages, its API and its code. Each term says what to avoid saying instead. This page is generated from <a href="https://github.com/apmalong/data-finops/blob/main/GLOSSARY.md"><code>GLOSSARY.md</code></a>.</p>
+<!-- reference:start -->
+<p>Attributes authoritative cloud charges to the data workloads that caused them, without creating, losing or double-counting money. Terms here are settled; contested terms are tracked in <code>docs/implementation/open-questions.md</code> until resolved.</p>
+<h2 id="area-billing">Billing</h2>
+<dl>
+<dt id="billing-line">Billing Line</dt>
+<dd>One FOCUS row from a provider&#x27;s billing export: an authoritative charge in one billing currency for one charge period, carrying each FOCUS cost column. It is the unit that Reconciliation partitions exactly once.</dd>
+<dd class="avoid">Avoid: bill row, invoice line, cost record</dd>
+<dt id="export-snapshot">Export Snapshot</dt>
+<dd>The complete set of Billing Lines a provider published for one billing account, Billing Period and source at one point in time. A restatement replaces the whole snapshot; earlier snapshots are retained.</dd>
+<dd class="avoid">Avoid: file, batch, version (alone)</dd>
+<dt id="delivery">Delivery</dt>
+<dd>One AWS Data Exports execution: the data files and manifests AWS writes for one billing period at one time. Read as one Export Snapshot, published when AWS created the execution (ADR 0020).</dd>
+<dd class="avoid">Avoid: export (for one execution), drop, upload</dd>
+<dt id="superseded-snapshot">Superseded Snapshot</dt>
+<dd>An Export Snapshot kept as history because a later publication is current for its Snapshot Scope.</dd>
+<dd class="avoid">Avoid: old version, stale snapshot</dd>
+<dt id="snapshot-scope">Snapshot Scope</dt>
+<dd>The billing account, Billing Period and source an Export Snapshot covers, and so the Allocation Snapshots computed from it. At most one Export Snapshot and one Allocation Snapshot are current for a Snapshot Scope.</dd>
+<dd class="avoid">Avoid: partition, key (alone)</dd>
+<dt id="billing-period">Billing Period</dt>
+<dd>The provider&#x27;s invoicing period that a Billing Line belongs to. It may differ from the line&#x27;s charge period.</dd>
+<dd class="avoid">Avoid: month (alone)</dd>
+<dt id="cost-basis">Cost Basis</dt>
+<dd>Which FOCUS cost column a figure is taken from (for example BilledCost or EffectiveCost). Amounts in different cost bases are never added together.</dd>
+<dd class="avoid">Avoid: cost type, price</dd>
+<dt id="adjustment">Adjustment</dt>
+<dd>A Billing Line that corrects or reduces charges: a credit, refund or discount (FOCUS ChargeCategory <code>Credit</code> or <code>Adjustment</code>). Adjustments are their own lines, signed, and may be negative. Tax and purchase lines are not Adjustments.</dd>
+<dd class="avoid">Avoid: rebate (unless the provider uses that term), negative cost</dd>
+<dt id="cost-pool">Cost Pool</dt>
+<dd>A set of eligible Billing Lines sharing one currency, cost basis, time window and pricing category, whose workloads supply the weights. Each Billing Line in the pool is partitioned by those weights; the pool itself is not the partitioned amount.</dd>
+<dd class="avoid">Avoid: bucket, cost group</dd>
+<dt id="eligibility">Eligibility</dt>
+<dd>Whether a Billing Line may be allocated to workloads by an existing allocator. Ineligible lines remain Unallocated.</dd>
+</dl>
+<h2 id="area-workload-identity">Workload identity</h2>
+<dl>
+<dt id="query-execution">Query Execution</dt>
+<dd>One provider-recorded execution of a query, identified by the provider&#x27;s query execution ID within an account and region.</dd>
+<dd class="avoid">Avoid: query (alone), job</dd>
+<dt id="model-execution">Model Execution</dt>
+<dd>One run of a dbt node within one dbt invocation. A dbt node ID alone never identifies an execution.</dd>
+<dd class="avoid">Avoid: model run, dbt job</dd>
+<dt id="dbt-node">dbt Node</dt>
+<dd>A model, seed, test or other resource declared in a dbt project&#x27;s manifest, identified by its node ID within one invocation&#x27;s manifest. A dbt Node is a declaration; its execution in an invocation is a Model Execution.</dd>
+<dd class="avoid">Avoid: model (alone), dbt object</dd>
+<dt id="workload-run">Workload Run</dt>
+<dd>One orchestrated execution reported by an orchestrator or lineage producer, such as an Airflow task run, possibly with a parent run (the run that directly contains it) and a root run (the top of its chain, such as the DAG run).</dd>
+<dd class="avoid">Avoid: job, task (alone), pipeline run</dd>
+<dt id="identity-link">Identity Link</dt>
+<dd>An assertion that two workload identities (for example a Query Execution and a Model Execution) are the same unit of work, together with the Evidence for it.</dd>
+<dd class="avoid">Avoid: match, correlation (alone), join</dd>
+<dt id="evidence">Evidence</dt>
+<dd>The explicit identifier or trusted metadata that justifies an Identity Link or an Allocation. Time overlap alone is never Evidence.</dd>
+<dd class="avoid">Avoid: signal, heuristic</dd>
+<dt id="trusted-query-comment">Trusted Query Comment</dt>
+<dd>The dbt comment at the very start of a query&#x27;s text that names the dbt Node and invocation that issued it. A comment anywhere else in the text is not Evidence.</dd>
+<dd class="avoid">Avoid: query tag, query header</dd>
+<dt id="link-outcome">Link Outcome</dt>
+<dd>What became of an attempt to link a workload identity: linked (exactly one counterpart), no evidence, unmatched (Evidence names a counterpart nobody reported) or ambiguous (more than one candidate). Only linked makes an Identity Link.</dd>
+<dd class="avoid">Avoid: match status, correlation result</dd>
+</dl>
+<h2 id="area-lineage">Lineage</h2>
+<dl>
+<dt id="data-asset">Data Asset</dt>
+<dd>A dataset or other data object that workloads read or write, identified within a namespace.</dd>
+<dd class="avoid">Avoid: table (alone), entity</dd>
+<dt id="lineage-edge">Lineage Edge</dt>
+<dd>An observed read or write relationship between a workload and a Data Asset, or between two Data Assets. Lineage has no financial authority.</dd>
+<dd class="avoid">Avoid: dependency (alone)</dd>
+</dl>
+<h2 id="area-allocation">Allocation</h2>
+<dl>
+<dt id="allocation">Allocation</dt>
+<dd>The portion of a Cost Pool assigned to one Allocation Target, with its method, Evidence and policy version.</dd>
+<dd class="avoid">Avoid: charge, cost (alone)</dd>
+<dt id="allocation-target">Allocation Target</dt>
+<dd>What an Allocation is assigned to: a Query Execution, or one of the synthetic targets Idle or Unallocated. Model Executions and Workload Runs receive cost only as Roll-ups.</dd>
+<dd class="avoid">Avoid: owner, cost center, tenant, data product, consumer (not targets in the MVP)</dd>
+<dt id="roll-up">Roll-up</dt>
+<dd>The sum of Allocations over the Query Executions linked to a Model Execution, Workload Run or higher grouping. A Roll-up is a view, never a further Allocation.</dd>
+<dd class="avoid">Avoid: re-allocation, inherited cost</dd>
+<dt id="cost-summary">Cost Summary</dt>
+<dd>Where one Allocation Snapshot put the bill, per currency and for one Cost Basis: the billed total, the allocated amounts by Allocation Category and Confidence, Unallocated amounts by reason, Adjustments, and the Reconciliation Delta.</dd>
+<dd class="avoid">Avoid: overview, total cost, spend report</dd>
+<dt id="cost-explanation">Cost Explanation</dt>
+<dd>The chain behind one Allocation: its Billing Line, the Allocation&#x27;s method, Confidence and Coverage, its Evidence resolved to Query Execution, Model Execution and Workload Runs, and the Roll-ups it contributes to.</dd>
+<dd class="avoid">Avoid: drilldown, trace, breakdown, query cost</dd>
+<dt id="allocation-category">Allocation Category</dt>
+<dd>The kind of share an Allocation represents: direct (from the target&#x27;s own metered usage), shared, idle or unallocated.</dd>
+<dd class="avoid">Avoid: kind, type</dd>
+<dt id="metered-share">Metered Share</dt>
+<dd>A direct Allocation of an aggregated Billing Line, apportioned by each Query Execution&#x27;s billable usage. It is an estimate, never an exact price.</dd>
+<dd class="avoid">Avoid: query cost, exact cost</dd>
+<dt id="billable-usage">Billable Usage</dt>
+<dd>The quantity a provider charges a Query Execution for, after the provider&#x27;s minimums and rounding. It can differ from the quantity the query actually used.</dd>
+<dd class="avoid">Avoid: scanned bytes (unless that is what is billed)</dd>
+<dt id="coverage">Coverage</dt>
+<dd>The fraction of a Billing Line&#x27;s billed usage quantity accounted for by the Billable Usage of known Query Executions in the line&#x27;s billing scope (account, region, workgroup if billed, charge period), linked or not. Only the covered fraction can become Metered Shares. Scope is accounting scope, not Evidence (ADR 0023).</dd>
+<dd class="avoid">Avoid: match rate, completeness percentage</dd>
+<dt id="query-history-completeness">Query-history Completeness</dt>
+<dd>Coverage of exactly one for a Billing Line: every billable Query Execution in its scope is known.</dd>
+<dd class="avoid">Avoid: full history</dd>
+<dt id="confidence">Confidence</dt>
+<dd>A categorical grade of Evidence quality for an allocated amount: direct_verified, metered_estimate or heuristic_estimate. It does not apply to Unallocated amounts and is never a probability.</dd>
+<dd class="avoid">Avoid: score, likelihood</dd>
+<dt id="idle">Idle</dt>
+<dd>A synthetic Allocation Target for cost of capacity that was paid for but had no observed activity.</dd>
+<dd class="avoid">Avoid: waste, unused (alone)</dd>
+<dt id="unallocated">Unallocated</dt>
+<dd>A synthetic Allocation Target for cost whose Evidence is missing, ambiguous or ineligible. It is shown, never hidden or guessed.</dd>
+<dd class="avoid">Avoid: unknown, other, misc</dd>
+<dt id="allocation-policy">Allocation Policy</dt>
+<dd>A versioned, documented set of rules that decides Eligibility, weights and remainder handling. Every Allocation records the policy version that produced it.</dd>
+<dd class="avoid">Avoid: rules engine, config</dd>
+<dt id="calculation-run">Calculation Run</dt>
+<dd>One deterministic execution of the Allocation Policy over a fixed set of inputs.</dd>
+<dd class="avoid">Avoid: job, batch</dd>
+</dl>
+<h2 id="area-reconciliation">Reconciliation</h2>
+<dl>
+<dt id="reconciliation">Reconciliation</dt>
+<dd>The check that what the product holds equals its authoritative source exactly, per Billing Line, currency and Cost Basis: the Ledger against the imported Export Snapshot, and Allocations against the Billing Lines they partition.</dd>
+<dd class="avoid">Avoid: balancing, matching</dd>
+<dt id="reconciliation-delta">Reconciliation Delta</dt>
+<dd>The signed difference between the authoritative amount and what is held against it (the Ledger&#x27;s amount, or the sum of Allocations), in one currency. It is zero when Reconciliation holds.</dd>
+<dt id="ledger">Ledger</dt>
+<dd>The immutable, versioned record of Export Snapshots and the Allocation Snapshots computed from them. One of each is current; all are retained.</dd>
+<dd class="avoid">Avoid: database, warehouse</dd>
+<dt id="allocation-snapshot">Allocation Snapshot</dt>
+<dd>The complete set of Allocations produced by one Calculation Run. Any period may be recalculated; doing so creates a new snapshot and moves the current pointer.</dd>
+<dd class="avoid">Avoid: result, rerun output</dd>
+</dl>
+<h2 id="area-flagged-ambiguities">Flagged ambiguities</h2>
+<ul>
+<li>&quot;Query cost&quot; implies an exact per-query price that providers do not bill. Say &quot;Allocation to a Query Execution&quot; and state its Confidence.</li>
+<li>&quot;Unknown&quot; is used in fixtures as a target name; the domain term is Unallocated.</li>
+<li><code>no_evidence</code> names two things: a Link Outcome (a Query Execution without a Trusted Query Comment) and an Unallocated reason (a shared pool with no positive weight, #86). They never meet: Link Outcomes describe Identity Links, Unallocated reasons describe money. Say which one you mean.</li>
+</ul>
+<!-- reference:end -->
+</main>
+<!-- footer:start -->
+<footer>
+<p>This site describes the <code>main</code> branch. Nothing is released yet. No license has been chosen yet. Source on <a href="https://github.com/apmalong/data-finops">GitHub</a>.</p>
+</footer>
+<!-- footer:end -->
+</body>
+</html>

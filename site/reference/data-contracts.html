@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+<!-- head:start -->
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="../assets/site.css">
+<!-- head:end -->
+<title>Data contracts - data-finops</title>
+<meta name="description" content="The JSON schemas of a Billing Line, an Export Snapshot and an Allocation.">
+</head>
+<body>
+<!-- nav:start -->
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="site-header"><a href="../index.html">data-finops</a></header>
+<nav aria-label="Site">
+<ul>
+<li><a href="../tutorials/index.html">Tutorials</a>
+<ul>
+<li><a href="../tutorials/first-allocation.html">Your first allocation</a></li>
+</ul>
+</li>
+<li><a href="../how-to/index.html">How-to guides</a></li>
+<li><a href="index.html">Reference</a>
+<ul>
+<li><a href="cli.html">Command line</a></li>
+<li><a href="http-api.html">HTTP API</a></li>
+<li><a href="data-contracts.html" aria-current="page">Data contracts</a></li>
+<li><a href="glossary.html">Glossary</a></li>
+</ul>
+</li>
+<li><a href="../explanation/index.html">Explanation</a></li>
+<li><a href="../contributing.html">Contributing</a></li>
+</ul>
+</nav>
+<!-- nav:end -->
+<main id="main">
+<h1>Data contracts</h1>
+<p>The JSON schemas data-finops reads and writes: a Billing Line, an Export Snapshot and an Allocation. This page is generated from the schema files in <a href="https://github.com/apmalong/data-finops/tree/main/schemas"><code>schemas/</code></a>, which are generated from the code and are authoritative.</p>
+<!-- reference:start -->
+<h2 id="allocation"><code>allocation.schema.json</code>: Allocation</h2>
+<p>The part of one Billing Line assigned to one Allocation Target.</p>
+<table>
+<thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>billing_line_ref</code></td><td>required</td><td>string</td><td></td></tr>
+<tr><td><code>pool_id</code></td><td>required</td><td>string</td><td></td></tr>
+<tr><td><code>target_type</code></td><td>required</td><td>TargetType</td><td></td></tr>
+<tr><td><code>target_id</code></td><td>required</td><td>string</td><td></td></tr>
+<tr><td><code>amount</code></td><td>required</td><td>string, matching ^-?[0-9]+(\.[0-9]+)?$</td><td></td></tr>
+<tr><td><code>currency</code></td><td>required</td><td>string, matching ^[A-Z]{3}$</td><td></td></tr>
+<tr><td><code>cost_basis</code></td><td>required</td><td>string</td><td></td></tr>
+<tr><td><code>category</code></td><td>required</td><td>AllocationCategory</td><td></td></tr>
+<tr><td><code>method</code></td><td>required</td><td>string</td><td></td></tr>
+<tr><td><code>confidence</code></td><td>optional</td><td>Confidence, or null</td><td></td></tr>
+<tr><td><code>coverage</code></td><td>optional</td><td>string, matching ^-?[0-9]+(\.[0-9]+)?$, or null</td><td></td></tr>
+<tr><td><code>policy_version</code></td><td>required</td><td>string</td><td></td></tr>
+<tr><td><code>calculation_run_id</code></td><td>required</td><td>string</td><td></td></tr>
+<tr><td><code>evidence_refs</code></td><td>optional</td><td>list of string, default []</td><td></td></tr>
+<tr><td><code>as_of</code></td><td>optional</td><td>string, date-time, or null</td><td></td></tr>
+</tbody>
+</table>
+<p>The schema also has conditional rules between fields; <a href="https://github.com/apmalong/data-finops/blob/main/schemas/allocation.schema.json">the schema file</a> is authoritative.</p>
+<h3 id="allocation-allocation-category">AllocationCategory</h3>
+<p>One of direct, shared, idle, unallocated.</p>
+<h3 id="allocation-confidence">Confidence</h3>
+<p>One of direct_verified, metered_estimate, heuristic_estimate.</p>
+<h3 id="allocation-target-type">TargetType</h3>
+<p>One of query_execution, idle, unallocated.</p>
+<h2 id="billing-line"><code>billing-line.schema.json</code>: BillingLine</h2>
+<table>
+<thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>BilledCost</code></td><td>required</td><td>string, matching ^-?[0-9]+(\.[0-9]+)?$</td><td></td></tr>
+<tr><td><code>EffectiveCost</code></td><td>required</td><td>string, matching ^-?[0-9]+(\.[0-9]+)?$</td><td></td></tr>
+<tr><td><code>ListCost</code></td><td>required</td><td>string, matching ^-?[0-9]+(\.[0-9]+)?$</td><td></td></tr>
+<tr><td><code>ContractedCost</code></td><td>required</td><td>string, matching ^-?[0-9]+(\.[0-9]+)?$</td><td></td></tr>
+<tr><td><code>BillingAccountId</code></td><td>required</td><td>string</td><td></td></tr>
+<tr><td><code>BillingCurrency</code></td><td>required</td><td>string, matching ^[A-Z]{3}$</td><td></td></tr>
+<tr><td><code>BillingPeriodStart</code></td><td>required</td><td>string, date-time</td><td></td></tr>
+<tr><td><code>BillingPeriodEnd</code></td><td>required</td><td>string, date-time</td><td></td></tr>
+<tr><td><code>ChargePeriodStart</code></td><td>required</td><td>string, date-time</td><td></td></tr>
+<tr><td><code>ChargePeriodEnd</code></td><td>required</td><td>string, date-time</td><td></td></tr>
+<tr><td><code>ChargeCategory</code></td><td>required</td><td>FocusChargeCategory</td><td></td></tr>
+<tr><td><code>ChargeClass</code></td><td>optional</td><td>FocusChargeClass, or null</td><td></td></tr>
+<tr><td><code>ProviderName</code></td><td>required</td><td>string</td><td></td></tr>
+<tr><td><code>ServiceName</code></td><td>required</td><td>string</td><td></td></tr>
+<tr><td><code>ServiceCategory</code></td><td>optional</td><td>string, or null</td><td></td></tr>
+<tr><td><code>SkuId</code></td><td>optional</td><td>string, or null</td><td></td></tr>
+<tr><td><code>RegionId</code></td><td>optional</td><td>string, or null</td><td></td></tr>
+<tr><td><code>ResourceId</code></td><td>optional</td><td>string, or null</td><td></td></tr>
+<tr><td><code>SubAccountId</code></td><td>optional</td><td>string, or null</td><td></td></tr>
+<tr><td><code>ConsumedQuantity</code></td><td>optional</td><td>string, matching ^-?[0-9]+(\.[0-9]+)?$, or null</td><td></td></tr>
+<tr><td><code>ConsumedUnit</code></td><td>optional</td><td>string, or null</td><td></td></tr>
+<tr><td><code>PricingQuantity</code></td><td>optional</td><td>string, matching ^-?[0-9]+(\.[0-9]+)?$, or null</td><td></td></tr>
+<tr><td><code>PricingUnit</code></td><td>optional</td><td>string, or null</td><td></td></tr>
+<tr><td><code>Tags</code></td><td>optional</td><td>object, or null</td><td></td></tr>
+<tr><td><code>data_finops_raw_values</code></td><td>optional</td><td>object, or null</td><td></td></tr>
+</tbody>
+</table>
+<h3 id="billing-line-focus-charge-category">FocusChargeCategory</h3>
+<p>One of Usage, Purchase, Tax, Credit, Adjustment.</p>
+<h3 id="billing-line-focus-charge-class">FocusChargeClass</h3>
+<p>One of Correction.</p>
+<h2 id="export-snapshot"><code>export-snapshot.schema.json</code>: ExportSnapshot</h2>
+<p>One provider publication of all lines for a billing account and Billing Period.</p>
+<table>
+<thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>snapshot_id</code></td><td>required</td><td>string, matching ^[A-Za-z0-9._:-]+$</td><td></td></tr>
+<tr><td><code>source</code></td><td>required</td><td>string</td><td></td></tr>
+<tr><td><code>focus_version</code></td><td>required</td><td>string</td><td></td></tr>
+<tr><td><code>billing_account_id</code></td><td>required</td><td>string</td><td></td></tr>
+<tr><td><code>billing_period_start</code></td><td>required</td><td>string, date-time</td><td></td></tr>
+<tr><td><code>billing_period_end</code></td><td>required</td><td>string, date-time</td><td></td></tr>
+<tr><td><code>published_at</code></td><td>required</td><td>string, date-time</td><td></td></tr>
+<tr><td><code>files</code></td><td>optional</td><td>list of SnapshotFile, default []</td><td></td></tr>
+</tbody>
+</table>
+<h3 id="export-snapshot-snapshot-file">SnapshotFile</h3>
+<table>
+<thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>path</code></td><td>required</td><td>string</td><td></td></tr>
+<tr><td><code>sha256</code></td><td>required</td><td>string, matching ^[0-9a-f]{64}$</td><td></td></tr>
+</tbody>
+</table>
+<!-- reference:end -->
+</main>
+<!-- footer:start -->
+<footer>
+<p>This site describes the <code>main</code> branch. Nothing is released yet. No license has been chosen yet. Source on <a href="https://github.com/apmalong/data-finops">GitHub</a>.</p>
+</footer>
+<!-- footer:end -->
+</body>
+</html>

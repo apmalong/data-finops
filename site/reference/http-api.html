@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="en">
+<head>
+<!-- head:start -->
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="../assets/site.css">
+<!-- head:end -->
+<title>HTTP API - data-finops</title>
+<meta name="description" content="Every route of the data-finops HTTP API, with its parameters and responses.">
+</head>
+<body>
+<!-- nav:start -->
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="site-header"><a href="../index.html">data-finops</a></header>
+<nav aria-label="Site">
+<ul>
+<li><a href="../tutorials/index.html">Tutorials</a>
+<ul>
+<li><a href="../tutorials/first-allocation.html">Your first allocation</a></li>
+</ul>
+</li>
+<li><a href="../how-to/index.html">How-to guides</a></li>
+<li><a href="index.html">Reference</a>
+<ul>
+<li><a href="cli.html">Command line</a></li>
+<li><a href="http-api.html" aria-current="page">HTTP API</a></li>
+<li><a href="data-contracts.html">Data contracts</a></li>
+<li><a href="glossary.html">Glossary</a></li>
+</ul>
+</li>
+<li><a href="../explanation/index.html">Explanation</a></li>
+<li><a href="../contributing.html">Contributing</a></li>
+</ul>
+</nav>
+<!-- nav:end -->
+<main id="main">
+<h1>HTTP API</h1>
+<p>Every route that <code>data-finops serve</code> answers, with its parameters and responses. This page is generated from <a href="https://github.com/apmalong/data-finops/blob/main/schemas/openapi.json"><code>schemas/openapi.json</code></a>, the OpenAPI 3.1 document the server is tested against.</p>
+<ul>
+<li>Amounts are Decimal strings, never floating-point numbers.</li>
+<li>Errors are Problem Details (RFC 9457, <code>application/problem+json</code>). They name the field at fault and never echo what was sent.</li>
+<li>The server listens on loopback unless told otherwise. With a token configured, every route needs <code>Authorization: Bearer &lt;token&gt;</code>.</li>
+<li>Lists are paged with <code>limit</code> (default 100, at most 1000) and <code>offset</code>.</li>
+</ul>
+<!-- reference:start -->
+<h2 id="get-health"><code>GET /health</code>: Health</h2>
+<p>Whether the database opens as a current data-finops database.</p>
+<table>
+<thead><tr><th>Status</th><th>Meaning</th><th>Body</th></tr></thead>
+<tbody>
+<tr><td>200</td><td>Successful Response</td><td><code>application/json</code>: Health</td></tr>
+<tr><td>401</td><td>When a token is configured: no valid bearer token (ADR 0024).</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
+<tr><td>503</td><td>The database cannot be opened.</td><td><code>application/json</code>: Health</td></tr>
+</tbody>
+</table>
+<h2 id="get-v1-costs-summary"><code>GET /v1/costs/summary</code>: Cost Summary</h2>
+<p>One Cost Summary per Snapshot Scope, for the scope&#x27;s current Allocation Snapshot.</p>
+<table>
+<thead><tr><th>Parameter</th><th>In</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>cost_basis</code></td><td>query</td><td>optional</td><td>CostBasis, default BilledCost</td><td></td></tr>
+<tr><td><code>billing_account_id</code></td><td>query</td><td>optional</td><td>string, at most 128 characters, or null</td><td></td></tr>
+<tr><td><code>billing_period</code></td><td>query</td><td>optional</td><td>string, date, or null</td><td></td></tr>
+</tbody>
+</table>
+<table>
+<thead><tr><th>Status</th><th>Meaning</th><th>Body</th></tr></thead>
+<tbody>
+<tr><td>200</td><td>Successful Response</td><td><code>application/json</code>: CostSummaries</td></tr>
+<tr><td>400</td><td>Invalid request: the detail names the fields, never their values.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
+<tr><td>401</td><td>When a token is configured: no valid bearer token (ADR 0024).</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
+<tr><td>500</td><td>An unexpected failure; the detail reveals nothing about it.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
+<tr><td>503</td><td>The database cannot be opened as a current data-finops database.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
+</tbody>
+</table>
+<h2 id="get-v1-allocations"><code>GET /v1/allocations</code>: Allocations</h2>
+<p>One page of one Allocation Snapshot: a named Calculation Run&#x27;s, or else the current one of the single Snapshot Scope that `billing_account_id`, `billing_period` and `source` select.</p>
+<table>
+<thead><tr><th>Parameter</th><th>In</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>calculation_run_id</code></td><td>query</td><td>optional</td><td>string, at most 128 characters, or null</td><td></td></tr>
+<tr><td><code>billing_account_id</code></td><td>query</td><td>optional</td><td>string, at most 128 characters, or null</td><td></td></tr>
+<tr><td><code>billing_period</code></td><td>query</td><td>optional</td><td>string, date, or null</td><td></td></tr>
+<tr><td><code>source</code></td><td>query</td><td>optional</td><td>string, at most 256 characters, or null</td><td></td></tr>
+<tr><td><code>target_id</code></td><td>query</td><td>optional</td><td>string, at most 256 characters, or null</td><td></td></tr>
+<tr><td><code>category</code></td><td>query</td><td>optional</td><td>AllocationCategory, or null</td><td></td></tr>
+<tr><td><code>billing_line_ref</code></td><td>query</td><td>optional</td><td>string, at most 256 characters, or null</td><td></td></tr>
+<tr><td><code>cost_basis</code></td><td>query</td><td>optional</td><td>CostBasis, or null</td><td></td></tr>
+<tr><td><code>limit</code></td><td>query</td><td>optional</td><td>integer, 1 to 1000, default 100</td><td></td></tr>
+<tr><td><code>offset</code></td><td>query</td><td>optional</td><td>integer, at least 0, default 0</td><td></td></tr>
+</tbody>
+</table>
+<table>
+<thead><tr><th>Status</th><th>Meaning</th><th>Body</th></tr></thead>
+<tbody>
+<tr><td>200</td><td>Successful Response</td><td><code>application/json</code>: AllocationPage</td></tr>
+<tr><td>400</td><td>Invalid request, or filters matching several Snapshot Scopes: the detail names the fields to give, never their values.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
+<tr><td>401</td><td>When a token is configured: no valid bearer token (ADR 0024).</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
+<tr><td>500</td><td>An unexpected failure; the detail reveals nothing about it.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
+<tr><td>503</td><td>The database cannot be opened as a current data-finops database.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
+<tr><td>404</td><td>No such Calculation Run, or no calculated Snapshot Scope matches.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
+</tbody>
+</table>
+<h2 id="get-v1-rollups"><code>GET /v1/rollups</code>: Rollups</h2>
+<p>What each Model Execution or Workload Run cost in one Allocation Snapshot, chosen as for `/v1/allocations`; kept apart because a Roll-up is a view, never an Allocation.</p>
+<table>
+<thead><tr><th>Parameter</th><th>In</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>level</code></td><td>query</td><td>required</td><td>one of model_execution, workload_run</td><td></td></tr>
+<tr><td><code>calculation_run_id</code></td><td>query</td><td>optional</td><td>string, at most 128 characters, or null</td><td></td></tr>
+<tr><td><code>billing_account_id</code></td><td>query</td><td>optional</td><td>string, at most 128 characters, or null</td><td></td></tr>
+<tr><td><code>billing_period</code></td><td>query</td><td>optional</td><td>string, date, or null</td><td></td></tr>
+<tr><td><code>source</code></td><td>query</td><td>optional</td><td>string, at most 256 characters, or null</td><td></td></tr>
+<tr><td><code>limit</code></td><td>query</td><td>optional</td><td>integer, 1 to 1000, default 100</td><td></td></tr>
+<tr><td><code>offset</code></td><td>query</td><td>optional</td><td>integer, at least 0, default 0</td><td></td></tr>
+</tbody>
+</table>
+<table>
+<thead><tr><th>Status</th><th>Meaning</th><th>Body</th></tr></thead>
+<tbody>
+<tr><td>200</td><td>Successful Response</td><td><code>application/json</code>: RollupPage</td></tr>
+<tr><td>400</td><td>Invalid request, or filters matching several Snapshot Scopes: the detail names the fields to give, never their values.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
+<tr><td>401</td><td>When a token is configured: no valid bearer token (ADR 0024).</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
+<tr><td>500</td><td>An unexpected failure; the detail reveals nothing about it.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
+<tr><td>503</td><td>The database cannot be opened as a current data-finops database.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
+<tr><td>404</td><td>No such Calculation Run, or no calculated Snapshot Scope matches.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
+</tbody>
+</table>
+<h2 id="get-v1-reconciliation"><code>GET /v1/reconciliation</code>: Reconciliation</h2>
+<p>One Allocation Snapshot&#x27;s Allocations against the bill they partition: per Billing Line and Cost Basis, with per-currency totals over every line.</p>
+<table>
+<thead><tr><th>Parameter</th><th>In</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>calculation_run_id</code></td><td>query</td><td>optional</td><td>string, at most 128 characters, or null</td><td></td></tr>
+<tr><td><code>billing_account_id</code></td><td>query</td><td>optional</td><td>string, at most 128 characters, or null</td><td></td></tr>
+<tr><td><code>billing_period</code></td><td>query</td><td>optional</td><td>string, date, or null</td><td></td></tr>
+<tr><td><code>source</code></td><td>query</td><td>optional</td><td>string, at most 256 characters, or null</td><td></td></tr>
+<tr><td><code>cost_basis</code></td><td>query</td><td>optional</td><td>CostBasis, or null</td><td></td></tr>
+<tr><td><code>limit</code></td><td>query</td><td>optional</td><td>integer, 1 to 1000, default 100</td><td></td></tr>
+<tr><td><code>offset</code></td><td>query</td><td>optional</td><td>integer, at least 0, default 0</td><td></td></tr>
+</tbody>
+</table>
+<table>
+<thead><tr><th>Status</th><th>Meaning</th><th>Body</th></tr></thead>
+<tbody>
+<tr><td>200</td><td>Successful Response</td><td><code>application/json</code>: AllocationReconciliation</td></tr>
+<tr><td>400</td><td>Invalid request, or filters matching several Snapshot Scopes: the detail names the fields to give, never their values.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
+<tr><td>401</td><td>When a token is configured: no valid bearer token (ADR 0024).</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
+<tr><td>500</td><td>An unexpected failure; the detail reveals nothing about it.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
+<tr><td>503</td><td>The database cannot be opened as a current data-finops database.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
+<tr><td>404</td><td>No such Calculation Run, or no calculated Snapshot Scope matches.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
+</tbody>
+</table>
+<h2 id="get-v1-provenance"><code>GET /v1/provenance</code>: Provenance</h2>
+<p>How one Allocation Snapshot was made, chosen as for `/v1/allocations`: inputs, policies, the Export Snapshot it read, and the run that superseded it, if any.</p>
+<table>
+<thead><tr><th>Parameter</th><th>In</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>calculation_run_id</code></td><td>query</td><td>optional</td><td>string, at most 128 characters, or null</td><td></td></tr>
+<tr><td><code>billing_account_id</code></td><td>query</td><td>optional</td><td>string, at most 128 characters, or null</td><td></td></tr>
+<tr><td><code>billing_period</code></td><td>query</td><td>optional</td><td>string, date, or null</td><td></td></tr>
+<tr><td><code>source</code></td><td>query</td><td>optional</td><td>string, at most 256 characters, or null</td><td></td></tr>
+</tbody>
+</table>
+<table>
+<thead><tr><th>Status</th><th>Meaning</th><th>Body</th></tr></thead>
+<tbody>
+<tr><td>200</td><td>Successful Response</td><td><code>application/json</code>: Provenance</td></tr>
+<tr><td>400</td><td>Invalid request, or filters matching several Snapshot Scopes: the detail names the fields to give, never their values.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
+<tr><td>401</td><td>When a token is configured: no valid bearer token (ADR 0024).</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
+<tr><td>500</td><td>An unexpected failure; the detail reveals nothing about it.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
+<tr><td>503</td><td>The database cannot be opened as a current data-finops database.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
+<tr><td>404</td><td>No such Calculation Run, or no calculated Snapshot Scope matches.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
+</tbody>
+</table>
+<h2 id="get-v1-lineage"><code>GET /v1/lineage</code>: Lineage</h2>
+<p>Without `run_id`, the topmost Workload Runs (paged); with it, that run&#x27;s lineage: its family, Data Assets, Lineage Edges and the Identity Links that reach its Model Executions and their Query Executions, each with its Link Outcome.</p>
+<table>
+<thead><tr><th>Parameter</th><th>In</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>run_id</code></td><td>query</td><td>optional</td><td>string, at most 256 characters, or null</td><td></td></tr>
+<tr><td><code>limit</code></td><td>query</td><td>optional</td><td>integer, 1 to 1000, default 100</td><td></td></tr>
+<tr><td><code>offset</code></td><td>query</td><td>optional</td><td>integer, at least 0, default 0</td><td></td></tr>
+</tbody>
+</table>
+<table>
+<thead><tr><th>Status</th><th>Meaning</th><th>Body</th></tr></thead>
+<tbody>
+<tr><td>200</td><td>Successful Response</td><td><code>application/json</code>: RootRunPage or RunLineage</td></tr>
+<tr><td>400</td><td>Invalid request: the detail names the fields, never their values.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
+<tr><td>401</td><td>When a token is configured: no valid bearer token (ADR 0024).</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
+<tr><td>500</td><td>An unexpected failure; the detail reveals nothing about it.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
+<tr><td>503</td><td>The database cannot be opened as a current data-finops database.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
+<tr><td>404</td><td>No event reports or names that Workload Run.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
+</tbody>
+</table>
+<h2 id="get-v1-allocations-ref-explanation"><code>GET /v1/allocations/{ref}/explanation</code>: Explanation</h2>
+<p>The Cost Explanation of one Allocation, addressed `&lt;calculation_run_id&gt;#&lt;position&gt;` (the `#` sent as `%23`): Billing Line, Allocation, Evidence resolved, Roll-ups.</p>
+<table>
+<thead><tr><th>Parameter</th><th>In</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>ref</code></td><td>path</td><td>required</td><td>string, at most 256 characters</td><td></td></tr>
+</tbody>
+</table>
+<table>
+<thead><tr><th>Status</th><th>Meaning</th><th>Body</th></tr></thead>
+<tbody>
+<tr><td>200</td><td>Successful Response</td><td><code>application/json</code>: CostExplanation</td></tr>
+<tr><td>400</td><td>Invalid request: the detail names the fields, never their values.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
+<tr><td>401</td><td>When a token is configured: no valid bearer token (ADR 0024).</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
+<tr><td>500</td><td>An unexpected failure; the detail reveals nothing about it.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
+<tr><td>503</td><td>The database cannot be opened as a current data-finops database.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
+<tr><td>404</td><td>No such Allocation.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
+</tbody>
+</table>
+<h2 id="post-api-v1-lineage"><code>POST /api/v1/lineage</code>: Receive Lineage</h2>
+<p>Store one OpenLineage RunEvent, the default endpoint of OpenLineage&#x27;s HTTP transport (spec 04). Screened exactly as one item of an event file. The one async endpoint (spec 06): it streams the body so an oversized one is refused at the cap instead of buffered (ADR 0024), then ingests in the thread pool.</p>
+<p>Request body: <code>application/json</code>, required.</p>
+<table>
+<thead><tr><th>Status</th><th>Meaning</th><th>Body</th></tr></thead>
+<tbody>
+<tr><td>201</td><td>Stored, or already stored (a duplicate).</td><td><code>application/json</code>: LineageReceipt</td></tr>
+<tr><td>202</td><td>A JobEvent or DatasetEvent: not stored.</td><td><code>application/json</code>: LineageUnsupported</td></tr>
+<tr><td>400</td><td>Rejected: the detail gives the kind and failing field, never content.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
+<tr><td>401</td><td>When a token is configured: no valid bearer token (ADR 0024).</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
+<tr><td>413</td><td>The body is larger than one event may be (1 MiB).</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
+<tr><td>415</td><td>The body has a Content-Encoding; send the event uncompressed.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
+<tr><td>500</td><td>An unexpected failure; the detail reveals nothing about it.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
+<tr><td>503</td><td>The database cannot be opened as a current data-finops database.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
+</tbody>
+</table>
+<!-- reference:end -->
+</main>
+<!-- footer:start -->
+<footer>
+<p>This site describes the <code>main</code> branch. Nothing is released yet. No license has been chosen yet. Source on <a href="https://github.com/apmalong/data-finops">GitHub</a>.</p>
+</footer>
+<!-- footer:end -->
+</body>
+</html>

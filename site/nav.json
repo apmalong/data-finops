@@ -4,7 +4,12 @@
     {"title": "Your first allocation", "path": "tutorials/first-allocation.html"}
   ]},
   {"title": "How-to guides", "path": "how-to/index.html", "pages": []},
-  {"title": "Reference", "path": "reference/index.html", "pages": []},
+  {"title": "Reference", "path": "reference/index.html", "pages": [
+    {"title": "Command line", "path": "reference/cli.html"},
+    {"title": "HTTP API", "path": "reference/http-api.html"},
+    {"title": "Data contracts", "path": "reference/data-contracts.html"},
+    {"title": "Glossary", "path": "reference/glossary.html"}
+  ]},
   {"title": "Explanation", "path": "explanation/index.html", "pages": []},
   {"title": "Contributing", "path": "contributing.html"}
 ]
