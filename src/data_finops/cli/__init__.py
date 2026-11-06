@@ -15,6 +15,7 @@ import sqlite3
 import sys
 import tempfile
 from collections.abc import Callable, Iterable, Mapping, Sequence
+from enum import IntEnum
 from pathlib import Path
 from typing import Any
 
@@ -26,8 +27,19 @@ from data_finops.calculation import run_calculation
 from data_finops.ledger import Ledger, SnapshotConflictError
 from data_finops.workload.store import ArtifactOutcome, WorkloadStore
 
-OK, REJECTED, FAILED = 0, 1, 2
-"""Exit codes: everything stored; something rejected (the rest stored); nothing done."""
+
+class ExitCode(IntEnum):
+    """Every code the command exits with; the site's exit codes page is checked against it."""
+
+    OK = 0
+    """Everything was stored."""
+    REJECTED = 1
+    """Something was rejected; the rest was stored."""
+    FAILED = 2
+    """Nothing was done."""
+
+
+OK, REJECTED, FAILED = ExitCode.OK, ExitCode.REJECTED, ExitCode.FAILED
 
 StartServer = Callable[[Any, str, int], None]
 """Serves an ASGI app on a host and port until stopped; uvicorn unless a caller injects one."""
