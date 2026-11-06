@@ -1,11 +1,30 @@
 # Data FinOps — Claude Code implementation package
 
-Status: **M0 complete (contracts, provider-native fixtures, generated schemas); no allocation engine yet; no third-party source extracted**. Version 0.1, 2026-11-01.
+Status (2026-11-05): **M0–M5 complete.**
+- **Built:** a FOCUS billing Ledger, verified against a real AWS export; workload metadata from OpenLineage, dbt and Athena; query correlation; a deterministic allocation engine; and a local API and dashboard.
+- **Not built yet:**
+  - fetching from AWS, and deployment (M6);
+  - a PyPI package.
+- **Provisional:** the Athena billing policies, until #91.
+
+Version 0.1.
+
+## Quick start
+Run the offline demo, which needs no cloud account. You need Python 3.12, [uv](https://docs.astral.sh/uv/) and a source checkout:
+
+```sh
+git clone https://github.com/apmalong/data-finops.git
+cd data-finops
+uv sync --extra api --frozen
+uv run data-finops demo        # open http://127.0.0.1:8000/
+```
+
+`examples/demo/README.md` walks through what you see, one step and one command at a time. `uv run data-finops --help` lists the commands.
 
 ## Mission
 Build a free, open-source, customer-managed, modular FinOps application for data engineering workloads. Attribute authoritative cloud charges to queries, runs, pipelines, models, datasets, data products, tenants, and downstream consumers without double counting. Deliver a small usable AWS Athena + Airflow/OpenLineage + dbt vertical slice first.
 
-## Start here
+## Start here (contributors)
 1. Read `AGENTS.md` and `docs/specs/01-product.md`.
 2. Read every ADR under `docs/adr/` before changing architecture.
 3. Read `docs/specs/02-data-contracts.md`, `03-attribution.md`, `04-integrations.md`, and `05-security-operations.md`.
