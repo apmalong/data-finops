@@ -200,3 +200,41 @@ Spec #103, tickets #104–#119; decisions from the design session recorded in PR
   - with a token configured, a browser cannot send it, so the dashboard is for the token-free loopback demo;
   - the Workload Runs Roll-up names each run by its run ID, not by what it ran.
 
+## D: documentation site (2026-11-06)
+Spec 07 and ADR 0025 (design session, PR #141); spec issue #135; tickets #142–#160, plus #171 and #173, which the owner added on 2026-11-06. The tooling tickets were built test-first at spec 07's seams: the checker, `build` and the page runner. Each was mutation-checked and reviewed on the Standards and Spec axes. The content tickets followed AGENTS.md's milestone D exception: the checker, the page runner and one accuracy reviewer. Mutation results and review fixes are in each PR (#161–#170, #172, #174).
+
+- **What was built:**
+  - `scripts/site/` (stdlib only):
+    - `check` covers links, structure, accessibility basics, WCAG contrast of the colour tokens, external URLs in CSS and JS, and account IDs.
+    - `build` stamps the head, nav, "On this page", previous and next links, and footer, generates the CLI, HTTP API, data-contract and Glossary reference pages, and wraps code lines.
+    - The page runner runs every `run` block through `main(argv)` and FastAPI's test client, and compares the `output checked` blocks.
+  - Pages on GitHub Pages (`.github/workflows/pages.yml`, SHA-pinned actions): https://apmalong.github.io/data-finops/.
+  - Content:
+    - the tutorial "Your first allocation", which replaces `examples/demo/README.md` as the walkthrough and is run by `test_m5_exit.py`;
+    - 10 how-to guides, 8 of them run by `test_site_how_tos.py`;
+    - 5 reference pages, 4 generated and checked for drift;
+    - 6 explanation pages, with two D2 diagrams.
+  - The readable template (#171): wrapped code with hanging indents, a nav that expands only the current section, "On this page", a type scale.
+  - Windows and macOS/Linux tabs for every command example (#173). `build` derives the PowerShell version by fixed rules or takes a hand-written one, and `site.js` remembers the reader's choice. Without the script, both versions show.
+- **Exit criterion** (spec 07, "Exit"):
+  - **Live on Pages from `main`:** Pages run 42257456740 (success) deployed `078a794`, the #174 merge.
+  - **CI on the same commit:** run 42257456848 passed (`quality`: the checker over `site/`, the drift test, the page-runner tests for the tutorial and the how-tos, ruff, mypy, bandit, gitleaks).
+  - **Light and dark screenshots of the live tutorial:**
+    - `docs/implementation/screenshots/d-exit-light.png` and `d-exit-dark.png` (headless Edge, 1440px). They show the tabs, "On this page" and the collapsed nav.
+    - The PRs add both tabs (`173-*.png`) and both widths (`171-*.png`).
+  - **Keyboard-only pass through the nav:** passed by the owner on 2026-11-06.
+  - **The tutorial followed by hand from the live site:** followed by the owner on Windows on 2026-11-06. The owner reported that everything works but did not record a time.
+    - **Bug found on the first try:** the owner's first try stopped at step 3. In Windows PowerShell 5.1, `curl` is `Invoke-WebRequest`, which prompted for `Uri:`. #173 fixed it with the Windows tab's `curl.exe`.
+    - **Scripted run as a timing reference:** a clean clone, `uv sync --extra api --frozen`, and every command copied from the live page's run blocks: 7 blocks, every command exiting 0, 17 s in all.
+- **Found and fixed during D:**
+  - **Stale reference page:** the HTTP page's Schemas section was missing, so responses named types the page never explained (#167).
+  - **Wrong claims on pages:** Unallocated Allocations can carry Evidence, every Athena changed copy is flagged, and the bill diagram split one Billing Line across Athena and S3 (#169, #170).
+  - **Secret scan:** gitleaks' `curl-auth-header` rule caught a dummy token written into a `curl -H` line. Pages now send it with `$(cat …)` (#169).
+  - **Sticky column:** the "On this page" column used a grid trick that broke past 200 elements, and the HTTP page already had 183 (#172).
+  - **Windows assignments:** `CALCULATION_RUN_ID=calc-<…>` passed into the Windows tab as bash (#174).
+- **Known limits, left as they are:**
+  - **CLI install hint:** it still says `pip install 'data-finops[api]'`, but nothing is on PyPI. The install page gives `uv sync --extra api`.
+  - **#26** has no recorded teardown yet.
+  - **The deploy page's Windows `PULUMI_BACKEND_URL`** is copied from the reference workload's README and not re-verified.
+  - **"database file":** the site keeps the phrase. GLOSSARY lists "database" under _Avoid_ for Ledger, so this is a site-wide question.
+  - **The HTTP API's parameters** have no descriptions in the OpenAPI document.
