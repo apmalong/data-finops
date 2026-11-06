@@ -19,7 +19,8 @@ What M0–M5 built, drawn from the code as it stands. Terms are the ones in [`GL
 - **Inputs:** the product reads files through `data-finops ingest`, and receives OpenLineage events one at a time over HTTP. It makes no AWS calls. Fetching from S3 and Athena, and deployment, come with M6. Anonymized copies of real outputs become fixtures through `scripts/`.
 - **Stores:** the Ledger is the only cost authority. Lineage and dbt records explain work and never carry money (ADR 0003).
 - **Calculating:** `calculation` is the only module that brings the two stores together with the pure `attribution` engine and the Athena policies.
-- **Reading:** `reporting` reads both stores for the API and the dashboard, read-only (architecture-boundaries.md).
+- **Reading:** `reporting` reads both stores for the API and the dashboard, through their read interfaces only (architecture-boundaries.md). Opening the Ledger may still add its newer columns to an older file.
+- **Contracts:** `schemas/` holds the generated JSON Schemas for Billing Lines, Export Snapshots and Allocations, and the OpenAPI document. Tests keep each in step with the code.
 
 ## Ingest flow
 
@@ -102,14 +103,14 @@ classDiagram
     BillingLine "many" --> "1" CostPool : classified into
     Allocation --> BillingLine : part of
     Allocation --> QueryExecution : Allocation Target (or Unallocated)
-    RollUp --> ModelExecution : sum over linked queries
-    RollUp --> WorkloadRun : sum over linked queries
+    RollUp --> ModelExecution : sum over linked Query Executions
+    RollUp --> WorkloadRun : sum over linked Query Executions
 ```
 
 Identity Links (M3) connect workload records using only explicit Evidence, never time overlap (ADR 0006):
 
 - a Query Execution to the Model Execution its Trusted Query Comment names;
-- a dbt-ol model run to the Model Execution it reports (ADR 0022);
+- the Workload Run that dbt-ol reports for a model to that Model Execution (ADR 0022);
 - a dbt invocation to the Workload Run that reported it, whose parent and root lead to the Airflow run.
 
 Links are derived from stored observations when asked, so arrival order does not matter. Each attempt has a Link Outcome, and only `linked` makes a link: missing Evidence is `no_evidence`, Evidence naming something nobody reported is `unmatched`, and disagreeing reports are `ambiguous`.
@@ -130,8 +131,13 @@ sequenceDiagram
     participant Screen as lineage.validation
     participant DB as SQLite file
 
-    Caller->>Store: ingest_events(path)
-    Store->>Screen: screen_events(path)
+    alt a file (data-finops ingest openlineage)
+        Caller->>Store: ingest_events(path)
+        Store->>Screen: screen_events(path)
+    else one HTTP request (POST /api/v1/lineage, after the 1 MiB and encoding checks)
+        Caller->>Store: ingest_event(bytes)
+        Store->>Screen: screen_event(bytes)
+    end
     Screen-->>Store: valid RunEvents, rejected and unsupported by position
     Store->>DB: BEGIN IMMEDIATE (write lock before duplicate checks)
     loop each valid RunEvent
@@ -170,23 +176,25 @@ sequenceDiagram
         loop each Billing Line
             alt Credit or Adjustment
                 Calc->>Calc: Adjustment pool (Unallocated, signed)
-            else Athena on-demand usage
+            else Usage, no ChargeClass, Athena on-demand
                 Calc->>Store: query_executions(account, region)
                 Calc->>Policy: in_billing_scope · billable_bytes
+                Note over Calc: a Query Execution with no Billable Usage is left out and reported
                 Calc->>Store: Identity Links → Evidence
-                Calc->>Calc: metered Cost Pool with each query's Billable Usage
-            else anything else
+                Calc->>Calc: metered Cost Pool with each Query Execution's Billable Usage
+            else anything else, corrections included
                 Calc->>Calc: Ineligible pool (Unallocated)
             end
         end
         Calc->>Engine: allocate(pooled lines, policy version, run ID)
         Engine-->>Calc: Allocations by Coverage, largest remainder per line and Cost Basis
         Calc->>Ledger: store_allocations(scope, input digest, export snapshot ID)
-        Ledger-->>CLI: new (current), or replay when the input digest equals the current one
+        Ledger-->>Calc: new (current), or replay when the input digest equals the current one
+        Calc-->>CLI: the outcome, run ID, ineligible lines, Query Executions without Billable Usage
     end
 ```
 
-The engine is pure: it never touches a store, a clock or a provider policy, so the same inputs give the same Allocations. The policy version names every rule that shaped them: the engine's, line classification and both Athena policies (spec 03).
+The engine is pure: it never touches a store, a clock or a provider policy, so the same inputs give the same Allocations. It also supports direct, shared and idle Cost Pools, but no MVP policy produces them yet, so a Calculation Run makes only metered, Ineligible and Adjustment pools. The policy version names every rule that shaped them: the engine's, line classification and both Athena policies (spec 03).
 
 ## Reading the results
 
@@ -197,10 +205,11 @@ sequenceDiagram
     participant Read as reporting.Reporting
     participant Stores as Ledger + WorkloadStore
 
-    Browser->>API: GET /v1/costs/summary?cost_basis=…
-    API->>Read: cost_summary(...)
+    Note over Browser,API: GET / redirects to /dashboard/, the static page
+    Browser->>API: on load: GET /v1/costs/summary, /v1/rollups (both levels), /v1/lineage (root runs)
+    API->>Read: cost_summary(...) · rollups(...) · root_runs(...)
     Read->>Stores: current Allocation Snapshot per scope, its Export Snapshot
-    Read-->>API: Cost Summary per currency
+    Read-->>API: Cost Summary per currency, Roll-ups, root Workload Runs
     API-->>Browser: JSON
     Browser->>API: an amount → GET /v1/allocations, then /v1/allocations/{ref}/explanation
     API->>Read: allocations(...) · explanation(ref)
@@ -212,7 +221,7 @@ sequenceDiagram
     API-->>Browser: JSON
 ```
 
-Every route reads through `reporting`, which returns response models and holds no SQL. Each request opens and closes its own read connections in the thread that serves it, because SQLite refuses a connection used from another thread (found in M5's browser pass, `tests/integration/test_api_concurrency.py`). The OpenAPI 3.1 document is `schemas/openapi.json`, which a test keeps in step with the app. The dashboard follows spec 06's rules after Tufte and Few (`src/data_finops/api/dashboard/DESIGN.md`).
+Every route reads through `reporting`, which returns response models and holds no SQL. `/v1/reconciliation` and `/v1/provenance` answer the same way for API callers, and `/health` says whether the database opens. Each request opens and closes its own read connections in the thread that serves it, because SQLite refuses a connection used from another thread (found in M5's browser pass, `tests/integration/test_api_concurrency.py`). The OpenAPI 3.1 document is `schemas/openapi.json`, which a test keeps in step with the app. The dashboard follows spec 06's rules after Tufte and Few (`src/data_finops/api/dashboard/DESIGN.md`).
 
 ## Database
 

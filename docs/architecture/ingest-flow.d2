@@ -23,8 +23,8 @@ classes: {
     shape: cylinder
     style: {fill: "#f8fafc"; stroke: "#475569"; font-size: 13}
   }
-  later: {
-    style: {stroke-dash: 4; fill: "#ffffff"; stroke: "#94a3b8"; font-color: "#64748b"}
+  aside: {
+    style: {fill: "#f8fafc"; stroke: "#cbd5e1"; font-color: "#475569"; border-radius: 6}
   }
 }
 
@@ -37,7 +37,7 @@ billing: {
   new: new (current) {class: outcome}
   superseded: superseded (history) {class: outcome}
   replay: replay (nothing stored) {class: outcome}
-  invalid: invalid export or Delivery: refused,\nnothing stored (exit 2, named by file) {class: refused}
+  invalid: invalid Export Snapshot or Delivery: refused,\nnothing stored (exit 2, named by file) {class: refused}
   conflict: SnapshotConflictError\nsame ID, other content {class: refused}
   read -> import
   read -> invalid
@@ -56,7 +56,7 @@ billing.superseded -> ledger_tables
 
 # OpenLineage: Workload Runs and lineage
 events: OpenLineage event file\n(JSON array or JSON Lines) {class: input}
-receiver: POST /api/v1/lineage\none event per request, at most 1 MiB,\nloopback by default, bearer token (ADR 0024) {class: input}
+receiver: POST /api/v1/lineage\none event per request, at most 1 MiB, uncompressed\n415 if encoded · 401 without the token when one is set\n503 if the database is unusable (ADR 0024) {class: input}
 lineage: {
   label: WorkloadStore.ingest_events (file) · ingest_event (one event)
   screen: lineage.validation.screen_events / screen_event\nper event, against bundled schemas\n(RunEvent 2-0-2, ParentRunFacet 1-1-0) {class: step}
@@ -66,7 +66,7 @@ lineage: {
   key: key = run · event type · time + digest {class: step}
   stored: stored (HTTP 201) {class: outcome}
   duplicate: duplicate, nothing stored (HTTP 201) {class: outcome}
-  changed: changed copy, kept beside\nand flagged on the run {class: outcome}
+  changed: changed copy, kept beside\nand flagged on the run (HTTP 201) {class: outcome}
   screen -> rejected
   screen -> unsupported
   screen -> clean: valid RunEvent
@@ -134,7 +134,7 @@ queries: {
 workload_queries: Workload store: Athena {
   workload_query_execution {class: table}
 }
-links: Identity Links, derived when asked\nlinked · no_evidence · unmatched · ambiguous\nquery → Model Execution · dbt-ol model run → Model Execution\ndbt invocation → Workload Run (→ parent Airflow run) {class: step}
+links: afterwards, not part of ingest:\nIdentity Links, derived from these tables when asked\n(see the domain model) {class: aside}
 athena -> queries.screen
 queries.stored -> workload_queries
 queries.changed -> workload_queries

@@ -37,7 +37,7 @@ product: data-finops (Python package, runs locally) {
   cli: cli\ndata-finops ingest · calculate · serve · demo {class: module}
 
   readers: Readers: screen before anything is written {
-    focus: billing.focus · billing.aws_data_exports\nFOCUS JSON, Parquet, a Delivery by its manifest {class: module}
+    focus: billing.focus · billing.aws_data_exports\nFOCUS JSON, or a Delivery (Parquet) by its manifest {class: module}
     lineage: lineage\nOpenLineage events (bundled schemas) {class: module}
     dbt: dbt\nartifacts (manifest v12, run results v6) {class: module}
     athena: providers.athena\nquery history (allowlisted metadata only) {class: module}
@@ -48,23 +48,32 @@ product: data-finops (Python package, runs locally) {
     store: Workload store\nWorkload Runs · Model Executions · dbt Nodes\nData Assets · Lineage Edges · Query Executions {class: store}
   }
 
-  identity: identity\nIdentity Links on explicit Evidence\n(derived when asked) {class: module}
+  workload: workload\nWorkloadStore: stores screened records,\nresolves Identity Links when asked {class: module}
+  identity: identity\npure link rules on explicit Evidence {class: module}
+  ledger_api: ledger\nLedger.import_snapshot · store_allocations {class: module}
   calculation: calculation\nthe Calculation Run {class: module}
   engine: attribution\npure engine: Cost Pools, Coverage, Roll-ups {class: module}
   policy: providers.athena_billing\nBillable Usage, billing scope {class: module}
   reporting: reporting\nread model: Cost Summary, Cost Explanation,\nRoll-ups, reconciliation, provenance, lineage {class: module}
-  api: api (optional extra)\nread API · OpenLineage receiver · dashboard\nloopback by default, bearer token (ADR 0024) {class: module}
+  api: api (optional extra)\nread API · OpenLineage receiver · dashboard\nloopback by default, optional bearer token,\nrequired off loopback (ADR 0024) {class: module}
 
   cli -> readers: ingest
-  readers -> sqlite: screened records only
-  sqlite.store -> identity
+  readers.focus -> ledger_api: an Export Snapshot
+  readers.lineage -> workload: screened records
+  readers.dbt -> workload: screened records
+  readers.athena -> workload: screened records
+  ledger_api -> sqlite.ledger
+  workload -> sqlite.store
+  workload -> identity
   cli -> calculation: calculate
-  calculation -> sqlite: reads the current Export Snapshot and Query Executions,\nstores an Allocation Snapshot
+  calculation -> ledger_api: reads the current Export Snapshot,\nstores an Allocation Snapshot
+  calculation -> workload: Query Executions and their Identity Links
   calculation -> policy
   calculation -> engine
-  reporting -> sqlite: read only
+  reporting -> ledger_api: read interface
+  reporting -> workload: read interface
   api -> reporting: every read
-  api -> sqlite.store: POST /api/v1/lineage, one event per request
+  api -> workload: POST /api/v1/lineage, one event per request
   cli -> api: serve · demo
 }
 
@@ -77,7 +86,7 @@ aws.athena -> product.readers.athena: response JSON
 workload.dbt -> product.readers.dbt: artifact files
 workload.dbt -> product.readers.lineage: event files
 workload.airflow -> product.readers.lineage: event files
-workload.airflow -> product.api: OpenLineage HTTP transport {style.stroke-dash: 2}
+workload.airflow -> product.api: OpenLineage HTTP transport
 product.api -> people: dashboard and JSON
-aws -> scripts: real outputs {style.stroke-dash: 2}
+aws -> scripts: real outputs, downloaded
 m6 -> aws {class: later}
