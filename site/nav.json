@@ -4,6 +4,7 @@
     {"title": "Your first allocation", "path": "tutorials/first-allocation.html"}
   ]},
   {"title": "How-to guides", "path": "how-to/index.html", "pages": [
+    {"title": "Install data-finops", "path": "how-to/install.html"},
     {"title": "Ingest a FOCUS export", "path": "how-to/ingest-focus-export.html"},
     {"title": "Ingest Athena query history", "path": "how-to/ingest-athena-history.html"},
     {"title": "Ingest dbt artifacts", "path": "how-to/ingest-dbt-artifacts.html"},
@@ -11,7 +12,8 @@
     {"title": "Calculate Allocations", "path": "how-to/calculate.html"},
     {"title": "Handle a restated export", "path": "how-to/handle-restated-export.html"},
     {"title": "Read a Cost Explanation", "path": "how-to/read-cost-explanation.html"},
-    {"title": "Serve with a token", "path": "how-to/serve-with-token.html"}
+    {"title": "Serve with a token", "path": "how-to/serve-with-token.html"},
+    {"title": "Deploy the reference workload", "path": "how-to/deploy-reference-workload.html"}
   ]},
   {"title": "Reference", "path": "reference/index.html", "pages": [
     {"title": "Command line", "path": "reference/cli.html"},
@@ -20,6 +22,13 @@
     {"title": "Exit codes and environment", "path": "reference/exit-codes-and-environment.html"},
     {"title": "Glossary", "path": "reference/glossary.html"}
   ]},
-  {"title": "Explanation", "path": "explanation/index.html", "pages": []},
+  {"title": "Explanation", "path": "explanation/index.html", "pages": [
+    {"title": "The bill is authoritative", "path": "explanation/bill-is-authoritative.html"},
+    {"title": "Allocation and Coverage", "path": "explanation/allocation-and-coverage.html"},
+    {"title": "Identity Links and Evidence", "path": "explanation/identity-links-and-evidence.html"},
+    {"title": "Export Snapshots and restatements", "path": "explanation/export-snapshots-and-restatements.html"},
+    {"title": "Security model", "path": "explanation/security-model.html"},
+    {"title": "Decision records", "path": "explanation/decision-records.html"}
+  ]},
   {"title": "Contributing", "path": "contributing.html"}
 ]

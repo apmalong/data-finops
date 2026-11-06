@@ -11,6 +11,6 @@ Each rule of spec 07's "Design and writing" section, quoted as written, then how
 - [x] No `http(s)://` in CSS or JS. Outbound links in page text are fine.
   The checker reports `external-url` for `http(s)://` or `//` in CSS and JS files, inline styles and scripts, and in any asset an element loads; outbound `<a>` links are allowed.
 - [x] Diagrams are committed SVGs rendered from D2 sources in `docs/architecture/` (`d2 --layout elk`). There is no Mermaid.
-  No page has a diagram yet. When one does, its D2 source goes in `docs/architecture/` and its SVG in `site/assets/`, and the checker requires the image to exist and have alt text.
+  The explanation pages' diagrams have their D2 sources in `docs/architecture/` (`bill-to-roll-ups.d2`, `coverage.d2`) and their SVGs in `site/assets/explanation/`, rendered as `docs/architecture/README.md` lists. The checker requires each image to exist and have alt text. D2's light theme is used in both site themes, on a white panel.
 - [x] Writing: glossary terms capitalised as in GLOSSARY, never their avoided synonyms. Short declarative sentences. Explanation pages cite their ADRs and specs, which stay authoritative. The only account ID is the placeholder `123456789012`. No real account IDs, bucket names, credentials or SQL literals appear.
   Reviewed for each page against GLOSSARY.md. The checker reports `account-id` for any 12-digit number other than `123456789012`, without echoing it.

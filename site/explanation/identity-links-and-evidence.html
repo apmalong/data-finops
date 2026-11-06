@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+<!-- head:start -->
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="../assets/site.css">
+<!-- head:end -->
+<title>Identity Links and Evidence - data-finops</title>
+<meta name="description" content="How data-finops links a Query Execution to the Model Execution and Workload Runs behind it, and why it never guesses.">
+</head>
+<body>
+<!-- nav:start -->
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="site-header"><a href="../index.html">data-finops</a></header>
+<nav aria-label="Site">
+<ul>
+<li><a href="../tutorials/index.html">Tutorials</a>
+<ul>
+<li><a href="../tutorials/first-allocation.html">Your first allocation</a></li>
+</ul>
+</li>
+<li><a href="../how-to/index.html">How-to guides</a>
+<ul>
+<li><a href="../how-to/install.html">Install data-finops</a></li>
+<li><a href="../how-to/ingest-focus-export.html">Ingest a FOCUS export</a></li>
+<li><a href="../how-to/ingest-athena-history.html">Ingest Athena query history</a></li>
+<li><a href="../how-to/ingest-dbt-artifacts.html">Ingest dbt artifacts</a></li>
+<li><a href="../how-to/receive-openlineage.html">Receive OpenLineage events</a></li>
+<li><a href="../how-to/calculate.html">Calculate Allocations</a></li>
+<li><a href="../how-to/handle-restated-export.html">Handle a restated export</a></li>
+<li><a href="../how-to/read-cost-explanation.html">Read a Cost Explanation</a></li>
+<li><a href="../how-to/serve-with-token.html">Serve with a token</a></li>
+<li><a href="../how-to/deploy-reference-workload.html">Deploy the reference workload</a></li>
+</ul>
+</li>
+<li><a href="../reference/index.html">Reference</a>
+<ul>
+<li><a href="../reference/cli.html">Command line</a></li>
+<li><a href="../reference/http-api.html">HTTP API</a></li>
+<li><a href="../reference/data-contracts.html">Data contracts</a></li>
+<li><a href="../reference/exit-codes-and-environment.html">Exit codes and environment</a></li>
+<li><a href="../reference/glossary.html">Glossary</a></li>
+</ul>
+</li>
+<li><a href="index.html">Explanation</a>
+<ul>
+<li><a href="bill-is-authoritative.html">The bill is authoritative</a></li>
+<li><a href="allocation-and-coverage.html">Allocation and Coverage</a></li>
+<li><a href="identity-links-and-evidence.html" aria-current="page">Identity Links and Evidence</a></li>
+<li><a href="export-snapshots-and-restatements.html">Export Snapshots and restatements</a></li>
+<li><a href="security-model.html">Security model</a></li>
+<li><a href="decision-records.html">Decision records</a></li>
+</ul>
+</li>
+<li><a href="../contributing.html">Contributing</a></li>
+</ul>
+</nav>
+<!-- nav:end -->
+<main id="main">
+<h1>Identity Links and Evidence</h1>
+<p>A <a href="../reference/glossary.html#roll-up">Roll-up</a> says which Model Execution or Workload Run an Allocation adds up to. It is only as good as the link behind it. This page explains what counts as <a href="../reference/glossary.html#evidence">Evidence</a> for an <a href="../reference/glossary.html#identity-link">Identity Link</a>, and what happens when there is none. The decisions are in <a href="https://github.com/apmalong/data-finops/blob/main/docs/adr/0006-explicit-identity-evidence.md">ADR 0006</a> and <a href="https://github.com/apmalong/data-finops/blob/main/docs/adr/0022-openlineage-runs-stored-as-reported.md">ADR 0022</a>, with details in <a href="https://github.com/apmalong/data-finops/blob/main/docs/specs/03-attribution.md">spec 03</a> and <a href="https://github.com/apmalong/data-finops/blob/main/docs/specs/04-integrations.md">spec 04</a>. They stay authoritative.</p>
+
+<h2 id="explicit">Only explicit Evidence links</h2>
+<p>An Identity Link connects records of one piece of work as different systems saw it: a <a href="../reference/glossary.html#query-execution">Query Execution</a> in Athena's history, the <a href="../reference/glossary.html#model-execution">Model Execution</a> in dbt's run results, and the <a href="../reference/glossary.html#workload-run">Workload Runs</a> in OpenLineage events. It needs explicit Evidence: an exact provider ID, or metadata from a trusted source. Running at the same time is never Evidence. A Query Execution that overlaps a dbt run may belong to anything.</p>
+
+<h2 id="comment">The Trusted Query Comment</h2>
+<p>dbt artifacts do not name the Athena Query Executions a Model Execution issued. The Evidence comes from Athena's side instead. dbt can send a query comment before each statement, and data-finops trusts it only at the very start of the query text. That <a href="../reference/glossary.html#trusted-query-comment">Trusted Query Comment</a> names the dbt invocation and node. Only those two values are kept. The rest of the query text is dropped.</p>
+<ul>
+<li>dbt's default comment has no <code>invocation_id</code>, so it must be configured. The configuration is in the <a href="https://github.com/apmalong/data-finops/blob/main/examples/reference-workload/README.md">reference workload's README</a>.</li>
+<li>dbt-athena sends statements starting with <code>alter</code>, <code>drop</code>, <code>optimize</code>, <code>vacuum</code> or <code>msck</code> without the comment, so those have no Identity Link.</li>
+</ul>
+<p>An OpenLineage run from <code>dbt-ol</code> links to its Model Execution by the dbt node and invocation it reports. Workload Runs link to their parents and roots as the events name them.</p>
+
+<h2 id="outcomes">Link Outcomes</h2>
+<p>Each claim a Query Execution makes has a <a href="../reference/glossary.html#link-outcome">Link Outcome</a>:</p>
+<ul>
+<li><code>linked</code>: the claim names a known Model Execution. This is an Identity Link.</li>
+<li><code>no_evidence</code>: there is no Trusted Query Comment.</li>
+<li><code>unmatched</code>: the comment names a dbt node and invocation that no run results report.</li>
+<li><code>ambiguous</code>: there is more than one candidate, such as reports of one Query Execution naming different Model Executions. No Identity Link is made.</li>
+</ul>
+<p>Links are worked out when they are asked for, from what is stored, so the order the inputs arrive in never changes them. In the tutorial, <code>q-004</code>'s reports disagree, so its Link Outcome is <code>ambiguous</code>, and <code>model.demo.customers</code>, which only <code>q-004</code> claims, gets no Roll-up.</p>
+<p>The Link Outcome <code>no_evidence</code> is not the <a href="../reference/glossary.html#unallocated">Unallocated</a> reason <code>no_evidence</code>. Always say which one you mean.</p>
+
+<h2 id="as-reported">Stored as reported, never merged</h2>
+<p>OpenLineage runs are stored exactly as each event reported them, and linked, never merged into one record. A report that differs from an earlier one is kept beside it as a separate observation, rather than one quietly winning. Two reports of one Query Execution that name different Model Executions are also flagged. A Model Execution comes only from dbt's run results, never from an OpenLineage event alone.</p>
+
+<h2 id="no-link">What a missing link costs</h2>
+<p>A missing Identity Link never moves money. A Query Execution without one still gets its share of the <a href="../reference/glossary.html#billing-line">Billing Line</a>, because billing scope is accounting, not Evidence (<a href="https://github.com/apmalong/data-finops/blob/main/docs/adr/0023-billing-scope-is-accounting-scope.md">ADR 0023</a>). It just has no Roll-up to a Model Execution or Workload Run. So a broken comment configuration shows up as Allocations that roll up to nothing, not as Allocations given to the wrong Model Execution.</p>
+</main>
+<!-- footer:start -->
+<footer>
+<p>This site describes the <code>main</code> branch. Nothing is released yet. No license has been chosen yet. Source on <a href="https://github.com/apmalong/data-finops">GitHub</a>.</p>
+</footer>
+<!-- footer:end -->
+</body>
+</html>

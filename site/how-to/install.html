@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+<!-- head:start -->
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="../assets/site.css">
+<!-- head:end -->
+<title>Install data-finops - data-finops</title>
+<meta name="description" content="How to install data-finops from a source checkout, with or without the api extra.">
+</head>
+<body>
+<!-- nav:start -->
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="site-header"><a href="../index.html">data-finops</a></header>
+<nav aria-label="Site">
+<ul>
+<li><a href="../tutorials/index.html">Tutorials</a>
+<ul>
+<li><a href="../tutorials/first-allocation.html">Your first allocation</a></li>
+</ul>
+</li>
+<li><a href="index.html">How-to guides</a>
+<ul>
+<li><a href="install.html" aria-current="page">Install data-finops</a></li>
+<li><a href="ingest-focus-export.html">Ingest a FOCUS export</a></li>
+<li><a href="ingest-athena-history.html">Ingest Athena query history</a></li>
+<li><a href="ingest-dbt-artifacts.html">Ingest dbt artifacts</a></li>
+<li><a href="receive-openlineage.html">Receive OpenLineage events</a></li>
+<li><a href="calculate.html">Calculate Allocations</a></li>
+<li><a href="handle-restated-export.html">Handle a restated export</a></li>
+<li><a href="read-cost-explanation.html">Read a Cost Explanation</a></li>
+<li><a href="serve-with-token.html">Serve with a token</a></li>
+<li><a href="deploy-reference-workload.html">Deploy the reference workload</a></li>
+</ul>
+</li>
+<li><a href="../reference/index.html">Reference</a>
+<ul>
+<li><a href="../reference/cli.html">Command line</a></li>
+<li><a href="../reference/http-api.html">HTTP API</a></li>
+<li><a href="../reference/data-contracts.html">Data contracts</a></li>
+<li><a href="../reference/exit-codes-and-environment.html">Exit codes and environment</a></li>
+<li><a href="../reference/glossary.html">Glossary</a></li>
+</ul>
+</li>
+<li><a href="../explanation/index.html">Explanation</a>
+<ul>
+<li><a href="../explanation/bill-is-authoritative.html">The bill is authoritative</a></li>
+<li><a href="../explanation/allocation-and-coverage.html">Allocation and Coverage</a></li>
+<li><a href="../explanation/identity-links-and-evidence.html">Identity Links and Evidence</a></li>
+<li><a href="../explanation/export-snapshots-and-restatements.html">Export Snapshots and restatements</a></li>
+<li><a href="../explanation/security-model.html">Security model</a></li>
+<li><a href="../explanation/decision-records.html">Decision records</a></li>
+</ul>
+</li>
+<li><a href="../contributing.html">Contributing</a></li>
+</ul>
+</nav>
+<!-- nav:end -->
+<main id="main">
+<h1>Install data-finops</h1>
+<p>This guide installs the <code>data-finops</code> command from a source checkout. Nothing is released yet, so there is no package on PyPI to install.</p>
+<p class="notice">Not run on this page: it changes your machine.</p>
+
+<h2 id="needs">What you need</h2>
+<ul>
+<li>Python 3.12 or later.</li>
+<li><a href="https://docs.astral.sh/uv/">uv</a>, which installs the pinned dependencies.</li>
+<li>git, to clone the repository.</li>
+</ul>
+
+<h2 id="with-api">Install with the API and dashboard</h2>
+<pre><code>git clone https://github.com/apmalong/data-finops.git
+cd data-finops
+uv sync --extra api --frozen
+uv run data-finops --help</code></pre>
+<p>The <code>api</code> extra adds FastAPI and uvicorn. <code>serve</code> and <code>demo</code> need them to run the API, the dashboard and the OpenLineage receiver. <code>--frozen</code> installs exactly the versions in <code>uv.lock</code>.</p>
+
+<h2 id="base">Install without the extra</h2>
+<pre><code>uv sync --frozen</code></pre>
+<p>The base package can <code>ingest</code> and <code>calculate</code>. <code>serve</code> and <code>demo</code> exit with <code>2</code> and say that the API needs the <code>api</code> extra. <code>demo</code> checks this before writing anything. Install it with <code>uv sync --extra api --frozen</code>.</p>
+
+<h2 id="demo">Try it with the demo</h2>
+<pre><code>uv run data-finops demo</code></pre>
+<p><code>demo</code> loads the hand-written fixtures into a temporary database file, runs a Calculation Run and serves on loopback at <a href="http://127.0.0.1:8000/">http://127.0.0.1:8000/</a>. It reads the repository's <code>fixtures/</code> directory, so it needs a source checkout: an installed package does not include the fixtures. The database file is removed when <code>demo</code> stops.</p>
+<p>Next, follow the tutorial <a href="../tutorials/first-allocation.html">Your first allocation</a>, which runs the same steps one at a time.</p>
+</main>
+<!-- footer:start -->
+<footer>
+<p>This site describes the <code>main</code> branch. Nothing is released yet. No license has been chosen yet. Source on <a href="https://github.com/apmalong/data-finops">GitHub</a>.</p>
+</footer>
+<!-- footer:end -->
+</body>
+</html>

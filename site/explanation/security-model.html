@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+<!-- head:start -->
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="../assets/site.css">
+<!-- head:end -->
+<title>Security model - data-finops</title>
+<meta name="description" content="How data-finops protects its server, its inputs and what it stores: loopback by default, one bearer token, bounded payloads and minimal metadata.">
+</head>
+<body>
+<!-- nav:start -->
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="site-header"><a href="../index.html">data-finops</a></header>
+<nav aria-label="Site">
+<ul>
+<li><a href="../tutorials/index.html">Tutorials</a>
+<ul>
+<li><a href="../tutorials/first-allocation.html">Your first allocation</a></li>
+</ul>
+</li>
+<li><a href="../how-to/index.html">How-to guides</a>
+<ul>
+<li><a href="../how-to/install.html">Install data-finops</a></li>
+<li><a href="../how-to/ingest-focus-export.html">Ingest a FOCUS export</a></li>
+<li><a href="../how-to/ingest-athena-history.html">Ingest Athena query history</a></li>
+<li><a href="../how-to/ingest-dbt-artifacts.html">Ingest dbt artifacts</a></li>
+<li><a href="../how-to/receive-openlineage.html">Receive OpenLineage events</a></li>
+<li><a href="../how-to/calculate.html">Calculate Allocations</a></li>
+<li><a href="../how-to/handle-restated-export.html">Handle a restated export</a></li>
+<li><a href="../how-to/read-cost-explanation.html">Read a Cost Explanation</a></li>
+<li><a href="../how-to/serve-with-token.html">Serve with a token</a></li>
+<li><a href="../how-to/deploy-reference-workload.html">Deploy the reference workload</a></li>
+</ul>
+</li>
+<li><a href="../reference/index.html">Reference</a>
+<ul>
+<li><a href="../reference/cli.html">Command line</a></li>
+<li><a href="../reference/http-api.html">HTTP API</a></li>
+<li><a href="../reference/data-contracts.html">Data contracts</a></li>
+<li><a href="../reference/exit-codes-and-environment.html">Exit codes and environment</a></li>
+<li><a href="../reference/glossary.html">Glossary</a></li>
+</ul>
+</li>
+<li><a href="index.html">Explanation</a>
+<ul>
+<li><a href="bill-is-authoritative.html">The bill is authoritative</a></li>
+<li><a href="allocation-and-coverage.html">Allocation and Coverage</a></li>
+<li><a href="identity-links-and-evidence.html">Identity Links and Evidence</a></li>
+<li><a href="export-snapshots-and-restatements.html">Export Snapshots and restatements</a></li>
+<li><a href="security-model.html" aria-current="page">Security model</a></li>
+<li><a href="decision-records.html">Decision records</a></li>
+</ul>
+</li>
+<li><a href="../contributing.html">Contributing</a></li>
+</ul>
+</nav>
+<!-- nav:end -->
+<main id="main">
+<h1>Security model</h1>
+<p>data-finops reads bills and workload metadata, which can reveal a lot about a business. This page explains how it limits who can reach it, what it accepts and what it keeps. The decisions are in <a href="https://github.com/apmalong/data-finops/blob/main/docs/adr/0012-security-and-privacy-by-default.md">ADR 0012</a> and <a href="https://github.com/apmalong/data-finops/blob/main/docs/adr/0024-local-receiver-ingress-and-token.md">ADR 0024</a>, with the threat model in <a href="https://github.com/apmalong/data-finops/blob/main/docs/specs/05-security-operations.md">spec 05</a>, what is kept in <a href="https://github.com/apmalong/data-finops/blob/main/docs/specs/04-integrations.md">spec 04</a> and the API's errors in <a href="https://github.com/apmalong/data-finops/blob/main/docs/specs/06-api-and-dashboard.md">spec 06</a>. They stay authoritative.</p>
+
+<h2 id="loopback">Loopback by default</h2>
+<p><code>serve</code> binds to <code>127.0.0.1</code> unless told otherwise, so only the same machine can reach it, and there a token is optional. It refuses to bind to any other address without a token. Only a literal loopback address counts: a name such as <code>localhost</code> is resolved by the system and could point anywhere. <code>demo</code> always serves on loopback with no token, so trying data-finops needs no secret.</p>
+
+<h2 id="token">One bearer token</h2>
+<p>With a token configured, every route needs <code>Authorization: Bearer &lt;token&gt;</code>, the dashboard and the API documentation included. That is the header OpenLineage's HTTP transport sends for its API key. A missing or wrong token gets <code>401</code>, and the comparison takes constant time.</p>
+<ul>
+<li>The token comes from <code>DATA_FINOPS_TOKEN</code> or a token file, never both.</li>
+<li>It must be at least 16 characters, not counting surrounding spaces.</li>
+<li>It is never logged, printed or stored. Errors say what is wrong with it, not what it is.</li>
+<li>It proves who may send, not what a request is about: a token is never <a href="../reference/glossary.html#evidence">Evidence</a> for an <a href="../reference/glossary.html#identity-link">Identity Link</a>.</li>
+</ul>
+<p>Production ingress, such as a private API behind cloud IAM, is a deployment decision still to come. See <a href="../how-to/serve-with-token.html">Serve with a token</a>.</p>
+
+<h2 id="bounded">Bounded payloads</h2>
+<ul>
+<li>One OpenLineage event may be at most 1 MiB. A larger body gets <code>413</code> at the cap, before it is read in full or parsed.</li>
+<li>A compressed body gets <code>415</code>. Each event is sent uncompressed.</li>
+<li>Query history files and dbt artifacts are capped at 512 MiB each.</li>
+</ul>
+
+<h2 id="no-echo">Errors never echo input</h2>
+<p>Every API error is an RFC 9457 Problem Details document. It names what was wrong, such as the field that failed validation, but never repeats the value sent. On the command line, a rejected item is named by its position and the reason, never by its content. A secret or a fragment of SQL in a bad input therefore never reaches a log or a terminal through an error.</p>
+
+<h2 id="minimal">Only the metadata needed is kept</h2>
+<ul>
+<li>A <a href="../reference/glossary.html#query-execution">Query Execution</a> keeps only allowlisted metadata: identity, workgroup, statement type, catalog and database, state, times, error category and type, numeric statistics and engine version. Query text, execution parameters, state change reasons, error messages and unknown fields are dropped.</li>
+<li>From a <a href="../reference/glossary.html#trusted-query-comment">Trusted Query Comment</a>, only the dbt invocation and node are kept.</li>
+<li>OpenLineage's SQL and stack trace facets are removed before an event is stored, and a rejected event is never stored.</li>
+<li>Keeping query text would be an explicit opt-in. Nothing does it today.</li>
+<li>No SQL literals or credentials are exported by the API or the dashboard.</li>
+</ul>
+<p>One known exception: a <a href="../reference/glossary.html#cost-explanation">Cost Explanation</a> shows the <a href="../reference/glossary.html#billing-line">Billing Line</a> exactly as exported, its tags included. A production deployment must revisit what it exposes there.</p>
+
+<h2 id="fixtures">Anonymized samples</h2>
+<p>The real-world sample in <code>fixtures/reference-workload/</code> was anonymized before it was committed. Values were replaced with keyed pseudonyms, account IDs were replaced, and SQL was cut down. The scripts and their secret are described in <a href="../reference/exit-codes-and-environment.html#environment-heading">Exit codes and environment</a>.</p>
+</main>
+<!-- footer:start -->
+<footer>
+<p>This site describes the <code>main</code> branch. Nothing is released yet. No license has been chosen yet. Source on <a href="https://github.com/apmalong/data-finops">GitHub</a>.</p>
+</footer>
+<!-- footer:end -->
+</body>
+</html>
