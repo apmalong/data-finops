@@ -63,7 +63,7 @@
 
 <h2 id="unit">The whole Export Snapshot is the unit</h2>
 <p>An <a href="../reference/glossary.html#export-snapshot">Export Snapshot</a> is every <a href="../reference/glossary.html#billing-line">Billing Line</a> of one <a href="../reference/glossary.html#snapshot-scope">Snapshot Scope</a> (a billing account, a <a href="../reference/glossary.html#billing-period">Billing Period</a> and a source), as the provider published it at one time. A restatement replaces the whole Export Snapshot. data-finops never patches single Billing Lines, because a provider's restatement can change, add or remove any of them.</p>
-<p>Within an Export Snapshot, rows are never deduplicated. Two identical rows are two Billing Lines, each identified by its snapshot and position. Merging them would drop money the provider billed, and the Ledger's totals would no longer equal the provider's.</p>
+<p>Within an Export Snapshot, rows are never deduplicated. Two identical rows are two Billing Lines, each identified by its snapshot and position. Merging them would drop money the provider billed, and the <a href="../reference/glossary.html#ledger">Ledger</a>'s totals would no longer equal the provider's.</p>
 
 <h2 id="immutable">Stored Export Snapshots never change</h2>
 <p>Each load has one of three outcomes:</p>

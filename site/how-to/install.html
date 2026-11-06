@@ -78,7 +78,7 @@ uv run data-finops --help</code></pre>
 
 <h2 id="base">Install without the extra</h2>
 <pre><code>uv sync --frozen</code></pre>
-<p>The base package can <code>ingest</code> and <code>calculate</code>. <code>serve</code> and <code>demo</code> stop before writing anything, exit with <code>2</code> and say that the API needs the <code>api</code> extra. Install it with <code>uv sync --extra api --frozen</code>.</p>
+<p>The base package can <code>ingest</code> and <code>calculate</code>. <code>serve</code> and <code>demo</code> exit with <code>2</code> and say that the API needs the <code>api</code> extra. <code>demo</code> checks this before writing anything. Install it with <code>uv sync --extra api --frozen</code>.</p>
 
 <h2 id="demo">Try it with the demo</h2>
 <pre><code>uv run data-finops demo</code></pre>

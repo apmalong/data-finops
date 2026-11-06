@@ -1,5 +1,6 @@
-# The bill is authoritative: every Billing Line is split into Allocations that sum to it,
+# The bill is authoritative: each Billing Line is split into Allocations that sum to it,
 # and everything above a Query Execution is a Roll-up (ADR 0003, ADR 0016).
+# The tutorial's bill: two Billing Lines, 10.00 USD in all.
 # Render: d2 --layout elk docs/architecture/bill-to-roll-ups.d2 site/assets/explanation/bill-to-roll-ups.svg
 direction: down
 
@@ -10,22 +11,20 @@ classes: {
   rollup: {style: {fill: "#f4f3ef"; stroke: "#8a8983"; stroke-dash: 3; border-radius: 6; font-size: 20}}
 }
 
-snapshot: "Export Snapshot\n(as the provider published it)" {class: bill}
-line: "Billing Line\n10.00 USD in all" {class: bill}
-snapshot -> line: "one row each"
+snapshot: "Export Snapshot\n10.00 USD in all" {class: bill}
+athena: "Billing Line\nAmazon Athena, 6.00 USD" {class: bill}
+s3: "Billing Line\nAmazon S3 storage, 4.00 USD" {class: bill}
+snapshot -> athena
+snapshot -> s3
 
-allocations: "Allocations: they sum to the Billing Line" {
-  qe: "Query Execution\nq-001, 6.00 USD" {class: target}
-  idle: "Idle" {class: target}
-  unallocated: "Unallocated, with its reason\nineligible, 4.00 USD" {class: attention}
-}
-line -> allocations.qe
-line -> allocations.idle
-line -> allocations.unallocated
+qe: "Allocation to\nQuery Execution q-001\n6.00 USD" {class: target}
+unallocated: "Allocation: Unallocated\nineligible, 4.00 USD" {class: attention}
+athena -> qe: "sums to the line"
+s3 -> unallocated: "sums to the line"
 
 rollups: "Roll-ups: sums, never further Allocations" {
   model: "Model Execution\nmodel.demo.orders, 6.00 USD" {class: rollup}
-  run: "Workload Runs\ndbt run, Airflow task and DAG run, 6.00 USD each" {class: rollup}
+  run: "Workload Runs above it\n6.00 USD each" {class: rollup}
 }
-allocations.qe -> rollups.model: "Identity Link"
+qe -> rollups.model: "Identity Link"
 rollups.model -> rollups.run
