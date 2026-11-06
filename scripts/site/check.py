@@ -21,6 +21,7 @@ Rule = Literal[
     "broken-link",
     "duplicate-id",
     "external-url",
+    "low-contrast",
     "h1-count",
     "missing-alt",
     "missing-anchor",
@@ -300,3 +301,55 @@ def _text_rules(site: _Site, name: str, text: str) -> Iterator[Problem]:
     suffix = PurePosixPath(name).suffix.lower()
     if suffix in (".css", ".js"):
         yield from _code_rules(site, name, 1, text, "css" if suffix == ".css" else "js")
+    if suffix == ".css":
+        yield from _contrast_rules(name, text)
+
+
+MIN_CONTRAST = 4.5  # WCAG 2.2 AA for body text (spec 07)
+_BLOCK = re.compile(r"\{([^{}]*)\}")
+_TOKEN = re.compile(r"--([\w-]+)\s*:\s*#([0-9a-fA-F]{6}|[0-9a-fA-F]{3})\s*;")
+
+
+def _contrast_rules(name: str, text: str) -> Iterator[Problem]:
+    """Each theme block's text tokens (`--text*`, `--link`) against its `--bg-*` tokens.
+
+    The first block that declares tokens is the base theme; every later one inherits from it.
+    """
+    base: dict[str, tuple[str, int]] = {}  # prop -> (hex colour, line)
+    for block in _BLOCK.finditer(text):
+        declared = {
+            m.group(1): (m.group(2), text.count("\n", 0, block.start(1) + m.start()) + 1)
+            for m in _TOKEN.finditer(block.group(1))
+        }
+        if not declared:
+            continue
+        theme = {**base, **declared}
+        if not base:
+            base = declared
+        backgrounds = {t: v for t, v in theme.items() if t.startswith("bg-")}
+        for prop, (colour, line) in theme.items():
+            if not (prop.startswith("text") or prop == "link"):
+                continue
+            for background, (bg_colour, bg_line) in backgrounds.items():
+                if prop not in declared and background not in declared:
+                    continue  # this pair is the base theme's, already checked
+                ratio = _contrast(colour, bg_colour)
+                if ratio < MIN_CONTRAST:
+                    where = line if prop in declared else bg_line
+                    message = f"--{prop} on --{background} is {ratio:.2f}:1, under 4.5:1"
+                    yield Problem(name, where, "low-contrast", message)
+                    break
+
+
+def _contrast(a: str, b: str) -> float:
+    """The WCAG 2.2 contrast ratio of two sRGB hex colours (without '#')."""
+    lighter, darker = sorted((_luminance(a), _luminance(b)), reverse=True)
+    return (lighter + 0.05) / (darker + 0.05)
+
+
+def _luminance(colour: str) -> float:
+    if len(colour) == 3:
+        colour = "".join(c * 2 for c in colour)
+    channels = [int(colour[i : i + 2], 16) / 255 for i in (0, 2, 4)]
+    r, g, b = [c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4 for c in channels]
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b

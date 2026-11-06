@@ -76,7 +76,7 @@ def test_a_page_missing_a_shared_region_fails_the_build_naming_it(tmp_path: Path
         build(repo)
 
 
-def test_every_page_gets_the_same_head_and_a_footer_that_claims_no_more_than_is_true(
+def test_every_page_links_the_stylesheet_and_gets_a_footer_that_claims_no_more_than_is_true(
     tmp_path: Path,
 ) -> None:
     repo = make_repo(
@@ -89,11 +89,16 @@ def test_every_page_gets_the_same_head_and_a_footer_that_claims_no_more_than_is_
         },
     )
     built = build(repo)
-    heads = {region(text, "head") for text in built.values()}
     footers = {region(text, "footer") for text in built.values()}
-    assert len(heads) == 1 and len(footers) == 1
-    (head,), (footer,) = heads, footers
-    assert '<meta charset="utf-8">' in head and 'name="viewport"' in head
+    assert len(footers) == 1
+    (footer,) = footers
+    for path, stylesheet in [
+        ("index.html", "assets/site.css"),
+        ("how-to/calculate.html", "../assets/site.css"),
+    ]:
+        head = region(built[path], "head")
+        assert '<meta charset="utf-8">' in head and 'name="viewport"' in head
+        assert f'<link rel="stylesheet" href="{stylesheet}">' in head
     assert "<code>main</code>" in footer
     assert "Nothing is released yet" in footer
     assert "No license has been chosen yet" in footer
@@ -198,3 +203,17 @@ def test_a_malformed_nav_fails_the_build_saying_why(tmp_path: Path, nav: str) ->
     (repo / "site" / "nav.json").write_text(nav, encoding="utf-8")
     with pytest.raises(SiteError, match="nav.json"):
         build(repo)
+
+
+def test_the_nav_starts_with_a_link_that_skips_to_the_content(tmp_path: Path) -> None:
+    repo = make_repo(
+        tmp_path,
+        NAV,
+        {
+            "index.html": page("Home"),
+            "how-to/index.html": page("How-to guides"),
+            "how-to/calculate.html": page("Calculate"),
+        },
+    )
+    nav = region(build(repo)["how-to/calculate.html"], "nav")
+    assert nav.startswith('<a class="skip-link" href="#main">Skip to content</a>')

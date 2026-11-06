@@ -343,3 +343,34 @@ def test_a_site_without_a_nav_is_reported(tmp_path: Path) -> None:
 def test_a_malformed_nav_is_reported_not_fatal(tmp_path: Path) -> None:
     site = make_site(tmp_path, {"index.html": page("<p>x</p>"), "nav.json": "[{"})
     assert rules(check_site(site)) == [("nav.json", "bad-nav", 1)]
+
+
+def test_text_tokens_need_4_5_to_1_contrast_on_every_background_in_every_theme(
+    tmp_path: Path,
+) -> None:
+    css = (
+        ":root {\n"
+        "  --bg-page: #ffffff;\n"
+        "  --bg-surface: #fff;\n"
+        "  --text: #000000;\n"
+        "  --link: #767676;\n"  # 4.54:1 on white: passes
+        "}\n"
+        "@media (prefers-color-scheme: dark) {\n"
+        "  :root {\n"
+        "    --bg-page: #000000;\n"
+        "    --text: #777777;\n"  # 4.69:1 on black, but the light surface is inherited
+        "  }\n"
+        "}\n"
+        ":root[data-theme=dark] {\n"
+        "  --bg-page: #000;\n"
+        "  --bg-surface: #000;\n"
+        "  --text: #fff;\n"
+        "  --text-2: #6a6;\n"  # 7.51:1 on black, read as #66aa66: passes
+        "  --link: #595959;\n"  # 3.0:1 on black: fails
+        "}\n"
+    )
+    site = make_site(tmp_path, {"index.html": page("<p>x</p>"), "assets/site.css": css})
+    assert rules(check_site(site)) == [
+        ("assets/site.css", "low-contrast", 10),
+        ("assets/site.css", "low-contrast", 18),
+    ]
