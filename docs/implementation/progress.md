@@ -153,24 +153,25 @@ Spec #103, tickets #104–#119; decisions from the design session recorded in PR
   - #113 provenance and the restated fixture;
   - #114 lineage;
   - #115–#116 the command line: `ingest`, `calculate`, `serve` (loopback by default) and `demo`;
-  - #117–#118 the dashboard overview and its drilldown, after Tufte and Few (spec 06's eight rules, `api/dashboard/DESIGN.md`).
+  - #117–#118 the dashboard: the Cost Summary, then the Cost Explanation and lineage on demand, after Tufte and Few (spec 06's eight rules, `api/dashboard/DESIGN.md`).
   - The OpenAPI 3.1 document is checked in as `schemas/openapi.json` and tested for drift.
-- **Exit criterion** ("the walkthrough passes as written"), #119. `examples/demo/README.md` is rewritten as `data-finops` commands, with what to see at each step. `uv run pytest tests/integration/test_m5_exit.py` → 6 passed. Each step runs through the command line and is read back through the API's test client:
-  - the bill is $10.00, with a Reconciliation Delta of 0.00;
-  - `q-001` gets $6.00 Direct, metered estimate, Coverage 1. Its Cost Explanation names `model.demo.orders`, and the Roll-up to `["inv-001","model.demo.orders"]` is $6.00;
-  - `model.demo.customers` is claimed only by `q-004`, `ambiguous`, and has no Roll-up;
+- **Exit criterion** ("the walkthrough passes as written"), #119. `examples/demo/README.md` is rewritten as `data-finops` commands, with what to see at each step. `uv run pytest tests/integration/test_m5_exit.py` → 7 passed. Each step runs through the command line and is read back through the API's test client:
+  - steps 1–2 print `focus: new aws-focus-123456789012-2026-10-v1` first and `calculate: … new calc-…` last;
+  - the bill is $10.00, with a Reconciliation Delta of 0.00, under its Calculation Run, time and policy version;
+  - `q-001` gets $6.00 Direct, metered estimate, Coverage 1. Its Cost Explanation holds the $6.00 Billing Line, the Allocation, the Query Execution, Model Execution `model.demo.orders`, and the dbt run, Airflow task and DAG run, nearest first. The Roll-ups are $6.00 each, to `["inv-001","model.demo.orders"]` and to the three Workload Runs;
+  - `model.demo.customers` is claimed only by `q-004`, `ambiguous`, and has no Roll-up. `model.demo.orders` is claimed by `q-001`, `linked`;
   - $4.00 is Unallocated, `ineligible`;
   - running every ingest and the calculation again prints `replay`, and the Cost Summary is unchanged;
-  - `export-2026-10-restated.json` makes `aws-focus-123456789012-2026-10-v2` current, and the bill becomes $11.00. The previous Calculation Run is kept, with `is_current: false` and `superseded_by` naming the new run.
+  - `export-2026-10-restated.json` makes `aws-focus-123456789012-2026-10-v2` current, and the bill becomes $11.00. The previous Calculation Run is kept, with `is_current: false` and `superseded_by` naming the new run, and its $6.00 and $4.00 Allocations can still be read.
   - Mutation checks: 2 killed, 0 survived. Each step-7 replay storing a new Allocation Snapshot was caught, and so was provenance losing `superseded_by`.
 - **The README Quick start, run from a clean clone** of the branch: `git clone`, then `uv sync --extra api --frozen` (5 s), then `data-finops demo --port 8765`.
   - It printed each ingest, `calculate: … new calc-…` and `serving … at http://127.0.0.1:8765/`.
   - `/health` → `{"status":"ok"}`; `/` → 307 to `/dashboard/`.
   - `/v1/costs/summary` → billed 10.00, allocated 6.00 at Coverage 1, Unallocated 4.00 `ineligible`.
   - Headless Edge rendered the live dashboard: `docs/implementation/screenshots/m5-exit-live-demo.png`.
-- **Manual browser pass against the five-minute budget (spec 01):** pending the owner; recorded here before #119 merges.
+- **Manual browser pass against the five-minute budget (spec 01):** pending the owner. M5 is complete once it is recorded here.
 - **Gates on the branch:**
-  - `uv run pytest -q` → 722 passed;
+  - `uv run pytest -q` → 723 passed;
   - `uv run ruff check .` → All checks passed;
   - `uv run ruff format --check .` → 163 files already formatted;
   - `uv run mypy src` → no issues in 38 source files;
@@ -182,5 +183,5 @@ Spec #103, tickets #104–#119; decisions from the design session recorded in PR
 - **Known limits:**
   - the Athena policies are provisional until #91;
   - with a token configured, a browser cannot send it, so the dashboard is for the token-free loopback demo;
-  - the Workload Runs Roll-up names runs by ID, not by job name.
+  - the Workload Runs Roll-up names each run by its run ID, not by what it ran.
 

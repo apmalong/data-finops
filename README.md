@@ -1,6 +1,6 @@
 # Data FinOps — Claude Code implementation package
 
-Status (2026-11-05): **M0–M5 complete.**
+Status (2026-11-05): **M0–M4 complete; M5 built, its exit test passing, with the owner's browser pass to record.**
 - **Built:** a FOCUS billing Ledger, verified against a real AWS export; workload metadata from OpenLineage, dbt and Athena; query correlation; a deterministic allocation engine; and a local API and dashboard.
 - **Not built yet:**
   - fetching from AWS, and deployment (M6);

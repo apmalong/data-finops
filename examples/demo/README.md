@@ -2,7 +2,7 @@
 
 You load a small synthetic bill and its workload metadata, then follow $10.00 of cost to the query, dbt model and Airflow run that used it. You need no cloud account. The walkthrough takes about five minutes.
 
-`tests/integration/test_m5_exit.py` runs every step below as written, so a step that stops matching fails CI.
+`tests/integration/test_m5_exit.py` checks every command, printed line and amount below, as the API that draws the dashboard answers them, so a step that stops matching fails CI. How the dashboard looks is checked by eye.
 
 **The fixtures are test inputs, not real AWS billing records or provider prices.**
 
@@ -60,15 +60,15 @@ This prints `calculate: 123456789012 2026-10-01 aws-data-exports:FOCUS_1_2_AWS: 
 uv run data-finops serve --db demo.sqlite
 ```
 
-Open <http://127.0.0.1:8000/>. The overview is the Cost Summary:
-- **$10.00** billed in USD, with a Reconciliation Delta of **0.00**;
+Open <http://127.0.0.1:8000/>. The page leads with the Cost Summary:
+- the BilledCost total in USD, **10.00**, with a Reconciliation Delta of **0.00**;
 - under the title, the Calculation Run, its time and its policy version.
 
 The same answer comes from the API at <http://127.0.0.1:8000/v1/costs/summary>.
 
 ### 4. `q-001`: $6.00, a metered estimate
 
-- **Direct · metered estimate, Coverage 1: $6.00.** It's an estimate, so it is labelled with its Confidence and Coverage.
+- **Direct**, metered estimate, Coverage 1: **6.00**. It's an estimate, so it is labelled with its Confidence and Coverage.
 - Click it: its one Allocation opens its Cost Explanation, in this order:
   - the Billing Line (the $6.00 Athena line);
   - the Allocation to Query Execution `q-001`;
@@ -87,12 +87,12 @@ Why Coverage 1: the Athena line bills exactly the Billable Usage of the queries 
 
 ### 6. The $4.00 S3 line is Unallocated
 
-**Unallocated · ineligible: $4.00**, in the highlight colour. No MVP policy allocates S3 storage, so the amount stays Unallocated, named with its reason, and is never spread.
+**Unallocated**, ineligible: **4.00**, in the highlight colour. No MVP policy allocates S3 storage, so the amount stays Unallocated, named with its reason, and is never spread.
 
 ### 7. Running everything again changes nothing
 
 Run steps 1 and 2 again:
-- the export prints `focus: replay …`;
+- the Billing ingest prints `focus: replay …`;
 - the calculation prints `replay calc-…` with the same Calculation Run;
 - the dashboard shows the same $10.00.
 
