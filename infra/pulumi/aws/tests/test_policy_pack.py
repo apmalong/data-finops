@@ -68,9 +68,16 @@ def _recorded() -> list[dict[str, Any]]:
     ]
 
 
+def _asset(value: object) -> object:
+    """An asset input (the Lambda package) as the state records it: by its path."""
+    if isinstance(value, pulumi.FileAsset):
+        return {"path": value.path}
+    raise TypeError(f"{type(value).__name__} is not JSON serializable")
+
+
 def _analyze(tmp: Path, resources: list[dict[str, Any]]) -> subprocess.CompletedProcess[str]:
     state = tmp / "state.json"
-    state.write_text(json.dumps(_state(resources)), encoding="utf-8")
+    state.write_text(json.dumps(_state(resources), default=_asset), encoding="utf-8")
     # The pack runs in its own virtualenv (PulumiPolicy.yaml); this test's must not leak in.
     environ = {k: v for k, v in os.environ.items() if k != "VIRTUAL_ENV"}
     return subprocess.run(  # noqa: S603 (a fixed command over a file this test wrote)
@@ -84,8 +91,13 @@ def _analyze(tmp: Path, resources: list[dict[str, Any]]) -> subprocess.Completed
     )
 
 
-def _after_build(check: Callable[[list[dict[str, Any]]], None]) -> pulumi.Output[None]:
-    return build(SETTINGS).storage.ready.apply(lambda _: check(_recorded()))
+def _after_build(
+    tmp_path: Path, check: Callable[[list[dict[str, Any]]], None]
+) -> pulumi.Output[None]:
+    deployment = build(SETTINGS, package=_stand_in(tmp_path))
+    return pulumi.Output.all(deployment.storage.ready, deployment.compute.ready).apply(
+        lambda _: check(_recorded())
+    )
 
 
 def test_the_cli_is_the_pinned_release() -> None:
@@ -101,7 +113,7 @@ def test_the_program_passes_every_policy(tmp_path: Path) -> pulumi.Output[None]:
         result = _analyze(tmp_path, resources)
         assert result.returncode == 0, result.stdout + result.stderr
 
-    return _after_build(check)
+    return _after_build(tmp_path, check)
 
 
 def _open_public_access(resources: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -161,4 +173,11 @@ def test_a_non_compliant_stack_fails_the_pack(
         assert result.returncode == 1
         assert policy in result.stdout + result.stderr
 
-    return _after_build(check)
+    return _after_build(tmp_path, check)
+
+
+def _stand_in(folder: Path) -> Path:
+    """A stand-in for the built package: the program hashes it."""
+    package = folder / "data-finops-lambda.zip"
+    package.write_bytes(b"PK\x05\x06" + b"\x00" * 18)  # an empty zip
+    return package

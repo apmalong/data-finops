@@ -15,7 +15,17 @@ cd infra/pulumi/aws/policy && uv sync --frozen && uv run pytest
 cd .. && uv sync --frozen && uv run pytest
 ```
 
-The second runs the stack under Pulumi's mocks. It also runs `pulumi policy analyze` with the real pack over the resources the program declared, a compliant stack and deliberately non-compliant ones. Nothing reaches AWS.
+The second runs the stack under Pulumi's mocks. It also runs `pulumi policy analyze` with the real pack over the resources the program declared, a compliant stack and deliberately non-compliant ones. Nothing reaches AWS. CI also sets `DATA_FINOPS_BUILD_PACKAGE=1`, which builds the real Lambda package from the checkout and checks it. That downloads the arm64 wheels from PyPI.
+
+## The Lambda package
+
+`pulumi up` needs the functions' package built first:
+
+```bash
+cd infra/pulumi/aws && uv run python -m deployment.package
+```
+
+This writes `build/data-finops-lambda.zip` (git-ignored). The program refuses to run without it, and uploads it to the Deployment's bucket. A changed zip redeploys both functions.
 
 ## Settings
 
