@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+<head>
+<!-- head:start -->
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="../assets/site.css">
+<script src="../assets/site.js" defer></script>
+<!-- head:end -->
+<title>Deploy to AWS - data-finops</title>
+<meta name="description" content="Deploy data-finops into one AWS account with Pulumi, check it with the policy pack, and run a first Collection Run.">
+</head>
+<body>
+<!-- nav:start -->
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="site-header"><a href="../index.html">data-finops</a></header>
+<nav class="site-nav" aria-label="Site">
+<ul>
+<li><a href="../tutorials/index.html">Tutorials</a></li>
+<li><a href="index.html">How-to guides</a>
+<ul>
+<li><a href="install.html">Install data-finops</a></li>
+<li><a href="ingest-focus-export.html">Ingest a FOCUS export</a></li>
+<li><a href="ingest-athena-history.html">Ingest Athena query history</a></li>
+<li><a href="ingest-dbt-artifacts.html">Ingest dbt artifacts</a></li>
+<li><a href="receive-openlineage.html">Receive OpenLineage events</a></li>
+<li><a href="send-to-inbox.html">Send workload metadata to the Inbox</a></li>
+<li><a href="calculate.html">Calculate Allocations</a></li>
+<li><a href="handle-restated-export.html">Handle a restated export</a></li>
+<li><a href="read-cost-explanation.html">Read a Cost Explanation</a></li>
+<li><a href="serve-with-token.html">Serve with a token</a></li>
+<li><a href="deploy-reference-workload.html">Deploy the reference workload</a></li>
+<li><a href="deploy-to-aws.html" aria-current="page">Deploy to AWS</a></li>
+<li><a href="read-deployment.html">Read a Deployment</a></li>
+<li><a href="tear-down-deployment.html">Tear down a Deployment</a></li>
+</ul>
+</li>
+<li><a href="../reference/index.html">Reference</a></li>
+<li><a href="../explanation/index.html">Explanation</a></li>
+<li><a href="../contributing.html">Contributing</a></li>
+</ul>
+</nav>
+<!-- nav:end -->
+<main id="main">
+<h1>Deploy to AWS</h1>
+<!-- onpage:start -->
+<nav class="on-page" aria-label="On this page">
+<p>On this page</p>
+<ul>
+<li><a href="#before">Before you start</a></li>
+<li><a href="#package">Build the package</a></li>
+<li><a href="#configure">Configure the stack</a></li>
+<li><a href="#preview">Check it with the policy pack</a></li>
+<li><a href="#deploy">Deploy</a></li>
+<li><a href="#first-run">Run a first Collection Run</a></li>
+</ul>
+</nav>
+<!-- onpage:end -->
+<p>A Deployment runs data-finops in one AWS account: a collector function that runs a Collection Run once a day, and a read-only API behind an IAM-authorized Function URL (<a href="https://github.com/apmalong/data-finops/blob/main/docs/adr/0026-aws-deployment-two-lambdas-without-vpc.md">ADR 0026</a>). This guide builds the functions' package, configures the Pulumi stack, checks it with the policy pack, deploys it and runs a first Collection Run. <a href="../explanation/deployment-architecture.html">Deployment architecture</a> explains what it creates and what it costs.</p>
+<p class="notice">Not run on this page. These commands reach a real AWS account, and some create resources that cost money. The account owner approves every <code>pulumi preview</code>, <code>pulumi up</code> and <code>pulumi destroy</code> against a real account.</p>
+
+<h2 id="before">Before you start</h2>
+<ul>
+<li>One AWS account holds the FOCUS export's bucket, the Athena workgroups and the Deployment. Reading another account's export or history is not supported.</li>
+<li>The FOCUS export uses the "create new" delivery mode, as <a href="ingest-focus-export.html">Ingest a FOCUS export</a> describes. A Collection Run refuses an export that overwrites its files. An export encrypted with a KMS key is not supported yet.</li>
+<li>An AWS profile for a dedicated deployer identity, created by the account owner. The stack never creates it.</li>
+<li>The Pulumi CLI, version 3.272.0, and uv. A test checks the CLI's version against the stack's.</li>
+</ul>
+
+<h2 id="package">Build the package</h2>
+<p>Both functions run from one zip built from your checkout. From the repository root:</p>
+<div class="shell-tabs">
+<pre class="shell-posix"><code><span class="line">cd infra/pulumi/aws
+</span><span class="line">uv sync --frozen
+</span><span class="line">uv run python -m deployment.package</span></code></pre>
+<pre class="shell-windows" data-derived=""><code><span class="line">cd infra/pulumi/aws
+</span><span class="line">uv sync --frozen
+</span><span class="line">uv run python -m deployment.package</span></code></pre>
+</div>
+<p>This writes <code>build/data-finops-lambda.zip</code>, about 66 MB, after downloading the arm64 wheels from PyPI. <code>pulumi up</code> refuses to run without it. Build it again after every change to the checkout: a changed zip redeploys both functions.</p>
+
+<h2 id="configure">Configure the stack</h2>
+<p>Still in <code>infra/pulumi/aws</code>:</p>
+<div class="shell-tabs">
+<pre class="shell-posix"><code><span class="line">export PULUMI_BACKEND_URL="file://$(cd ../../.. &amp;&amp; pwd)/.local/pulumi"
+</span><span class="line">export PULUMI_CONFIG_PASSPHRASE="&lt;choose one; needed for every later command&gt;"
+</span><span class="line">pulumi stack init dev
+</span><span class="line">pulumi config set aws:profile &lt;your deployer profile&gt;
+</span><span class="line">pulumi config set aws:region &lt;region&gt;
+</span><span class="line">pulumi config set exportBucket &lt;export bucket&gt;
+</span><span class="line">pulumi config set exportName &lt;export name&gt;
+</span><span class="line">pulumi config set exportPrefix &lt;export prefix&gt;
+</span><span class="line">pulumi config set --path 'workgroups[0]' &lt;workgroup&gt;</span></code></pre>
+<pre class="shell-windows"><code><span class="line">$env:PULUMI_BACKEND_URL = "file://$((Resolve-Path ../../..).Path)/.local/pulumi"
+</span><span class="line">$env:PULUMI_CONFIG_PASSPHRASE = "&lt;choose one; needed for every later command&gt;"
+</span><span class="line">pulumi stack init dev
+</span><span class="line">pulumi config set aws:profile &lt;your deployer profile&gt;
+</span><span class="line">pulumi config set aws:region &lt;region&gt;
+</span><span class="line">pulumi config set exportBucket &lt;export bucket&gt;
+</span><span class="line">pulumi config set exportName &lt;export name&gt;
+</span><span class="line">pulumi config set exportPrefix &lt;export prefix&gt;
+</span><span class="line">pulumi config set --path 'workgroups[0]' &lt;workgroup&gt;</span></code></pre>
+</div>
+<ul>
+<li><code>PULUMI_BACKEND_URL</code> keeps the stack's state in the repository's git-ignored <code>.local/pulumi</code>. The program refuses any backend that is not <code>file://</code>.</li>
+<li><code>pulumi stack init dev</code> is needed only the first time.</li>
+<li>Leave out <code>exportPrefix</code> when the export has no S3 path prefix.</li>
+<li>Add a second workgroup as <code>workgroups[1]</code>, and so on.</li>
+</ul>
+<p>Every other setting has a default. Two are worth setting now: a Budget alert, and an alarm for a failing collector. The Budget is account-wide: it alerts on the whole account's forecast and actual spend, not only the Deployment's.</p>
+<div class="shell-tabs">
+<pre class="shell-posix"><code><span class="line">pulumi config set budgetMonthlyUsd &lt;amount&gt;
+</span><span class="line">pulumi config set budgetEmail &lt;your email&gt;
+</span><span class="line">pulumi config set alarmEmail &lt;your email&gt;</span></code></pre>
+<pre class="shell-windows" data-derived=""><code><span class="line">pulumi config set budgetMonthlyUsd &lt;amount&gt;
+</span><span class="line">pulumi config set budgetEmail &lt;your email&gt;
+</span><span class="line">pulumi config set alarmEmail &lt;your email&gt;</span></code></pre>
+</div>
+<p>Once the stack is up, AWS emails <code>alarmEmail</code> a link to confirm its subscription to the alarm's topic. The alarm's emails start only after it is followed. Every setting, its default and its bounds are in <a href="../reference/deployment-settings.html">Deployment settings</a>. The stack checks them all before it declares anything.</p>
+
+<h2 id="preview">Check it with the policy pack</h2>
+<p>The policy pack holds the Deployment's mandatory rules: a private, encrypted, versioned, TLS-only bucket; an IAM-only Function URL; bounded and logged functions; least-privilege IAM; no VPC or database servers; a Budget that alerts on forecast and actual spend. It has its own environment:</p>
+<div class="shell-tabs">
+<pre class="shell-posix"><code><span class="line">cd policy
+</span><span class="line">uv sync --frozen
+</span><span class="line">cd ..
+</span><span class="line">pulumi preview --policy-pack policy</span></code></pre>
+<pre class="shell-windows" data-derived=""><code><span class="line">cd policy
+</span><span class="line">uv sync --frozen
+</span><span class="line">cd ..
+</span><span class="line">pulumi preview --policy-pack policy</span></code></pre>
+</div>
+<p>A violation fails the preview and names the policy and the resource. At a real preview, a policy document computed from other resources' ARNs is not known yet, so its checks are only advisory there. CI enforces them on every pull request, over the stack's mocked state.</p>
+
+<h2 id="deploy">Deploy</h2>
+<div class="shell-tabs">
+<pre class="shell-posix"><code><span class="line">pulumi up --policy-pack policy</span></code></pre>
+<pre class="shell-windows" data-derived=""><code><span class="line">pulumi up --policy-pack policy</span></code></pre>
+</div>
+<p>Read the plan before you confirm it. Then list the stack's outputs:</p>
+<div class="shell-tabs">
+<pre class="shell-posix"><code><span class="line">pulumi stack output</span></code></pre>
+<pre class="shell-windows" data-derived=""><code><span class="line">pulumi stack output</span></code></pre>
+</div>
+<p>Each output is described in <a href="../reference/deployment-settings.html#outputs">Deployment settings</a>. The next steps need <code>collectorFunction</code> and <code>apiUrl</code>.</p>
+
+<h2 id="first-run">Run a first Collection Run</h2>
+<p>The schedule starts the first run at its next time, 06:00 UTC by default. To run one now, invoke the collector. It ignores the event it is sent:</p>
+<div class="shell-tabs">
+<pre class="shell-posix"><code><span class="line">aws lambda invoke --function-name &lt;collectorFunction&gt; --cli-read-timeout 900 --profile &lt;your profile&gt; collector-result.json</span></code></pre>
+<pre class="shell-windows" data-derived=""><code><span class="line">aws lambda invoke --function-name &lt;collectorFunction&gt; --cli-read-timeout 900 --profile &lt;your profile&gt; collector-result.json</span></code></pre>
+</div>
+<p><code>collector-result.json</code> then holds the Collection Run's summary: for each source, what was stored, duplicated or rejected, any warnings, and the Calculation Run it started. The same summary is one line in the collector's log:</p>
+<div class="shell-tabs">
+<pre class="shell-posix"><code><span class="line">aws logs tail /aws/lambda/&lt;collectorFunction&gt; --since 1h --profile &lt;your profile&gt;</span></code></pre>
+<pre class="shell-windows" data-derived=""><code><span class="line">aws logs tail /aws/lambda/&lt;collectorFunction&gt; --since 1h --profile &lt;your profile&gt;</span></code></pre>
+</div>
+<p>A run that could not read a source, or that lost a write to a concurrent run, ends as an error, and the scheduler retries it at most twice. Every run starts again from the current database, and replaying what was already stored changes nothing. To read what it collected, see <a href="read-deployment.html">Read a Deployment</a>. To send it OpenLineage events and dbt artifacts, see <a href="send-to-inbox.html">Send workload metadata to the Inbox</a>.</p>
+<!-- pager:start -->
+<nav class="pager" aria-label="Previous and next">
+<a rel="prev" href="deploy-reference-workload.html">Previous: Deploy the reference workload</a>
+<a rel="next" href="read-deployment.html">Next: Read a Deployment</a>
+</nav>
+<!-- pager:end -->
+</main>
+<!-- footer:start -->
+<footer>
+<p>This site describes the <code>main</code> branch. Nothing is released yet. No license has been chosen yet. Source on <a href="https://github.com/apmalong/data-finops">GitHub</a>.</p>
+</footer>
+<!-- footer:end -->
+</body>
+</html>

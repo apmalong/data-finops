@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+<!-- head:start -->
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="../assets/site.css">
+<script src="../assets/site.js" defer></script>
+<!-- head:end -->
+<title>Tear down a Deployment - data-finops</title>
+<meta name="description" content="Remove a Deployment with pulumi destroy, choosing whether its bucket and data are kept or deleted.">
+</head>
+<body>
+<!-- nav:start -->
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="site-header"><a href="../index.html">data-finops</a></header>
+<nav class="site-nav" aria-label="Site">
+<ul>
+<li><a href="../tutorials/index.html">Tutorials</a></li>
+<li><a href="index.html">How-to guides</a>
+<ul>
+<li><a href="install.html">Install data-finops</a></li>
+<li><a href="ingest-focus-export.html">Ingest a FOCUS export</a></li>
+<li><a href="ingest-athena-history.html">Ingest Athena query history</a></li>
+<li><a href="ingest-dbt-artifacts.html">Ingest dbt artifacts</a></li>
+<li><a href="receive-openlineage.html">Receive OpenLineage events</a></li>
+<li><a href="send-to-inbox.html">Send workload metadata to the Inbox</a></li>
+<li><a href="calculate.html">Calculate Allocations</a></li>
+<li><a href="handle-restated-export.html">Handle a restated export</a></li>
+<li><a href="read-cost-explanation.html">Read a Cost Explanation</a></li>
+<li><a href="serve-with-token.html">Serve with a token</a></li>
+<li><a href="deploy-reference-workload.html">Deploy the reference workload</a></li>
+<li><a href="deploy-to-aws.html">Deploy to AWS</a></li>
+<li><a href="read-deployment.html">Read a Deployment</a></li>
+<li><a href="tear-down-deployment.html" aria-current="page">Tear down a Deployment</a></li>
+</ul>
+</li>
+<li><a href="../reference/index.html">Reference</a></li>
+<li><a href="../explanation/index.html">Explanation</a></li>
+<li><a href="../contributing.html">Contributing</a></li>
+</ul>
+</nav>
+<!-- nav:end -->
+<main id="main">
+<h1>Tear down a Deployment</h1>
+<!-- onpage:start -->
+<nav class="on-page" aria-label="On this page">
+<p>On this page</p>
+<ul>
+<li><a href="#before">Before you destroy</a></li>
+<li><a href="#keep">Destroy and keep the data</a></li>
+<li><a href="#delete">Destroy and delete the data</a></li>
+<li><a href="#after">What is left</a></li>
+</ul>
+</nav>
+<!-- onpage:end -->
+<p><code>pulumi destroy</code> removes a Deployment. By default it keeps the bucket, with the database and the Inbox in it, so a mistaken destroy loses no data. This guide removes a Deployment either way and lists what is left behind.</p>
+<p class="notice">Not run on this page. These commands reach a real AWS account, and some create resources that cost money. The account owner approves every <code>pulumi preview</code>, <code>pulumi up</code> and <code>pulumi destroy</code> against a real account.</p>
+
+<h2 id="before">Before you destroy</h2>
+<p>Detach the producer and reader policies from every identity they were attached to. IAM refuses to delete a managed policy that is still attached, and the destroy stops there:</p>
+<div class="shell-tabs">
+<pre class="shell-posix"><code><span class="line">aws iam list-entities-for-policy --policy-arn &lt;producerPolicyArn&gt; --profile &lt;admin profile&gt;
+</span><span class="line">aws iam list-entities-for-policy --policy-arn &lt;readerPolicyArn&gt; --profile &lt;admin profile&gt;
+</span><span class="line">aws iam detach-role-policy --role-name &lt;role&gt; --policy-arn &lt;policy arn&gt; --profile &lt;admin profile&gt;</span></code></pre>
+<pre class="shell-windows" data-derived=""><code><span class="line">aws iam list-entities-for-policy --policy-arn &lt;producerPolicyArn&gt; --profile &lt;admin profile&gt;
+</span><span class="line">aws iam list-entities-for-policy --policy-arn &lt;readerPolicyArn&gt; --profile &lt;admin profile&gt;
+</span><span class="line">aws iam detach-role-policy --role-name &lt;role&gt; --policy-arn &lt;policy arn&gt; --profile &lt;admin profile&gt;</span></code></pre>
+</div>
+<p>Run every command below from <code>infra/pulumi/aws</code>, with <code>PULUMI_BACKEND_URL</code> and <code>PULUMI_CONFIG_PASSPHRASE</code> set as in <a href="deploy-to-aws.html#configure">Deploy to AWS</a>.</p>
+
+<h2 id="keep">Destroy and keep the data</h2>
+<div class="shell-tabs">
+<pre class="shell-posix"><code><span class="line">pulumi destroy</span></code></pre>
+<pre class="shell-windows" data-derived=""><code><span class="line">pulumi destroy</span></code></pre>
+</div>
+<p>This deletes the functions, their log groups and roles, the schedule, the Function URL, the producer and reader policies, the alarm and its topic, the Budget, and the Lambda package object. It keeps the bucket and every setting on it: the public access blocks, encryption, versioning, the expiry rules and the TLS-only policy. The bucket leaves the stack's state, so a later <code>pulumi up</code> would try to create a new bucket with a new name, not adopt this one.</p>
+<p>While the bucket is kept, its storage is billed and its expiry rules keep running: Inbox objects expire after <code>inboxRetentionDays</code> and old object versions after <code>noncurrentVersionDays</code>. To delete it later, empty it in the S3 console, which deletes every version, then delete it.</p>
+
+<h2 id="delete">Destroy and delete the data</h2>
+<p>To delete the bucket with everything in it, every version included, change the setting and apply it first. The stack records whether to keep the bucket when it is deployed, not when it is destroyed:</p>
+<div class="shell-tabs">
+<pre class="shell-posix"><code><span class="line">pulumi config set deleteDataOnDestroy true
+</span><span class="line">pulumi up
+</span><span class="line">pulumi destroy</span></code></pre>
+<pre class="shell-windows" data-derived=""><code><span class="line">pulumi config set deleteDataOnDestroy true
+</span><span class="line">pulumi up
+</span><span class="line">pulumi destroy</span></code></pre>
+</div>
+<p>This cannot be undone. Download the database first if you may want it: see <a href="read-deployment.html#dashboard">Read a Deployment</a>.</p>
+
+<h2 id="after">What is left</h2>
+<ul>
+<li>The stack's local state, in <code>.local/pulumi</code>. Remove the empty stack with <code>pulumi stack rm dev</code>.</li>
+<li>The package, <code>infra/pulumi/aws/build/data-finops-lambda.zip</code>, which is git-ignored.</li>
+<li>The deployer identity and its profile, which the owner created and removes.</li>
+<li>Anything a producer or reader set up on its own side, such as an OpenLineage configuration that writes to the Inbox.</li>
+<li>The FOCUS export and the Athena workgroups, which the Deployment only read.</li>
+</ul>
+<p>The reference workload is a separate stack with its own teardown: see <a href="deploy-reference-workload.html#teardown">Deploy the reference workload</a>.</p>
+<!-- pager:start -->
+<nav class="pager" aria-label="Previous and next">
+<a rel="prev" href="read-deployment.html">Previous: Read a Deployment</a>
+<a rel="next" href="../reference/index.html">Next: Reference</a>
+</nav>
+<!-- pager:end -->
+</main>
+<!-- footer:start -->
+<footer>
+<p>This site describes the <code>main</code> branch. Nothing is released yet. No license has been chosen yet. Source on <a href="https://github.com/apmalong/data-finops">GitHub</a>.</p>
+</footer>
+<!-- footer:end -->
+</body>
+</html>

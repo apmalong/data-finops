@@ -26,6 +26,7 @@
 <li><a href="identity-links-and-evidence.html">Identity Links and Evidence</a></li>
 <li><a href="export-snapshots-and-restatements.html">Export Snapshots and restatements</a></li>
 <li><a href="security-model.html" aria-current="page">Security model</a></li>
+<li><a href="deployment-architecture.html">Deployment architecture</a></li>
 <li><a href="decision-records.html">Decision records</a></li>
 </ul>
 </li>
@@ -61,7 +62,7 @@
 <li>It is never logged, printed or stored. Errors say what is wrong with it, not what it is.</li>
 <li>It proves who may send, not what a request is about: a token is never <a href="../reference/glossary.html#evidence">Evidence</a> for an <a href="../reference/glossary.html#identity-link">Identity Link</a>.</li>
 </ul>
-<p>Production ingress, such as a private API behind cloud IAM, is a deployment decision still to come. See <a href="../how-to/serve-with-token.html">Serve with a token</a>.</p>
+<p>The token is for local and self-hosted use. A Deployment in AWS has no token: its API accepts only IAM-signed requests, and producers write to an Inbox instead of sending over HTTP. See <a href="../how-to/serve-with-token.html">Serve with a token</a> and <a href="deployment-architecture.html#trust">Deployment architecture</a>.</p>
 
 <h2 id="bounded">Bounded payloads</h2>
 <ul>
@@ -88,7 +89,7 @@
 <!-- pager:start -->
 <nav class="pager" aria-label="Previous and next">
 <a rel="prev" href="export-snapshots-and-restatements.html">Previous: Export Snapshots and restatements</a>
-<a rel="next" href="decision-records.html">Next: Decision records</a>
+<a rel="next" href="deployment-architecture.html">Next: Deployment architecture</a>
 </nav>
 <!-- pager:end -->
 </main>

@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+<!-- head:start -->
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="../assets/site.css">
+<script src="../assets/site.js" defer></script>
+<!-- head:end -->
+<title>Read a Deployment - data-finops</title>
+<meta name="description" content="Call a Deployment's read-only API with SigV4, open the dashboard on a local copy of its database, and switch the API off.">
+</head>
+<body>
+<!-- nav:start -->
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="site-header"><a href="../index.html">data-finops</a></header>
+<nav class="site-nav" aria-label="Site">
+<ul>
+<li><a href="../tutorials/index.html">Tutorials</a></li>
+<li><a href="index.html">How-to guides</a>
+<ul>
+<li><a href="install.html">Install data-finops</a></li>
+<li><a href="ingest-focus-export.html">Ingest a FOCUS export</a></li>
+<li><a href="ingest-athena-history.html">Ingest Athena query history</a></li>
+<li><a href="ingest-dbt-artifacts.html">Ingest dbt artifacts</a></li>
+<li><a href="receive-openlineage.html">Receive OpenLineage events</a></li>
+<li><a href="send-to-inbox.html">Send workload metadata to the Inbox</a></li>
+<li><a href="calculate.html">Calculate Allocations</a></li>
+<li><a href="handle-restated-export.html">Handle a restated export</a></li>
+<li><a href="read-cost-explanation.html">Read a Cost Explanation</a></li>
+<li><a href="serve-with-token.html">Serve with a token</a></li>
+<li><a href="deploy-reference-workload.html">Deploy the reference workload</a></li>
+<li><a href="deploy-to-aws.html">Deploy to AWS</a></li>
+<li><a href="read-deployment.html" aria-current="page">Read a Deployment</a></li>
+<li><a href="tear-down-deployment.html">Tear down a Deployment</a></li>
+</ul>
+</li>
+<li><a href="../reference/index.html">Reference</a></li>
+<li><a href="../explanation/index.html">Explanation</a></li>
+<li><a href="../contributing.html">Contributing</a></li>
+</ul>
+</nav>
+<!-- nav:end -->
+<main id="main">
+<h1>Read a Deployment</h1>
+<!-- onpage:start -->
+<nav class="on-page" aria-label="On this page">
+<p>On this page</p>
+<ul>
+<li><a href="#grant">Grant a reader access</a></li>
+<li><a href="#call">Call the API</a></li>
+<li><a href="#dashboard">Open the dashboard on a local copy</a></li>
+<li><a href="#kill-switch">Switch the API off</a></li>
+</ul>
+</nav>
+<!-- onpage:end -->
+<p>A Deployment's API serves the same read endpoints as <code>data-finops serve</code>, from the database the last Collection Run wrote. It sits behind a Function URL that accepts only requests signed with AWS Signature Version 4 (SigV4) by an IAM principal allowed to call it. There is no token. This guide grants that access, calls the API, opens the dashboard on a local copy and switches the API off when needed.</p>
+<p class="notice">Not run on this page. These commands reach a real AWS account, and some create resources that cost money. The account owner approves every <code>pulumi preview</code>, <code>pulumi up</code> and <code>pulumi destroy</code> against a real account.</p>
+
+<h2 id="grant">Grant a reader access</h2>
+<p>The stack outputs <code>readerPolicyArn</code>, a managed policy that allows calling the API's Function URL and nothing else. Attach it to the role or user that will read, for example:</p>
+<div class="shell-tabs">
+<pre class="shell-posix"><code><span class="line">aws iam attach-role-policy --role-name &lt;reader role&gt; --policy-arn &lt;readerPolicyArn&gt; --profile &lt;admin profile&gt;</span></code></pre>
+<pre class="shell-windows" data-derived=""><code><span class="line">aws iam attach-role-policy --role-name &lt;reader role&gt; --policy-arn &lt;readerPolicyArn&gt; --profile &lt;admin profile&gt;</span></code></pre>
+</div>
+<p>The policy allows both <code>lambda:InvokeFunctionUrl</code> and <code>lambda:InvokeFunction</code>, the second only through the Function URL. Function URLs created since October 2025 need both.</p>
+
+<h2 id="call">Call the API</h2>
+<p>A browser cannot sign SigV4, so use a client that can. <a href="https://github.com/okigan/awscurl">awscurl</a> signs with a named profile:</p>
+<div class="shell-tabs">
+<pre class="shell-posix"><code><span class="line">uv tool install awscurl
+</span><span class="line">awscurl --service lambda --region &lt;region&gt; --profile &lt;reader profile&gt; "&lt;apiUrl&gt;health"
+</span><span class="line">awscurl --service lambda --region &lt;region&gt; --profile &lt;reader profile&gt; "&lt;apiUrl&gt;v1/costs/summary"</span></code></pre>
+<pre class="shell-windows" data-derived=""><code><span class="line">uv tool install awscurl
+</span><span class="line">awscurl --service lambda --region &lt;region&gt; --profile &lt;reader profile&gt; "&lt;apiUrl&gt;health"
+</span><span class="line">awscurl --service lambda --region &lt;region&gt; --profile &lt;reader profile&gt; "&lt;apiUrl&gt;v1/costs/summary"</span></code></pre>
+</div>
+<p><code>&lt;apiUrl&gt;</code> is the stack output, which ends in <code>/</code>. curl 7.75 and later can sign too, with <code>--aws-sigv4 "aws:amz:&lt;region&gt;:lambda"</code> and the principal's keys. Every endpoint, parameter and response is in <a href="../reference/http-api.html">HTTP API</a>, apart from <code>POST /api/v1/lineage</code>: a Deployment receives lineage through its Inbox, not over HTTP (<a href="send-to-inbox.html">Send workload metadata to the Inbox</a>).</p>
+<ul>
+<li>An unsigned request, or one from a principal without the reader policy, gets <code>403</code> from AWS before data-finops sees it.</li>
+<li>Before the first Collection Run there is no database yet, and the data endpoints answer <code>503</code>.</li>
+<li>A Cost Explanation shows the minimal Billing Line by default: its tags, free-text names and provider extension columns are withheld, and <code>billing_line_detail</code> says <code>minimal</code> (<a href="https://github.com/apmalong/data-finops/blob/main/docs/adr/0028-deployed-cost-explanation-is-minimal-by-default.md">ADR 0028</a>). Set <code>explanationDetail</code> to <code>full</code> to show the whole line. See <a href="read-cost-explanation.html#minimal">Read a Cost Explanation</a>.</li>
+</ul>
+
+<h2 id="dashboard">Open the dashboard on a local copy</h2>
+<p>The dashboard is not served by a Deployment. Download the database the last Collection Run wrote, then serve it on your own machine:</p>
+<div class="shell-tabs">
+<pre class="shell-posix"><code><span class="line">aws s3 cp s3://&lt;bucket&gt;/database/data-finops.sqlite deployment.sqlite --profile &lt;your profile&gt;
+</span><span class="line">data-finops serve --db deployment.sqlite</span></code></pre>
+<pre class="shell-windows" data-derived=""><code><span class="line">aws s3 cp s3://&lt;bucket&gt;/database/data-finops.sqlite deployment.sqlite --profile &lt;your profile&gt;
+</span><span class="line">data-finops serve --db deployment.sqlite</span></code></pre>
+</div>
+<p>The copy is a snapshot. Download it again for a later run's data. Downloading needs <code>s3:GetObject</code> on the database object, which neither output policy grants, and <code>kms:Decrypt</code> on the key when <code>kmsKeyArn</code> is set. <code>serve</code> shows the full Billing Line unless you pass <code>--explanation-detail minimal</code>.</p>
+
+<h2 id="kill-switch">Switch the API off</h2>
+<p>Setting the API function's reserved concurrency to 0 stops every request at once, without touching the data:</p>
+<div class="shell-tabs">
+<pre class="shell-posix"><code><span class="line">aws lambda put-function-concurrency --function-name &lt;apiFunction&gt; --reserved-concurrent-executions 0 --profile &lt;your profile&gt;</span></code></pre>
+<pre class="shell-windows" data-derived=""><code><span class="line">aws lambda put-function-concurrency --function-name &lt;apiFunction&gt; --reserved-concurrent-executions 0 --profile &lt;your profile&gt;</span></code></pre>
+</div>
+<p>To keep it off through later deployments, record it in the stack too, then run <code>pulumi up</code>:</p>
+<div class="shell-tabs">
+<pre class="shell-posix"><code><span class="line">pulumi config set apiReservedConcurrency 0</span></code></pre>
+<pre class="shell-windows" data-derived=""><code><span class="line">pulumi config set apiReservedConcurrency 0</span></code></pre>
+</div>
+<p>To switch the API back on, remove the setting with <code>pulumi config rm apiReservedConcurrency</code> and run <code>pulumi up</code>, or remove the reserved concurrency with <code>aws lambda delete-function-concurrency</code>.</p>
+<!-- pager:start -->
+<nav class="pager" aria-label="Previous and next">
+<a rel="prev" href="deploy-to-aws.html">Previous: Deploy to AWS</a>
+<a rel="next" href="tear-down-deployment.html">Next: Tear down a Deployment</a>
+</nav>
+<!-- pager:end -->
+</main>
+<!-- footer:start -->
+<footer>
+<p>This site describes the <code>main</code> branch. Nothing is released yet. No license has been chosen yet. Source on <a href="https://github.com/apmalong/data-finops">GitHub</a>.</p>
+</footer>
+<!-- footer:end -->
+</body>
+</html>

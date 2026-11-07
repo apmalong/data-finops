@@ -30,6 +30,9 @@
 <li><a href="read-cost-explanation.html">Read a Cost Explanation</a></li>
 <li><a href="serve-with-token.html">Serve with a token</a></li>
 <li><a href="deploy-reference-workload.html">Deploy the reference workload</a></li>
+<li><a href="deploy-to-aws.html">Deploy to AWS</a></li>
+<li><a href="read-deployment.html">Read a Deployment</a></li>
+<li><a href="tear-down-deployment.html">Tear down a Deployment</a></li>
 </ul>
 </li>
 <li><a href="../reference/index.html">Reference</a></li>
@@ -45,6 +48,7 @@
 <p>On this page</p>
 <ul>
 <li><a href="#layout">What goes where</a></li>
+<li><a href="#grant">Give the producer access</a></li>
 <li><a href="#openlineage">Write OpenLineage events</a></li>
 <li><a href="#dbt">Write dbt artifacts</a></li>
 <li><a href="#collect">Collect from your machine</a></li>
@@ -59,7 +63,15 @@
 <li><code>inbox/openlineage/</code>: OpenLineage event files, one event per file or JSON Lines. Each event is capped at 1 MiB, as on every other path.</li>
 <li><code>inbox/dbt/&lt;invocation&gt;/</code>: one dbt invocation's <code>manifest.json</code> and <code>run_results.json</code>. A folder is collected once both files are there. Until then, each Collection Run reports it as waiting.</li>
 </ul>
-<p>Every file is capped at 512 MiB. A larger file is rejected by its key and never downloaded. The identity that writes needs only <code>s3:PutObject</code> on <code>inbox/*</code>. A Deployment outputs a policy that grants exactly that.</p>
+<p>Every file is capped at 512 MiB. A larger file is rejected by its key and never downloaded.</p>
+
+<h2 id="grant">Give the producer access</h2>
+<p>The identity that writes needs only <code>s3:PutObject</code> on <code>inbox/*</code>. The stack outputs <code>producerPolicyArn</code>, a managed policy that grants exactly that. Attach it to the role your Airflow or dbt runs as, for example:</p>
+<div class="shell-tabs">
+<pre class="shell-posix"><code><span class="line">aws iam attach-role-policy --role-name &lt;producer role&gt; --policy-arn &lt;producerPolicyArn&gt; --profile &lt;admin profile&gt;</span></code></pre>
+<pre class="shell-windows" data-derived=""><code><span class="line">aws iam attach-role-policy --role-name &lt;producer role&gt; --policy-arn &lt;producerPolicyArn&gt; --profile &lt;admin profile&gt;</span></code></pre>
+</div>
+<p>The producer cannot read, list or delete what is in the Inbox. The bucket is the <code>bucket</code> output. Both outputs are listed by <code>pulumi stack output</code>; see <a href="deploy-to-aws.html#deploy">Deploy to AWS</a>.</p>
 
 <h2 id="openlineage">Write OpenLineage events</h2>
 <p>Have the OpenLineage client write events to local files with its file transport, for example in <code>openlineage.yml</code>:</p>
@@ -83,7 +95,7 @@
 </div>
 
 <h2 id="collect">Collect from your machine</h2>
-<p>A Deployment runs a Collection Run every day. To run one yourself, read-only against AWS, install the <code>aws</code> extra and write a settings file, for example <code>collect.toml</code>:</p>
+<p>A Deployment runs a Collection Run every day, and its collector can be invoked to run one now (<a href="deploy-to-aws.html#first-run">Deploy to AWS</a>). To run one from your own machine instead, read-only against AWS, install the <code>aws</code> extra and write a settings file, for example <code>collect.toml</code>:</p>
 <div class="shell-tabs">
 <pre class="shell-posix"><code><span class="line">uv sync --extra aws --frozen</span></code></pre>
 <pre class="shell-windows" data-derived=""><code><span class="line">uv sync --extra aws --frozen</span></code></pre>
