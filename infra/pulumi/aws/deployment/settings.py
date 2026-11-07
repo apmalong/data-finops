@@ -187,7 +187,9 @@ class Settings:
             "explanation_detail": get("explanation_detail") or DEFAULT_EXPLANATION_DETAIL,
             "budget": _budget(get("budget.monthly_usd"), get("budget.email")),
             "alarm_email": get("alarm_email") or None,
-            "delete_data_on_destroy": _flag(get("delete_data_on_destroy"), "deleteDataOnDestroy"),
+            "delete_data_on_destroy": _flag(
+                get("delete_data_on_destroy"), CONFIG_KEYS["delete_data_on_destroy"]
+            ),
         }
         for field in (*BOUNDS, "api_reserved_concurrency", "log_retention_days"):
             if (value := get(field)) is not None:

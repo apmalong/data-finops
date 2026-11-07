@@ -12,7 +12,7 @@ import json
 import re
 from collections.abc import Iterator
 from html import escape
-from typing import Any
+from typing import Any, NamedTuple
 
 from scripts.site.nav import SiteError
 
@@ -325,23 +325,24 @@ def render_deployment_settings(settings_source: str, program_source: str) -> str
     if "Settings" not in classes:
         raise SiteError("deployment/settings.py has no Settings class")
     rows = []
-    for name, annotation, default, doc in _dataclass_fields(classes["Settings"], constants):
+    for field in _dataclass_fields(classes["Settings"], constants):
+        name, default = field.name, field.default
         if name in keys:
-            meaning = doc
+            meaning = field.doc
             if name in bounds:
                 least, most = bounds[name]
                 meaning += f" A whole number from {least} to {most}."
             rows.append(_setting_row(keys.pop(name), default, meaning))
             continue
-        nested = next((n for n in _names(annotation) if n in classes), None)
+        nested = next((n for n in _names(field.annotation) if n in classes), None)
         if nested is None or not any(key.startswith(f"{name}.") for key in keys):
             raise SiteError(f"Settings.{name} has no configuration key in CONFIG_KEYS")
-        for sub, _, _, sub_doc in _dataclass_fields(classes[nested], constants):
-            if f"{name}.{sub}" not in keys:
-                raise SiteError(f"{nested}.{sub} has no configuration key in CONFIG_KEYS")
-            rows.append(_setting_row(keys.pop(f"{name}.{sub}"), default, sub_doc))
-    for extra in keys:
-        raise SiteError(f"CONFIG_KEYS names {extra}, which is not a setting")
+        for sub in _dataclass_fields(classes[nested], constants):
+            if f"{name}.{sub.name}" not in keys:
+                raise SiteError(f"{nested}.{sub.name} has no configuration key in CONFIG_KEYS")
+            rows.append(_setting_row(keys.pop(f"{name}.{sub.name}"), default, sub.doc))
+    if keys:
+        raise SiteError(f"CONFIG_KEYS names {next(iter(keys))}, which is not a setting")
     outputs = _literals(ast.parse(program_source)).get("OUTPUTS")
     if not outputs:
         raise SiteError("deployment/program.py has no OUTPUTS")
@@ -362,6 +363,15 @@ def render_deployment_settings(settings_source: str, program_source: str) -> str
 _NO_DEFAULT = object()
 
 
+class _Field(NamedTuple):
+    """One annotated field of a dataclass, as its source declares it."""
+
+    name: str
+    annotation: ast.expr
+    default: Any  # _NO_DEFAULT when it has none
+    doc: str
+
+
 def _literals(module: ast.Module) -> dict[str, Any]:
     """The module's top-level names bound to a literal, by their value."""
     found: dict[str, Any] = {}
@@ -376,9 +386,7 @@ def _literals(module: ast.Module) -> dict[str, Any]:
     return found
 
 
-def _dataclass_fields(
-    cls: ast.ClassDef, constants: dict[str, Any]
-) -> Iterator[tuple[str, ast.expr, Any, str]]:
+def _dataclass_fields(cls: ast.ClassDef, constants: dict[str, Any]) -> Iterator[_Field]:
     """Each annotated field of a dataclass: its name, annotation, default and docstring."""
     body = cls.body
     for index, node in enumerate(body):
@@ -403,7 +411,7 @@ def _dataclass_fields(
                 raise SiteError(
                     f"{cls.name}.{name} has a default the reference cannot read"
                 ) from None
-        yield name, node.annotation, default, after.value.value
+        yield _Field(name, node.annotation, default, after.value.value)
 
 
 def _names(annotation: ast.expr) -> list[str]:

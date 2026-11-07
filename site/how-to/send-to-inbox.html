@@ -56,7 +56,8 @@
 </nav>
 <!-- onpage:end -->
 <p>A Deployment does not receive OpenLineage events or dbt artifacts over HTTP. Producers write files to its Inbox, a prefix in the Deployment's bucket, and the next Collection Run pulls them (ADR 0027). This guide writes both kinds of file, then runs a Collection Run from your machine with <code>data-finops collect</code>.</p>
-<p>The commands on this page use your own AWS profile and a real bucket, so they are not run when the site is checked. In each command, replace <code>example-deployment-bucket</code> with your Deployment's bucket.</p>
+<p class="notice">Not run on this page. These commands use your own AWS profile and a real bucket.</p>
+<p> In each command, replace <code>example-deployment-bucket</code> with your Deployment's bucket.</p>
 
 <h2 id="layout">What goes where</h2>
 <ul>
@@ -71,7 +72,7 @@
 <pre class="shell-posix"><code><span class="line">aws iam attach-role-policy --role-name &lt;producer role&gt; --policy-arn &lt;producerPolicyArn&gt; --profile &lt;admin profile&gt;</span></code></pre>
 <pre class="shell-windows" data-derived=""><code><span class="line">aws iam attach-role-policy --role-name &lt;producer role&gt; --policy-arn &lt;producerPolicyArn&gt; --profile &lt;admin profile&gt;</span></code></pre>
 </div>
-<p>The producer cannot read, list or delete what is in the Inbox. The bucket is the <code>bucket</code> output. Both outputs are listed by <code>pulumi stack output</code>; see <a href="deploy-to-aws.html#deploy">Deploy to AWS</a>.</p>
+<p>With <code>kmsKeyArn</code> set, writing an object also needs <code>kms:GenerateDataKey</code> on that key, which the producer policy does not grant yet: grant it to the producer yourself. The producer cannot read, list or delete what is in the Inbox. The bucket is the <code>bucket</code> output. Both outputs are listed by <code>pulumi stack output</code>; see <a href="deploy-to-aws.html#deploy">Deploy to AWS</a>.</p>
 
 <h2 id="openlineage">Write OpenLineage events</h2>
 <p>Have the OpenLineage client write events to local files with its file transport, for example in <code>openlineage.yml</code>:</p>

@@ -55,7 +55,7 @@
 </nav>
 <!-- onpage:end -->
 <p><code>pulumi destroy</code> removes a Deployment. By default it keeps the bucket, with the database and the Inbox in it, so a mistaken destroy loses no data. This guide removes a Deployment either way and lists what is left behind.</p>
-<p class="notice">Not run on this page. These commands reach a real AWS account, and some create resources that cost money. The account owner approves every <code>pulumi preview</code>, <code>pulumi up</code> and <code>pulumi destroy</code> against a real account.</p>
+<p class="notice">Owner-run: not run on this page. Every command here reaches a real AWS account, and the deploy creates resources that cost money. Only the account owner runs <code>pulumi preview</code>, <code>pulumi up</code> and <code>pulumi destroy</code> against a real account.</p>
 
 <h2 id="before">Before you destroy</h2>
 <p>Detach the producer and reader policies from every identity they were attached to. IAM refuses to delete a managed policy that is still attached, and the destroy stops there:</p>
@@ -74,7 +74,7 @@
 <pre class="shell-posix"><code><span class="line">pulumi destroy</span></code></pre>
 <pre class="shell-windows" data-derived=""><code><span class="line">pulumi destroy</span></code></pre>
 </div>
-<p>This deletes the functions, their log groups and roles, the schedule, the Function URL, the producer and reader policies, the alarm and its topic, the Budget, and the Lambda package object. It keeps the bucket and every setting on it: the public access blocks, encryption, versioning, the expiry rules and the TLS-only policy. The bucket leaves the stack's state, so a later <code>pulumi up</code> would try to create a new bucket with a new name, not adopt this one.</p>
+<p>This deletes the functions, their log groups and roles, the schedule, the Function URL, the producer and reader policies, the alarm and its topic, the Budget, and the Lambda package object. Versioning keeps the package's last version, about 66 MB, until <code>noncurrentVersionDays</code> expire it. It keeps the bucket and every setting on it: the public access blocks, encryption, versioning, the expiry rules and the TLS-only policy. The bucket leaves the stack's state, so a later <code>pulumi up</code> would try to create a new bucket with a new name, not adopt this one.</p>
 <p>While the bucket is kept, its storage is billed and its expiry rules keep running: Inbox objects expire after <code>inboxRetentionDays</code> and old object versions after <code>noncurrentVersionDays</code>. To delete it later, empty it in the S3 console, which deletes every version, then delete it.</p>
 
 <h2 id="delete">Destroy and delete the data</h2>

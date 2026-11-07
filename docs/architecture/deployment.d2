@@ -9,32 +9,36 @@ classes: {
   boundary: {style: {fill: "#f6f5f1"; stroke: "#b4532a"; font-size: 22; stroke-width: 2}}
 }
 
-producer: "Producer\nAirflow, dbt\nproducer policy" {class: outside}
-reader: "Reader\nany IAM principal\nwith the reader policy" {class: outside}
-
 account: "One AWS account" {
   class: boundary
 
-  scheduler: "EventBridge Scheduler\nonce a day, UTC\nat most 2 retries" {class: part}
-  collector: "Collector function\nthe only writer" {class: part}
-  api: "API function\nread-only\nFunction URL, AWS_IAM" {class: part}
+  producer: "Producer\nAirflow, dbt\nproducer policy" {class: outside}
+  reader: "Reader\nan IAM principal allowed\nto invoke the URL" {class: outside}
 
-  bucket: "Deployment bucket\nprivate, TLS only\nencrypted, versioned" {
+  deployment: "Deployment" {
     class: boundary
-    inbox: "Inbox\ninbox/openlineage/\ninbox/dbt/" {class: store}
-    database: "database/\ndata-finops.sqlite" {class: store}
+
+    scheduler: "EventBridge Scheduler\nonce a day, UTC" {class: part}
+    collector: "Collector function\nthe only writer" {class: part}
+    api: "API function\nread-only\nFunction URL, AWS_IAM" {class: part}
+
+    bucket: "Deployment bucket\nprivate, TLS only\nencrypted, versioned" {
+      class: boundary
+      inbox: "Inbox\ninbox/openlineage/\ninbox/dbt/" {class: store}
+      database: "database/\ndata-finops.sqlite" {class: store}
+    }
+
+    scheduler -> collector: "invokes; Lambda retries\na failed run up to twice"
+    collector -> bucket.database: "writes with If-Match"
+    api <- bucket.database: "reads, cached by ETag"
+    collector <- bucket.inbox: "reads new keys"
   }
 
   export: "FOCUS export bucket" {class: store}
   athena: "Athena workgroups\nquery history" {class: part}
 
-  scheduler -> collector: "invokes"
-  collector <- export: "reads Deliveries"
-  collector <- athena: "lists and reads history"
-  collector <- bucket.inbox: "reads new keys"
-  collector -> bucket.database: "writes with If-Match"
-  api <- bucket.database: "reads, cached by ETag"
+  deployment.collector <- export: "reads Deliveries"
+  deployment.collector <- athena: "lists and reads history"
+  producer -> deployment.bucket.inbox: "PutObject only"
+  reader -> deployment.api: "HTTPS, SigV4-signed GET"
 }
-
-producer -> account.bucket.inbox: "PutObject only"
-reader -> account.api: "HTTPS, SigV4-signed GET"

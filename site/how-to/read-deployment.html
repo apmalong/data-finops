@@ -55,7 +55,7 @@
 </nav>
 <!-- onpage:end -->
 <p>A Deployment's API serves the same read endpoints as <code>data-finops serve</code>, from the database the last Collection Run wrote. It sits behind a Function URL that accepts only requests signed with AWS Signature Version 4 (SigV4) by an IAM principal allowed to call it. There is no token. This guide grants that access, calls the API, opens the dashboard on a local copy and switches the API off when needed.</p>
-<p class="notice">Not run on this page. These commands reach a real AWS account, and some create resources that cost money. The account owner approves every <code>pulumi preview</code>, <code>pulumi up</code> and <code>pulumi destroy</code> against a real account.</p>
+<p class="notice">Not run on this page. These commands reach a real Deployment with your own AWS credentials. Attaching a policy needs an administrator, and the kill switch's <code>pulumi up</code> is owner-run.</p>
 
 <h2 id="grant">Grant a reader access</h2>
 <p>The stack outputs <code>readerPolicyArn</code>, a managed policy that allows calling the API's Function URL and nothing else. Attach it to the role or user that will read, for example:</p>
@@ -77,8 +77,8 @@
 </div>
 <p><code>&lt;apiUrl&gt;</code> is the stack output, which ends in <code>/</code>. curl 7.75 and later can sign too, with <code>--aws-sigv4 "aws:amz:&lt;region&gt;:lambda"</code> and the principal's keys. Every endpoint, parameter and response is in <a href="../reference/http-api.html">HTTP API</a>, apart from <code>POST /api/v1/lineage</code>: a Deployment receives lineage through its Inbox, not over HTTP (<a href="send-to-inbox.html">Send workload metadata to the Inbox</a>).</p>
 <ul>
-<li>An unsigned request, or one from a principal without the reader policy, gets <code>403</code> from AWS before data-finops sees it.</li>
-<li>Before the first Collection Run there is no database yet, and the data endpoints answer <code>503</code>.</li>
+<li>An unsigned request, or one from a principal not allowed to invoke the URL, gets <code>403</code> from AWS before data-finops sees it. The reader policy is one way to allow it; a principal with broader Lambda permissions, such as an administrator, is allowed too.</li>
+<li>Before the first Collection Run there is no database yet, and every endpoint, <code>/health</code> included, answers <code>503</code>.</li>
 <li>A Cost Explanation shows the minimal Billing Line by default: its tags, free-text names and provider extension columns are withheld, and <code>billing_line_detail</code> says <code>minimal</code> (<a href="https://github.com/apmalong/data-finops/blob/main/docs/adr/0028-deployed-cost-explanation-is-minimal-by-default.md">ADR 0028</a>). Set <code>explanationDetail</code> to <code>full</code> to show the whole line. See <a href="read-cost-explanation.html#minimal">Read a Cost Explanation</a>.</li>
 </ul>
 

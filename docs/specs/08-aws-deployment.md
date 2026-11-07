@@ -67,7 +67,7 @@ Required: `aws:region`, `exportBucket`, `exportName`, `workgroups` (a non-empty 
 Outputs: the bucket name, the API URL, the producer and reader policy ARNs, the two function names.
 
 ## Cost limits
-AWS has no hard spending cap, and Budget actions cannot stop Lambda. Cost limits are therefore bounded resources (the timeouts, memory, one daily schedule with bounded retries, log retention, S3 expiries), the optional Budget alert, and the kill switch. The deployment explanation page gives the researched monthly estimates: under $1 at either scale, plus $1 with a customer-managed key.
+AWS has no hard spending cap, and Budget actions cannot stop Lambda. Cost limits are therefore bounded resources (the timeouts, memory, one daily schedule with bounded retries, log retention, S3 expiries), the optional Budget alert, and the kill switch. The deployment explanation page gives the researched monthly estimates: under $1 at either scale while Lambda's free tier covers it (about $1.20 at the larger scale without it), plus $1 with a customer-managed key.
 
 ## Policy pack
 A small custom Python pack (Pulumi's open-source AWS packs are TypeScript only and stale). All mandatory, each checking literal inputs only (an unknown value at preview only yields an advisory):

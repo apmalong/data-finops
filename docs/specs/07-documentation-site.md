@@ -7,7 +7,7 @@ One page per document under `site/`, each one Diátaxis type. Home is `index.htm
 
 - **Tutorials:** `first-allocation` (the demo walkthrough). "Instrument an Airflow and dbt workload" waits until after M6 and #26, since it costs real AWS money.
 - **How-to guides:** `install`, `ingest-focus-export`, `receive-openlineage`, `ingest-dbt-artifacts`, `ingest-athena-history`, `calculate`, `handle-restated-export`, `serve-with-token`, `read-cost-explanation`, `deploy-reference-workload` (teardown steps link to the reference workload). M6 adds `deploy-to-aws`, `send-to-inbox`, `read-deployment` and `tear-down-deployment`, a generated `deployment-settings` reference page and a `deployment-architecture` explanation (spec 08).
-- **Reference:** `cli`, `http-api`, `data-contracts` (generated); `exit-codes-and-environment` (hand-written); `glossary` (generated).
+- **Reference:** `cli`, `http-api`, `data-contracts` (generated); `exit-codes-and-environment` (hand-written); `deployment-settings` and `glossary` (generated).
 - **Explanation:** `bill-is-authoritative`, `allocation-and-coverage`, `identity-links-and-evidence`, `export-snapshots-and-restatements`, `security-model`, `decision-records` (an index of ADR titles linking to GitHub, never copies). The Athena policy text names the policy version and says it is provisional until #91 closes.
 - `contributing.html` links to the specs, ADRs, plan, progress and research on GitHub.
 
@@ -43,6 +43,7 @@ Stdlib only, dev tooling outside the wheel, under ruff and mypy. Two parts impor
 - **CLI reference:** walked from `data_finops.cli`'s argparse parser, covering every command, argument, default and help string.
 - **HTTP API reference:** from `schemas/openapi.json`, covering every path, method, parameter, response and Problem Details.
 - **Data contracts:** from the JSON schemas in `schemas/`.
+- **Deployment settings:** from the stack's `infra/pulumi/aws/deployment/settings.py` and `program.py`, parsed with `ast` and never imported, since the root environment has no Pulumi (#190). Each `Settings` field gives its key from `CONFIG_KEYS`, its default, its docstring and its `BOUNDS`; the outputs come from `OUTPUTS`. Those stay literals, and the stack's tests hold `from_config` and the program's outputs to them.
 - **Glossary:** from `GLOSSARY.md`, read by a parser for its fixed `**Term**:` / definition / `_Avoid_:` format (not a general Markdown parser). Each term gets an anchor.
 - **Check:**
   - Internal links and `#anchors` resolve, ids are unique, and tags are balanced.
