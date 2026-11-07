@@ -37,19 +37,19 @@ Reusable, customer-managed Pulumi Python components that deploy data-finops into
 
 ## IAM
 Draft policies are in `docs/research/m6-collector-iam.md` and stay labelled unvalidated until the owner's wizard checks them with IAM Access Analyzer.
-- **Collector role:** `s3:ListBucket` on the export bucket limited by `s3:prefix`; `s3:GetObject` on the export prefix; `kms:Decrypt` only if the export is SSE-KMS; `athena:ListQueryExecutions`, `BatchGetQueryExecution`, `GetQueryExecution`, `GetWorkGroup` on the configured workgroup ARNs only; read, write and conditional write on its own bucket's database object and Inbox; its own log group. An explicit deny on `athena:StartQueryExecution`, `StopQueryExecution`, `GetQueryResults` and `GetQueryRuntimeStatistics`.
+- **Collector role:** `s3:ListBucket` on the export bucket limited by `s3:prefix`; `s3:GetObject` on the export prefix; `kms:Decrypt` only if the export is SSE-KMS; `athena:ListQueryExecutions` and `BatchGetQueryExecution` on the configured workgroup ARNs only, the only Athena calls the collector makes (#181); read, write and conditional write on its own bucket's database object and Inbox; its own log group. An explicit deny on `athena:StartQueryExecution`, `StopQueryExecution`, `GetQueryResults` and `GetQueryRuntimeStatistics`.
 - **API role:** `s3:GetObject` on the database object; its own log group.
 - **Producer policy** (output): `s3:PutObject` on `inbox/*` only.
 - **Reader policy** (output): `lambda:InvokeFunctionUrl` on the API function.
 - **Deployer:** created by the owner, never by the stack; a draft least-privilege deployer policy is documented, unvalidated.
 
 ## Settings
-Required: `aws:region`, `exportBucket`, `exportPrefix`, `exportName`, `workgroups` (a non-empty list; the stack refuses an empty one).
+Required: `aws:region`, `exportBucket`, `exportPrefix`, `exportName`, `workgroups` (a non-empty list; the stack refuses an empty one). The collector also needs the account ID (BatchGetQueryExecution does not carry it); the stack passes its own. `data-finops collect`'s TOML file names the same settings in snake case (`account_id`, `workgroups`, `max_history_pages`, …) and adds `bucket`, `region` and an optional `profile` (#181).
 
 | Setting | Default | Meaning |
 |---|---|---|
 | `billingLookbackPeriods` | 2 | Billing Periods listed each run (at least 1) |
-| `maxHistoryPages` | 200 | `ListQueryExecutions` pages per workgroup per run |
+| `maxHistoryPages` | 200 | `ListQueryExecutions` pages per workgroup per run (1 to 1000) |
 | `schedule` | `cron(0 6 * * ? *)` | Collection Run schedule, UTC |
 | `collectorTimeoutSeconds`, `collectorMemoryMb` | 900, 2048 | Collector bounds |
 | `apiTimeoutSeconds`, `apiMemoryMb` | 30, 1024 | API bounds |

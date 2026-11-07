@@ -34,6 +34,7 @@ from data_finops.collection import (
 from data_finops.collection.run import MAX_INBOX_FILE_BYTES
 from data_finops.ledger import Ledger
 from data_finops.lineage.validation import MAX_EVENT_BYTES
+from data_finops.providers.aws.athena import UNFINISHED
 from data_finops.reporting import Reporting
 from data_finops.workload.store import WorkloadStore
 
@@ -329,9 +330,9 @@ def test_athena_history_is_collected_and_explains_a_metered_share(tmp_path: Path
     assert query is not None and (query.account_id, query.workgroup) == (ACCOUNT, WORKGROUP)
 
 
-def _as(entry: dict[str, Any], query_id: str, state: str) -> dict[str, Any]:
+def _with_state(entry: dict[str, Any], query_id: str, state: str) -> dict[str, Any]:
     status = {"State": state, "SubmissionDateTime": entry["Status"]["SubmissionDateTime"]}
-    if state not in ("QUEUED", "RUNNING"):
+    if state not in UNFINISHED:
         status["CompletionDateTime"] = entry["Status"]["CompletionDateTime"]
     return entry | {"QueryExecutionId": query_id, "Status": status}
 
@@ -341,7 +342,7 @@ def test_an_unfinished_query_is_left_for_a_later_run_and_collected_once_finished
     tmp_path: Path, state: str
 ) -> None:
     db = tmp_path / "data-finops.sqlite"
-    running, finished = _as(Q2, "q-late", state), _as(Q2, "q-late", "SUCCEEDED")
+    running, finished = _with_state(Q2, "q-late", state), _with_state(Q2, "q-late", "SUCCEEDED")
     first = _run_history(db, [["q-001", "q-late"]], [Q1, running])
     second = _run_history(db, [["q-001", "q-late"]], [finished])
     assert (first.sources["athena"].stored, second.sources["athena"].stored) == (1, 1)
@@ -369,7 +370,7 @@ GAP = (
 def test_history_with_no_overlap_with_what_is_stored_warns_of_a_gap(tmp_path: Path) -> None:
     db = tmp_path / "data-finops.sqlite"
     _run_history(db, [["q-001"]], [Q1])
-    later = _as(Q2, "q-new", "SUCCEEDED")
+    later = _with_state(Q2, "q-new", "SUCCEEDED")
     gap = _run_history(db, [["q-new"]], [later])  # q-001 has left Athena's history
     assert gap.warnings == [GAP]
     assert gap.exit_code == 0
@@ -380,7 +381,7 @@ def test_no_gap_is_reported_with_an_overlap_or_an_unfinished_listing(tmp_path: P
     first = _run_history(db, [["q-001"]], [Q1])  # nothing stored before: no gap either
     overlap = _run_history(db, [["q-002", "q-001"]], [Q2])
     capped = dataclasses.replace(SETTINGS, max_history_pages=1)
-    later = _as(Q2, "q-new", "SUCCEEDED")
+    later = _with_state(Q2, "q-new", "SUCCEEDED")
     unfinished = _run_history(db, [["q-new"]], [later], settings=capped, more=True)
     assert (first.warnings, overlap.warnings) == ([], [])
     assert GAP not in unfinished.warnings
@@ -440,3 +441,26 @@ def test_a_query_stored_for_another_account_is_still_collected_for_this_one(
     summary = _run_history(db, [["q-001"]], [Q1])  # same ID, other account: not seen here
     assert summary.sources["athena"].stored == 1
     assert summary.warnings == []  # nothing stored for this account's workgroup, so no gap
+
+
+def test_a_failed_query_is_collected_without_its_sql_or_free_text(tmp_path: Path) -> None:
+    db = _with_bill(tmp_path)
+    failed = Q1 | {
+        "Status": {
+            "State": "FAILED",
+            "SubmissionDateTime": Q1["Status"]["SubmissionDateTime"],
+            "CompletionDateTime": Q1["Status"]["CompletionDateTime"],
+            "StateChangeReason": "secret reason naming a table",
+            "AthenaError": {"ErrorCategory": 2, "ErrorType": 1001, "ErrorMessage": "secret error"},
+        },
+        "ExecutionParameters": ["secret-parameter"],
+    }
+    summary = _run_history(db, [["q-001"]], [failed])
+    assert summary.sources["athena"].stored == 1
+    # Not billable, so no Allocation explains it: read it as `reporting` does, from the store.
+    with WorkloadStore(db) as store:
+        query = store.query_execution(ACCOUNT, REGION, "q-001")
+    assert query is not None and query.state == "FAILED"
+    served = query.model_dump_json()
+    assert "secret" not in served
+    assert "raw_orders" not in served  # the SQL after the Trusted Query Comment's line

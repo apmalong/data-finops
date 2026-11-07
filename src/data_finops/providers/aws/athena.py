@@ -5,10 +5,16 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Protocol
 
-from data_finops.providers.aws.s3 import call
+from data_finops.providers.aws.calls import call
 
 PAGE_SIZE = 50
 """The most IDs one ListQueryExecutions page or one BatchGetQueryExecution call takes."""
+
+UNFINISHED = frozenset({"QUEUED", "RUNNING"})
+"""Athena states a query can still leave; every other state is final."""
+
+WITHHELD = ("ExecutionParameters", "ResultConfiguration", "ResultReuseConfiguration")
+"""Fields of an entry dropped as it is fetched: none is stored (`athena.STORED_FIELDS`)."""
 
 
 class AthenaReader(Protocol):
@@ -45,7 +51,8 @@ def list_query_execution_ids(
 
 def batch_get_query_executions(athena: AthenaReader, ids: list[str]) -> dict[str, Any]:
     """One BatchGetQueryExecution response for `ids`, fetched 50 at a time, shaped as the AWS
-    CLI writes it (timestamps as ISO 8601 strings), for the existing history reader."""
+    CLI writes it (timestamps as ISO 8601 strings), each entry minimised, for the existing
+    history reader."""
     executions: list[Any] = []
     unprocessed: list[Any] = []
     for start in range(0, len(ids), PAGE_SIZE):
@@ -54,7 +61,20 @@ def batch_get_query_executions(athena: AthenaReader, ids: list[str]) -> dict[str
         )
         executions += response.get("QueryExecutions", ())
         unprocessed += response.get("UnprocessedQueryExecutionIds", ())
-    return {"QueryExecutions": _as_json(executions), "UnprocessedQueryExecutionIds": unprocessed}
+    return {
+        "QueryExecutions": [_minimised(entry) for entry in _as_json(executions)],
+        "UnprocessedQueryExecutionIds": unprocessed,
+    }
+
+
+def _minimised(entry: dict[str, Any]) -> dict[str, Any]:
+    """The entry with its query text cut to the first line, the only place a Trusted Query
+    Comment is read (spec 04), and the withheld fields dropped, so no SQL beyond that line
+    and no parameter ever reaches disk."""
+    kept = {key: value for key, value in entry.items() if key not in WITHHELD}
+    if isinstance(kept.get("Query"), str):
+        kept["Query"] = kept["Query"].split("\n", 1)[0]
+    return kept
 
 
 def _as_json(value: Any) -> Any:

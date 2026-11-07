@@ -15,6 +15,7 @@ from data_finops.calculation import run_calculation
 from data_finops.dbt.artifacts import MAX_ARTIFACT_BYTES
 from data_finops.ledger import Ledger
 from data_finops.providers.aws import (
+    UNFINISHED,
     AthenaReader,
     AwsSourceError,
     S3Object,
@@ -35,11 +36,11 @@ MAX_INBOX_FILE_BYTES = MAX_ARTIFACT_BYTES
 """The cap on one Inbox file, the same 512 MiB as on every other input file (spec 04); each
 event within an OpenLineage file is still capped at 1 MiB by the screening it goes through."""
 
-UNFINISHED = frozenset({"QUEUED", "RUNNING"})
-"""Athena states a query can still leave; every other state is final."""
-
 DEFAULT_HISTORY_PAGES = 200
 """ListQueryExecutions pages per workgroup per run by default (spec 08)."""
+MAX_HISTORY_PAGES = 1000
+"""The most pages a run may list per workgroup: 50,000 Query Executions (AGENTS.md: bound
+query limits)."""
 
 OK, REJECTED, FAILED = 0, 1, 2
 """Exit codes, as the command line's (spec 05, spec 08 §6)."""
@@ -90,8 +91,14 @@ class CollectionSettings:
         ):
             raise ValueError("workgroups must be a non-empty list of names")
         pages = values.get("max_history_pages", DEFAULT_HISTORY_PAGES)
-        if not isinstance(pages, int) or isinstance(pages, bool) or pages < 1:
-            raise ValueError("max_history_pages must be a whole number, at least 1")
+        if (
+            not isinstance(pages, int)
+            or isinstance(pages, bool)
+            or not 1 <= pages <= MAX_HISTORY_PAGES
+        ):
+            raise ValueError(
+                f"max_history_pages must be a whole number from 1 to {MAX_HISTORY_PAGES}"
+            )
         return cls(**values | {"workgroups": tuple(workgroups), "max_history_pages": pages})
 
 
@@ -286,7 +293,9 @@ def _collect_athena(
                 listed
                 and listing.complete
                 and not stored
-                and _has_history(store, settings, workgroup)
+                and store.workgroup_has_query_executions(
+                    settings.account_id, settings.region, workgroup
+                )
             ):
                 # Athena keeps 45 days: nothing we hold is listed, so whatever ran between
                 # the last query we hold and the oldest listed may have expired unread.
@@ -310,6 +319,9 @@ def _collect_athena(
             result = store.ingest_query_history(
                 path, account_id=settings.account_id, region=settings.region
             )
+            if result.file_rejection is not None:
+                # The response is built here, so a refused file is a fault, not bad input.
+                raise AwsSourceError(f"history response refused: {result.file_rejection}")
             tally.stored += result.accepted
             tally.duplicates += result.duplicates
             written = response["QueryExecutions"]
@@ -325,10 +337,6 @@ def _collect_athena(
     except AwsSourceError as error:
         return tally.summary(failed=str(error))
     return tally.summary()
-
-
-def _has_history(store: WorkloadStore, settings: CollectionSettings, workgroup: str) -> bool:
-    return store.workgroup_has_query_executions(settings.account_id, settings.region, workgroup)
 
 
 def _query_id(entries: list[Any], position: int) -> str:

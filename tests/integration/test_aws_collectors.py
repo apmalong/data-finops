@@ -102,3 +102,17 @@ def test_history_listing_follows_pages_up_to_the_cap() -> None:
         capped = list_query_execution_ids(athena, "demo", max_pages=1)
     assert (whole.ids, whole.complete) == (("q-1", "q-2", "q-3"), True)
     assert (capped.ids, capped.complete) == (("q-1", "q-2"), False)
+
+
+def test_fetched_history_keeps_only_the_first_line_of_sql_and_no_parameters() -> None:
+    entry = _entry("q-1") | {
+        "Query": '-- /* {"node_id": "model.demo.orders"} */\nselect * from secret_table',
+        "ExecutionParameters": ["secret-parameter"],
+        "ResultConfiguration": {"OutputLocation": "s3://secret-results/"},
+    }
+    athena = athena_client()
+    with stubbed(athena) as stubber:
+        expect_batch(stubber, [entry])
+        (fetched,) = batch_get_query_executions(athena, ["q-1"])["QueryExecutions"]
+    assert fetched["Query"] == '-- /* {"node_id": "model.demo.orders"} */'
+    assert "secret" not in str(fetched)

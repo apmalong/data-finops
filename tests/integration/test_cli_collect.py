@@ -91,6 +91,7 @@ def _never(settings: Any) -> Any:
         (SETTINGS.replace('workgroups = ["demo"]', "workgroups = []"), "workgroups"),
         (SETTINGS.replace('workgroups = ["demo"]', 'workgroups = "secret"'), "workgroups"),
         (SETTINGS + "max_history_pages = 0\n", "max_history_pages"),
+        (SETTINGS + "max_history_pages = 1001\n", "max_history_pages"),
         (SETTINGS + "max_history_pages = true\n", "max_history_pages"),
         (SETTINGS + 'max_history_pages = "secret"\n', "max_history_pages"),
     ],

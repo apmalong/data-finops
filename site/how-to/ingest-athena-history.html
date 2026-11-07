@@ -93,16 +93,16 @@
 <h2 id="collect">Collect it on a schedule</h2>
 <p>A Collection Run fetches the history itself, for the workgroups its settings name. Run one from your machine with <code>data-finops collect</code>, as <a href="send-to-inbox.html#collect">Send workload metadata to the Inbox</a> shows. A Deployment runs one every day. For each workgroup it:</p>
 <ul>
-<li>lists the workgroup's query IDs, at most <code>max_history_pages</code> pages of 50 (default 200);</li>
-<li>fetches only the queries not stored yet, 50 at a time;</li>
-<li>stores the finished ones, keeping only what is listed above. A query still queued or running is left for a later run.</li>
+<li>lists the workgroup's Query Execution IDs, at most <code>max_history_pages</code> pages of 50 (default 200, at most 1000);</li>
+<li>fetches only the Query Executions not stored yet, 50 at a time;</li>
+<li>stores the finished ones, keeping only what is listed above. A Query Execution still queued or running is left for a later run.</li>
 </ul>
 <p>Athena keeps 45 days of query history. A Collection Run warns when it may have lost some:</p>
 <ul>
-<li>The page cap was reached, so older queries were not listed. Raise <code>max_history_pages</code>.</li>
-<li>None of the queries already stored for the workgroup is still in Athena's history. Whatever ran in between may have expired unread, which shows as Coverage below 1.</li>
+<li>The page cap was reached, so older Query Executions were not listed. Raise <code>max_history_pages</code>.</li>
+<li>None of the Query Executions already stored for the workgroup is still in Athena's history. Whatever ran in between may have expired unread, which shows as Coverage below 1.</li>
 </ul>
-<p>A query whose entry is rejected is named by its workgroup and query ID, never its content. Throttled calls are retried, at most five attempts in all. After that the source fails, and the run exits with <code>2</code>.</p>
+<p>A Query Execution whose entry is rejected is named by its workgroup and ID, never its content. Throttled calls are retried, at most five attempts in all. After that the source fails, and the run exits with <code>2</code>.</p>
 <!-- pager:start -->
 <nav class="pager" aria-label="Previous and next">
 <a rel="prev" href="ingest-focus-export.html">Previous: Ingest a FOCUS export</a>
