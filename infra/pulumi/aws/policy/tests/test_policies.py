@@ -14,6 +14,9 @@ from pulumi_policy.policy import PolicyCustomTimeouts, PolicyResourceOptions
 
 BUCKET, BLOCK, ENCRYPTION = policies.BUCKET, policies.PUBLIC_ACCESS_BLOCK, policies.ENCRYPTION
 VERSIONING, POLICY = policies.VERSIONING, policies.BUCKET_POLICY
+FUNCTION, LOG_GROUP, URL = policies.FUNCTION, policies.LOG_GROUP, policies.FUNCTION_URL
+ROLE_POLICY, MANAGED_POLICY = policies.IAM_DOCUMENTS
+BUDGET = policies.BUDGET
 
 
 def _options() -> PolicyResourceOptions:
@@ -153,14 +156,6 @@ def test_every_policy_is_mandatory() -> None:
     assert {p.enforcement_level for p in policies.POLICIES} == {policies.MANDATORY}
 
 
-FUNCTION = "aws:lambda/function:Function"
-LOG_GROUP = "aws:cloudwatch/logGroup:LogGroup"
-URL = "aws:lambda/functionUrl:FunctionUrl"
-ROLE_POLICY = "aws:iam/rolePolicy:RolePolicy"
-MANAGED_POLICY = "aws:iam/policy:Policy"
-BUDGET = "aws:budgets/budget:Budget"
-
-
 # Policy 2: Function URLs
 
 
@@ -201,56 +196,101 @@ def test_every_function_needs_its_log_group_with_retention() -> None:
     ]
 
 
-# Policy 4: IAM
+# Policy 4: IAM, one allowlist per Deployment policy (spec 08 §IAM)
 
 
 def _document(*statements: dict[str, Any]) -> dict[str, Any]:
     return {"policy": json.dumps({"Version": "2012-10-17", "Statement": list(statements)})}
 
 
-def _allow(
-    action: Any, resource: Any = "arn:aws:s3:::b/database/data-finops.sqlite"
-) -> dict[str, Any]:
+DATABASE = "arn:aws:s3:::b/database/data-finops.sqlite"
+
+
+def _allow(action: Any, resource: Any = DATABASE) -> dict[str, Any]:
     return {"Effect": "Allow", "Action": action, "Resource": resource}
 
 
-def test_iam_may_allow_only_the_deployments_actions() -> None:
-    fine = _document(
+def _iam(props: dict[str, Any], name: str, typ: str = ROLE_POLICY) -> list[str]:
+    return _violations_of(policies.IAM_LEAST_PRIVILEGE, typ, props, name)
+
+
+def test_each_policy_may_allow_its_own_actions() -> None:
+    collector = _document(
         _allow(["s3:GetObject", "s3:PutObject"]),
         _allow(["athena:ListQueryExecutions"], ["arn:aws:athena:us-east-1:1:workgroup/demo"]),
+        _allow(["logs:PutLogEvents"], ["arn:aws:logs:us-east-1:1:log-group:/aws/lambda/x:*"]),
+        _allow("s3:GetObject", "arn:aws:s3:::b/inbox/*"),
         {"Effect": "Deny", "Action": ["athena:StartQueryExecution"], "Resource": "*"},
     )
+    assert _iam(collector, "data-finops-collector") == []
+    assert _iam(_document(_allow("s3:GetObject")), "data-finops-api") == []
     assert (
-        _violations_of(policies.IAM_LEAST_PRIVILEGE, ROLE_POLICY, fine, "data-finops-collector")
+        _iam(
+            _document(_allow("lambda:InvokeFunction", "arn:aws:lambda:us-east-1:1:function:c")),
+            "data-finops-scheduler",
+        )
         == []
     )
+    producer = _document(_allow("s3:PutObject", "arn:aws:s3:::b/inbox/*"))
+    assert _iam(producer, "data-finops-producer", MANAGED_POLICY) == []
 
 
 @pytest.mark.parametrize(
-    ("statement", "message"),
+    ("name", "action"),
     [
-        (_allow("s3:*"), "s3:* is not an action the Deployment uses"),
-        (_allow("*"), "* is not an action the Deployment uses"),
-        (
-            _allow("athena:StartQueryExecution"),
-            "athena:StartQueryExecution is not an action the Deployment uses",
-        ),
-        (_allow("s3:DeleteObject"), "s3:DeleteObject is not an action the Deployment uses"),
-        (_allow("s3:GetObject", "*"), "s3:GetObject is allowed on every resource"),
+        ("data-finops-collector", "s3:*"),
+        ("data-finops-collector", "*"),
+        ("data-finops-collector", "athena:StartQueryExecution"),
+        ("data-finops-collector", "s3:DeleteObject"),
+        ("data-finops-collector", "lambda:InvokeFunction"),
+        ("data-finops-api", "s3:PutObject"),
+        ("data-finops-api", "athena:ListQueryExecutions"),
+        ("data-finops-scheduler", "s3:GetObject"),
+        ("data-finops-producer", "s3:GetObject"),
+        ("data-finops-reader", "s3:GetObject"),
     ],
 )
-def test_iam_refuses_wildcards_query_running_and_unknown_actions(
-    statement: dict[str, Any], message: str
-) -> None:
-    for typ in (ROLE_POLICY, MANAGED_POLICY):
-        found = _violations_of(policies.IAM_LEAST_PRIVILEGE, typ, _document(statement))
-        assert found == [message]
+def test_a_policy_may_not_allow_another_policys_actions(name: str, action: str) -> None:
+    kind = name.rsplit("-", 1)[1]
+    assert _iam(_document(_allow(action)), name) == [
+        f"{action} is not an action the {kind} policy is granted (spec 08 §IAM)"
+    ]
 
 
-def test_the_api_role_may_not_write_to_the_bucket() -> None:
-    writes = _document(_allow("s3:PutObject"))
-    assert _violations_of(policies.IAM_LEAST_PRIVILEGE, ROLE_POLICY, writes, "data-finops-api") == [
-        "the API role is read-only: s3:PutObject is a write"
+@pytest.mark.parametrize(
+    "resource",
+    ["*", ["arn:aws:s3:::b/x", "*"], "arn:aws:s3:::*", "arn:aws:lambda:*:*:function:*"],
+)
+def test_no_action_is_allowed_on_a_wildcard_resource(resource: Any) -> None:
+    assert _iam(_document(_allow("s3:GetObject", resource)), "data-finops-collector") == [
+        "s3:GetObject is allowed on a wildcard resource"
+    ]
+
+
+@pytest.mark.parametrize(
+    "statement",
+    [
+        {"Effect": "Allow", "NotAction": "s3:GetObject", "Resource": DATABASE},
+        {"Effect": "Allow", "Action": "s3:GetObject", "NotResource": DATABASE},
+    ],
+)
+def test_an_allow_may_not_use_not_action_or_not_resource(statement: dict[str, Any]) -> None:
+    assert _iam(_document(statement), "data-finops-collector") == [
+        "an Allow may not use NotAction or NotResource"
+    ]
+
+
+def test_a_single_statement_is_checked_like_a_list() -> None:
+    single = {"policy": json.dumps({"Version": "2012-10-17", "Statement": _allow("*")})}
+    assert _iam(single, "data-finops-collector") == [
+        "* is not an action the collector policy is granted (spec 08 §IAM)"
+    ]
+
+
+def test_an_unknown_policy_fails_closed() -> None:
+    # A renamed or extra policy is never let through unchecked.
+    assert _iam(_document(_allow("s3:GetObject")), "data-finops-reporting") == [
+        "data-finops-reporting is not a known Deployment policy, so its actions cannot be checked"
     ]
 
 

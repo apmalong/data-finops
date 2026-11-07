@@ -51,28 +51,30 @@ FUNCTION_URL = "aws:lambda/functionUrl:FunctionUrl"
 IAM_DOCUMENTS = ("aws:iam/rolePolicy:RolePolicy", "aws:iam/policy:Policy")
 BUDGET = "aws:budgets/budget:Budget"
 TIMEOUT_SECONDS = (1, 900)
+"""Spec 08's bounds on a function's timeout, seconds (as `deployment.settings` enforces)."""
 MEMORY_MB = (128, 10240)
-"""Spec 08's bounds on every function (the settings table's widest)."""
-DEPLOYMENT_ACTIONS = frozenset(
-    {
-        "s3:ListBucket",
-        "s3:GetObject",
-        "s3:PutObject",
-        "athena:ListQueryExecutions",
-        "athena:BatchGetQueryExecution",
-        "logs:CreateLogStream",
-        "logs:PutLogEvents",
-        "kms:Decrypt",
-        "kms:GenerateDataKey",
-        "lambda:InvokeFunction",
-        "lambda:InvokeFunctionUrl",
-    }
-)
-"""Every action spec 08 §IAM grants anywhere in the Deployment; nothing else may be allowed."""
-WRITES = frozenset({"s3:PutObject", "kms:GenerateDataKey"})
-"""Allowed actions that write: never in the API role."""
-API_ROLE = "-api"
-"""The suffix of the API role's policy name (`deployment.compute`)."""
+"""Spec 08's bounds on a function's memory, MB (as `deployment.settings` enforces)."""
+LOGS = frozenset({"logs:CreateLogStream", "logs:PutLogEvents"})
+POLICY_ACTIONS: dict[str, frozenset[str]] = {
+    "collector": frozenset(
+        {
+            "s3:ListBucket",
+            "s3:GetObject",
+            "s3:PutObject",
+            "athena:ListQueryExecutions",
+            "athena:BatchGetQueryExecution",
+            "kms:Decrypt",
+            "kms:GenerateDataKey",
+        }
+    )
+    | LOGS,
+    "api": frozenset({"s3:GetObject", "s3:ListBucket", "kms:Decrypt"}) | LOGS,
+    "scheduler": frozenset({"lambda:InvokeFunction"}),
+    "producer": frozenset({"s3:PutObject"}),
+    "reader": frozenset({"lambda:InvokeFunctionUrl", "lambda:InvokeFunction"}),
+}
+"""Each Deployment policy, by the suffix of its name (`deployment.compute`), and every action
+spec 08 §IAM grants it. A policy named otherwise is a violation, so a rename fails closed."""
 RULED_OUT = (
     "aws:ec2/vpc:",
     "aws:ec2/subnet:",
@@ -174,26 +176,46 @@ def _logged(args: StackValidationArgs, report: Report) -> None:
 
 
 def _least_privilege(args: ResourceValidationArgs, report: Report) -> None:
+    """Each Deployment policy allows only its own actions, on named resources, written as
+    Action and Resource (spec 08 §IAM). A Deny only narrows, so it is not checked."""
     if args.resource_type not in IAM_DOCUMENTS:
+        return
+    kind = next((k for k in POLICY_ACTIONS if args.name.endswith(f"-{k}")), None)
+    if kind is None:
+        report(f"{args.name} is not a known Deployment policy, so its actions cannot be checked")
         return
     try:
         statements = json.loads(args.props.get("policy") or "{}").get("Statement") or []
     except (ValueError, AttributeError):
         report("the policy is not a JSON policy document")
         return
+    if isinstance(statements, dict):  # IAM accepts one statement on its own
+        statements = [statements]
     for statement in statements:
         if not isinstance(statement, dict) or statement.get("Effect") != "Allow":
-            continue  # a Deny only narrows
-        actions = statement.get("Action")
-        actions = [actions] if isinstance(actions, str) else list(actions or [])
-        resources = statement.get("Resource")
-        for action in actions:
-            if action not in DEPLOYMENT_ACTIONS:
-                report(f"{action} is not an action the Deployment uses")
-            elif resources in ("*", ["*"]):
-                report(f"{action} is allowed on every resource")
-            elif args.name.endswith(API_ROLE) and action in WRITES:
-                report(f"the API role is read-only: {action} is a write")
+            continue
+        if "NotAction" in statement or "NotResource" in statement:
+            report("an Allow may not use NotAction or NotResource")
+            continue
+        for action in _strings(statement.get("Action")):
+            if action not in POLICY_ACTIONS[kind]:
+                report(f"{action} is not an action the {kind} policy is granted (spec 08 §IAM)")
+            elif any(_wildcard(resource) for resource in _strings(statement.get("Resource"))):
+                report(f"{action} is allowed on a wildcard resource")
+
+
+def _strings(value: Any) -> list[str]:
+    return [value] if isinstance(value, str) else [v for v in value or [] if isinstance(v, str)]
+
+
+def _wildcard(resource: str) -> bool:
+    """Whether a resource names everything, or every partition, service, region or account:
+    `*`, `arn:aws:s3:::*`, `arn:aws:lambda:*:*:function:*`. A wildcard within a named
+    resource's path (`.../inbox/*`, a log group's `:*`) is not."""
+    if resource == "*":
+        return True
+    parts = resource.split(":", 5)
+    return len(parts) < 6 or any("*" in part for part in parts[:5]) or parts[5] == "*"
 
 
 def _budget_alerts(props: dict[str, Any], report: Report) -> None:
