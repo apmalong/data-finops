@@ -238,3 +238,68 @@ Spec 07 and ADR 0025 (design session, PR #141); spec issue #135; tickets #142–
   - **The deploy page's Windows `PULUMI_BACKEND_URL`** is copied from the reference workload's README and not re-verified.
   - **"database file":** the site keeps the phrase. GLOSSARY lists "database" under _Avoid_ for Ledger, so this is a site-wide question.
   - **The HTTP API's parameters** have no descriptions in the OpenAPI document.
+
+## M6: AWS deployment (2026-11-07)
+Designed 2026-11-06 in PR #176 (spec 08; ADRs 0026–0028; GLOSSARY: Deployment, Collection Run, Inbox, Collection Watermark; the owner's decisions Q1–Q52 in `m6-decisions.md`). Spec issue #177; tickets #178–#193, in ten PRs, each against `main`. Every ticket but #191 (content) was built test-first at spec 08's seams, with hand-made mutation checks recorded in its PR and the Standards and Spec reviewers run in parallel. Nothing was deployed: no agent called AWS, and no `pulumi preview`, `up` or `destroy` ran against a real account.
+
+- **What was built:**
+  - #194 (#178) the minimal Cost Explanation for a Deployment (ADR 0028), and `serve --explanation-detail`;
+  - #195 (#179, #180) the Collection Run, from the S3 Inbox: OpenLineage events and dbt artifacts;
+  - #196 (#181) Athena query history in the Collection Run, and `data-finops collect`;
+  - #197 (#182) FOCUS Deliveries in the Collection Run, with the Collection Watermark;
+  - #198 (#183, #184) the Lambda handlers: the collector over the database object by S3 compare-and-swap, and the read-only API through Mangum;
+  - #199 (#185, #188) `infra/pulumi/aws/`: the Pulumi project, the storage component, the policy pack and the `infra` CI job;
+  - #200 (#186, #187) the Lambda package build and the compute component;
+  - #201 (#189) the rest of the policy pack: 11 mandatory checks;
+  - #202 (#190, #191) the generated Deployment settings reference, the deploy, read, teardown and Inbox how-tos, and the Deployment architecture explanation;
+  - this PR (#192, #193) the owner's deploy-and-verify and teardown wizards, the draft deployer policy, and this record.
+- **Exit criterion** (spec 08, "Exit"): tests 6–8 pass offline in CI, and the policy pack rejects the non-compliant fixtures.
+  - **CI on `main`:** run 42414186977 on `6779b5f`, the #202 merge. Both jobs passed. Its `infra` job:
+    ```text
+    pulumi/actions@v6 → /usr/local/bin/pulumi version → Matched version: v3.272.0
+    policy/  uv run mypy → Success: no issues found in 4 source files
+             uv run pytest → 44 passed
+             uv run pip-audit → No known vulnerabilities found
+    stack    uv run mypy → Success: no issues found in 15 source files
+             DATA_FINOPS_BUILD_PACKAGE=1 uv run pytest → 72 passed
+               tests/test_compute.py      12  (seam 6)
+               tests/test_package.py       6  (seam 8, the real arm64 package built from the checkout)
+               tests/test_policy_pack.py  13  (seam 7b)
+               tests/test_program.py       6  (seam 6)
+               tests/test_settings.py     25  (seam 6)
+               tests/test_storage.py      10  (seam 6)
+             uv run pip-audit → No known vulnerabilities found
+    ```
+  - **The pack rejects the non-compliant fixtures** (seam 7b): `pulumi policy analyze` over the program's mock-recorded state passes all 11 checks, and each of 11 non-compliant fixtures exits 1, naming its policy:
+    `s3-public-access-blocked`, `s3-guarded` (no versioning), `s3-encrypted`, `s3-tls-only`, `no-ruled-out-resources` (a VPC), `url-iam-only`, `function-bounded`, `function-logged`, `iam-least-privilege` (twice: the collector granted `athena:StartQueryExecution`, the API granted `s3:PutObject`), and `budget-alerts` (actual spend only). The pack's 44 unit cases are seam 7a.
+  - **Locally, on this PR's branch** (Windows 11, uv 0.12.23):
+    ```text
+    root     .venv/Scripts/python.exe -m pytest -q → 977 passed
+             ruff --no-cache check . / format --check . → All checks passed / formatted
+             python -m scripts.site build → 0 page(s) written; python -S -m scripts.site check → 0 problem(s)
+    stack    .venv/Scripts/python.exe -m pytest -q → 96 passed, 1 skipped (the real package build, which CI runs)
+             mypy → Success: no issues found in 19 source files; bandit -q -r deployment __main__.py → clean
+    policy/  unchanged since #201 → 44 passed
+    ```
+  - **Optional, not run:** the owner's deploy-and-verify wizard (`infra/pulumi/aws/wizards/deploy-and-verify.sh`). Spec 08 makes it optional for the exit. Its output will be added here only if the owner runs it.
+- **Owner-only, still to do:**
+  - **#26:** the teardown wizard (`wizards/teardown.sh`) destroys the reference workload and checks that nothing is left. It also tears down a Deployment if one was deployed. #26 does not block the exit.
+  - **Q22:** make `infra` a required CI check, after its first green runs (it has passed on every PR since #199).
+- **Found and fixed during M6:**
+  - **The first Collection Run would have looped:** without `s3:ListBucket`, S3 answers a missing object with `AccessDenied`, not `NoSuchKey`. Both roles get `ListBucket` on their own bucket (#198, #200).
+  - **The reader policy would have got 403:** Function URLs created since October 2025 need `lambda:InvokeFunction` through the URL as well as `lambda:InvokeFunctionUrl` (#200).
+  - **Kept log groups** would have collided with the next deployment's fixed names. Only the bucket and its settings are kept on destroy (#200).
+  - **Policy 4's holes:** `NotAction`, `NotResource`, a single statement and wildcard ARNs passed, and one allowlist covered every role. It became one allowlist per policy that fails closed (#201).
+  - **`pulumi policy analyze`** hands resource policies each resource's inputs, but stack policies its outputs. The fixtures change both (#201).
+  - **The wizards' dry run** found `pulumi up` printing the stack outputs, bucket and URL included, before the wizard could mask them. It now passes `--suppress-outputs` (#192).
+- **Known limits, left as they are:**
+  - **The database is capped by `/tmp` at 512 MB:** no function sets ephemeral storage (#202's owner question).
+  - **A producer cannot write with `kmsKeyArn` set:** its policy lacks `kms:GenerateDataKey`. The how-to says to grant it by hand (#202's owner question).
+  - **Advisory at a real preview:** the TLS bucket policy and the IAM documents are computed from other resources' ARNs, so a real `pulumi preview` only advises on them. `analyze` in CI enforces them.
+  - **The draft deployer policy is unvalidated** until the owner's Access Analyzer step and a first `pulumi up`.
+  - **Mocks cannot see `retain_on_delete`:** the deploy wizard checks it on the real state.
+  - **Not supported yet:** an export encrypted with SSE-KMS.
+  - **Revisit triggers:** a database over 5 GB (one `PutObject`; multipart upload); Python 3.14 with Mangum.
+  - **Pin exception:** pulumi-aws 7.52.1 is newer than the two-week rule allows (owner Q23).
+  - **Spec 08's wording:** it credits EventBridge Scheduler with the retries of a failed run, which are Lambda's asynchronous retries (#202's owner question). The site's pages say it correctly.
+  - **The Windows `PULUMI_BACKEND_URL`** form on the deploy page is not verified on a real run.
