@@ -6,7 +6,7 @@ from typing import Any
 
 import pulumi
 import pytest
-from deployment.settings import Budget, Settings, SettingsError
+from deployment.settings import CONFIG_KEYS, Budget, Settings, SettingsError
 
 REQUIRED = {
     "aws:region": "us-east-1",
@@ -125,3 +125,25 @@ def test_a_kms_key_in_another_partition_is_accepted() -> None:
     key = "arn:aws-us-gov:kms:us-gov-west-1:123456789012:key/example"
     settings = _from_config(REQUIRED | {"data-finops:kmsKeyArn": key})
     assert settings.kms_key_arn == key
+
+
+class _Recording:
+    """A stand-in for `pulumi.Config` that records every key read and finds none."""
+
+    def __init__(self, prefix: str, read: set[str]) -> None:
+        self.prefix, self.read = prefix, read
+
+    def get(self, key: str) -> None:
+        self.read.add(f"{self.prefix}{key}")
+
+
+def test_the_configuration_keys_are_the_ones_the_reference_lists() -> None:
+    # The generated reference page (scripts/site) reads CONFIG_KEYS; the stack must read
+    # exactly those keys, and every field must have one.
+    read: set[str] = set()
+    with pytest.raises(SettingsError):
+        Settings.from_config(_Recording("", read), _Recording("aws:", read))  # type: ignore[arg-type]
+    assert read == set(CONFIG_KEYS.values())
+    fields = {f.name for f in dataclasses.fields(Settings)} - {"budget"}
+    fields |= {f"budget.{f.name}" for f in dataclasses.fields(Budget)}
+    assert set(CONFIG_KEYS) == fields

@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+<!-- head:start -->
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="../assets/site.css">
+<script src="../assets/site.js" defer></script>
+<!-- head:end -->
+<title>Deployment settings - data-finops</title>
+<meta name="description" content="Every setting of the AWS Deployment, with its default and meaning, and every stack output.">
+</head>
+<body>
+<!-- nav:start -->
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="site-header"><a href="../index.html">data-finops</a></header>
+<nav class="site-nav" aria-label="Site">
+<ul>
+<li><a href="../tutorials/index.html">Tutorials</a></li>
+<li><a href="../how-to/index.html">How-to guides</a></li>
+<li><a href="index.html">Reference</a>
+<ul>
+<li><a href="cli.html">Command line</a></li>
+<li><a href="http-api.html">HTTP API</a></li>
+<li><a href="data-contracts.html">Data contracts</a></li>
+<li><a href="exit-codes-and-environment.html">Exit codes and environment</a></li>
+<li><a href="deployment-settings.html" aria-current="page">Deployment settings</a></li>
+<li><a href="glossary.html">Glossary</a></li>
+</ul>
+</li>
+<li><a href="../explanation/index.html">Explanation</a></li>
+<li><a href="../contributing.html">Contributing</a></li>
+</ul>
+</nav>
+<!-- nav:end -->
+<main id="main">
+<h1>Deployment settings</h1>
+<!-- onpage:start -->
+<nav class="on-page" aria-label="On this page">
+<p>On this page</p>
+<ul>
+<li><a href="#settings">Settings</a></li>
+<li><a href="#outputs">Outputs</a></li>
+</ul>
+</nav>
+<!-- onpage:end -->
+<p>The settings of the AWS Deployment and the outputs of its Pulumi stack. Each setting is a key of the stack's configuration: <code>aws:region</code>, and every other key under <code>data-finops:</code>. A setting left out takes its default. The stack checks every setting before it declares anything, and an error names the setting, never its value.</p>
+<p>This page is generated from the stack's source, <a href="https://github.com/apmalong/data-finops/blob/main/infra/pulumi/aws/deployment/settings.py"><code>deployment/settings.py</code></a> and <a href="https://github.com/apmalong/data-finops/blob/main/infra/pulumi/aws/deployment/program.py"><code>deployment/program.py</code></a>, which are authoritative.</p>
+<!-- reference:start -->
+<h2 id="settings">Settings</h2>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
+<table>
+<thead><tr><th>Key</th><th>Default</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>aws:region</code></td><td>required</td><td>The AWS Region to deploy to. The collector reads the Athena workgroups in this Region.</td></tr>
+<tr><td><code>exportBucket</code></td><td>required</td><td>The S3 bucket the AWS Data Exports FOCUS export is delivered to. The collector only reads it.</td></tr>
+<tr><td><code>exportName</code></td><td>required</td><td>The name of the FOCUS export, as AWS Data Exports names it.</td></tr>
+<tr><td><code>workgroups</code></td><td>required</td><td>The Athena workgroups whose query history is collected, as a JSON list of names, for example <code>[&quot;primary&quot;]</code>. It may not be empty.</td></tr>
+<tr><td><code>exportPrefix</code></td><td>empty</td><td>The S3 path prefix the export is delivered under; empty when it has none.</td></tr>
+<tr><td><code>billingLookbackPeriods</code></td><td><code>2</code></td><td>How many Billing Periods, counting back from the current one, each Collection Run lists. A whole number from 1 to 24.</td></tr>
+<tr><td><code>maxHistoryPages</code></td><td><code>200</code></td><td>How many <code>ListQueryExecutions</code> pages each Collection Run reads, per workgroup. A whole number from 1 to 1000.</td></tr>
+<tr><td><code>schedule</code></td><td><code>cron(0 6 * * ? *)</code></td><td>When the Collection Run starts, as an EventBridge Scheduler expression, in UTC.</td></tr>
+<tr><td><code>collectorTimeoutSeconds</code></td><td><code>900</code></td><td>The collector function&#x27;s timeout, in seconds. A whole number from 1 to 900.</td></tr>
+<tr><td><code>collectorMemoryMb</code></td><td><code>2048</code></td><td>The collector function&#x27;s memory, in MB. A whole number from 128 to 10240.</td></tr>
+<tr><td><code>apiTimeoutSeconds</code></td><td><code>30</code></td><td>The API function&#x27;s timeout, in seconds. A whole number from 1 to 900.</td></tr>
+<tr><td><code>apiMemoryMb</code></td><td><code>1024</code></td><td>The API function&#x27;s memory, in MB. A whole number from 128 to 10240.</td></tr>
+<tr><td><code>apiReservedConcurrency</code></td><td>unset</td><td>An optional cap on the API function&#x27;s concurrent requests, a whole number of at least 0; 0 switches the API off. New accounts may lack the concurrency quota to reserve any.</td></tr>
+<tr><td><code>logRetentionDays</code></td><td><code>30</code></td><td>How long both functions&#x27; logs are kept, in days: a period CloudWatch Logs accepts, such as 1, 7, 14, 30, 90 or 365.</td></tr>
+<tr><td><code>noncurrentVersionDays</code></td><td><code>30</code></td><td>How long an old version of the database object is kept, in days, before S3 expires it. A whole number from 1 to 3650.</td></tr>
+<tr><td><code>inboxRetentionDays</code></td><td><code>30</code></td><td>How long an object stays in the Inbox, in days, before S3 expires it. A whole number from 1 to 3650.</td></tr>
+<tr><td><code>kmsKeyArn</code></td><td>unset</td><td>An optional customer-managed KMS key ARN to encrypt the bucket with, at about $1 a month. Unset, the bucket uses the S3-managed key.</td></tr>
+<tr><td><code>explanationDetail</code></td><td><code>minimal</code></td><td>How much the API&#x27;s Cost Explanations show: <code>minimal</code> or <code>full</code> (ADR 0028).</td></tr>
+<tr><td><code>budgetMonthlyUsd</code></td><td>unset</td><td>An optional monthly amount, in US dollars, for an account-wide AWS Budget that alerts on forecast and actual spend. AWS Budgets cover the whole account, not just the Deployment. Give it with <code>budgetEmail</code>, or neither.</td></tr>
+<tr><td><code>budgetEmail</code></td><td>unset</td><td>The address the Budget alerts are sent to. Give it with <code>budgetMonthlyUsd</code>, or neither.</td></tr>
+<tr><td><code>alarmEmail</code></td><td>unset</td><td>An optional address to send an alarm to when the collector function reports errors, through an SNS topic.</td></tr>
+<tr><td><code>deleteDataOnDestroy</code></td><td><code>false</code></td><td>Whether <code>pulumi destroy</code> deletes the bucket and its data. By default the bucket is kept, with the database and the Inbox in it.</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="outputs">Outputs</h2>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
+<table>
+<thead><tr><th>Output</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>bucket</code></td><td>The Deployment&#x27;s S3 bucket: the database, the Inboxes and the Lambda package.</td></tr>
+<tr><td><code>apiUrl</code></td><td>The read-only API&#x27;s Function URL. Requests must be signed with AWS SigV4 by a principal with the reader policy.</td></tr>
+<tr><td><code>producerPolicyArn</code></td><td>The managed policy that lets a producer write to the Inboxes and nothing else. Attach it to whatever sends OpenLineage events or dbt artifacts.</td></tr>
+<tr><td><code>readerPolicyArn</code></td><td>The managed policy that lets a principal call the API&#x27;s Function URL.</td></tr>
+<tr><td><code>collectorFunction</code></td><td>The collector function&#x27;s name, for its logs or to invoke a Collection Run by hand.</td></tr>
+<tr><td><code>apiFunction</code></td><td>The API function&#x27;s name, for its logs.</td></tr>
+</tbody>
+</table>
+</div>
+<!-- reference:end -->
+<!-- pager:start -->
+<nav class="pager" aria-label="Previous and next">
+<a rel="prev" href="exit-codes-and-environment.html">Previous: Exit codes and environment</a>
+<a rel="next" href="glossary.html">Next: Glossary</a>
+</nav>
+<!-- pager:end -->
+</main>
+<!-- footer:start -->
+<footer>
+<p>This site describes the <code>main</code> branch. Nothing is released yet. No license has been chosen yet. Source on <a href="https://github.com/apmalong/data-finops">GitHub</a>.</p>
+</footer>
+<!-- footer:end -->
+</body>
+</html>

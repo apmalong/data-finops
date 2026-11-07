@@ -12,7 +12,13 @@ from collections.abc import Callable
 from pathlib import Path
 
 from scripts.site.nav import Entry, SiteError, parse_nav, walk
-from scripts.site.reference import render_cli, render_contracts, render_glossary, render_http
+from scripts.site.reference import (
+    render_cli,
+    render_contracts,
+    render_deployment_settings,
+    render_glossary,
+    render_http,
+)
 from scripts.site.shells import LINE_SPAN, shell_tabs
 
 __all__ = ["SiteError", "build"]
@@ -97,12 +103,21 @@ def _glossary_reference(repo: Path) -> str:
     return render_glossary((repo / "GLOSSARY.md").read_text(encoding="utf-8"))
 
 
+def _deployment_settings_reference(repo: Path) -> str:
+    deployment = repo / "infra" / "pulumi" / "aws" / "deployment"
+    return render_deployment_settings(
+        (deployment / "settings.py").read_text(encoding="utf-8"),
+        (deployment / "program.py").read_text(encoding="utf-8"),
+    )
+
+
 # The generated reference pages, each with the renderer of its source (spec 07).
 GENERATED: dict[str, Callable[[Path], str]] = {
     "reference/cli.html": _cli_reference,
     "reference/http-api.html": _http_reference,
     "reference/data-contracts.html": _contracts_reference,
     "reference/glossary.html": _glossary_reference,
+    "reference/deployment-settings.html": _deployment_settings_reference,
 }
 
 

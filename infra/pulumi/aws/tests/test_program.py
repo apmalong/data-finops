@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pulumi
 import pytest
-from deployment.program import build, require_local_state, require_package
+from deployment.program import OUTPUTS, build, require_local_state, require_package
 from deployment.settings import Settings
 
 from tests.mocks import MOCKS
@@ -26,12 +26,14 @@ def test_a_local_file_backend_is_accepted(monkeypatch: pytest.MonkeyPatch) -> No
 
 
 @pulumi.runtime.test
-def test_the_program_outputs_the_bucket(tmp_path: Path) -> pulumi.Output[None]:
+def test_the_program_outputs_what_the_reference_lists(tmp_path: Path) -> pulumi.Output[None]:
     MOCKS.resources.clear()
     settings = Settings(
         region="us-east-1", export_bucket="b", export_name="e", workgroups=("demo",)
     )
     outputs = build(settings, package=_stand_in(tmp_path)).outputs()
+    # The generated reference page (scripts/site) lists OUTPUTS: exactly these, in order.
+    assert list(outputs) == list(OUTPUTS)
     return pulumi.Output.all(**outputs).apply(
         lambda values: assert_equal(
             {k: values[k] for k in ("bucket", "apiUrl")},

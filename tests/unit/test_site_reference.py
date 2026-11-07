@@ -1,6 +1,7 @@
 """The generated reference pages (spec 07, "The site tool"): each renderer on a small input."""
 
 import argparse
+import re
 
 import pytest
 
@@ -9,6 +10,7 @@ from scripts.site.reference import (
     describe,
     render_cli,
     render_contracts,
+    render_deployment_settings,
     render_glossary,
     render_http,
 )
@@ -351,3 +353,118 @@ def test_every_table_scrolls_in_its_own_focusable_box_rather_than_the_page() -> 
         ' aria-label="Table, scrolls sideways">\n<table>'
     ) == rendered.count("<table>")
     assert rendered.count("</table>\n</div>") == rendered.count("<table>")
+
+
+TOY_SETTINGS = '''"""Settings."""
+import pulumi
+DEFAULT_SCHEDULE = "cron(0 6 * * ? *)"
+BOUNDS = {"lookback": (1, 24)}
+CONFIG_KEYS = {
+    "region": "aws:region",
+    "workgroups": "workgroups",
+    "lookback": "lookback",
+    "schedule": "schedule",
+    "prefix": "prefix",
+    "cap": "cap",
+    "wipe": "wipe",
+    "budget.monthly_usd": "budgetMonthlyUsd",
+    "budget.email": "budgetEmail",
+}
+
+@dataclass(frozen=True)
+class Budget:
+    """An alert."""
+    monthly_usd: Decimal
+    """The monthly amount, US dollars & cents."""
+    email: str
+    """Who is told."""
+
+@dataclass(frozen=True)
+class Settings:
+    region: str
+    """The AWS Region."""
+    workgroups: tuple[str, ...]
+    """The workgroups, a `JSON` list."""
+    lookback: int = 2
+    """Billing Periods listed each run."""
+    schedule: str = DEFAULT_SCHEDULE
+    """When the run starts, UTC."""
+    prefix: str = ""
+    """The export's path prefix."""
+    cap: int | None = None
+    """An optional cap."""
+    budget: Budget | None = None
+    """Not shown: its keys are Budget's fields."""
+    wipe: bool = False
+    """Whether destroy deletes the data."""
+
+    def __post_init__(self) -> None:
+        """Not a setting."""
+'''
+
+TOY_PROGRAM = """OUTPUTS = {
+    "bucket": "The bucket\'s name.",
+    "apiUrl": "The API\'s URL <signed>.",
+}
+"""
+
+
+def _rows(page: str) -> list[list[str]]:
+    return [re.findall(r"<td>(.*?)</td>", row) for row in re.findall(r"<tr>(<td>.*?)</tr>", page)]
+
+
+def test_the_deployment_settings_reference_lists_every_setting_and_output() -> None:
+    page = render_deployment_settings(TOY_SETTINGS, TOY_PROGRAM)
+    assert _rows(page) == [
+        ["<code>aws:region</code>", "required", "The AWS Region."],
+        ["<code>workgroups</code>", "required", "The workgroups, a <code>JSON</code> list."],
+        [
+            "<code>lookback</code>",
+            "<code>2</code>",
+            "Billing Periods listed each run. A whole number from 1 to 24.",
+        ],
+        ["<code>schedule</code>", "<code>cron(0 6 * * ? *)</code>", "When the run starts, UTC."],
+        ["<code>prefix</code>", "empty", "The export&#x27;s path prefix."],
+        ["<code>cap</code>", "unset", "An optional cap."],
+        ["<code>budgetMonthlyUsd</code>", "unset", "The monthly amount, US dollars &amp; cents."],
+        ["<code>budgetEmail</code>", "unset", "Who is told."],
+        ["<code>wipe</code>", "<code>false</code>", "Whether destroy deletes the data."],
+        ["<code>bucket</code>", "The bucket&#x27;s name."],
+        ["<code>apiUrl</code>", "The API&#x27;s URL &lt;signed&gt;."],
+    ]
+    assert page.index('<h2 id="settings">') < page.index('<h2 id="outputs">')
+    assert "Not a setting" not in page and "Not shown" not in page
+
+
+@pytest.mark.parametrize(
+    ("change", "message"),
+    [
+        (('    """The AWS Region."""\n', ""), "Settings.region has no docstring"),
+        (('    "cap": "cap",\n', ""), "Settings.cap has no configuration key in CONFIG_KEYS"),
+        (
+            ('    "wipe": "wipe",\n', '    "wipe": "wipe",\n    "gone": "gone",\n'),
+            "CONFIG_KEYS names gone, which is not a setting",
+        ),
+        (
+            ('    "budget.email": "budgetEmail",\n', ""),
+            "Budget.email has no configuration key in CONFIG_KEYS",
+        ),
+        (
+            ("lookback: int = 2", "lookback: int = len([])"),
+            "Settings.lookback has a default the reference cannot read",
+        ),
+        (("class Settings:", "class Other:"), "no Settings class"),
+    ],
+)
+def test_the_deployment_settings_reference_refuses_a_source_it_cannot_document(
+    change: tuple[str, str], message: str
+) -> None:
+    old, new = change
+    assert TOY_SETTINGS.count(old) == 1
+    with pytest.raises(SiteError, match=re.escape(message)):
+        render_deployment_settings(TOY_SETTINGS.replace(old, new), TOY_PROGRAM)
+
+
+def test_the_deployment_settings_reference_needs_the_outputs() -> None:
+    with pytest.raises(SiteError, match="no OUTPUTS"):
+        render_deployment_settings(TOY_SETTINGS, "NAME = 1\n")
