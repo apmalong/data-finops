@@ -81,6 +81,18 @@
 <li>data-finops never logs, prints or stores the token. Errors say what is wrong with it, not what it is.</li>
 </ul>
 </dd>
+<dt><code>DATA_FINOPS_COLLECTOR_SETTINGS</code></dt>
+<dd>
+<p>A Deployment's collector function reads its settings from this variable: JSON with the keys of the <code>collect</code> settings file, validated the same way. The stack sets it. An unset, unreadable or invalid value fails the invocation, and the error names the setting at fault, never its value.</p>
+</dd>
+<dt><code>DATA_FINOPS_BUCKET</code></dt>
+<dd>
+<p>The Deployment's bucket, for its API function. The function serves a copy of the database object in it. The stack sets it.</p>
+</dd>
+<dt><code>DATA_FINOPS_EXPLANATION_DETAIL</code></dt>
+<dd>
+<p>How much of the Billing Line a Deployment's API shows in a Cost Explanation: <code>minimal</code> (the default) or <code>full</code> (ADR 0028). The stack sets it from its <code>explanationDetail</code> setting.</p>
+</dd>
 <dt><code>DATA_FINOPS_ANON_SECRET</code></dt>
 <dd>
 <p>The secret for the two anonymizing scripts. They are for contributors and are not part of the <code>data-finops</code> command.</p>

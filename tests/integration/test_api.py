@@ -10,6 +10,7 @@ from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
+from fixture_database import fill
 from openapi_contract import valid_response
 
 from data_finops.api import create_app
@@ -154,3 +155,15 @@ def test_no_response_carries_sql_or_database_details(client: TestClient) -> None
     for path in ("/health", "/v1/costs/summary", "/v1/costs/summary?cost_basis=x", "/nope"):
         text = client.get(path).text.lower()
         assert not any(word in text for word in ("select ", "sqlite", "insert ", ".sqlite"))
+
+
+def test_a_read_only_app_serves_reads_but_no_receiver_or_dashboard(tmp_path: Path) -> None:
+    db = tmp_path / "data-finops.sqlite"
+    fill(db)
+    with TestClient(create_app(db, read_only=True)) as client:
+        assert client.get("/health").status_code == 200
+        assert client.get("/v1/costs/summary").status_code == 200
+        received = client.post("/api/v1/lineage", content=b"{}")
+        assert received.status_code in (404, 405)
+        assert client.get("/dashboard/").status_code == 404
+        assert client.get("/", follow_redirects=False).status_code == 404

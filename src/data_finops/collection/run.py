@@ -5,6 +5,7 @@ import re
 import tempfile
 import tomllib
 from collections import defaultdict
+from collections.abc import Mapping
 from dataclasses import dataclass, field, fields
 from datetime import datetime
 from pathlib import Path
@@ -104,14 +105,24 @@ class CollectionSettings:
 
     @classmethod
     def from_toml(cls, path: Path) -> "CollectionSettings":
-        """The settings file `data-finops collect` reads (spec 08 §9). ValueError names the
-        setting at fault, never its value; an unknown setting is refused, so a typo cannot
-        silently do nothing."""
+        """The settings file `data-finops collect` reads (spec 08 §9), validated as
+        `from_mapping` validates."""
         with path.open("rb") as file:
             try:
                 values = tomllib.load(file)
             except tomllib.TOMLDecodeError:
                 raise ValueError("the settings file is not valid TOML") from None
+        return cls.from_mapping(values)
+
+    @classmethod
+    def from_mapping(cls, values: Mapping[str, Any]) -> "CollectionSettings":
+        """The collector's settings from their names (the TOML file's keys, or the JSON the
+        Deployment passes its collector, spec 08). ValueError names the setting at fault,
+        never its value; an unknown setting is refused, so a typo cannot silently do
+        nothing."""
+        if not isinstance(values, Mapping):
+            raise ValueError("the settings are not a table of names and values")
+        values = dict(values)
         unknown = sorted(set(values) - {setting.name for setting in fields(cls)})
         if unknown:
             raise ValueError(f"unknown setting {', '.join(unknown)}")

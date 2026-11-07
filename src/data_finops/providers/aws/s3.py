@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol
 
-from data_finops.providers.aws.calls import call
+from data_finops.providers.aws.calls import AwsSourceError, call
 
 MAX_KEYS = 1000
 """S3's own page limit for ListObjectsV2."""
@@ -18,6 +18,19 @@ class S3Reader(Protocol):
     def list_objects_v2(self, **kwargs: Any) -> Mapping[str, Any]: ...
 
     def get_object(self, **kwargs: Any) -> Mapping[str, Any]: ...
+
+
+class S3Writer(Protocol):
+    """The calls the collector makes on the Deployment's own database object: its only write
+    (ADR 0026). The read-only API is never handed one."""
+
+    def get_object(self, **kwargs: Any) -> Mapping[str, Any]: ...
+
+    def put_object(self, **kwargs: Any) -> Mapping[str, Any]: ...
+
+
+class WriteConflict(RuntimeError):
+    """Another writer changed the object since it was read (S3 answered 412)."""
 
 
 @dataclass(frozen=True)
@@ -87,3 +100,56 @@ def read_object(s3: S3Reader, bucket: str, obj: S3Object, max_bytes: int) -> byt
     if len(data) > max_bytes:
         raise TooLarge(obj.key)
     return data
+
+
+def fetch_file(s3: S3Writer, bucket: str, key: str, path: Path) -> str | None:
+    """Download the object to `path` and return its ETag, or None (nothing written) when
+    there is no such object yet."""
+    try:
+        response = call(s3.get_object, Bucket=bucket, Key=key)
+    except AwsSourceError as error:
+        if str(error) == "NoSuchKey":
+            return None
+        raise
+    body = response["Body"]
+    with path.open("wb") as file:
+        while chunk := body.read(_CHUNK):
+            file.write(chunk)
+    etag: str = response["ETag"]
+    return etag
+
+
+def put_file(s3: S3Writer, bucket: str, key: str, path: Path, *, etag: str | None) -> None:
+    """Upload `path` over the version `etag` names, or as a new object when `etag` is None;
+    WriteConflict when another writer got there first (S3 conditional writes)."""
+    condition = {"IfMatch": etag} if etag is not None else {"IfNoneMatch": "*"}
+    with path.open("rb") as body:
+        try:
+            call(s3.put_object, Bucket=bucket, Key=key, Body=body, **condition)
+        except AwsSourceError as error:
+            if str(error) in ("PreconditionFailed", "ConditionalRequestConflict"):
+                raise WriteConflict(key) from None
+            raise
+
+
+def refresh_file(s3: S3Reader, bucket: str, key: str, path: Path, etag: str | None) -> str:
+    """Make `path` the object's current version and return its ETag. When `etag` is still
+    current (S3 answers 304 to `If-None-Match`), nothing is downloaded. A new version is
+    written beside `path` and moved over it, so a reader never sees half a file."""
+    params: dict[str, Any] = {"Bucket": bucket, "Key": key}
+    if etag is not None:
+        params["IfNoneMatch"] = etag
+    try:
+        response = call(s3.get_object, **params)
+    except AwsSourceError as error:
+        if etag is not None and str(error) in ("304", "NotModified"):
+            return etag
+        raise
+    partial = path.with_name(path.name + ".partial")
+    body = response["Body"]
+    with partial.open("wb") as file:
+        while chunk := body.read(_CHUNK):
+            file.write(chunk)
+    partial.replace(path)
+    current: str = response["ETag"]
+    return current
