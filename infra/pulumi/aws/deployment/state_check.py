@@ -7,8 +7,9 @@ The wizards run `pulumi stack export --file FILE`, then `python -m deployment.st
   when it is to be deleted. Pulumi's mocks cannot see `retain_on_delete`, so only a real
   state shows it.
 - `remaining FILE`: every resource still in the stack, after a destroy.
-- `policies FILE DIR`: each IAM policy document in the state, written to `DIR/<logical
-  name>.json` for IAM Access Analyzer. The documents hold ARNs, so the wizard deletes them.
+- `policies FILE DIR`: each policy document in the state, written for IAM Access Analyzer:
+  an identity policy to `DIR/<logical name>.json`, the bucket policy, a resource policy, to
+  `DIR/<logical name>.resource.json`. The documents hold ARNs, so the wizard deletes them.
 - `ids FILE TYPE`: the physical ID of each resource of one type, for the wizard to keep and
   check after a destroy. The wizard captures it and never prints it.
 
@@ -23,8 +24,9 @@ from pathlib import Path
 from typing import Any
 
 STORAGE = "data-finops:index:Storage"
-IAM_DOCUMENTS = ("aws:iam/rolePolicy:RolePolicy", "aws:iam/policy:Policy")
-OWN_TYPES = "data-finops:"  # the components: they hold resources but are none themselves
+IDENTITY_POLICIES = ("aws:iam/rolePolicy:RolePolicy", "aws:iam/policy:Policy")
+BUCKET_POLICY = "aws:s3/bucketPolicy:BucketPolicy"
+COMPONENT_TYPE_PREFIX = "data-finops:"  # components hold resources but are none themselves
 
 
 def retention_problems(state: dict[str, Any], *, delete_data: bool) -> list[str]:
@@ -36,7 +38,7 @@ def retention_problems(state: dict[str, Any], *, delete_data: bool) -> list[str]
         problems.append("the state has no bucket")
     for resource in resources:
         typ = str(resource.get("type", ""))
-        if typ.startswith(("pulumi:", OWN_TYPES)):
+        if typ.startswith(("pulumi:", COMPONENT_TYPE_PREFIX)):
             continue
         kept = bool(resource.get("retainOnDelete"))
         should_keep = resource.get("parent") in storage and not delete_data
@@ -57,19 +59,23 @@ def remaining(state: dict[str, Any]) -> list[str]:
 
 
 def write_policies(state: dict[str, Any], folder: Path) -> list[Path]:
-    """Each IAM policy document in the state, as its own file, named by its logical name."""
+    """Each policy document in the state, as its own file, named by its logical name; a
+    resource policy's name ends `.resource.json`."""
     folder.mkdir(parents=True, exist_ok=True)
     written = []
     for resource in _resources(state):
         document = (resource.get("outputs") or {}).get("policy")
-        if resource.get("type") in IAM_DOCUMENTS and document:
-            path = folder / f"{_logical(resource)}.json"
+        typ = resource.get("type")
+        if document and typ in (*IDENTITY_POLICIES, BUCKET_POLICY):
+            suffix = ".resource.json" if typ == BUCKET_POLICY else ".json"
+            path = folder / f"{_logical(resource)}{suffix}"
             path.write_text(document, encoding="utf-8")
             written.append(path)
     return written
 
 
 def ids(state: dict[str, Any], typ: str) -> list[str]:
+    """The physical ID of each resource of one type, as Pulumi records it."""
     return [str(r["id"]) for r in _resources(state) if r.get("type") == typ and r.get("id")]
 
 

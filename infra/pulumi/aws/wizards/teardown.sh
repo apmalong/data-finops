@@ -196,22 +196,25 @@ finish() {
 # Replace the example below. Set TOTAL_STAGES to match the stages you write.
 # Keep every stage inside run_wizard and the last line as is: bash then parses
 # the whole file before the first prompt, so an edit mid-run can't break it.
-# ──────────────────────────────────────────────────────────────────────────
 
 # ── Shared by this wizard's stages ─────────────────────────────────────────
-# The owner runs this wizard, never an agent (spec 08, owner-only steps; #26). Every
-# command's output goes through `mask`: no account ID, bucket, profile or name is shown or
-# recorded, so the record can be shared.
+# The owner runs this wizard, never an agent (spec 08, owner-only steps). Everything shown or
+# recorded goes through `mask`: no account ID, bucket, profile, email or URL appears, so the
+# record can be shared. Both wizards carry this block, so that each stands alone.
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
 STACK_DIR="$REPO/infra/pulumi/aws"
-REFERENCE_DIR="$REPO/examples/reference-workload"
 LOCAL="${WIZARD_LOCAL_DIR:-$REPO/.local}"
-ENV_FILE="${WIZARD_ENV_FILE:-$LOCAL/deploy-wizard.env}"  # shared with deploy-and-verify.sh
-RECORD="$LOCAL/teardown-record.txt"
+ENV_FILE="${WIZARD_ENV_FILE:-$LOCAL/deploy-wizard.env}" # git-ignored; no secret is written
 STACK="${WIZARD_STACK:-dev}"
-REFERENCE_STACK="${WIZARD_REFERENCE_STACK:-dev}"
 SENSITIVE=() # "value|label" pairs that mask replaces, in order
+LEFT=()      # what a check found still there, or could not check
+TEMPORARY=() # files holding unmasked state, removed however the wizard ends
+trap 'rm -rf ${TEMPORARY[@]+"${TEMPORARY[@]}"}' EXIT
+
+hide() { [[ -n "$1" ]] && SENSITIVE+=("$1|$2"); return 0; }
+hide "$LOCAL" "<local>"
+hide "$REPO" "<repo>"
 
 # hide_saved KEY...: hide each value already saved in ENV_FILE, before any command runs.
 hide_saved() {
@@ -223,45 +226,78 @@ hide_saved() {
   done
 }
 
-hide() { [[ -n "$1" ]] && SENSITIVE+=("$1|$2"); return 0; }
-hide "$LOCAL" "<local>"
-hide "$REPO" "<repo>"
-
+# mask: stdin to stdout with every hidden value replaced by its label, any 12-digit number by
+# the example account ID, and Pulumi's auto-named bucket (data-finops-<7 hex>), which a failed
+# command can name before the wizard knows it, by <bucket>.
 mask() {
   local line pair
   while IFS= read -r line || [[ -n "$line" ]]; do
     for pair in ${SENSITIVE[@]+"${SENSITIVE[@]}"}; do
       line="${line//"${pair%%|*}"/${pair#*|}}"
     done
-    printf '%s\n' "$line" | sed -E 's/[0-9]{12}/123456789012/g'
+    printf '%s\n' "$line" | sed -E -e 's/[0-9]{12}/123456789012/g' \
+      -e 's/data-finops-[0-9a-f]{7}([^0-9a-z-]|$)/<bucket>\1/g'
   done
 }
 
+# show TEXT: on screen and in the record, masked.
+show() { printf '%s\n' "$1" | mask | tee -a "$RECORD" | sed 's/^/  /'; }
+
+# run CMD...: show the command and its output, masked, and add both to the record.
 run() {
   printf '$ %s\n' "$*" | mask | tee -a "$RECORD"
   "$@" 2>&1 | mask | tee -a "$RECORD"
   return "${PIPESTATUS[0]}"
 }
 
+# quietly CMD...: its output, captured for the wizard, never shown.
 quietly() { "$@" 2>/dev/null; }
 
 need() { command -v "$1" >/dev/null 2>&1 || { warn "$1 is not installed: $2"; exit 1; }; }
 
-# gone LABEL CMD...: CMD is a read that fails once the resource is deleted.
+state_check() { (cd "$STACK_DIR" && uv run --frozen python -m deployment.state_check "$@"); }
+
+# with_state CHECK ARGS...: one deployment.state_check check on the current stack's exported
+# state, which is deleted straight after.
+with_state() {
+  local exported="$LOCAL/wizard-state.json" status=0
+  TEMPORARY+=("$exported")
+  quietly pulumi stack export --file "$exported"
+  state_check "$1" "$exported" "${@:2}" || status=$?
+  rm -f "$exported"
+  return "$status"
+}
+
+# gone LABEL NAME NOT_FOUND CMD...: CMD reads the resource NAME. It is gone only when CMD fails
+# with the service's not-found error (the NOT_FOUND pattern); any other failure, such as an
+# expired login or a missing permission, is "could not check" and counts as left.
 gone() {
-  local label="$1"; shift
-  if "$@" >/dev/null 2>&1; then
-    printf '  still there: %s\n' "$label" | tee -a "$RECORD"
+  local label="$1" name="$2" not_found="$3" error
+  shift 3
+  if [[ -z "$name" ]]; then
+    show "could not check: $label (its name is unknown)"
+    LEFT+=("$label (could not check)")
+  elif error=$("$@" 2>&1 >/dev/null); then
+    show "still there: $label"
     LEFT+=("$label")
+  elif [[ "$error" =~ $not_found ]]; then
+    show "gone: $label"
   else
-    printf '  gone: %s\n' "$label" | tee -a "$RECORD"
+    show "could not check: $label"
+    LEFT+=("$label (could not check)")
   fi
 }
 
-# state_check CHECK ARGS...: the stack's exported state, checked (deployment.state_check).
-state_check() { (cd "$STACK_DIR" && uv run --frozen python -m deployment.state_check "$@"); }
-
-LEFT=()
+RECORD="$LOCAL/teardown-record.txt"
+REFERENCE_DIR="$REPO/examples/reference-workload"
+REFERENCE_STACK="${WIZARD_REFERENCE_STACK:-dev}"
+# Each service's error for a resource that does not exist, as the AWS CLI prints it.
+LAMBDA_GONE="ResourceNotFoundException"
+IAM_GONE="NoSuchEntity"
+S3_GONE="\(404\)|Not Found"
+GLUE_GONE="EntityNotFoundException"
+ATHENA_GONE="is not found"
+BUDGETS_GONE="NotFoundException"
 
 run_wizard() {
 
@@ -274,7 +310,7 @@ hide_saved DEPLOYER_PROFILE REFERENCE_PROFILE EXPORT_BUCKET EXPORT_NAME EXPORT_P
 
 stage "Tools and profile"
 say "This wizard destroys two stacks: the Deployment, then the reference workload (#26)."
-say "It asks before every destroy, and checks in AWS that nothing is left."
+say "It asks before every step that changes anything, and checks in AWS that nothing is left."
 need pulumi "install the Pulumi CLI 3.272.0"
 need uv "install uv"
 need aws "install the AWS CLI v2"
@@ -286,6 +322,7 @@ hide "$DEPLOYER_PROFILE" "<deployer profile>"
 ACCOUNT_ID=$(quietly aws sts get-caller-identity --profile "$DEPLOYER_PROFILE" --query Account --output text) \
   || { warn "the profile cannot sign in: check it with aws sts get-caller-identity"; exit 1; }
 hide "$ACCOUNT_ID" "<account>"
+show "signed in to <account> with <deployer profile>"
 ask_secret PULUMI_CONFIG_PASSPHRASE "The Deployment stack's passphrase (not saved):"
 export PULUMI_CONFIG_PASSPHRASE
 export PULUMI_BACKEND_URL="file://$LOCAL/pulumi"
@@ -315,17 +352,19 @@ stage "Choose what happens to the data"
 say "By default a destroy keeps the bucket, with the database, the Inbox and every version."
 DELETE_DATA=false
 if confirm "Delete the bucket and everything in it instead? This cannot be undone."; then
+  warn "pulumi up must record the choice in the state before the destroy. It also deploys"
+  warn "this checkout's code and settings, as any pulumi up does."
+  confirm "Run pulumi up to record it?" || { warn "stopped; nothing was changed"; exit 1; }
   DELETE_DATA=true
   run pulumi config set deleteDataOnDestroy true
-  warn "pulumi up records the choice in the state before the destroy."
-  confirm "Run pulumi up to record it?" || { warn "stopped; nothing was destroyed"; exit 1; }
-  run pulumi up --yes --policy-pack policy --suppress-outputs
+  if ! run pulumi up --yes --policy-pack policy --suppress-outputs; then
+    run pulumi config rm deleteDataOnDestroy
+    warn "pulumi up failed, so the setting was removed again; nothing was destroyed"
+    exit 1
+  fi
 fi
-EXPORTED="$LOCAL/teardown-state.json"
-quietly pulumi stack export --file "$EXPORTED"
-run state_check retention "$EXPORTED" --delete-data "$DELETE_DATA" \
-  || { warn "the state would not keep or delete what you chose; stopped"; rm -f "$EXPORTED"; exit 1; }
-rm -f "$EXPORTED"
+run with_state retention --delete-data "$DELETE_DATA" \
+  || { warn "the state would not keep or delete what you chose; stopped"; exit 1; }
 pause
 
 stage "Destroy the Deployment"
@@ -334,20 +373,17 @@ confirm "Run pulumi destroy on the Deployment now?" || { warn "stopped; nothing 
 run pulumi destroy --yes --suppress-outputs
 
 stage "Check the Deployment is gone"
-EXPORTED="$LOCAL/teardown-state.json"
-quietly pulumi stack export --file "$EXPORTED"
-run state_check remaining "$EXPORTED" || LEFT+=("resources still in the Deployment's state")
-rm -f "$EXPORTED"
-gone "collector function" aws lambda get-function --function-name "$COLLECTOR" --region "$AWS_REGION_NAME" --profile "$DEPLOYER_PROFILE"
-gone "API function" aws lambda get-function --function-name "$API" --region "$AWS_REGION_NAME" --profile "$DEPLOYER_PROFILE"
-gone "producer policy" aws iam get-policy --policy-arn "$PRODUCER_POLICY" --profile "$DEPLOYER_PROFILE"
-gone "reader policy" aws iam get-policy --policy-arn "$READER_POLICY" --profile "$DEPLOYER_PROFILE"
+run with_state remaining || LEFT+=("resources still in the Deployment's state")
+gone "collector function" "$COLLECTOR" "$LAMBDA_GONE" aws lambda get-function --function-name "$COLLECTOR" --region "$AWS_REGION_NAME" --profile "$DEPLOYER_PROFILE"
+gone "API function" "$API" "$LAMBDA_GONE" aws lambda get-function --function-name "$API" --region "$AWS_REGION_NAME" --profile "$DEPLOYER_PROFILE"
+gone "producer policy" "$PRODUCER_POLICY" "$IAM_GONE" aws iam get-policy --policy-arn "$PRODUCER_POLICY" --profile "$DEPLOYER_PROFILE"
+gone "reader policy" "$READER_POLICY" "$IAM_GONE" aws iam get-policy --policy-arn "$READER_POLICY" --profile "$DEPLOYER_PROFILE"
 if [[ "$DELETE_DATA" == true ]]; then
-  gone "bucket" aws s3api head-bucket --bucket "$BUCKET" --profile "$DEPLOYER_PROFILE"
+  gone "bucket" "$BUCKET" "$S3_GONE" aws s3api head-bucket --bucket "$BUCKET" --profile "$DEPLOYER_PROFILE"
 elif aws s3api head-bucket --bucket "$BUCKET" --profile "$DEPLOYER_PROFILE" >/dev/null 2>&1; then
-  printf '  kept, as chosen: bucket\n' | tee -a "$RECORD"
+  show "kept, as chosen: bucket"
 else
-  printf '  missing, though it was to be kept: bucket\n' | tee -a "$RECORD"
+  show "missing, though it was to be kept: bucket"
   LEFT+=("the kept bucket is missing")
 fi
 if confirm "Remove the empty Deployment stack from the local state (pulumi stack rm)?"; then
@@ -361,6 +397,9 @@ say "passphrase and profile."
 ask REFERENCE_PROFILE "The profile it was deployed with:"
 write_env REFERENCE_PROFILE "$REFERENCE_PROFILE"
 hide "$REFERENCE_PROFILE" "<reference profile>"
+REFERENCE_ACCOUNT=$(quietly aws sts get-caller-identity --profile "$REFERENCE_PROFILE" --query Account --output text) \
+  || { warn "that profile cannot sign in: check it with aws sts get-caller-identity"; exit 1; }
+hide "$REFERENCE_ACCOUNT" "<reference account>"
 ask_secret REFERENCE_PASSPHRASE "Its stack's passphrase (not saved):"
 cd "$REFERENCE_DIR"
 export PULUMI_CONFIG_PASSPHRASE="$REFERENCE_PASSPHRASE"
@@ -368,10 +407,7 @@ run pulumi stack select "$REFERENCE_STACK"
 REFERENCE_BUCKET=$(quietly pulumi stack output bucket); hide "$REFERENCE_BUCKET" "<reference bucket>"
 DATABASE=$(quietly pulumi stack output database)
 WORKGROUP_NAME=$(quietly pulumi stack output workgroup)
-EXPORTED="$LOCAL/teardown-state.json"
-quietly pulumi stack export --file "$EXPORTED"
-BUDGET=$(quietly state_check ids "$EXPORTED" aws:budgets/budget:Budget || true)
-rm -f "$EXPORTED"
+BUDGET_ID=$(quietly with_state ids aws:budgets/budget:Budget || true) # account:name
 REFERENCE_REGION=$(quietly pulumi config get aws:region || echo us-east-1)
 run pulumi stack output
 pause
@@ -382,15 +418,12 @@ confirm "Run pulumi destroy on the reference workload now?" || { warn "stopped b
 run pulumi destroy --yes --suppress-outputs
 
 stage "Check nothing remains"
-EXPORTED="$LOCAL/teardown-state.json"
-quietly pulumi stack export --file "$EXPORTED"
-run state_check remaining "$EXPORTED" || LEFT+=("resources still in the reference workload's state")
-rm -f "$EXPORTED"
-gone "reference bucket" aws s3api head-bucket --bucket "$REFERENCE_BUCKET" --profile "$REFERENCE_PROFILE"
-gone "Glue database" aws glue get-database --name "$DATABASE" --region "$REFERENCE_REGION" --profile "$REFERENCE_PROFILE"
-gone "Athena workgroup" aws athena get-work-group --work-group "$WORKGROUP_NAME" --region "$REFERENCE_REGION" --profile "$REFERENCE_PROFILE"
-if [[ -n "$BUDGET" ]]; then
-  gone "Budget" aws budgets describe-budget --account-id "$ACCOUNT_ID" --budget-name "$BUDGET" --profile "$REFERENCE_PROFILE"
+run with_state remaining || LEFT+=("resources still in the reference workload's state")
+gone "reference bucket" "$REFERENCE_BUCKET" "$S3_GONE" aws s3api head-bucket --bucket "$REFERENCE_BUCKET" --profile "$REFERENCE_PROFILE"
+gone "Glue database" "$DATABASE" "$GLUE_GONE" aws glue get-database --name "$DATABASE" --region "$REFERENCE_REGION" --profile "$REFERENCE_PROFILE"
+gone "Athena workgroup" "$WORKGROUP_NAME" "$ATHENA_GONE" aws athena get-work-group --work-group "$WORKGROUP_NAME" --region "$REFERENCE_REGION" --profile "$REFERENCE_PROFILE"
+if [[ -n "$BUDGET_ID" ]]; then
+  gone "Budget" "${BUDGET_ID#*:}" "$BUDGETS_GONE" aws budgets describe-budget --account-id "${BUDGET_ID%%:*}" --budget-name "${BUDGET_ID#*:}" --profile "$REFERENCE_PROFILE"
 fi
 if confirm "Remove the empty reference workload stack from the local state (pulumi stack rm)?"; then
   run pulumi stack rm --yes "$REFERENCE_STACK"
@@ -400,9 +433,10 @@ pause
 stage "Record"
 if (( ${#LEFT[@]} )); then
   warn "Not everything is gone:"
-  for item in "${LEFT[@]}"; do note "  - $item" | tee -a "$RECORD"; done
+  show "NOT EVERYTHING IS GONE:"
+  for item in "${LEFT[@]}"; do show "  - $item"; done
 else
-  say "Nothing from either stack remains, apart from a bucket you chose to keep." | tee -a "$RECORD"
+  show "Nothing from either stack remains, apart from a bucket you chose to keep."
 fi
 say "Everything shown, masked, is in $(basename "$RECORD") under .local/. Share it to record"
 say "the teardown in progress.md and close #26. To bring the reference workload back, follow"

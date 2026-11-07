@@ -20,16 +20,28 @@ case "$name $*" in
   "pulumi stack export"*) echo '{}' > "$last" ;;
   "pulumi config get"*) exit 1 ;;
   "pulumi preview"*|"pulumi up"*|"pulumi destroy"*)  # Pulumi prints the outputs unless told not to
-    echo "pulumi did $1"; [[ "$*" == *--suppress-outputs* ]] || echo "bucket: owner-secret-bucket-1a2b" ;;
+    echo "pulumi did $1 on arn:aws:s3:::data-finops-1a2b3c4"  # an auto-named bucket, before any output
+    [[ "$*" == *--suppress-outputs* ]] || echo "bucket: owner-secret-bucket-1a2b" ;;
   "pulumi "*) echo "pulumi did $1 in ${ACCOUNT}" ;;
   "aws sts get-caller-identity"*"--query Account"*) echo ${ACCOUNT} ;;
   "aws sts get-caller-identity"*) echo arn:aws:iam::${ACCOUNT}:user/owner-deployer-profile ;;
   "aws iam list-entities-for-policy"*) printf '0\t0\t0\n' ;;
   "aws lambda invoke"*) printf '{"exit_code":0,"bucket":"owner-secret-bucket-1a2b","account":"%s","owner":"%s"}\n' "$ACCOUNT" "$OTHER" > "$last"; echo '{"StatusCode": 200}' ;;
-  "aws s3api head-bucket --bucket owner-secret-bucket-1a2b"*) [[ "${STUB_KEPT:-}" == 1 ]] ;;
-  "aws lambda get-function"*|"aws iam get-policy"*|"aws s3api head-bucket"*|"aws glue get-database"*|"aws athena get-work-group"*|"aws budgets describe-budget"*) exit 254 ;;
+  "aws s3api head-bucket --bucket owner-secret-bucket-1a2b"*) [[ "${STUB_KEPT:-}" == 1 ]] && exit 0
+    echo "An error occurred (404) when calling the HeadBucket operation: Not Found" >&2; exit 254 ;;
+  # After a destroy, each read fails as the real service does for a missing resource.
+  "aws glue get-database"*) if [[ "${STUB_DENIED:-}" == 1 ]]; then
+      echo "An error occurred (AccessDeniedException) when calling the GetDatabase operation" >&2
+    else echo "An error occurred (EntityNotFoundException) when calling the GetDatabase operation" >&2; fi
+    exit 254 ;;
+  "aws lambda get-function"*) echo "An error occurred (ResourceNotFoundException) when calling the GetFunction operation" >&2; exit 254 ;;
+  "aws iam get-policy"*) echo "An error occurred (NoSuchEntity) when calling the GetPolicy operation" >&2; exit 254 ;;
+  "aws s3api head-bucket"*) echo "An error occurred (404) when calling the HeadBucket operation: Not Found" >&2; exit 254 ;;
+  "aws athena get-work-group"*) echo "An error occurred (InvalidRequestException) when calling the GetWorkGroup operation: WorkGroup is not found." >&2; exit 254 ;;
+  "aws budgets describe-budget"*"--budget-name data-finops-reference-budget "*) echo "An error occurred (NotFoundException) when calling the DescribeBudget operation" >&2; exit 254 ;;
+  "aws budgets describe-budget"*) echo "An error occurred (ValidationException) when calling the DescribeBudget operation" >&2; exit 254 ;;
   "aws "*) echo "aws ok for owner-export-bucket-9c1d" ;;
-  "uv run --frozen python -m deployment.state_check ids"*) echo data-finops-reference-budget ;;
+  "uv run --frozen python -m deployment.state_check ids"*) echo "${ACCOUNT}:data-finops-reference-budget" ;;
   "uv run --frozen python -m deployment.state_check policies"*) mkdir -p "$last"; echo '{}' > "$last/data-finops-collector.json"; echo data-finops-collector.json ;;
   "uv run --frozen python -m deployment.state_check"*) echo ok ;;
   "uv "*) echo "uv ok" ;;

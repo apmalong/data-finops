@@ -27,6 +27,7 @@ SECRETS = {
     "export name": "owner-focus-export",
     "email": "owner@example.org",
     "url": "abcdefghij.lambda-url",
+    "auto-named bucket": "data-finops-1a2b3c4",
     "passphrase": "correct-horse-staple",
 }
 SEEDED = {
@@ -120,9 +121,9 @@ def _nothing_secret(*texts: str) -> None:
 DEPLOY_ANSWERS = [
     "",  # banner
     "",  # tools
-    "", "",  # profile, pause
+    "", "", "",  # profile, Region, pause
     "y", "",  # validate the draft
-    "", "", "", "", "", "", "", SECRETS["passphrase"], "",  # settings
+    "", "", "", "", "", "", SECRETS["passphrase"], "",  # settings
     "",  # package
     "y",  # preview
     "y", "",  # deploy
@@ -153,7 +154,8 @@ def test_the_deploy_wizard_dry_run_reaches_no_real_tool_and_masks_its_output(
     assert calls.index(next(c for c in calls if c.startswith("pulumi preview"))) < calls.index(
         next(c for c in calls if c.startswith("pulumi up"))
     )
-    assert "<account>" in record and "<bucket>" in record and "<deployer profile>" in record
+    assert "pulumi did stack in <account>" in record  # masked by its label, not only the pattern
+    assert "<bucket>" in record and "<deployer profile>" in record
     _nothing_secret(result.stdout, result.stderr, record)
 
 
@@ -213,6 +215,35 @@ def test_the_teardown_wizard_records_the_choice_to_delete_the_data_before_destro
     destroy = next(i for i, c in enumerate(calls) if c.startswith("pulumi destroy"))
     assert setting < up < destroy
     assert "gone: bucket" in record
+    _nothing_secret(result.stdout, result.stderr, record)
+
+
+def test_the_teardown_wizard_changes_nothing_when_the_owner_declines_the_up(
+    tmp_path: Path,
+) -> None:
+    answers = TEARDOWN_KEEP[:6] + ["y", "n"]  # delete the data, then no to pulumi up
+    result, calls, _ = _dry_run(TEARDOWN, answers, tmp_path)
+    assert result.returncode == 1
+    assert not any(
+        c.startswith(("pulumi config set deleteDataOnDestroy", "pulumi up")) for c in calls
+    )
+
+
+def test_the_teardown_wizard_never_calls_a_failed_check_gone(tmp_path: Path) -> None:
+    # A read that fails for any reason but "not found" (here, access denied) is no proof.
+    result, calls, record = _dry_run(
+        TEARDOWN, TEARDOWN_KEEP, tmp_path, STUB_KEPT="1", STUB_DENIED="1"
+    )
+    assert result.returncode == 0, result.stdout[-2000:] + result.stderr[-2000:]
+    assert "could not check: Glue database" in record
+    assert "gone: Glue database" not in record
+    assert "NOT EVERYTHING IS GONE:" in record
+    # The Budget's Pulumi ID is account:name; the check asks for the name in that account.
+    assert any(
+        c.startswith(f"aws budgets describe-budget --account-id {ACCOUNT} ")
+        and "--budget-name data-finops-reference-budget " in c
+        for c in calls
+    )
     _nothing_secret(result.stdout, result.stderr, record)
 
 

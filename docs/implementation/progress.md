@@ -277,7 +277,7 @@ Designed 2026-11-06 in PR #176 (spec 08; ADRs 0026–0028; GLOSSARY: Deployment,
     root     .venv/Scripts/python.exe -m pytest -q → 977 passed
              ruff --no-cache check . / format --check . → All checks passed / formatted
              python -m scripts.site build → 0 page(s) written; python -S -m scripts.site check → 0 problem(s)
-    stack    .venv/Scripts/python.exe -m pytest -q → 96 passed, 1 skipped (the real package build, which CI runs)
+    stack    .venv/Scripts/python.exe -m pytest -q → 98 passed, 1 skipped (the real package build, which CI runs)
              mypy → Success: no issues found in 19 source files; bandit -q -r deployment __main__.py → clean
     policy/  unchanged since #201 → 44 passed
     ```

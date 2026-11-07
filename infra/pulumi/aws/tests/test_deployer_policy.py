@@ -95,4 +95,4 @@ def test_the_draft_reaches_every_service_the_program_declares(
 
     # Once both components are ready, every resource has been registered with the mocks.
     ready = pulumi.Output.all(deployment.storage.ready, deployment.compute.ready)
-    return ready.apply(check)  # type: ignore[return-value]
+    return ready.apply(check)

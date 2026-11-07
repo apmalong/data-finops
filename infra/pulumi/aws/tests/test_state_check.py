@@ -141,6 +141,7 @@ def _with_policies() -> dict[str, Any]:
     for typ, name, document in (
         ("aws:iam/rolePolicy:RolePolicy", "data-finops-collector", {"Statement": [1]}),
         ("aws:iam/policy:Policy", "data-finops-reader", {"Statement": [2]}),
+        ("aws:s3/bucketPolicy:BucketPolicy", "data-finops", {"Statement": [3]}),
     ):
         resource = _resource(typ, name, COMPUTE)
         resource["outputs"] = {"policy": json.dumps(document), "arn": "arn:aws:iam::123456789012:x"}
@@ -154,9 +155,11 @@ def test_policies_writes_each_iam_document_by_its_logical_name(tmp_path: Path) -
     exported.write_text(json.dumps(_with_policies()), encoding="utf-8")
     out = tmp_path / "policies"
     assert main(["policies", str(exported), str(out)]) == 0
+    # A bucket policy is a resource policy, which IAM Access Analyzer validates as one.
     assert sorted(p.name for p in out.iterdir()) == [
         "data-finops-collector.json",
         "data-finops-reader.json",
+        "data-finops.resource.json",
     ]
     assert json.loads((out / "data-finops-reader.json").read_text(encoding="utf-8")) == {
         "Statement": [2]

@@ -196,20 +196,25 @@ finish() {
 # Replace the example below. Set TOTAL_STAGES to match the stages you write.
 # Keep every stage inside run_wizard and the last line as is: bash then parses
 # the whole file before the first prompt, so an edit mid-run can't break it.
-# ──────────────────────────────────────────────────────────────────────────
 
 # ── Shared by this wizard's stages ─────────────────────────────────────────
-# The owner runs this wizard, never an agent (spec 08, owner-only steps). Every command's
-# output goes through `mask`: no account ID, bucket, profile, email or URL is shown or
-# recorded, so the record can be shared.
+# The owner runs this wizard, never an agent (spec 08, owner-only steps). Everything shown or
+# recorded goes through `mask`: no account ID, bucket, profile, email or URL appears, so the
+# record can be shared. Both wizards carry this block, so that each stands alone.
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
 STACK_DIR="$REPO/infra/pulumi/aws"
 LOCAL="${WIZARD_LOCAL_DIR:-$REPO/.local}"
-ENV_FILE="${WIZARD_ENV_FILE:-$LOCAL/deploy-wizard.env}"  # git-ignored; no secret is written
-RECORD="$LOCAL/deploy-and-verify-record.txt"
+ENV_FILE="${WIZARD_ENV_FILE:-$LOCAL/deploy-wizard.env}" # git-ignored; no secret is written
 STACK="${WIZARD_STACK:-dev}"
 SENSITIVE=() # "value|label" pairs that mask replaces, in order
+LEFT=()      # what a check found still there, or could not check
+TEMPORARY=() # files holding unmasked state, removed however the wizard ends
+trap 'rm -rf ${TEMPORARY[@]+"${TEMPORARY[@]}"}' EXIT
+
+hide() { [[ -n "$1" ]] && SENSITIVE+=("$1|$2"); return 0; }
+hide "$LOCAL" "<local>"
+hide "$REPO" "<repo>"
 
 # hide_saved KEY...: hide each value already saved in ENV_FILE, before any command runs.
 hide_saved() {
@@ -221,21 +226,22 @@ hide_saved() {
   done
 }
 
-hide() { [[ -n "$1" ]] && SENSITIVE+=("$1|$2"); return 0; }
-hide "$LOCAL" "<local>"
-hide "$REPO" "<repo>"
-
-# mask: stdin to stdout with every hidden value replaced by its label and any 12-digit
-# number by the example account ID.
+# mask: stdin to stdout with every hidden value replaced by its label, any 12-digit number by
+# the example account ID, and Pulumi's auto-named bucket (data-finops-<7 hex>), which a failed
+# command can name before the wizard knows it, by <bucket>.
 mask() {
   local line pair
   while IFS= read -r line || [[ -n "$line" ]]; do
     for pair in ${SENSITIVE[@]+"${SENSITIVE[@]}"}; do
       line="${line//"${pair%%|*}"/${pair#*|}}"
     done
-    printf '%s\n' "$line" | sed -E 's/[0-9]{12}/123456789012/g'
+    printf '%s\n' "$line" | sed -E -e 's/[0-9]{12}/123456789012/g' \
+      -e 's/data-finops-[0-9a-f]{7}([^0-9a-z-]|$)/<bucket>\1/g'
   done
 }
+
+# show TEXT: on screen and in the record, masked.
+show() { printf '%s\n' "$1" | mask | tee -a "$RECORD" | sed 's/^/  /'; }
 
 # run CMD...: show the command and its output, masked, and add both to the record.
 run() {
@@ -248,6 +254,41 @@ run() {
 quietly() { "$@" 2>/dev/null; }
 
 need() { command -v "$1" >/dev/null 2>&1 || { warn "$1 is not installed: $2"; exit 1; }; }
+
+state_check() { (cd "$STACK_DIR" && uv run --frozen python -m deployment.state_check "$@"); }
+
+# with_state CHECK ARGS...: one deployment.state_check check on the current stack's exported
+# state, which is deleted straight after.
+with_state() {
+  local exported="$LOCAL/wizard-state.json" status=0
+  TEMPORARY+=("$exported")
+  quietly pulumi stack export --file "$exported"
+  state_check "$1" "$exported" "${@:2}" || status=$?
+  rm -f "$exported"
+  return "$status"
+}
+
+# gone LABEL NAME NOT_FOUND CMD...: CMD reads the resource NAME. It is gone only when CMD fails
+# with the service's not-found error (the NOT_FOUND pattern); any other failure, such as an
+# expired login or a missing permission, is "could not check" and counts as left.
+gone() {
+  local label="$1" name="$2" not_found="$3" error
+  shift 3
+  if [[ -z "$name" ]]; then
+    show "could not check: $label (its name is unknown)"
+    LEFT+=("$label (could not check)")
+  elif error=$("$@" 2>&1 >/dev/null); then
+    show "still there: $label"
+    LEFT+=("$label")
+  elif [[ "$error" =~ $not_found ]]; then
+    show "gone: $label"
+  else
+    show "could not check: $label"
+    LEFT+=("$label (could not check)")
+  fi
+}
+
+RECORD="$LOCAL/deploy-and-verify-record.txt"
 
 run_wizard() {
 
@@ -273,19 +314,21 @@ fi
 command -v awscurl >/dev/null 2>&1 || warn "awscurl is missing, so stage 11 will be skipped: uv tool install awscurl"
 pause
 
-stage "Deployer profile"
+stage "Deployer profile and Region"
 say "The deployer is an identity you create, never the stack. Its draft policy, unvalidated,"
 say "is infra/pulumi/aws/iam/deployer-policy.draft.json."
 open_url "https://console.aws.amazon.com/iam/home#/policies"
 step "Create a customer-managed policy from the draft file, then a user or role with it."
 step "Configure a named CLI profile for it: aws configure sso, or aws configure --profile NAME."
 ask DEPLOYER_PROFILE "The deployer's profile name:"
+ask AWS_REGION_NAME "AWS Region to deploy to (for example us-east-1):"
 write_env DEPLOYER_PROFILE "$DEPLOYER_PROFILE"
+write_env AWS_REGION_NAME "$AWS_REGION_NAME"
 hide "$DEPLOYER_PROFILE" "<deployer profile>"
 ACCOUNT_ID=$(quietly aws sts get-caller-identity --profile "$DEPLOYER_PROFILE" --query Account --output text) \
   || { warn "the profile cannot sign in: check it with aws sts get-caller-identity"; exit 1; }
 hide "$ACCOUNT_ID" "<account>"
-run aws sts get-caller-identity --profile "$DEPLOYER_PROFILE" --query Arn --output text
+show "signed in to <account> with <deployer profile>"
 pause
 
 stage "Validate the deployer's draft policy (optional)"
@@ -294,7 +337,8 @@ say "the document; nothing is created."
 if confirm "Validate the draft deployer policy now?"; then
   run aws accessanalyzer validate-policy --policy-type IDENTITY_POLICY \
     --policy-document "file://$STACK_DIR/iam/deployer-policy.draft.json" \
-    --profile "$DEPLOYER_PROFILE" --query 'findings[].[findingType,issueCode]' --output text
+    --region "$AWS_REGION_NAME" --profile "$DEPLOYER_PROFILE" \
+    --query 'findings[].[findingType,issueCode]' --output text
   note "No output means no findings. Fix any ERROR before you go on."
   pause
 fi
@@ -302,21 +346,20 @@ fi
 stage "Stack settings"
 say "Every setting is described on the site's Deployment settings page. Leave the optional"
 say "ones empty to skip them."
-ask AWS_REGION_NAME "AWS Region (for example us-east-1):"
 ask EXPORT_BUCKET "The FOCUS export's bucket:"
 ask EXPORT_NAME "The FOCUS export's name:"
 ask EXPORT_PREFIX "The export's S3 path prefix (empty if none):" || true
 ask WORKGROUP "One Athena workgroup to collect:"
 ask BUDGET_USD "Monthly Budget alert in USD (empty for none):" || true
 ask ALERT_EMAIL "Email for the Budget and the collector's alarm (empty for none):" || true
-for key in AWS_REGION_NAME EXPORT_BUCKET EXPORT_NAME EXPORT_PREFIX WORKGROUP BUDGET_USD ALERT_EMAIL; do
+for key in EXPORT_BUCKET EXPORT_NAME EXPORT_PREFIX WORKGROUP BUDGET_USD ALERT_EMAIL; do
   write_env "$key" "${!key:-}"
 done
 hide "$EXPORT_BUCKET" "<export bucket>"
 hide "$EXPORT_NAME" "<export name>"
 hide "$EXPORT_PREFIX" "<export prefix>"
 hide "$WORKGROUP" "<workgroup>"
-hide "$ALERT_EMAIL" "<email>"
+hide "$ALERT_EMAIL" "<alert email>"
 ask_secret PULUMI_CONFIG_PASSPHRASE "Passphrase for the stack's state (chosen now, needed every time; not saved):"
 export PULUMI_CONFIG_PASSPHRASE
 export PULUMI_BACKEND_URL="file://$LOCAL/pulumi"
@@ -360,35 +403,43 @@ run pulumi stack output
 pause
 
 stage "Check what a destroy would keep"
-say "Pulumi's mocks cannot see which resources a destroy keeps, so this reads the real state."
-EXPORTED="$LOCAL/deploy-wizard-state.json"
-quietly pulumi stack export --file "$EXPORTED"
+say "Pulumi's mocks cannot see which resources a destroy keeps, so this reads the real state:"
+say "only the bucket and its settings may be kept, unless deleteDataOnDestroy is true."
 DELETE_DATA=$(quietly pulumi config get deleteDataOnDestroy || echo false)
-run uv run --frozen python -m deployment.state_check retention "$EXPORTED" --delete-data "${DELETE_DATA:-false}" \
-  || warn "the state does not keep exactly the bucket and its settings: record this"
+if ! run with_state retention --delete-data "${DELETE_DATA:-false}"; then
+  warn "a destroy would not keep exactly the bucket and its settings: report it before relying on it"
+  SKIPPED+=("a destroy would not keep exactly the bucket and its settings (stage 8)")
+  show "PROBLEM: a destroy would not keep exactly the bucket and its settings"
+fi
 pause
 
 stage "Validate the deployed policies (optional)"
-if confirm "Check each of the Deployment's IAM policies with IAM Access Analyzer?"; then
+if confirm "Check the Deployment's IAM and bucket policies with IAM Access Analyzer?"; then
   POLICIES="$LOCAL/deploy-wizard-policies"
-  quietly uv run --frozen python -m deployment.state_check policies "$EXPORTED" "$POLICIES" >/dev/null
+  TEMPORARY+=("$POLICIES")
+  quietly with_state policies "$POLICIES" >/dev/null
   for document in "$POLICIES"/*.json; do
     [[ -e "$document" ]] || continue
-    printf '%s\n' "$(basename "$document")" | tee -a "$RECORD"
-    run aws accessanalyzer validate-policy --policy-type IDENTITY_POLICY \
-      --policy-document "file://$document" --profile "$DEPLOYER_PROFILE" \
-      --region "$AWS_REGION_NAME" --query 'findings[].[findingType,issueCode]' --output text
+    show "$(basename "$document")"
+    if [[ "$document" == *.resource.json ]]; then
+      kind=(--policy-type RESOURCE_POLICY --validate-policy-resource-type AWS::S3::Bucket)
+    else
+      kind=(--policy-type IDENTITY_POLICY)
+    fi
+    run aws accessanalyzer validate-policy "${kind[@]}" --policy-document "file://$document" \
+      --region "$AWS_REGION_NAME" --profile "$DEPLOYER_PROFILE" \
+      --query 'findings[].[findingType,issueCode]' --output text
   done
   rm -rf "$POLICIES"
   note "No output under a name means no findings."
   pause
 fi
-rm -f "$EXPORTED"
 
 stage "One Collection Run"
 say "The collector runs once a day; this runs one now and shows its summary."
 confirm "Invoke the collector now?" || { warn "skipped: the schedule runs it at its next time"; finish; exit 0; }
 RESULT="$LOCAL/deploy-wizard-collector-result.json"
+TEMPORARY+=("$RESULT")
 run aws lambda invoke --function-name "$COLLECTOR" --cli-read-timeout 900 \
   --region "$AWS_REGION_NAME" --profile "$DEPLOYER_PROFILE" "$RESULT"
 mask < "$RESULT" | tee -a "$RECORD"
@@ -401,6 +452,7 @@ if command -v awscurl >/dev/null 2>&1; then
   run awscurl --service lambda --region "$AWS_REGION_NAME" --profile "$DEPLOYER_PROFILE" "${API_URL}v1/costs/summary"
 else
   SKIPPED+=("reading the API back: install awscurl and see the Read a Deployment page")
+  show "skipped: reading the API back (awscurl is not installed)"
 fi
 pause
 
