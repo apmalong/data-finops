@@ -128,9 +128,25 @@ def test_the_read_model_writes_no_sql():
                 assert not SQL_STATEMENT.match(node.value), f"{path}: SQL {node.value[:40]!r}"
 
 
-def test_only_the_command_line_makes_aws_clients():
-    # spec 08: everything else is handed a client, so tests stub it and no import needs boto3.
+def test_only_aws_clients_makes_aws_clients():
+    # spec 08: the entry points (cli, lambda_handlers) get their clients from aws_clients;
+    # everything else is handed one, so tests stub it and no import needs boto3.
     for path in SRC.rglob("*.py"):
-        if path.parent.name == "cli":
+        if path == SRC / "aws_clients.py":
             continue
         assert not any(n.startswith(("boto3", "botocore")) for n in _imports(path)), path
+
+
+def test_the_lambda_handlers_are_entry_points_over_collection_and_api():
+    # architecture-boundaries.md: thin wrappers like cli: no SQL, no stores, no allocation.
+    names = _imports(SRC / "lambda_handlers.py")
+    for forbidden in (
+        "sqlite3",
+        "boto3",
+        "data_finops.ledger",
+        "data_finops.workload",
+        "data_finops.attribution",
+        "data_finops.calculation",
+        "data_finops.cli",
+    ):
+        assert not any(n == forbidden or n.startswith(forbidden + ".") for n in names), forbidden

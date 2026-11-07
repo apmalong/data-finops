@@ -37,8 +37,8 @@ Reusable, customer-managed Pulumi Python components that deploy data-finops into
 
 ## IAM
 Draft policies are in `docs/research/m6-collector-iam.md` and stay labelled unvalidated until the owner's wizard checks them with IAM Access Analyzer.
-- **Collector role:** `s3:ListBucket` on the export bucket limited by `s3:prefix`; `s3:GetObject` on the export prefix; `kms:Decrypt` only if the export is SSE-KMS; `athena:ListQueryExecutions` and `BatchGetQueryExecution` on the configured workgroup ARNs only, the only Athena calls the collector makes (#181); `s3:GetObject` and `s3:PutObject` (conditional) on `database/data-finops.sqlite` only, and `s3:ListBucket` and `s3:GetObject` on its own bucket's `inbox/`; its own log group. An explicit deny on `athena:StartQueryExecution`, `StopQueryExecution`, `GetQueryResults` and `GetQueryRuntimeStatistics`.
-- **API role:** `s3:GetObject` on the database object; its own log group.
+- **Collector role:** `s3:ListBucket` on the export bucket limited by `s3:prefix`; `s3:GetObject` on the export prefix; `kms:Decrypt` only if the export is SSE-KMS; `athena:ListQueryExecutions` and `BatchGetQueryExecution` on the configured workgroup ARNs only, the only Athena calls the collector makes (#181); `s3:GetObject` and `s3:PutObject` (conditional) on `database/data-finops.sqlite` only, `s3:GetObject` on its own bucket's `inbox/`, and `s3:ListBucket` on its own bucket; its own log group. An explicit deny on `athena:StartQueryExecution`, `StopQueryExecution`, `GetQueryResults` and `GetQueryRuntimeStatistics`.
+- **API role:** `s3:GetObject` on the database object and `s3:ListBucket` on its own bucket; its own log group. Without `s3:ListBucket`, S3 answers a missing object with `AccessDenied`, not `NoSuchKey`, so both roles need it on the Deployment's own bucket for the first run and for an API serving before it (#183, #184).
 - **Producer policy** (output): `s3:PutObject` on `inbox/*` only.
 - **Reader policy** (output): `lambda:InvokeFunctionUrl` on the API function.
 - **Deployer:** created by the owner, never by the stack; a draft least-privilege deployer policy is documented, unvalidated.

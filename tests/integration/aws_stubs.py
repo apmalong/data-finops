@@ -12,7 +12,10 @@ from typing import Any
 
 import boto3
 from botocore.response import StreamingBody
-from botocore.stub import Stubber
+from botocore.stub import ANY, Stubber
+
+from data_finops.collection import CollectionSettings
+from data_finops.collection.remote import DATABASE_KEY
 
 BUCKET = "example-deployment-bucket"
 REGION = "us-east-1"
@@ -168,4 +171,31 @@ def expect_batch(
             ],
         },
         {"QueryExecutionIds": ids},
+    )
+
+
+DEPLOYMENT = CollectionSettings(  # the settings of the Deployment the stubs stand for
+    bucket=BUCKET,
+    region=REGION,
+    account_id=ACCOUNT,
+    workgroups=(WORKGROUP,),
+    export_bucket=EXPORT_BUCKET,
+    export_prefix=EXPORT_PREFIX,
+    export_name=EXPORT_NAME,
+)
+
+
+def expect_quiet_sources(s3_stub: Stubber, athena_stub: Stubber) -> None:
+    """Every source empty: the Inboxes, the history and the export."""
+    expect_listing(s3_stub, "inbox/dbt/", {})
+    expect_listing(s3_stub, "inbox/openlineage/", {})
+    expect_history(athena_stub, [])
+    expect_prefixes(s3_stub, METADATA, [])
+
+
+def expect_database_put(s3_stub: Stubber, condition: dict[str, str]) -> None:
+    s3_stub.add_response(
+        "put_object",
+        {"ETag": '"written"'},
+        {"Bucket": BUCKET, "Key": DATABASE_KEY, "Body": ANY} | condition,
     )

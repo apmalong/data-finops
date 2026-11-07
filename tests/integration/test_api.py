@@ -163,7 +163,6 @@ def test_a_read_only_app_serves_reads_but_no_receiver_or_dashboard(tmp_path: Pat
     with TestClient(create_app(db, read_only=True)) as client:
         assert client.get("/health").status_code == 200
         assert client.get("/v1/costs/summary").status_code == 200
-        received = client.post("/api/v1/lineage", content=b"{}")
-        assert received.status_code in (404, 405)
+        assert client.post("/api/v1/lineage", content=b"{}").status_code == 404
         assert client.get("/dashboard/").status_code == 404
         assert client.get("/", follow_redirects=False).status_code == 404
