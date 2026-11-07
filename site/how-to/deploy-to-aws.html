@@ -58,13 +58,19 @@
 <!-- onpage:end -->
 <p>A Deployment runs data-finops in one AWS account: a collector function that runs a Collection Run once a day, and a read-only API behind an IAM-authorized Function URL (<a href="https://github.com/apmalong/data-finops/blob/main/docs/adr/0026-aws-deployment-two-lambdas-without-vpc.md">ADR 0026</a>). This guide builds the functions' package, configures the Pulumi stack, checks it with the policy pack, deploys it and runs a first Collection Run. <a href="../explanation/deployment-architecture.html">Deployment architecture</a> explains what it creates and what it costs.</p>
 <p class="notice">Owner-run: not run on this page. Every command here reaches a real AWS account, and the deploy creates resources that cost money. Only the account owner runs <code>pulumi preview</code>, <code>pulumi up</code> and <code>pulumi destroy</code> against a real account.</p>
+<p>The owner can follow this page by hand, or run it as one wizard: <a href="https://github.com/apmalong/data-finops/blob/main/infra/pulumi/aws/wizards/deploy-and-verify.sh"><code>deploy-and-verify.sh</code></a>. It runs every step below, checks what a destroy would keep, can validate the IAM policies with IAM Access Analyzer, and runs and reads back a first Collection Run. It asks before every step that changes anything, and masks account IDs, buckets, profiles and the API's URL in everything it shows and records. From the repository root:</p>
+<div class="shell-tabs">
+<pre class="shell-posix"><code><span class="line">bash infra/pulumi/aws/wizards/deploy-and-verify.sh</span></code></pre>
+<pre class="shell-windows"><code><span class="line">&amp; "C:\Program Files\Git\bin\bash.exe" infra/pulumi/aws/wizards/deploy-and-verify.sh</span></code></pre>
+</div>
+<p>On Windows it needs Git Bash, not WSL's <code>bash</code>. Its masked record is written to <code>.local/</code>.</p>
 
 <h2 id="before">Before you start</h2>
 <ul>
 <li>One AWS account holds the FOCUS export's bucket, the Athena workgroups and the Deployment. Reading another account's export or history is not supported.</li>
 <li>The FOCUS export uses the "create new" delivery mode, as <a href="ingest-focus-export.html">Ingest a FOCUS export</a> describes. A Collection Run refuses an export that overwrites its files. An export encrypted with a KMS key is not supported yet.</li>
 <li>The database fits in a function's <code>/tmp</code>. The stack leaves it at Lambda's default, 512 MB, which both functions share with the package's own files.</li>
-<li>An AWS profile for a dedicated deployer identity, created by the account owner. The stack never creates it.</li>
+<li>An AWS profile for a dedicated deployer identity, created by the account owner. The stack never creates it. A draft least-privilege policy for it is <a href="https://github.com/apmalong/data-finops/blob/main/infra/pulumi/aws/iam/deployer-policy.draft.json"><code>iam/deployer-policy.draft.json</code></a>. It is unvalidated: the wizard can check it with IAM Access Analyzer, and a missing permission shows up as an access error in <code>pulumi up</code>.</li>
 <li>The Pulumi CLI, version 3.272.0, and uv. A test checks the CLI's version against the stack's.</li>
 </ul>
 
