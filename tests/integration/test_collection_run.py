@@ -32,6 +32,7 @@ from delivery_files import write_delivery
 from fixture_database import EXPORT, FIXTURES
 from fixture_database import OTHER_ACCOUNT as OTHER
 
+from data_finops.billing.aws_data_exports import load_delivery
 from data_finops.collection import (
     AwsClients,
     CollectionSettings,
@@ -607,6 +608,7 @@ def test_a_delivery_older_than_the_current_snapshot_is_never_downloaded(tmp_path
     _run_exports(db, {NOV: [second]}, [second])
     late = _run_exports(db, {NOV: [first, second]}, [])  # FIRST appears late: superseded
     assert (late.sources["focus"].stored, late.sources["focus"].duplicates) == (0, 0)
+    assert late.exit_code == 0  # nothing was fetched: a download would fail the source
 
 
 def test_an_overwrite_mode_layout_is_refused_with_a_reason(tmp_path: Path) -> None:
@@ -767,4 +769,105 @@ def test_only_the_most_recent_billing_periods_are_looked_at(tmp_path: Path) -> N
         [november],
         settings=one,
     )  # September and October are never listed
+    assert summary.sources["focus"].stored == 1
+
+
+THIRD = f"{NOV}/2026-11-06T09:12:01.123Z-1d2c3b4a-5e6f-4a7b-8c9d-0e1f2a3b4c5d"
+
+
+def test_a_newer_snapshot_of_another_billing_account_does_not_hide_this_one(
+    tmp_path: Path,
+) -> None:
+    db = tmp_path / "data-finops.sqlite"
+    theirs_files = _delivery(tmp_path, THIRD, [9.0])
+    local = tmp_path / "theirs"
+    local.mkdir()
+    for key, data in {**theirs_files.metadata, **theirs_files.data}.items():
+        (local / key.rpartition("/")[2]).write_bytes(data)
+    theirs = load_delivery(local / MANIFEST_NAME)
+    theirs = theirs.model_copy(
+        update={
+            "snapshot": theirs.snapshot.model_copy(
+                update={"billing_account_id": OTHER, "snapshot_id": "theirs"}
+            ),
+            "lines": [line.model_copy(update={"BillingAccountId": OTHER}) for line in theirs.lines],
+        }
+    )
+    with Ledger(db) as ledger:
+        ledger.import_snapshot(theirs)  # published later than ours, for another payer
+    ours = _delivery(tmp_path, SECOND, [0.0003])
+    summary = _run_exports(db, {NOV: [ours]}, [ours])
+    assert summary.sources["focus"].stored == 1
+
+
+def test_a_replayed_delivery_is_downloaded_once_and_never_again(tmp_path: Path) -> None:
+    db = tmp_path / "data-finops.sqlite"
+    second, third = _delivery(tmp_path, SECOND, [0.0003]), _delivery(tmp_path, THIRD, [0.0003])
+    _run_exports(db, {NOV: [second]}, [second])
+    replay = _run_exports(db, {NOV: [second, third]}, [third])  # same content, published later
+    settled = _run_exports(db, {NOV: [second, third]}, [])
+    assert (replay.sources["focus"].stored, replay.sources["focus"].duplicates) == (0, 1)
+    assert (settled.sources["focus"].stored, settled.sources["focus"].duplicates) == (0, 0)
+    assert (replay.exit_code, settled.exit_code) == (0, 0)
+
+
+def test_a_rejected_delivery_is_not_retried(tmp_path: Path) -> None:
+    db = tmp_path / "data-finops.sqlite"
+    delivery = _delivery(tmp_path, SECOND, [0.0003])
+    (focus_key,) = (k for k in delivery.metadata if k.endswith(FOCUS_MANIFEST_NAME))
+    focus = json.loads(delivery.metadata[focus_key])
+    focus["Schema"]["FocusVersion"] = "1.3"
+    delivery = delivery._replace(
+        metadata=delivery.metadata | {focus_key: json.dumps(focus).encode()}
+    )
+    first = _run_exports(db, {NOV: [delivery]}, [delivery])
+    again = _run_exports(db, {NOV: [delivery]}, [])
+    assert len(first.sources["focus"].rejected) == 1
+    assert (again.sources["focus"].rejected, again.exit_code) == ([], 0)
+
+
+def test_a_folder_not_named_as_aws_names_deliveries_is_warned_about(tmp_path: Path) -> None:
+    odd = _delivery(tmp_path, SECOND, [0.0003])
+    renamed = Delivery(
+        f"{NOV}/copied-by-hand",
+        {k.replace(SECOND, f"{NOV}/copied-by-hand"): v for k, v in odd.metadata.items()},
+        {},
+    )
+    summary = _run_exports(tmp_path / "data-finops.sqlite", {NOV: [renamed]}, [])
+    assert summary.warnings == [f"{NOV}/copied-by-hand: not a Delivery folder; ignored"]
+    assert summary.sources["focus"].rejected == []
+
+
+def test_a_delivery_without_its_focus_manifest_yet_waits(tmp_path: Path) -> None:
+    db = tmp_path / "data-finops.sqlite"
+    whole = _delivery(tmp_path, SECOND, [0.0003])
+    partial = whole._replace(
+        metadata={k: v for k, v in whole.metadata.items() if not k.endswith(FOCUS_MANIFEST_NAME)}
+    )
+    waiting = _run_exports(db, {NOV: [partial]}, [])
+    arrived = _run_exports(db, {NOV: [whole]}, [whole])
+    assert (waiting.sources["focus"].rejected, waiting.sources["focus"].stored) == ([], 0)
+    assert waiting.exit_code == 0
+    assert arrived.sources["focus"].stored == 1
+
+
+def test_only_the_two_manifests_are_downloaded_from_a_delivery_folder(tmp_path: Path) -> None:
+    delivery = _delivery(tmp_path, SECOND, [0.0003])
+    stray = f"{ROOT}metadata/{SECOND}/notes.txt"
+    s3, athena = s3_client(), athena_client()
+    with stubbed(s3) as s3_stub, stubbed(athena) as stubber:
+        expect_listing(s3_stub, DBT, {})
+        expect_listing(s3_stub, OPENLINEAGE, {})
+        expect_history(stubber, [])
+        expect_prefixes(s3_stub, f"{ROOT}metadata/", [NOV])
+        expect_listing(
+            s3_stub,
+            f"{ROOT}metadata/{NOV}/",
+            delivery.metadata | {stray: b"secret"},
+            bucket=EXPORT_BUCKET,
+        )
+        _expect_ingest(s3_stub, delivery)  # the stray file is never fetched
+        summary = run_collection(
+            tmp_path / "data-finops.sqlite", SETTINGS, clients=AwsClients(s3=s3, athena=athena)
+        )
     assert summary.sources["focus"].stored == 1

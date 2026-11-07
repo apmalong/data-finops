@@ -6,6 +6,7 @@ import tempfile
 import tomllib
 from collections import defaultdict
 from dataclasses import dataclass, field, fields
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -14,13 +15,17 @@ from pydantic import BaseModel, ConfigDict, computed_field
 from data_finops.billing.aws_data_exports import (
     SOURCE,
     DeliveryError,
+    billing_period_end,
     billing_period_start,
     delivery_created,
+    focus_manifest_name,
+    is_manifest,
     load_delivery,
 )
 from data_finops.calculation import run_calculation
+from data_finops.contracts.billing import FocusExport, SnapshotScope
 from data_finops.dbt.artifacts import MAX_ARTIFACT_BYTES
-from data_finops.ledger import Ledger, SnapshotConflictError
+from data_finops.ledger import ImportOutcome, Ledger, SnapshotConflictError
 from data_finops.providers.aws import (
     UNFINISHED,
     AthenaReader,
@@ -46,8 +51,8 @@ MAX_INBOX_FILE_BYTES = MAX_ARTIFACT_BYTES
 event within an OpenLineage file is still capped at 1 MiB by the screening it goes through."""
 
 DEFAULT_LOOKBACK_PERIODS = 2
-MAX_LOOKBACK_PERIODS = 24
 """Billing Periods looked at per run by default: the current and the previous (spec 08)."""
+MAX_LOOKBACK_PERIODS = 24
 DEFAULT_HISTORY_PAGES = 200
 """ListQueryExecutions pages per workgroup per run by default (spec 08)."""
 MAX_HISTORY_PAGES = 1000
@@ -76,8 +81,18 @@ class CollectionSettings:
     export_prefix: str = ""
     """The export's S3 path prefix, as configured in Data Exports (may be empty)."""
     export_name: str = ""
+    """The export's name in Data Exports, which names its folder and manifests."""
     billing_lookback_periods: int = DEFAULT_LOOKBACK_PERIODS
     """How many of the most recent Billing Periods in the export each run looks at."""
+
+    def metadata_prefix(self, folder: str = "") -> str:
+        """Where AWS writes manifests: `<root>metadata/`, then `folder` (a Billing Period or
+        a Delivery under it)."""
+        return f"{self.export_root}metadata/" + (f"{folder}/" if folder else "")
+
+    def data_prefix(self, delivery: str) -> str:
+        """Where AWS writes a Delivery's data files: `<root>data/<period>/<delivery>/`."""
+        return f"{self.export_root}data/{delivery}/"
 
     @property
     def export_root(self) -> str:
@@ -391,8 +406,6 @@ def _query_id(entries: list[Any], position: int) -> str:
 
 MAX_DATA_FILE_BYTES = 2 * 1024**3
 """The cap on one FOCUS data file, checked against its listed size before download (Q48)."""
-MANIFEST_SUFFIX = "-Manifest.json"
-"""How AWS names a Delivery's main manifest, `<export>-Manifest.json`."""
 MAX_DELIVERY_BYTES = 8 * 1024**3
 """The cap on one Delivery's data files together, within Lambda's 10 GiB `/tmp` (Q48)."""
 MAX_MANIFEST_BYTES = 16 * 1024 * 1024
@@ -406,53 +419,96 @@ class _RejectedDelivery(ValueError):
 def _collect_focus(
     ledger: Ledger, s3: S3Reader, settings: CollectionSettings, scratch: Path, warnings: list[str]
 ) -> SourceSummary:
-    """Every Delivery of the most recent Billing Periods newer than its period's current
-    Export Snapshot, oldest first, each read by the existing Delivery reader (spec 08 §2)."""
+    """Every complete Delivery of the most recent Billing Periods that is newer than the
+    current Export Snapshot of its Snapshot Scope and not yet collected, oldest first, each
+    read by the existing Delivery reader (spec 08 §2)."""
     tally = _Tally()
-    bucket, root = settings.export_bucket, settings.export_root
     try:
         periods = [
-            name
-            for name in list_folders(s3, bucket, f"{root}metadata/")
-            if billing_period_start(name)
+            (name, start)
+            for name in list_folders(s3, settings.export_bucket, settings.metadata_prefix())
+            if (start := billing_period_start(name)) is not None
         ][-settings.billing_lookback_periods :]
-        for period in periods:
-            current = _current_publication(ledger, billing_period_start(period))
-            folders: dict[str, dict[str, S3Object]] = defaultdict(dict)
-            for obj in list_objects(s3, bucket, f"{root}metadata/{period}/"):
-                folder, _, name = obj.key.removeprefix(f"{root}metadata/{period}/").rpartition("/")
-                folders[folder][name] = obj
-            if "" in folders:  # files straight under the period: Data Exports' overwrite mode
-                warnings.append(
-                    f"{period}: an overwrite-mode Delivery is refused;"
-                    " set the export to create new files"
+        for period, start in periods:
+            for delivery, manifests in _deliveries_to_collect(
+                ledger, s3, settings, period, start, warnings
+            ):
+                outcome = _collect_delivery(
+                    ledger, s3, settings, delivery, manifests, scratch, tally
                 )
-                continue
-            created = {folder: delivery_created(folder) for folder in folders}
-            newer = sorted(
-                (when, folder)
-                for folder, when in created.items()
-                if when is not None
-                and (current is None or when > current)
-                # A Delivery is complete once its manifest is written (spec 08 §2); until
-                # then it is left for a later run.
-                and any(name.endswith(MANIFEST_SUFFIX) for name in folders[folder])
-            )
-            for _, folder in newer:
-                delivery = f"{period}/{folder}"
-                try:
-                    export = _download_delivery(s3, settings, delivery, folders[folder], scratch)
-                    result = ledger.import_snapshot(export)
-                except (_RejectedDelivery, DeliveryError, SnapshotConflictError, TooLarge) as error:
-                    tally.rejected.append(RejectedItem(item=delivery, reason=_reason(error)))
-                    continue
-                if result.outcome.value == "replay":
-                    tally.duplicates += 1
-                else:
-                    tally.stored += 1
+                ledger.record_collected_delivery(settings.metadata_prefix(delivery), outcome)
     except AwsSourceError as error:
         return tally.summary(failed=str(error))
     return tally.summary()
+
+
+def _deliveries_to_collect(
+    ledger: Ledger,
+    s3: S3Reader,
+    settings: CollectionSettings,
+    period: str,
+    start: datetime,
+    warnings: list[str],
+) -> list[tuple[str, list[S3Object]]]:
+    """The period's Deliveries to collect, oldest first, each `<period>/<CreatedAt>-<id>` with
+    its two manifests: complete (both manifests written), not yet collected, and newer than
+    the current Export Snapshot of this account's Snapshot Scope (Q2: one account)."""
+    scope = SnapshotScope(
+        billing_account_id=settings.account_id,
+        billing_period_start=start,
+        billing_period_end=billing_period_end(start),
+        source=SOURCE,
+    )
+    current = ledger.current_snapshot(scope)
+    published = None if current is None else current.snapshot.published_at
+    folders: dict[str, dict[str, S3Object]] = defaultdict(dict)
+    for obj in list_objects(s3, settings.export_bucket, settings.metadata_prefix(period)):
+        folder, _, name = obj.key.removeprefix(settings.metadata_prefix(period)).rpartition("/")
+        folders[folder][name] = obj
+    if "" in folders:  # files straight under the period: Data Exports' overwrite mode
+        warnings.append(
+            f"{period}: an overwrite-mode Delivery is refused; set the export to create new files"
+        )
+        return []
+    chosen = []
+    for folder, files in folders.items():
+        delivery = f"{period}/{folder}"
+        created = delivery_created(folder)
+        if created is None:
+            warnings.append(f"{delivery}: not a Delivery folder; ignored")
+            continue
+        manifest = next((name for name in files if is_manifest(Path(name))), None)
+        if manifest is None or focus_manifest_name(manifest) not in files:
+            continue  # still being written (spec 08 §2): left for a later run
+        if published is not None and created <= published:
+            continue  # superseded before it was seen: never downloaded
+        if ledger.delivery_collected(settings.metadata_prefix(delivery)):
+            continue
+        chosen.append((created, delivery, [files[manifest], files[focus_manifest_name(manifest)]]))
+    return [(delivery, manifests) for _, delivery, manifests in sorted(chosen)]
+
+
+def _collect_delivery(
+    ledger: Ledger,
+    s3: S3Reader,
+    settings: CollectionSettings,
+    delivery: str,
+    manifests: list[S3Object],
+    scratch: Path,
+    tally: _Tally,
+) -> str:
+    """Download one Delivery and import it; the outcome to record in the watermark."""
+    try:
+        snapshot = _download_delivery(s3, settings, delivery, manifests, scratch)
+        result = ledger.import_snapshot(snapshot)
+    except (_RejectedDelivery, DeliveryError, SnapshotConflictError, TooLarge) as error:
+        tally.rejected.append(RejectedItem(item=delivery, reason=_reason(error)))
+        return "rejected"
+    if result.outcome is ImportOutcome.REPLAY:
+        tally.duplicates += 1
+    else:  # new, or superseded: stored either way
+        tally.stored += 1
+    return result.outcome.value
 
 
 def _reason(error: Exception) -> str:
@@ -463,51 +519,37 @@ def _reason(error: Exception) -> str:
     return str(error)
 
 
-def _current_publication(ledger: Ledger, period_start: Any) -> Any:
-    """When the newest current Export Snapshot of this Billing Period from the export was
-    published, or None when the Ledger holds none."""
-    published = [
-        snapshot.snapshot.published_at
-        for scope in ledger.scopes()
-        if scope.billing_period_start == period_start and scope.source == SOURCE
-        if (snapshot := ledger.current_snapshot(scope)) is not None
-    ]
-    return max(published, default=None)
-
-
 def _download_delivery(
     s3: S3Reader,
     settings: CollectionSettings,
-    folder: str,
-    metadata: dict[str, S3Object],
+    delivery: str,
+    manifests: list[S3Object],
     scratch: Path,
-) -> Any:
-    """The Delivery in `folder` (`billing_period=…/<CreatedAt>-<executionId>`), downloaded to
-    a scratch folder of its own and read as one Export Snapshot. Only the data files its
-    manifest lists are fetched, and only from this Delivery's folder in the export (Q47)."""
+) -> FocusExport:
+    """The Delivery `delivery` (`billing_period=…/<CreatedAt>-<executionId>`), downloaded to a
+    scratch folder of its own and read as one Export Snapshot. Only its two manifests and the
+    data files the manifest lists are fetched, and only from this Delivery's folder (Q47)."""
     local = scratch / "delivery"
     if local.exists():
         for old in local.iterdir():
             old.unlink()
     local.mkdir(exist_ok=True)
-    manifest = None
-    for name, obj in metadata.items():
-        download_object(s3, settings.export_bucket, obj, local / name, MAX_MANIFEST_BYTES)
-        if name.endswith(MANIFEST_SUFFIX):
-            manifest = local / name
-    if manifest is None:
-        raise _RejectedDelivery("no manifest")
+    for obj in manifests:
+        download_object(
+            s3, settings.export_bucket, obj, local / obj.key.rpartition("/")[2], MAX_MANIFEST_BYTES
+        )
+    manifest = next(path for path in local.iterdir() if is_manifest(path))
     try:
         uris = json.loads(manifest.read_text(encoding="utf-8")).get("dataFiles") or []
     except (ValueError, AttributeError):
         raise _RejectedDelivery("the manifest is not valid JSON") from None
-    here = f"s3://{settings.export_bucket}/{settings.export_root}data/{folder}/"
+    here = f"s3://{settings.export_bucket}/{settings.data_prefix(delivery)}"
     if not all(isinstance(uri, str) and uri.startswith(here) for uri in uris):
         raise _RejectedDelivery("the manifest names a data file outside the export")
     names = {uri.removeprefix(here) for uri in uris}
     listed = {
         obj.key.rpartition("/")[2]: obj
-        for obj in list_objects(s3, settings.export_bucket, f"{settings.export_root}data/{folder}/")
+        for obj in list_objects(s3, settings.export_bucket, settings.data_prefix(delivery))
     }
     missing = names - set(listed)
     if missing:

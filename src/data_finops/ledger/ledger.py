@@ -61,6 +61,10 @@ CREATE TABLE IF NOT EXISTS allocation (
     allocation_json TEXT NOT NULL,
     PRIMARY KEY (calculation_run_id, position)
 );
+CREATE TABLE IF NOT EXISTS export_delivery_collected (
+    delivery TEXT PRIMARY KEY,
+    outcome TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS current_allocation_snapshot (
     billing_account_id TEXT NOT NULL,
     billing_period_start TEXT NOT NULL,
@@ -224,6 +228,23 @@ class Ledger:
             else ImportOutcome.SUPERSEDED
         )
         return ImportResult(outcome=outcome, snapshot_id=snapshot.snapshot_id)
+
+    def delivery_collected(self, delivery: str) -> bool:
+        """Whether a Collection Run already took this Delivery (named by its S3 folder),
+        whatever became of it: the Delivery part of the Collection Watermark (spec 08 §5)."""
+        row = self._connection.execute(
+            "SELECT 1 FROM export_delivery_collected WHERE delivery = ?", (delivery,)
+        ).fetchone()
+        return row is not None
+
+    def record_collected_delivery(self, delivery: str, outcome: str) -> None:
+        """Record that a Collection Run took this Delivery, and with what outcome (an import
+        outcome, or `rejected`); recording it again changes nothing."""
+        with self._write_transaction():
+            self._connection.execute(
+                "INSERT OR IGNORE INTO export_delivery_collected (delivery, outcome) VALUES (?, ?)",
+                (delivery, outcome),
+            )
 
     def current_snapshot(self, scope: SnapshotScope) -> FocusExport | None:
         current = self._current(scope)

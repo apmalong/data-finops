@@ -38,6 +38,11 @@ ledger: Ledger (billing) {
     "position": INTEGER {constraint: [primary_key]}
     "allocation_json": TEXT {constraint: [not_null]}
   }
+  export_delivery_collected: {
+    shape: sql_table
+    "delivery": TEXT {constraint: [primary_key]}
+    "outcome": TEXT {constraint: [not_null]}
+  }
   current_allocation_snapshot: {
     shape: sql_table
     "billing_account_id": TEXT {constraint: [primary_key]}

@@ -114,8 +114,18 @@ def load_delivery(manifest: Path, data_dir: Path | None = None) -> FocusExport:
     return load_parquet_export(files, snapshot)
 
 
+def focus_manifest_name(manifest: str) -> str:
+    """The `<export>-Manifest-FOCUS.json` that lies beside `<export>-Manifest.json`."""
+    return manifest.removesuffix(_MANIFEST_SUFFIX) + _FOCUS_MANIFEST_SUFFIX
+
+
+def billing_period_end(start: datetime) -> datetime:
+    """The first instant after the Billing Period starting at `start` (a month)."""
+    return datetime(start.year + start.month // 12, start.month % 12 + 1, 1, tzinfo=UTC)
+
+
 def _focus_version(manifest: Path) -> str:
-    name = manifest.name.removesuffix(_MANIFEST_SUFFIX) + _FOCUS_MANIFEST_SUFFIX
+    name = focus_manifest_name(manifest.name)
     path = manifest.parent / name
     if not path.is_file():
         raise DeliveryError(f"{name} is not beside the manifest")

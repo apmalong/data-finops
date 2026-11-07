@@ -58,6 +58,10 @@ def list_folders(s3: S3Reader, bucket: str, prefix: str) -> list[str]:
         params["ContinuationToken"] = page["NextContinuationToken"]
 
 
+_CHUNK = 8 * 1024 * 1024
+"""How much of a download is held in memory at once."""
+
+
 def download_object(s3: S3Reader, bucket: str, obj: S3Object, path: Path, max_bytes: int) -> None:
     """Write the object at its listed version to `path` in chunks, refused before any download
     when the listing says it exceeds `max_bytes`, and stopped if the body does."""
@@ -71,9 +75,6 @@ def download_object(s3: S3Reader, bucket: str, obj: S3Object, path: Path, max_by
             if written > max_bytes:
                 raise TooLarge(obj.key)
             file.write(chunk)
-
-
-_CHUNK = 8 * 1024 * 1024
 
 
 def read_object(s3: S3Reader, bucket: str, obj: S3Object, max_bytes: int) -> bytes:
