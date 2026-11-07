@@ -57,6 +57,7 @@ jobs:
         run: |
           uv sync --frozen
           uv run mypy
+          uv run bandit -q -r policies.py __main__.py
           uv run pytest
           uv run pip-audit
       - name: Stack (mocks, and the pack over the program's state)

@@ -4,6 +4,7 @@ and `pulumi policy analyze --file` runs the real pack over them, with no backend
 and no account. This is the offline form of "preview policies validated" (spec 08 §Exit)."""
 
 import json
+import os
 import shutil
 import subprocess
 from collections.abc import Callable
@@ -70,6 +71,8 @@ def _recorded() -> list[dict[str, Any]]:
 def _analyze(tmp: Path, resources: list[dict[str, Any]]) -> subprocess.CompletedProcess[str]:
     state = tmp / "state.json"
     state.write_text(json.dumps(_state(resources)), encoding="utf-8")
+    # The pack runs in its own virtualenv (PulumiPolicy.yaml); this test's must not leak in.
+    environ = {k: v for k, v in os.environ.items() if k != "VIRTUAL_ENV"}
     return subprocess.run(  # noqa: S603 (a fixed command over a file this test wrote)
         [_cli(), "policy", "analyze", "--file", str(state), "--policy-pack", str(PACK)],
         capture_output=True,
@@ -77,6 +80,7 @@ def _analyze(tmp: Path, resources: list[dict[str, Any]]) -> subprocess.Completed
         errors="replace",
         timeout=300,
         check=False,
+        env=environ,
     )
 
 
@@ -111,6 +115,21 @@ def _without_versioning(resources: list[dict[str, Any]]) -> list[dict[str, Any]]
     return [r for r in resources if not r["type"].endswith(":BucketVersioning")]
 
 
+def _unencrypted(resources: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    for resource in resources:
+        if resource["type"].endswith(":BucketServerSideEncryptionConfiguration"):
+            resource["inputs"] = resource["inputs"] | {"rules": [{}]}
+    return resources
+
+
+def _policy_allowing_plain_http(resources: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    for resource in resources:
+        if resource["type"].endswith(":BucketPolicy"):
+            allow = {"Statement": [{"Effect": "Allow", "Action": "s3:GetObject"}]}
+            resource["inputs"] = resource["inputs"] | {"policy": json.dumps(allow)}
+    return resources
+
+
 def _with_a_vpc(resources: list[dict[str, Any]]) -> list[dict[str, Any]]:
     vpc = {
         "urn": "urn:pulumi:test::data-finops::aws:ec2/vpc:Vpc::network",
@@ -128,6 +147,8 @@ def _with_a_vpc(resources: list[dict[str, Any]]) -> list[dict[str, Any]]:
     [
         (_open_public_access, "s3-public-access-blocked"),
         (_without_versioning, "s3-guarded"),
+        (_unencrypted, "s3-encrypted"),
+        (_policy_allowing_plain_http, "s3-tls-only"),
         (_with_a_vpc, "no-ruled-out-resources"),
     ],
 )

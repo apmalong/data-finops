@@ -25,13 +25,17 @@ MANDATORY = EnforcementLevel.MANDATORY
 Report = Callable[..., None]
 
 BUCKET = "aws:s3/bucket:Bucket"
+PUBLIC_ACCESS_BLOCK = "aws:s3/bucketPublicAccessBlock:BucketPublicAccessBlock"
+ENCRYPTION = (
+    "aws:s3/bucketServerSideEncryptionConfiguration:BucketServerSideEncryptionConfiguration"
+)
+VERSIONING = "aws:s3/bucketVersioning:BucketVersioning"
+BUCKET_POLICY = "aws:s3/bucketPolicy:BucketPolicy"
 GUARDS = {
-    "aws:s3/bucketPublicAccessBlock:BucketPublicAccessBlock": "BucketPublicAccessBlock",
-    "aws:s3/bucketServerSideEncryptionConfiguration:BucketServerSideEncryptionConfiguration": (
-        "BucketServerSideEncryptionConfiguration"
-    ),
-    "aws:s3/bucketVersioning:BucketVersioning": "BucketVersioning",
-    "aws:s3/bucketPolicy:BucketPolicy": "BucketPolicy",
+    PUBLIC_ACCESS_BLOCK: "BucketPublicAccessBlock",
+    ENCRYPTION: "BucketServerSideEncryptionConfiguration",
+    VERSIONING: "BucketVersioning",
+    BUCKET_POLICY: "BucketPolicy",
 }
 PUBLIC_ACCESS_FLAGS = (
     "blockPublicAcls",
@@ -99,6 +103,9 @@ def _tls_only(props: dict[str, Any], report: Report) -> None:
 
 
 def _guarded(args: StackValidationArgs, report: Report) -> None:
+    """Every bucket has each guard, counted by type: a guard names its bucket by the bucket's
+    ID, unknown at preview, so it cannot be linked there. Sound for the Deployment's one
+    bucket; a stack with several would need the links checked another way."""
     counts = Counter(resource.resource_type for resource in args.resources)
     buckets = counts[BUCKET]
     for typ, name in GUARDS.items():
@@ -114,28 +121,25 @@ def _not_ruled_out(args: ResourceValidationArgs, report: Report) -> None:
 S3_PUBLIC_ACCESS_BLOCKED = ResourceValidationPolicy(
     "s3-public-access-blocked",
     "Every S3 public access block blocks and ignores all public access.",
-    _for("aws:s3/bucketPublicAccessBlock:BucketPublicAccessBlock", _public_access_blocked),
+    _for(PUBLIC_ACCESS_BLOCK, _public_access_blocked),
     enforcement_level=MANDATORY,
 )
 S3_ENCRYPTED = ResourceValidationPolicy(
     "s3-encrypted",
     "Every bucket encryption configuration sets AES256 or aws:kms by default.",
-    _for(
-        "aws:s3/bucketServerSideEncryptionConfiguration:BucketServerSideEncryptionConfiguration",
-        _encrypted,
-    ),
+    _for(ENCRYPTION, _encrypted),
     enforcement_level=MANDATORY,
 )
 S3_VERSIONED = ResourceValidationPolicy(
     "s3-versioned",
     "Every bucket versioning configuration is Enabled.",
-    _for("aws:s3/bucketVersioning:BucketVersioning", _versioned),
+    _for(VERSIONING, _versioned),
     enforcement_level=MANDATORY,
 )
 S3_TLS_ONLY = ResourceValidationPolicy(
     "s3-tls-only",
     "Every bucket policy denies requests made without TLS (aws:SecureTransport false).",
-    _for("aws:s3/bucketPolicy:BucketPolicy", _tls_only),
+    _for(BUCKET_POLICY, _tls_only),
     enforcement_level=MANDATORY,
 )
 S3_GUARDED = StackValidationPolicy(

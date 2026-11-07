@@ -1,22 +1,42 @@
 """The Deployment's settings, from the stack's configuration (spec 08 §Settings).
 
-Every setting is validated before any resource is declared; an error names the setting, never
-its value. Defaults are spec 08's. Settings the collector also reads at run time (the export,
-the workgroups, the lookback and history pages) are checked again by `data_finops` itself.
+Every setting is validated when `Settings` is made, however it is made, before any resource is
+declared; an error names the setting as the stack configuration names it, never its value.
+Defaults are spec 08's. Settings the collector also reads at run time (the export, the
+workgroups, the lookback and history pages) are checked again by `data_finops` itself, with the
+same bounds.
 """
 
 import json
+import re
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
 import pulumi
 
+DEFAULT_SCHEDULE = "cron(0 6 * * ? *)"
+DEFAULT_EXPLANATION_DETAIL = "minimal"
 LOG_RETENTION_DAYS = frozenset(
     {1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1096, 1827, 2192, 2557,
      2922, 3288, 3653}
 )  # fmt: skip
 """The retention periods CloudWatch Logs accepts (PutRetentionPolicy)."""
+KMS_KEY_ARN = re.compile(r"arn:aws[a-z-]*:kms:")
+"""A KMS key ARN in any partition (aws, aws-us-gov, aws-cn)."""
+
+BOUNDS: dict[str, tuple[str, int, int]] = {
+    "billing_lookback_periods": ("billingLookbackPeriods", 1, 24),
+    "max_history_pages": ("maxHistoryPages", 1, 1000),
+    "collector_timeout_seconds": ("collectorTimeoutSeconds", 1, 900),
+    "collector_memory_mb": ("collectorMemoryMb", 128, 10240),
+    "api_timeout_seconds": ("apiTimeoutSeconds", 1, 900),
+    "api_memory_mb": ("apiMemoryMb", 128, 10240),
+    "noncurrent_version_days": ("noncurrentVersionDays", 1, 3650),
+    "inbox_retention_days": ("inboxRetentionDays", 1, 3650),
+}
+"""Each whole-number setting: its configuration name and inclusive bounds (spec 08; the first
+two match the collector's own, `data_finops.collection.run`)."""
 
 
 class SettingsError(ValueError):
@@ -30,6 +50,12 @@ class Budget:
     monthly_usd: Decimal
     email: str
 
+    def __post_init__(self) -> None:
+        if self.monthly_usd <= 0:
+            raise SettingsError("budgetMonthlyUsd must be positive")
+        if not self.email:
+            raise SettingsError("budgetEmail is required with budgetMonthlyUsd")
+
 
 @dataclass(frozen=True)
 class Settings:
@@ -40,7 +66,7 @@ class Settings:
     export_prefix: str = ""
     billing_lookback_periods: int = 2
     max_history_pages: int = 200
-    schedule: str = "cron(0 6 * * ? *)"
+    schedule: str = DEFAULT_SCHEDULE
     collector_timeout_seconds: int = 900
     collector_memory_mb: int = 2048
     api_timeout_seconds: int = 30
@@ -50,91 +76,76 @@ class Settings:
     noncurrent_version_days: int = 30
     inbox_retention_days: int = 30
     kms_key_arn: str | None = None
-    explanation_detail: str = "minimal"
+    explanation_detail: str = DEFAULT_EXPLANATION_DETAIL
     budget: Budget | None = None
     alarm_email: str | None = None
     delete_data_on_destroy: bool = False
 
+    def __post_init__(self) -> None:
+        for field, name in (
+            ("region", "aws:region"),
+            ("export_bucket", "exportBucket"),
+            ("export_name", "exportName"),
+        ):
+            if not getattr(self, field):
+                raise SettingsError(f"{name} is required")
+        if not self.workgroups or not all(self.workgroups):
+            raise SettingsError("workgroups must be a non-empty list of Athena workgroup names")
+        for field, (name, least, most) in BOUNDS.items():
+            if not least <= getattr(self, field) <= most:
+                raise SettingsError(f"{name} must be a whole number from {least} to {most}")
+        if self.api_reserved_concurrency is not None and not 0 <= self.api_reserved_concurrency:
+            raise SettingsError("apiReservedConcurrency must be a whole number, at least 0")
+        if self.log_retention_days not in LOG_RETENTION_DAYS:
+            raise SettingsError("logRetentionDays must be a retention CloudWatch Logs accepts")
+        if self.kms_key_arn is not None and not KMS_KEY_ARN.match(self.kms_key_arn):
+            raise SettingsError("kmsKeyArn must be a KMS key ARN")
+        if self.explanation_detail not in ("minimal", "full"):
+            raise SettingsError("explanationDetail must be one of full, minimal")
+
     @classmethod
     def from_config(cls, config: pulumi.Config, aws_config: pulumi.Config) -> "Settings":
-        """The settings from the stack's `data-finops:*` and `aws:region` configuration."""
-        return cls(
-            region=_required(aws_config.get("region"), "aws:region"),
-            export_bucket=_required(config.get("exportBucket"), "exportBucket"),
-            export_name=_required(config.get("exportName"), "exportName"),
-            workgroups=_workgroups(config.get("workgroups")),
-            export_prefix=config.get("exportPrefix") or "",
-            billing_lookback_periods=_number(config, "billingLookbackPeriods", 2, 1, 24),
-            max_history_pages=_number(config, "maxHistoryPages", 200, 1, 1000),
-            schedule=config.get("schedule") or "cron(0 6 * * ? *)",
-            collector_timeout_seconds=_number(config, "collectorTimeoutSeconds", 900, 1, 900),
-            collector_memory_mb=_number(config, "collectorMemoryMb", 2048, 128, 10240),
-            api_timeout_seconds=_number(config, "apiTimeoutSeconds", 30, 1, 900),
-            api_memory_mb=_number(config, "apiMemoryMb", 1024, 128, 10240),
-            api_reserved_concurrency=_optional_number(config, "apiReservedConcurrency", 0, 1000),
-            log_retention_days=_retention(config),
-            noncurrent_version_days=_number(config, "noncurrentVersionDays", 30, 1, 3650),
-            inbox_retention_days=_number(config, "inboxRetentionDays", 30, 1, 3650),
-            kms_key_arn=_kms_key(config.get("kmsKeyArn")),
-            explanation_detail=_choice(config, "explanationDetail", "minimal", {"minimal", "full"}),
-            budget=_budget(config.get("budgetMonthlyUsd"), config.get("budgetEmail")),
-            alarm_email=config.get("alarmEmail") or None,
-            delete_data_on_destroy=_flag(config, "deleteDataOnDestroy"),
-        )
-
-
-def _required(value: str | None, name: str) -> str:
-    if not value:
-        raise SettingsError(f"{name} is required")
-    return value
+        """The settings from the stack's `data-finops:*` and `aws:region` configuration; a
+        setting left out takes the dataclass's default."""
+        given: dict[str, Any] = {
+            "region": aws_config.get("region") or "",
+            "export_bucket": config.get("exportBucket") or "",
+            "export_name": config.get("exportName") or "",
+            "workgroups": _workgroups(config.get("workgroups")),
+            "export_prefix": config.get("exportPrefix") or "",
+            "schedule": config.get("schedule") or DEFAULT_SCHEDULE,
+            "kms_key_arn": config.get("kmsKeyArn") or None,
+            "explanation_detail": config.get("explanationDetail") or DEFAULT_EXPLANATION_DETAIL,
+            "budget": _budget(config.get("budgetMonthlyUsd"), config.get("budgetEmail")),
+            "alarm_email": config.get("alarmEmail") or None,
+            "delete_data_on_destroy": _flag(config, "deleteDataOnDestroy"),
+        }
+        whole_numbers = {
+            **{field: name for field, (name, _, _) in BOUNDS.items()},
+            "api_reserved_concurrency": "apiReservedConcurrency",
+            "log_retention_days": "logRetentionDays",
+        }
+        for field, name in whole_numbers.items():
+            if (value := config.get(name)) is not None:
+                given[field] = _whole_number(value, name)
+        return cls(**given)
 
 
 def _workgroups(value: str | None) -> tuple[str, ...]:
     try:
-        names: Any = json.loads(value) if value else None
+        names: Any = json.loads(value) if value else []
     except ValueError:
-        names = None
-    if not isinstance(names, list) or not names or not all(isinstance(n, str) and n for n in names):
-        raise SettingsError("workgroups must be a non-empty list of Athena workgroup names")
+        raise SettingsError("workgroups must be a JSON list of names") from None
+    if not isinstance(names, list) or not all(isinstance(n, str) for n in names):
+        raise SettingsError("workgroups must be a JSON list of names")
     return tuple(names)
 
 
-def _optional_number(config: pulumi.Config, name: str, least: int, most: int) -> int | None:
-    value = config.get(name)
-    if value is None:
-        return None
+def _whole_number(value: str, name: str) -> int:
     try:
-        number = int(value)
+        return int(value)
     except ValueError:
-        number = least - 1
-    if not least <= number <= most:
-        raise SettingsError(f"{name} must be a whole number from {least} to {most}")
-    return number
-
-
-def _number(config: pulumi.Config, name: str, default: int, least: int, most: int) -> int:
-    number = _optional_number(config, name, least, most)
-    return default if number is None else number
-
-
-def _retention(config: pulumi.Config) -> int:
-    days = _number(config, "logRetentionDays", 30, 1, 3653)
-    if days not in LOG_RETENTION_DAYS:
-        raise SettingsError("logRetentionDays must be a retention CloudWatch Logs accepts")
-    return days
-
-
-def _kms_key(value: str | None) -> str | None:
-    if value and not value.startswith("arn:aws:kms:"):
-        raise SettingsError("kmsKeyArn must be a KMS key ARN")
-    return value or None
-
-
-def _choice(config: pulumi.Config, name: str, default: str, choices: set[str]) -> str:
-    value = config.get(name) or default
-    if value not in choices:
-        raise SettingsError(f"{name} must be one of {', '.join(sorted(choices))}")
-    return value
+        raise SettingsError(f"{name} must be a whole number") from None
 
 
 def _flag(config: pulumi.Config, name: str) -> bool:
@@ -147,14 +158,10 @@ def _flag(config: pulumi.Config, name: str) -> bool:
 def _budget(amount: str | None, email: str | None) -> Budget | None:
     if amount is None and email is None:
         return None
-    if not email:
-        raise SettingsError("budgetEmail is required with budgetMonthlyUsd")
     if not amount:
         raise SettingsError("budgetMonthlyUsd is required with budgetEmail")
     try:
         monthly = Decimal(amount)
     except InvalidOperation:
         raise SettingsError("budgetMonthlyUsd must be a number") from None
-    if monthly <= 0:
-        raise SettingsError("budgetMonthlyUsd must be positive")
-    return Budget(monthly_usd=monthly, email=email)
+    return Budget(monthly_usd=monthly, email=email or "")

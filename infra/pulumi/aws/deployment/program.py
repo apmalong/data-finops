@@ -24,6 +24,10 @@ def require_local_state() -> None:
 class Deployment:
     storage: Storage
 
+    def outputs(self) -> dict[str, pulumi.Output[str]]:
+        """The stack's outputs (spec 08 §Settings, Outputs)."""
+        return {"bucket": self.storage.bucket.bucket}
+
 
 def build(settings: Settings) -> Deployment:
     """Declare every resource of the Deployment."""
@@ -33,4 +37,5 @@ def build(settings: Settings) -> Deployment:
 def main() -> None:
     require_local_state()
     deployment = build(Settings.from_config(pulumi.Config(NAME), pulumi.Config("aws")))
-    pulumi.export("bucket", deployment.storage.bucket.bucket)
+    for name, value in deployment.outputs().items():
+        pulumi.export(name, value)

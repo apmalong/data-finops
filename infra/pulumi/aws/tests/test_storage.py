@@ -6,8 +6,8 @@ from collections.abc import Callable
 
 import pulumi
 import pytest
-from deployment.settings import Settings  # noqa: E402  (after the mocks are set)
-from deployment.storage import Storage  # noqa: E402
+from deployment.settings import Settings
+from deployment.storage import Storage, kept_on_destroy
 
 from tests.mocks import MOCKS
 
@@ -122,3 +122,11 @@ def test_the_storage_is_one_component() -> pulumi.Output[None]:
         assert component.custom is False
 
     return _after(SETTINGS, check)
+
+
+@pytest.mark.parametrize(("delete", "kept"), [(False, True), (True, False)])
+def test_the_bucket_and_every_guard_share_its_retention(delete: bool, kept: bool) -> None:
+    # Mocks cannot see resource options, so the options every resource of the component is
+    # declared with come from one function, checked here.
+    options = kept_on_destroy(dataclasses.replace(SETTINGS, delete_data_on_destroy=delete))
+    assert options.retain_on_delete is kept

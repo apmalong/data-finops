@@ -12,13 +12,8 @@ import pytest
 from pulumi_policy import PolicyResource, ResourceValidationArgs, StackValidationArgs
 from pulumi_policy.policy import PolicyCustomTimeouts, PolicyResourceOptions
 
-BUCKET = "aws:s3/bucket:Bucket"
-BLOCK = "aws:s3/bucketPublicAccessBlock:BucketPublicAccessBlock"
-ENCRYPTION = (
-    "aws:s3/bucketServerSideEncryptionConfiguration:BucketServerSideEncryptionConfiguration"
-)
-VERSIONING = "aws:s3/bucketVersioning:BucketVersioning"
-POLICY = "aws:s3/bucketPolicy:BucketPolicy"
+BUCKET, BLOCK, ENCRYPTION = policies.BUCKET, policies.PUBLIC_ACCESS_BLOCK, policies.ENCRYPTION
+VERSIONING, POLICY = policies.VERSIONING, policies.BUCKET_POLICY
 
 
 def _options() -> PolicyResourceOptions:

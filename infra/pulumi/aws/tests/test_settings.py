@@ -108,3 +108,20 @@ def test_settings_are_immutable() -> None:
     settings = _from_config(REQUIRED)
     with pytest.raises(dataclasses.FrozenInstanceError):
         settings.region = "eu-west-1"  # type: ignore[misc]
+
+
+def test_settings_made_directly_are_validated_too() -> None:
+    with pytest.raises(SettingsError, match="maxHistoryPages"):
+        Settings(
+            region="us-east-1",
+            export_bucket="b",
+            export_name="e",
+            workgroups=("demo",),
+            max_history_pages=0,
+        )
+
+
+def test_a_kms_key_in_another_partition_is_accepted() -> None:
+    key = "arn:aws-us-gov:kms:us-gov-west-1:123456789012:key/example"
+    settings = _from_config(REQUIRED | {"data-finops:kmsKeyArn": key})
+    assert settings.kms_key_arn == key

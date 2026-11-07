@@ -21,13 +21,11 @@ class Storage(pulumi.ComponentResource):
         self, name: str, settings: Settings, opts: pulumi.ResourceOptions | None = None
     ) -> None:
         super().__init__("data-finops:index:Storage", name, None, opts)
-        child = pulumi.ResourceOptions(parent=self)
-        delete = settings.delete_data_on_destroy
-        self.bucket = aws.s3.Bucket(
-            name,
-            force_destroy=delete,
-            opts=pulumi.ResourceOptions(parent=self, retain_on_delete=not delete),
+        # The bucket and every guard share one retention: a kept bucket keeps its guards.
+        child = pulumi.ResourceOptions.merge(
+            kept_on_destroy(settings), pulumi.ResourceOptions(parent=self)
         )
+        self.bucket = aws.s3.Bucket(name, force_destroy=settings.delete_data_on_destroy, opts=child)
         guards: list[pulumi.CustomResource] = [
             aws.s3.BucketPublicAccessBlock(
                 name,
@@ -80,6 +78,13 @@ class Storage(pulumi.ComponentResource):
         ]
         self.ready = pulumi.Output.all(self.bucket.id, *[g.id for g in guards])
         self.register_outputs({"bucket": self.bucket.bucket})
+
+
+def kept_on_destroy(settings: Settings) -> pulumi.ResourceOptions:
+    """The options every resource of the component is declared with: kept by `pulumi
+    destroy` (removed from the stack, left in the account) unless the operator opted in to
+    deleting the data (spec 08, `deleteDataOnDestroy`)."""
+    return pulumi.ResourceOptions(retain_on_delete=not settings.delete_data_on_destroy)
 
 
 def _encryption(

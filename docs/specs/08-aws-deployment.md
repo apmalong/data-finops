@@ -1,6 +1,6 @@
 # AWS deployment (M6)
 
-Decided in the M6 design session (2026-11-06). Topology in ADR 0026, ingress in ADR 0027, the deployed Cost Explanation in ADR 0028. Research notes: `docs/research/m6-aws-topology.md`, `m6-openlineage-ingress.md`, `m6-collector-iam.md`, `m6-pulumi-components-policies.md`. Terms (Deployment, Collection Run, Inbox, Collection Watermark) are in GLOSSARY.md.
+Decided in the M6 design session (2026-11-06); each owner decision is logged in `docs/implementation/m6-decisions.md`. Topology in ADR 0026, ingress in ADR 0027, the deployed Cost Explanation in ADR 0028. Research notes: `docs/research/m6-aws-topology.md`, `m6-openlineage-ingress.md`, `m6-collector-iam.md`, `m6-pulumi-components-policies.md`. Terms (Deployment, Collection Run, Inbox, Collection Watermark) are in GLOSSARY.md.
 
 ## Scope
 Reusable, customer-managed Pulumi Python components that deploy data-finops into **one** AWS account holding the FOCUS export bucket, the Athena workgroups and the Deployment. One example stack. Cross-account reads, multi-account aggregation, a hosted dashboard and enterprise auth are out of scope.
@@ -8,7 +8,7 @@ Reusable, customer-managed Pulumi Python components that deploy data-finops into
 ## Layout
 - `infra/pulumi/aws/`: its own uv project (Pulumi never enters the `data_finops` wheel, ADR 0009): the components, one example stack, the package build script and their tests. State is a local `file://` backend under `.local/`; the program refuses any other backend (ADR 0001), as the reference workload does.
 - `infra/pulumi/aws/policy/`: the policy pack, its own uv project and environment, because `pulumi-policy` 1.21.0 pins protobuf 5.
-- Pins: the Pulumi SDK and CLI at 3.272.0, the newest release at least two weeks old (build-vs-reuse register), checked by a test against the installed CLI; pulumi-aws 7.52.1 (the reference workload's release, owner Q23); pulumi-policy 1.21.0 (#185, #188).
+- Pins: the Pulumi SDK and CLI at 3.272.0, the newest release at least two weeks old (build-vs-reuse register), checked by a test against the installed CLI; pulumi-aws 7.52.1 (the reference workload's release, owner Q23, `docs/implementation/m6-decisions.md`); pulumi-policy 1.21.0 (#185, #188).
 - `src/data_finops/providers/aws/`: the AWS collectors, behind a new optional `aws` extra (boto3, pinned). They hand the existing readers what they read today: Delivery files and a BatchGetQueryExecution response.
 - `src/data_finops/collection/`: the Collection Run, a thin orchestrator over `providers.aws`, the ingest functions and `calculation` (architecture-boundaries.md).
 - Lambda handlers are thin entry points over `collection` and `api`, like `cli`.
@@ -44,7 +44,7 @@ Draft policies are in `docs/research/m6-collector-iam.md` and stay labelled unva
 - **Deployer:** created by the owner, never by the stack; a draft least-privilege deployer policy is documented, unvalidated.
 
 ## Settings
-Required: `aws:region`, `exportBucket`, `exportPrefix`, `exportName`, `workgroups` (a non-empty list; the stack refuses an empty one). The collector also needs the account ID (BatchGetQueryExecution does not carry it); the stack passes its own. `data-finops collect`'s TOML file names the same settings in snake case (`account_id`, `workgroups`, `max_history_pages`, …) and adds `bucket`, `region` and an optional `profile` (#181).
+Required: `aws:region`, `exportBucket`, `exportName`, `workgroups` (a non-empty list; the stack refuses an empty one). `exportPrefix` is optional: empty when the export has no S3 path prefix, as the collector reads it (#185). The collector also needs the account ID (BatchGetQueryExecution does not carry it); the stack passes its own. `data-finops collect`'s TOML file names the same settings in snake case (`account_id`, `workgroups`, `max_history_pages`, …) and adds `bucket`, `region` and an optional `profile` (#181).
 
 | Setting | Default | Meaning |
 |---|---|---|
