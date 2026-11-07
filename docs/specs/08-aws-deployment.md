@@ -8,7 +8,7 @@ Reusable, customer-managed Pulumi Python components that deploy data-finops into
 ## Layout
 - `infra/pulumi/aws/`: its own uv project (Pulumi never enters the `data_finops` wheel, ADR 0009): the components, one example stack, the package build script and their tests. State is a local `file://` backend under `.local/`; the program refuses any other backend (ADR 0001), as the reference workload does.
 - `infra/pulumi/aws/policy/`: the policy pack, its own uv project and environment, because `pulumi-policy` 1.21.0 pins protobuf 5.
-- Pins: the Pulumi SDK and CLI at the same version, the newest release at least two weeks old (build-vs-reuse register); pulumi-aws 7.52.1; pulumi-policy 1.21.0. The exact Pulumi version is fixed in the first infra ticket.
+- Pins: the Pulumi SDK and CLI at 3.272.0, the newest release at least two weeks old (build-vs-reuse register), checked by a test against the installed CLI; pulumi-aws 7.52.1 (the reference workload's release, owner Q23); pulumi-policy 1.21.0 (#185, #188).
 - `src/data_finops/providers/aws/`: the AWS collectors, behind a new optional `aws` extra (boto3, pinned). They hand the existing readers what they read today: Delivery files and a BatchGetQueryExecution response.
 - `src/data_finops/collection/`: the Collection Run, a thin orchestrator over `providers.aws`, the ingest functions and `calculation` (architecture-boundaries.md).
 - Lambda handlers are thin entry points over `collection` and `api`, like `cli`.
