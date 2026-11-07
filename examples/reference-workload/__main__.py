@@ -1,7 +1,8 @@
 """Pulumi entry point for the reference workload (ADR 0021)."""
 
-import infra
 import pulumi
+
+import infra
 
 infra.require_local_state()
 outputs = infra.build(infra.Settings.from_config(pulumi.Config(), pulumi.Config("aws")))
