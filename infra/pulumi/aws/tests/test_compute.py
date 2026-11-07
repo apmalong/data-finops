@@ -3,7 +3,7 @@
 
 import dataclasses
 import json
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
@@ -33,15 +33,31 @@ def _fresh_mocks() -> None:
     MOCKS.resources.clear()
 
 
-def _after(settings: Settings, check: Callable[[], None]) -> pulumi.Output[None]:
+PACKAGE = Path(__file__).with_name("lambda-package.zip")
+"""A stand-in for the built package: the component reads it to hash it."""
+
+
+@pytest.fixture(scope="module", autouse=True)
+def _package() -> Iterator[None]:
+    PACKAGE.write_bytes(b"PK\x05\x06" + b"\x00" * 18)  # an empty zip
+    yield
+    PACKAGE.unlink()
+
+
+def _built(settings: Settings) -> tuple[Storage, Compute]:
     storage = Storage("data-finops", settings)
     compute = Compute(
         "data-finops",
         settings,
         storage,
-        package=Path("build/data-finops-lambda.zip"),
+        package=PACKAGE,
         account_id=pulumi.Output.from_input(ACCOUNT),
     )
+    return storage, compute
+
+
+def _after(settings: Settings, check: Callable[[], None]) -> pulumi.Output[None]:
+    storage, compute = _built(settings)
     return pulumi.Output.all(storage.ready, compute.ready).apply(lambda _: check())
 
 
@@ -240,9 +256,15 @@ def test_producers_may_only_put_into_the_inbox_and_readers_only_call_the_url() -
         assert _actions(producer) == {
             "s3:PutObject": ["arn:aws:s3:::mock-deployment-bucket/inbox/*"]
         }
-        ((statement),) = reader["Statement"]
-        assert statement["Action"] == ["lambda:InvokeFunctionUrl"]
-        assert statement["Condition"] == {"StringEquals": {"lambda:FunctionUrlAuthType": "AWS_IAM"}}
+        # Since October 2025 a function URL needs both actions (AWS, "Control access to Lambda
+        # function URLs"); InvokeFunction is limited to calls made through the URL.
+        url_statement, invoke_statement = reader["Statement"]
+        assert url_statement["Action"] == ["lambda:InvokeFunctionUrl"]
+        assert url_statement["Condition"] == {
+            "StringEquals": {"lambda:FunctionUrlAuthType": "AWS_IAM"}
+        }
+        assert invoke_statement["Action"] == ["lambda:InvokeFunction"]
+        assert invoke_statement["Condition"] == {"Bool": {"lambda:InvokedViaFunctionUrl": "true"}}
 
     return _after(SETTINGS, check)
 
@@ -287,14 +309,7 @@ def test_a_configured_alarm_watches_the_collectors_errors_and_a_budget_both_spen
 
 @pulumi.runtime.test
 def test_the_compute_is_one_component_with_its_outputs() -> pulumi.Output[None]:
-    storage = Storage("data-finops", SETTINGS)
-    compute = Compute(
-        "data-finops",
-        SETTINGS,
-        storage,
-        package=Path("build/data-finops-lambda.zip"),
-        account_id=pulumi.Output.from_input(ACCOUNT),
-    )
+    _, compute = _built(SETTINGS)
 
     def check(values: dict[str, Any]) -> None:
         assert MOCKS.of_type("data-finops:index:Compute")

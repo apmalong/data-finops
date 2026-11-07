@@ -12,12 +12,11 @@ from pathlib import Path
 import pytest
 from deployment.package import (
     LAMBDA_UNZIPPED_LIMIT,
+    REPO,
     PackageError,
     assemble,
     build,
 )
-
-REPO = Path(__file__).resolve().parents[4]
 
 
 def _tree(root: Path, files: dict[str, bytes]) -> Path:
@@ -90,5 +89,10 @@ def test_the_real_package_builds_from_the_checkout(tmp_path: Path) -> None:
     assert "data_finops/lambda_handlers.py" in names
     assert {"mangum/__init__.py", "boto3/__init__.py", "fastapi/__init__.py"} <= names
     assert any(n.startswith("pyarrow/") and n.endswith(".so") for n in names)  # arm64 wheels
-    assert not any("__pycache__" in n for n in names)
+    assert not any("__pycache__" in n or "/tests/" in n or "fixtures/" in n for n in names)
     assert unzipped <= LAMBDA_UNZIPPED_LIMIT
+    with zipfile.ZipFile(package) as archive:
+        library = next(n for n in sorted(names) if n.startswith("pyarrow/") and n.endswith(".so"))
+        header = archive.read(library)[:20]
+    assert header[:4] == b"ELF"
+    assert int.from_bytes(header[18:20], "little") == 183  # e_machine EM_AARCH64: arm64

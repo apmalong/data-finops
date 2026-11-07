@@ -12,7 +12,6 @@ import shutil
 
 # subprocess runs uv with a fixed argument list, never a shell (see _uv).
 import subprocess  # nosec B404
-import sys
 import tempfile
 import zipfile
 from pathlib import Path
@@ -20,15 +19,20 @@ from pathlib import Path
 LAMBDA_UNZIPPED_LIMIT = 250 * 1024 * 1024
 """Lambda's quota for a function's unzipped package, layers included: 250 MB, as AWS counts it
 (262,144,000 bytes)."""
+ARCHITECTURE = "arm64"
+"""The functions' architecture (spec 08)."""
 PLATFORM = "aarch64-manylinux_2_28"
-"""Wheels for the functions' arm64 architecture (spec 08)."""
+"""Wheels for that architecture."""
 PYTHON = "3.12"
-HANDLERS = "data_finops/lambda_handlers.py"
+"""The functions' Python, which the wheels are installed for."""
+HANDLER_MODULE = "data_finops/lambda_handlers.py"
 SKIPPED_FOLDERS = frozenset({"tests"})
 """Test folders third-party packages ship; compiled caches go with their `.pyc` files."""
 SKIPPED_SUFFIXES = (".pyc",)
 ZIP_TIME = (1980, 1, 1, 0, 0, 0)
 """Every entry's time, so the zip does not depend on when files were written."""
+REPO = Path(__file__).resolve().parents[4]
+"""The checkout the package is built from."""
 DEFAULT_PACKAGE = Path(__file__).resolve().parents[1] / "build" / "data-finops-lambda.zip"
 
 
@@ -45,8 +49,8 @@ def assemble(tree: Path, package: Path, *, limit: int = LAMBDA_UNZIPPED_LIMIT) -
         key=lambda path: path.relative_to(tree).as_posix(),
     )
     names = [path.relative_to(tree).as_posix() for path in files]
-    if HANDLERS not in names:
-        raise PackageError(f"{HANDLERS} is not in the package: the functions could not start")
+    if HANDLER_MODULE not in names:
+        raise PackageError(f"{HANDLER_MODULE} is not in the package: the functions could not start")
     unzipped = sum(path.stat().st_size for path in files)
     if unzipped > limit:
         raise PackageError(f"the package is {unzipped} bytes unzipped, over Lambda's {limit}")
@@ -94,7 +98,5 @@ def _uv(*arguments: str) -> None:
 
 
 if __name__ == "__main__":
-    repo = Path(__file__).resolve().parents[4]
-    built = build(repo, DEFAULT_PACKAGE)
+    built = build(REPO, DEFAULT_PACKAGE)
     print(f"wrote {built} ({built.stat().st_size} bytes)")
-    sys.exit(0)

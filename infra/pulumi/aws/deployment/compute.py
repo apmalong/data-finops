@@ -10,13 +10,14 @@ from typing import Any
 import pulumi
 import pulumi_aws as aws
 
+from deployment.package import ARCHITECTURE, PYTHON
 from deployment.settings import Settings
-from deployment.storage import INBOX, Storage, kept_on_destroy
+from deployment.storage import INBOX, Storage
 
 DATABASE_KEY = "database/data-finops.sqlite"
 """The database object (spec 08; `data_finops.collection.remote.DATABASE_KEY`)."""
 PACKAGE_KEY = "lambda/data-finops-lambda.zip"
-RUNTIME = "python3.12"
+RUNTIME = f"python{PYTHON}"
 HANDLERS = {
     "collector": "data_finops.lambda_handlers.collector",
     "api": "data_finops.lambda_handlers.api",
@@ -28,19 +29,22 @@ QUERY_RUNNING = [
     "athena:GetQueryRuntimeStatistics",
 ]
 """Athena calls that run a query or read its results: denied outright (spec 08 §IAM)."""
-LAMBDA_TRUST = json.dumps(
-    {
-        "Version": "2012-10-17",
-        "Statement": [
-            {
-                "Effect": "Allow",
-                "Principal": {"Service": "lambda.amazonaws.com"},
-                "Action": "sts:AssumeRole",
-            }
-        ],
-    }
-)
-SCHEDULER_TRUST = LAMBDA_TRUST.replace("lambda.amazonaws.com", "scheduler.amazonaws.com")
+
+
+def _trust(service: str) -> str:
+    """A role trust policy letting one AWS service assume the role."""
+    return json.dumps(
+        {
+            "Version": "2012-10-17",
+            "Statement": [
+                {
+                    "Effect": "Allow",
+                    "Principal": {"Service": service},
+                    "Action": "sts:AssumeRole",
+                }
+            ],
+        }
+    )
 
 
 class Compute(pulumi.ComponentResource):
@@ -78,12 +82,14 @@ class Compute(pulumi.ComponentResource):
                 f"{name}-{role}",
                 name=f"/aws/lambda/{name}-{stack}-{role}",
                 retention_in_days=settings.log_retention_days,
-                opts=pulumi.ResourceOptions.merge(kept_on_destroy(settings), child),
+                opts=child,
             )
             for role in HANDLERS
         }
         roles = {
-            role: aws.iam.Role(f"{name}-{role}", assume_role_policy=LAMBDA_TRUST, opts=child)
+            role: aws.iam.Role(
+                f"{name}-{role}", assume_role_policy=_trust("lambda.amazonaws.com"), opts=child
+            )
             for role in HANDLERS
         }
         resources: list[pulumi.Resource] = [code, *groups.values(), *roles.values()]
@@ -109,7 +115,7 @@ class Compute(pulumi.ComponentResource):
         )
         common: dict[str, Any] = {
             "runtime": RUNTIME,
-            "architectures": ["arm64"],
+            "architectures": [ARCHITECTURE],
             "s3_bucket": bucket.bucket,
             "s3_key": code.key,
             "source_code_hash": _code_hash(package),
@@ -158,7 +164,7 @@ class Compute(pulumi.ComponentResource):
             opts=child,
         )
         scheduler_role = aws.iam.Role(
-            f"{name}-scheduler", assume_role_policy=SCHEDULER_TRUST, opts=child
+            f"{name}-scheduler", assume_role_policy=_trust("scheduler.amazonaws.com"), opts=child
         )
         resources.append(
             aws.iam.RolePolicy(
@@ -297,6 +303,9 @@ def _api_policy(settings: Settings, bucket_arn: str, group_arn: str) -> dict[str
 
 
 def _reader_policy(function_arn: str) -> str:
+    """Call the API through its URL and no other way. Since October 2025 a function URL needs
+    `lambda:InvokeFunction` as well as `lambda:InvokeFunctionUrl`; `lambda:InvokedViaFunctionUrl`
+    limits the former to URL calls (AWS, "Control access to Lambda function URLs")."""
     return json.dumps(
         {
             "Version": "2012-10-17",
@@ -306,7 +315,13 @@ def _reader_policy(function_arn: str) -> str:
                     "Action": ["lambda:InvokeFunctionUrl"],
                     "Resource": [function_arn],
                     "Condition": {"StringEquals": {"lambda:FunctionUrlAuthType": "AWS_IAM"}},
-                }
+                },
+                {
+                    "Effect": "Allow",
+                    "Action": ["lambda:InvokeFunction"],
+                    "Resource": [function_arn],
+                    "Condition": {"Bool": {"lambda:InvokedViaFunctionUrl": "true"}},
+                },
             ],
         }
     )
@@ -367,9 +382,6 @@ def _alerts(
     return made
 
 
-def _code_hash(package: Path) -> str | None:
-    """The package's base64 SHA-256, so a changed zip redeploys the functions; None when the
-    zip is not built (under tests)."""
-    if not package.is_file():
-        return None
+def _code_hash(package: Path) -> str:
+    """The package's base64 SHA-256, so a changed zip redeploys the functions."""
     return base64.b64encode(hashlib.sha256(package.read_bytes()).digest()).decode()
