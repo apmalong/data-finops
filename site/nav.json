@@ -14,13 +14,17 @@
     {"title": "Handle a restated export", "path": "how-to/handle-restated-export.html"},
     {"title": "Read a Cost Explanation", "path": "how-to/read-cost-explanation.html"},
     {"title": "Serve with a token", "path": "how-to/serve-with-token.html"},
-    {"title": "Deploy the reference workload", "path": "how-to/deploy-reference-workload.html"}
+    {"title": "Deploy the reference workload", "path": "how-to/deploy-reference-workload.html"},
+    {"title": "Deploy to AWS", "path": "how-to/deploy-to-aws.html"},
+    {"title": "Read a Deployment", "path": "how-to/read-deployment.html"},
+    {"title": "Tear down a Deployment", "path": "how-to/tear-down-deployment.html"}
   ]},
   {"title": "Reference", "path": "reference/index.html", "pages": [
     {"title": "Command line", "path": "reference/cli.html"},
     {"title": "HTTP API", "path": "reference/http-api.html"},
     {"title": "Data contracts", "path": "reference/data-contracts.html"},
     {"title": "Exit codes and environment", "path": "reference/exit-codes-and-environment.html"},
+    {"title": "Deployment settings", "path": "reference/deployment-settings.html"},
     {"title": "Glossary", "path": "reference/glossary.html"}
   ]},
   {"title": "Explanation", "path": "explanation/index.html", "pages": [
@@ -29,6 +33,7 @@
     {"title": "Identity Links and Evidence", "path": "explanation/identity-links-and-evidence.html"},
     {"title": "Export Snapshots and restatements", "path": "explanation/export-snapshots-and-restatements.html"},
     {"title": "Security model", "path": "explanation/security-model.html"},
+    {"title": "Deployment architecture", "path": "explanation/deployment-architecture.html"},
     {"title": "Decision records", "path": "explanation/decision-records.html"}
   ]},
   {"title": "Contributing", "path": "contributing.html"}

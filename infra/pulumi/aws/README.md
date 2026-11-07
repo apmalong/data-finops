@@ -29,4 +29,4 @@ This writes `build/data-finops-lambda.zip` (git-ignored). The program refuses to
 
 ## Settings
 
-Stack configuration, `data-finops:*` and `aws:region`, is listed in spec 08's settings table. The site will generate its reference page (#190).
+Stack configuration, `data-finops:*` and `aws:region`, and the stack's outputs are listed on the site's generated reference page, `site/reference/deployment-settings.html` (#190). It is rendered from `deployment/settings.py` (`CONFIG_KEYS`, `BOUNDS`, each field's default and docstring) and `OUTPUTS` in `deployment/program.py`, read without importing them. After changing either, run `python -m scripts.site build` from the repository root. The deploy, read and teardown steps are the site's how-tos.

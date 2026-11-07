@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+<!-- head:start -->
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="../assets/site.css">
+<script src="../assets/site.js" defer></script>
+<!-- head:end -->
+<title>Deployment architecture - data-finops</title>
+<meta name="description" content="How a Deployment runs data-finops in one AWS account: two functions, one bucket, the trust boundaries between them, and what it costs.">
+</head>
+<body>
+<!-- nav:start -->
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="site-header"><a href="../index.html">data-finops</a></header>
+<nav class="site-nav" aria-label="Site">
+<ul>
+<li><a href="../tutorials/index.html">Tutorials</a></li>
+<li><a href="../how-to/index.html">How-to guides</a></li>
+<li><a href="../reference/index.html">Reference</a></li>
+<li><a href="index.html">Explanation</a>
+<ul>
+<li><a href="bill-is-authoritative.html">The bill is authoritative</a></li>
+<li><a href="allocation-and-coverage.html">Allocation and Coverage</a></li>
+<li><a href="identity-links-and-evidence.html">Identity Links and Evidence</a></li>
+<li><a href="export-snapshots-and-restatements.html">Export Snapshots and restatements</a></li>
+<li><a href="security-model.html">Security model</a></li>
+<li><a href="deployment-architecture.html" aria-current="page">Deployment architecture</a></li>
+<li><a href="decision-records.html">Decision records</a></li>
+</ul>
+</li>
+<li><a href="../contributing.html">Contributing</a></li>
+</ul>
+</nav>
+<!-- nav:end -->
+<main id="main">
+<h1>Deployment architecture</h1>
+<!-- onpage:start -->
+<nav class="on-page" aria-label="On this page">
+<p>On this page</p>
+<ul>
+<li><a href="#parts">Two functions and one bucket</a></li>
+<li><a href="#ingress">Pulled, not pushed</a></li>
+<li><a href="#trust">Trust boundaries</a></li>
+<li><a href="#cost">What it costs</a></li>
+<li><a href="#limits">Limits to watch</a></li>
+</ul>
+</nav>
+<!-- onpage:end -->
+<p>A Deployment runs data-finops in one AWS account, with no servers to keep running and no network to manage. This page explains its parts, where its trust boundaries are and what it costs. The decisions are in <a href="https://github.com/apmalong/data-finops/blob/main/docs/adr/0026-aws-deployment-two-lambdas-without-vpc.md">ADR 0026</a>, <a href="https://github.com/apmalong/data-finops/blob/main/docs/adr/0027-deployed-ingress-by-scheduled-pull-from-s3-inboxes.md">ADR 0027</a> and <a href="https://github.com/apmalong/data-finops/blob/main/docs/adr/0028-deployed-cost-explanation-is-minimal-by-default.md">ADR 0028</a>, with the design in <a href="https://github.com/apmalong/data-finops/blob/main/docs/specs/08-aws-deployment.md">spec 08</a>. They stay authoritative.</p>
+
+<h2 id="parts">Two functions and one bucket</h2>
+<img src="../assets/explanation/deployment.svg" alt="Inside one AWS account, the Deployment holds EventBridge Scheduler, the two functions and the Deployment bucket. The scheduler invokes the collector function once a day, and Lambda retries a failed run up to twice. The collector, the only writer, reads Deliveries from the FOCUS export bucket, lists and reads Athena query history, reads new keys from the Inbox, and writes the database object with If-Match. The read-only API function reads the database object, cached by ETag. The Inbox and the database are in the Deployment bucket, which is private, TLS only, encrypted and versioned. Also in the account but outside the Deployment, a producer such as Airflow or dbt writes to the Inbox with PutObject only, through the producer policy, and a reader, an IAM principal allowed to invoke the URL, calls the API's Function URL with SigV4-signed HTTPS GET requests." width="3124" height="970">
+<p>data-finops keeps everything in one SQLite file, written by one writer at a time. A Deployment keeps that design rather than adding a database server:</p>
+<ul>
+<li><strong>The database is one S3 object</strong>, <code>database/data-finops.sqlite</code>, in the Deployment's private bucket.</li>
+<li><strong>The collector is the only writer.</strong> Once a day it downloads the object, runs one <a href="../reference/glossary.html#collection-run">Collection Run</a> and uploads the result, only if the object is still the one it downloaded (an S3 conditional write on its ETag). A concurrent write makes the upload fail instead of being lost, and the next run starts again from the current object.</li>
+<li><strong>The API only reads.</strong> It serves the object the last run wrote, never a half-written one, and downloads it again only when its ETag changes.</li>
+</ul>
+<p>Neither function runs in a VPC, so there is no NAT gateway, subnet or endpoint to pay for or secure. Both reach S3, Athena and CloudWatch through AWS's public endpoints, signed with their own roles.</p>
+
+<h2 id="ingress">Pulled, not pushed</h2>
+<p>Locally, OpenLineage events can arrive over HTTP with a bearer token. A Deployment has no such endpoint. A long-lived shared token on a public URL is the risk the token was kept local to avoid, and stock OpenLineage clients cannot sign requests for an IAM-authorized URL. Producers write files to the <a href="../reference/glossary.html#inbox">Inbox</a> instead, with an IAM policy that allows nothing else, and the next Collection Run pulls what is new. Lineage therefore arrives once a day, which is when costs are calculated anyway. See <a href="../how-to/send-to-inbox.html">Send workload metadata to the Inbox</a>.</p>
+
+<h2 id="trust">Trust boundaries</h2>
+<ul>
+<li><strong>The account.</strong> The FOCUS export, the Athena workgroups and the Deployment are in one account, and so are the IAM principals of its producers and readers. Nothing crosses into another account.</li>
+<li><strong>The Function URL.</strong> It is reachable from the internet, but AWS rejects every request not signed by a principal allowed to invoke it, such as one with the reader policy, before the function runs. The API mounts only the read endpoints: there is no write route to reach.</li>
+<li><strong>Producers.</strong> A producer can put objects in the Inbox and do nothing else: not read them back, list them or touch the database. What it writes is screened like any input: each event capped at 1 MiB, each file at 512 MiB, and a rejected file reported by its key and reason, never its content.</li>
+<li><strong>The collector's reach.</strong> It reads the export, the Athena history of the configured workgroups and the Inbox, and writes only the database object. It cannot run queries or read their results, which an explicit deny enforces. Query text is dropped before anything is stored.</li>
+<li><strong>The bucket.</strong> Public access is blocked, ACLs are disabled, requests without TLS are denied, and objects are encrypted with an S3-managed key or, optionally, a customer-managed KMS key. Versioning keeps earlier databases for <code>noncurrentVersionDays</code>.</li>
+<li><strong>What readers see.</strong> A Cost Explanation shows the minimal Billing Line by default, withholding tags and free-text names, because a Deployment's readers may be a wider group than its billing administrators.</li>
+</ul>
+<p>The policy pack checks these rules on every pull request. Each function's role is limited to the actions its job needs, and the pack fails a role granted anything more. The local rules are in <a href="security-model.html">Security model</a>.</p>
+
+<h2 id="cost">What it costs</h2>
+<p>At the expected scale, a few thousand to about a million Billing Lines a month, a Deployment costs under $1 a month in <code>us-east-1</code> while Lambda's free tier covers it. These are estimates from AWS's published prices, checked on 2026-11-06, not measurements:</p>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
+<table>
+<thead><tr><th>Part</th><th>Small</th><th>About 1M lines a month</th></tr></thead>
+<tbody>
+<tr><td>Lambda, both functions (inside the free tier)</td><td>$0.00</td><td>$0.00</td></tr>
+<tr><td>S3 storage and requests</td><td>about $0.01</td><td>about $0.29</td></tr>
+<tr><td>CloudWatch Logs</td><td>$0.00 to $0.05</td><td>$0.03 to $0.53</td></tr>
+<tr><td>EventBridge Scheduler, the Function URL, the Budget</td><td>$0.00</td><td>$0.00</td></tr>
+<tr><td><strong>Total</strong></td><td><strong>about $0.01 to $0.06</strong></td><td><strong>about $0.32 to $0.82</strong></td></tr>
+</tbody>
+</table>
+</div>
+<ul>
+<li>The estimates assume a daily run of 60 seconds (small) to 300 seconds at the collector's default 2 GB of memory, 10,000 API requests a month of 1 second at 1 GB, and a database of 0.1 GB to 12 GB.</li>
+<li>Without Lambda's free tier, add about $0.18 (small) or $0.37 a month, which takes the larger case to about $1.20.</li>
+<li>A customer-managed KMS key adds $1 a month.</li>
+</ul>
+<p>AWS has no hard spending cap, and a Budget cannot stop a function. A Deployment bounds its cost instead: every function has a timeout and a memory size, the schedule runs once a day and a failed run is retried at most twice, logs expire, Inbox objects and old database versions expire, and the optional Budget emails on forecast and actual spend. If something still goes wrong, the API can be switched off at once: see <a href="../how-to/read-deployment.html#kill-switch">Read a Deployment</a>.</p>
+
+<h2 id="limits">Limits to watch</h2>
+<ul>
+<li>Each Collection Run moves the whole database in and out of S3. As it grows, so do the run's time and the API's cold start.</li>
+<li>A function's <code>/tmp</code> is Lambda's default 512 MB, since the stack does not set a larger one yet, so today the database must stay well under that. Lambda allows up to 10,240 MB, and one upload holds at most 5 GB.</li>
+<li>Athena keeps query history for 45 days. A Deployment that stops collecting for longer loses the gap, and the summary warns when it may have.</li>
+<li>None of these is measured on a large account yet. Each is a revisit trigger in ADR 0026 or spec 08.</li>
+</ul>
+<!-- pager:start -->
+<nav class="pager" aria-label="Previous and next">
+<a rel="prev" href="security-model.html">Previous: Security model</a>
+<a rel="next" href="decision-records.html">Next: Decision records</a>
+</nav>
+<!-- pager:end -->
+</main>
+<!-- footer:start -->
+<footer>
+<p>This site describes the <code>main</code> branch. Nothing is released yet. No license has been chosen yet. Source on <a href="https://github.com/apmalong/data-finops">GitHub</a>.</p>
+</footer>
+<!-- footer:end -->
+</body>
+</html>

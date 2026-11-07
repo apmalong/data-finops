@@ -2,15 +2,17 @@
 
 Each renderer is a pure function from its source to the HTML of a page's `reference` region:
 the CLI from its argparse parser, the HTTP API from the OpenAPI document, the data contracts
-from the JSON schemas, and the Glossary from GLOSSARY.md. Stdlib only.
+from the JSON schemas, the Glossary from GLOSSARY.md, and the deployment settings from the
+stack's source. Stdlib only.
 """
 
 import argparse
+import ast
 import json
 import re
 from collections.abc import Iterator
 from html import escape
-from typing import Any
+from typing import Any, NamedTuple
 
 from scripts.site.nav import SiteError
 
@@ -304,6 +306,132 @@ def render_glossary(markdown: str) -> str:
     if area:
         out.append(_close(area))
     return "\n".join(out)
+
+
+def render_deployment_settings(settings_source: str, program_source: str) -> str:
+    """The Deployment's settings and stack outputs (spec 08), read from the source of the
+    stack's `deployment/settings.py` and `deployment/program.py` without importing them: the
+    site tool stays stdlib-only, and the root environment has no Pulumi.
+
+    Each `Settings` field gives one row: its key from `CONFIG_KEYS`, its default, its
+    docstring, and its bounds from `BOUNDS`. A field whose keys are `field.sub` entries (the
+    Budget) gives one row per field of its own dataclass. The outputs come from `OUTPUTS`.
+    Anything the reference cannot document raises SiteError naming it."""
+    module = ast.parse(settings_source)
+    constants = _literals(module)
+    keys: dict[str, str] = dict(constants.get("CONFIG_KEYS", {}))
+    bounds: dict[str, tuple[int, int]] = constants.get("BOUNDS", {})
+    classes = {node.name: node for node in module.body if isinstance(node, ast.ClassDef)}
+    if "Settings" not in classes:
+        raise SiteError("deployment/settings.py has no Settings class")
+    rows = []
+    for field in _dataclass_fields(classes["Settings"], constants):
+        name, default = field.name, field.default
+        if name in keys:
+            meaning = field.doc
+            if name in bounds:
+                least, most = bounds[name]
+                meaning += f" A whole number from {least} to {most}."
+            rows.append(_setting_row(keys.pop(name), default, meaning))
+            continue
+        nested = next((n for n in _names(field.annotation) if n in classes), None)
+        if nested is None or not any(key.startswith(f"{name}.") for key in keys):
+            raise SiteError(f"Settings.{name} has no configuration key in CONFIG_KEYS")
+        for sub in _dataclass_fields(classes[nested], constants):
+            if f"{name}.{sub.name}" not in keys:
+                raise SiteError(f"{nested}.{sub.name} has no configuration key in CONFIG_KEYS")
+            rows.append(_setting_row(keys.pop(f"{name}.{sub.name}"), default, sub.doc))
+    if keys:
+        raise SiteError(f"CONFIG_KEYS names {next(iter(keys))}, which is not a setting")
+    outputs = _literals(ast.parse(program_source)).get("OUTPUTS")
+    if not outputs:
+        raise SiteError("deployment/program.py has no OUTPUTS")
+    output_rows = [
+        f"<tr><td><code>{escape(name)}</code></td><td>{_inline(_text(meaning))}</td></tr>"
+        for name, meaning in outputs.items()
+    ]
+    return "\n".join(
+        [
+            '<h2 id="settings">Settings</h2>',
+            _table(["Key", "Default", "Meaning"], rows),
+            '<h2 id="outputs">Outputs</h2>',
+            _table(["Output", "Meaning"], output_rows),
+        ]
+    )
+
+
+_NO_DEFAULT = object()
+
+
+class _Field(NamedTuple):
+    """One annotated field of a dataclass, as its source declares it."""
+
+    name: str
+    annotation: ast.expr
+    default: Any  # _NO_DEFAULT when it has none
+    doc: str
+
+
+def _literals(module: ast.Module) -> dict[str, Any]:
+    """The module's top-level names bound to a literal, by their value."""
+    found: dict[str, Any] = {}
+    for node in module.body:
+        target = node.targets[0] if isinstance(node, ast.Assign) else getattr(node, "target", None)
+        value = getattr(node, "value", None)
+        if isinstance(target, ast.Name) and value is not None:
+            try:
+                found[target.id] = ast.literal_eval(value)
+            except ValueError:
+                continue
+    return found
+
+
+def _dataclass_fields(cls: ast.ClassDef, constants: dict[str, Any]) -> Iterator[_Field]:
+    """Each annotated field of a dataclass: its name, annotation, default and docstring."""
+    body = cls.body
+    for index, node in enumerate(body):
+        if not isinstance(node, ast.AnnAssign) or not isinstance(node.target, ast.Name):
+            continue
+        name = node.target.id
+        after = body[index + 1] if index + 1 < len(body) else None
+        if not (
+            isinstance(after, ast.Expr)
+            and isinstance(after.value, ast.Constant)
+            and isinstance(after.value.value, str)
+        ):
+            raise SiteError(f"{cls.name}.{name} has no docstring")
+        if node.value is None:
+            default: Any = _NO_DEFAULT
+        elif isinstance(node.value, ast.Name) and node.value.id in constants:
+            default = constants[node.value.id]
+        else:
+            try:
+                default = ast.literal_eval(node.value)
+            except ValueError:
+                raise SiteError(
+                    f"{cls.name}.{name} has a default the reference cannot read"
+                ) from None
+        yield _Field(name, node.annotation, default, after.value.value)
+
+
+def _names(annotation: ast.expr) -> list[str]:
+    return [node.id for node in ast.walk(annotation) if isinstance(node, ast.Name)]
+
+
+def _setting_row(key: str, default: Any, meaning: str) -> str:
+    if default is _NO_DEFAULT:
+        shown = "required"
+    elif default is None:
+        shown = "unset"
+    elif default == "":
+        shown = "empty"
+    else:
+        value = str(default).lower() if isinstance(default, bool) else str(default)
+        shown = f"<code>{escape(value)}</code>"
+    return (
+        f"<tr><td><code>{escape(key)}</code></td><td>{shown}</td>"
+        f"<td>{_inline(_text(meaning))}</td></tr>"
+    )
 
 
 def _close(area: str) -> str:

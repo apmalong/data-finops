@@ -1,0 +1,44 @@
+# The AWS Deployment: who reaches what, and across which boundary (spec 08, ADRs 0026-0028).
+# Render: d2 --layout elk docs/architecture/deployment.d2 site/assets/explanation/deployment.svg
+direction: right
+
+classes: {
+  part: {style: {fill: "#ffffff"; stroke: "#1f1f1c"; border-radius: 6; font-size: 20}}
+  outside: {style: {fill: "#ffffff"; stroke: "#55544f"; border-radius: 6; font-size: 20; stroke-dash: 4}}
+  store: {shape: cylinder; style: {fill: "#ffffff"; stroke: "#1f1f1c"; font-size: 20}}
+  boundary: {style: {fill: "#f6f5f1"; stroke: "#b4532a"; font-size: 22; stroke-width: 2}}
+}
+
+account: "One AWS account" {
+  class: boundary
+
+  producer: "Producer\nAirflow, dbt\nproducer policy" {class: outside}
+  reader: "Reader\nan IAM principal allowed\nto invoke the URL" {class: outside}
+
+  deployment: "Deployment" {
+    class: boundary
+
+    scheduler: "EventBridge Scheduler\nonce a day, UTC" {class: part}
+    collector: "Collector function\nthe only writer" {class: part}
+    api: "API function\nread-only\nFunction URL, AWS_IAM" {class: part}
+
+    bucket: "Deployment bucket\nprivate, TLS only\nencrypted, versioned" {
+      class: boundary
+      inbox: "Inbox\ninbox/openlineage/\ninbox/dbt/" {class: store}
+      database: "database/\ndata-finops.sqlite" {class: store}
+    }
+
+    scheduler -> collector: "invokes; Lambda retries\na failed run up to twice"
+    collector -> bucket.database: "writes with If-Match"
+    api <- bucket.database: "reads, cached by ETag"
+    collector <- bucket.inbox: "reads new keys"
+  }
+
+  export: "FOCUS export bucket" {class: store}
+  athena: "Athena workgroups\nquery history" {class: part}
+
+  deployment.collector <- export: "reads Deliveries"
+  deployment.collector <- athena: "lists and reads history"
+  producer -> deployment.bucket.inbox: "PutObject only"
+  reader -> deployment.api: "HTTPS, SigV4-signed GET"
+}
