@@ -27,6 +27,12 @@ cd infra/pulumi/aws && uv run python -m deployment.package
 
 This writes `build/data-finops-lambda.zip` (git-ignored). The program refuses to run without it, and uploads it to the Deployment's bucket. A changed zip redeploys both functions.
 
+## The owner's wizards
+
+`wizards/deploy-and-verify.sh` and `wizards/teardown.sh` walk the owner through deploying and verifying the Deployment, and through destroying it and the reference workload (#26). Only the owner runs them: agents never do. Each asks before every step that changes anything, and masks account IDs, buckets, profiles and the API's URL in what it shows and in its record under `.local/`. Both use `deployment/state_check.py` on the exported state: whether a destroy keeps exactly the bucket and its settings, and whether anything is left. `tests/test_wizards.py` runs each with every command stubbed.
+
+The deployer's draft policy is `iam/deployer-policy.draft.json`, unvalidated. A test checks that it reaches every service the program declares a resource in.
+
 ## Settings
 
 Stack configuration, `data-finops:*` and `aws:region`, and the stack's outputs are listed on the site's generated reference page, `site/reference/deployment-settings.html` (#190). It is rendered from `deployment/settings.py` (`CONFIG_KEYS`, `BOUNDS`, each field's default and docstring) and `OUTPUTS` in `deployment/program.py`, read without importing them. After changing either, run `python -m scripts.site build` from the repository root. The deploy, read and teardown steps are the site's how-tos.

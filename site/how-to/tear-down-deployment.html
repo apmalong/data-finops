@@ -56,6 +56,12 @@
 <!-- onpage:end -->
 <p><code>pulumi destroy</code> removes a Deployment. By default it keeps the bucket, with the database and the Inbox in it, so a mistaken destroy loses no data. This guide removes a Deployment either way and lists what is left behind.</p>
 <p class="notice">Owner-run: not run on this page. Every command here reaches a real AWS account, and the deploy creates resources that cost money. Only the account owner runs <code>pulumi preview</code>, <code>pulumi up</code> and <code>pulumi destroy</code> against a real account.</p>
+<p>The owner can follow this page by hand, or run it as one wizard: <a href="https://github.com/apmalong/data-finops/blob/main/infra/pulumi/aws/wizards/teardown.sh"><code>teardown.sh</code></a>. It runs every step below, then tears down the reference workload too, and checks in AWS that nothing from either stack is left. It asks before every step that changes anything, and masks account IDs, buckets, profiles and the API's URL in everything it shows and records. From the repository root:</p>
+<div class="shell-tabs">
+<pre class="shell-posix"><code><span class="line">bash infra/pulumi/aws/wizards/teardown.sh</span></code></pre>
+<pre class="shell-windows"><code><span class="line">&amp; "C:\Program Files\Git\bin\bash.exe" infra/pulumi/aws/wizards/teardown.sh</span></code></pre>
+</div>
+<p>On Windows it needs Git Bash, not WSL's <code>bash</code>. Its masked record is written to <code>.local/</code>.</p>
 
 <h2 id="before">Before you destroy</h2>
 <p>Detach the producer and reader policies from every identity they were attached to. IAM refuses to delete a managed policy that is still attached, and the destroy stops there:</p>

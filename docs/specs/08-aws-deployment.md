@@ -42,7 +42,7 @@ Draft policies are in `docs/research/m6-collector-iam.md` and stay labelled unva
 - **Producer policy** (output): `s3:PutObject` on `inbox/*` only.
 - **Reader policy** (output): `lambda:InvokeFunctionUrl` on the API function (condition `lambda:FunctionUrlAuthType` `AWS_IAM`), and `lambda:InvokeFunction` on it only through the URL (condition `lambda:InvokedViaFunctionUrl`): function URLs created since October 2025 need both (AWS, "Control access to Lambda function URLs", checked 2026-11-07; #187).
 - **Scheduler role:** `lambda:InvokeFunction` on the collector function alone, assumed by EventBridge Scheduler to start the Collection Run (#187).
-- **Deployer:** created by the owner, never by the stack; a draft least-privilege deployer policy is documented, unvalidated.
+- **Deployer:** created by the owner, never by the stack; a draft least-privilege deployer policy is `infra/pulumi/aws/iam/deployer-policy.draft.json`, unvalidated until the deploy wizard's IAM Access Analyzer step (#192).
 
 ## Settings
 Required: `aws:region`, `exportBucket`, `exportName`, `workgroups` (a non-empty list; the stack refuses an empty one). `exportPrefix` is optional: empty when the export has no S3 path prefix, as the collector reads it (#185). The collector also needs the account ID (BatchGetQueryExecution does not carry it); the stack passes its own. `data-finops collect`'s TOML file names the same settings in snake case (`account_id`, `workgroups`, `max_history_pages`, …) and adds `bucket`, `region` and an optional `profile` (#181).
