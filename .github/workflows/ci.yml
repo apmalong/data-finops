@@ -60,8 +60,10 @@ jobs:
           uv run bandit -q -r policies.py __main__.py
           uv run pytest
           uv run pip-audit
-      - name: Stack (mocks, and the pack over the program's state)
+      - name: Stack (mocks, the pack over the program's state, and the real Lambda package)
         working-directory: infra/pulumi/aws
+        env:
+          DATA_FINOPS_BUILD_PACKAGE: '1'  # builds the arm64 zip from this checkout (spec 08 seam 8)
         run: |
           uv sync --frozen
           uv run mypy

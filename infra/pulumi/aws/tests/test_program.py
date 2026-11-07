@@ -1,8 +1,10 @@
 """The program's guard on its state backend (spec 08 §Layout; ADR 0001)."""
 
+from pathlib import Path
+
 import pulumi
 import pytest
-from deployment.program import build, require_local_state
+from deployment.program import build, require_local_state, require_package
 from deployment.settings import Settings
 
 from tests.mocks import MOCKS
@@ -31,9 +33,23 @@ def test_the_program_outputs_the_bucket() -> pulumi.Output[None]:
     )
     outputs = build(settings).outputs()
     return pulumi.Output.all(**outputs).apply(
-        lambda values: assert_equal(values, {"bucket": "mock-deployment-bucket"})
+        lambda values: assert_equal(
+            {k: values[k] for k in ("bucket", "apiUrl")},
+            {
+                "bucket": "mock-deployment-bucket",
+                "apiUrl": "https://mock.lambda-url.us-east-1.on.aws/",
+            },
+        )
     )
 
 
 def assert_equal(actual: object, expected: object) -> None:
     assert actual == expected
+
+
+def test_a_missing_package_is_refused_with_how_to_build_it(tmp_path: Path) -> None:
+    with pytest.raises(RuntimeError, match="python -m deployment.package"):
+        require_package(tmp_path / "data-finops-lambda.zip")
+    built = tmp_path / "built.zip"
+    built.write_bytes(b"PK")
+    require_package(built)

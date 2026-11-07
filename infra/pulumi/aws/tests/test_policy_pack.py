@@ -68,9 +68,16 @@ def _recorded() -> list[dict[str, Any]]:
     ]
 
 
+def _asset(value: object) -> object:
+    """An asset input (the Lambda package) as the state records it: by its path."""
+    if isinstance(value, pulumi.FileAsset):
+        return {"path": value.path}
+    raise TypeError(f"{type(value).__name__} is not JSON serializable")
+
+
 def _analyze(tmp: Path, resources: list[dict[str, Any]]) -> subprocess.CompletedProcess[str]:
     state = tmp / "state.json"
-    state.write_text(json.dumps(_state(resources)), encoding="utf-8")
+    state.write_text(json.dumps(_state(resources), default=_asset), encoding="utf-8")
     # The pack runs in its own virtualenv (PulumiPolicy.yaml); this test's must not leak in.
     environ = {k: v for k, v in os.environ.items() if k != "VIRTUAL_ENV"}
     return subprocess.run(  # noqa: S603 (a fixed command over a file this test wrote)
@@ -85,7 +92,10 @@ def _analyze(tmp: Path, resources: list[dict[str, Any]]) -> subprocess.Completed
 
 
 def _after_build(check: Callable[[list[dict[str, Any]]], None]) -> pulumi.Output[None]:
-    return build(SETTINGS).storage.ready.apply(lambda _: check(_recorded()))
+    deployment = build(SETTINGS)
+    return pulumi.Output.all(deployment.storage.ready, deployment.compute.ready).apply(
+        lambda _: check(_recorded())
+    )
 
 
 def test_the_cli_is_the_pinned_release() -> None:
