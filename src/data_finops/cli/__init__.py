@@ -24,7 +24,7 @@ from pydantic import ValidationError
 from data_finops.billing.aws_data_exports import DeliveryError, is_manifest, load_delivery
 from data_finops.billing.focus import load_export
 from data_finops.calculation import run_calculation
-from data_finops.collection import CollectionSettings, run_collection
+from data_finops.collection import AwsClients, CollectionSettings, run_collection
 from data_finops.ledger import Ledger, SnapshotConflictError
 from data_finops.reporting import BillingLineDetail
 from data_finops.workload.store import ArtifactOutcome, WorkloadStore
@@ -42,8 +42,8 @@ class ExitCode(IntEnum):
 
 
 OK, REJECTED, FAILED = ExitCode.OK, ExitCode.REJECTED, ExitCode.FAILED
-S3ClientFactory = Callable[[CollectionSettings], Any]
-"""Makes the S3 client a Collection Run reads through; injected by tests."""
+AwsClientsFactory = Callable[[CollectionSettings], AwsClients]
+"""Makes the clients a Collection Run reads through; injected by tests."""
 
 StartServer = Callable[[Any, str, int], None]
 """Serves an ASGI app on a host and port until stopped; uvicorn unless a caller injects one."""
@@ -62,14 +62,14 @@ def main(
     argv: Sequence[str] | None = None,
     *,
     start_server: StartServer | None = None,
-    s3_client: S3ClientFactory | None = None,
+    aws_clients: AwsClientsFactory | None = None,
 ) -> int:
     try:
         args = build_parser().parse_args(argv)
     except SystemExit as exited:  # argparse has printed usage or help
         return exited.code if isinstance(exited.code, int) else FAILED
     args.start_server = start_server or _uvicorn
-    args.s3_client = s3_client or _boto3_s3
+    args.aws_clients = aws_clients or make_aws_clients
     try:
         code: int = args.run(args)
     except _Failure as failure:
@@ -258,7 +258,7 @@ def _collect(args: argparse.Namespace) -> int:
         settings = CollectionSettings.from_toml(args.config)
     except ValueError as error:  # names the setting, never its value
         raise _Failure(f"{args.config}: {error}") from None
-    summary = run_collection(args.db, settings, s3=args.s3_client(settings))
+    summary = run_collection(args.db, settings, clients=args.aws_clients(settings))
     print(summary.model_dump_json())
     for source in summary.sources.values():
         for rejected in source.rejected:
@@ -266,16 +266,23 @@ def _collect(args: argparse.Namespace) -> int:
     return summary.exit_code
 
 
-def _boto3_s3(settings: CollectionSettings) -> Any:
-    """An S3 client for the settings' profile and region; boto3 is the `aws` extra."""
+def make_aws_clients(settings: CollectionSettings) -> AwsClients:
+    """S3 and Athena clients for the settings' profile and region; boto3 is the `aws`
+    extra. Making them calls nothing: the first request is the Collection Run's own."""
     try:
         import boto3
+        from botocore.config import Config
         from botocore.exceptions import BotoCoreError
     except ImportError:
         raise _Failure("collect needs the aws extra: uv sync --extra aws") from None
     try:
         session = boto3.Session(profile_name=settings.profile, region_name=settings.region)
-        return session.client("s3")
+        # botocore's standard retries: throttling and transient errors backed off with jitter,
+        # at most 5 attempts; then the source fails and the scheduler retries the run (Q44).
+        config = Config(retries={"mode": "standard", "total_max_attempts": 5})
+        return AwsClients(
+            s3=session.client("s3", config=config), athena=session.client("athena", config=config)
+        )
     except BotoCoreError as error:  # its message may name the profile: say what kind only
         raise _Failure(
             f"cannot make an AWS client ({type(error).__name__}): check the profile and region"

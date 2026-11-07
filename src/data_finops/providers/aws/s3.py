@@ -38,7 +38,7 @@ def list_objects(s3: S3Reader, bucket: str, prefix: str) -> Iterator[S3Object]:
     """Every object under `prefix`, in S3's key order, across pages."""
     params: dict[str, Any] = {"Bucket": bucket, "Prefix": prefix}
     while True:
-        page = _call(s3.list_objects_v2, **params)
+        page = call(s3.list_objects_v2, **params)
         for entry in page.get("Contents", ()):
             yield S3Object(key=entry["Key"], etag=entry["ETag"], size=entry["Size"])
         if not page.get("IsTruncated"):
@@ -51,14 +51,15 @@ def read_object(s3: S3Reader, bucket: str, obj: S3Object, max_bytes: int) -> byt
     download when the listing says it exceeds `max_bytes`."""
     if obj.size > max_bytes:
         raise TooLarge(obj.key)
-    response = _call(s3.get_object, Bucket=bucket, Key=obj.key, IfMatch=obj.etag)
+    response = call(s3.get_object, Bucket=bucket, Key=obj.key, IfMatch=obj.etag)
     data: bytes = response["Body"].read(max_bytes + 1)
     if len(data) > max_bytes:
         raise TooLarge(obj.key)
     return data
 
 
-def _call(operation: Any, **params: Any) -> Mapping[str, Any]:
+def call(operation: Any, **params: Any) -> Mapping[str, Any]:
+    """One AWS call; any failure becomes AwsSourceError carrying the AWS error code alone."""
     try:
         response: Mapping[str, Any] = operation(**params)
     except Exception as error:  # botocore's ClientError and connection errors

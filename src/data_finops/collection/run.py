@@ -1,10 +1,13 @@
 """One Collection Run: fetch every source, ingest it, then calculate (spec 08)."""
 
+import json
+import re
 import tempfile
 import tomllib
 from collections import defaultdict
 from dataclasses import dataclass, field, fields
 from pathlib import Path
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, computed_field
 
@@ -12,11 +15,14 @@ from data_finops.calculation import run_calculation
 from data_finops.dbt.artifacts import MAX_ARTIFACT_BYTES
 from data_finops.ledger import Ledger
 from data_finops.providers.aws import (
+    AthenaReader,
     AwsSourceError,
     S3Object,
     S3Reader,
     TooLarge,
+    batch_get_query_executions,
     list_objects,
+    list_query_execution_ids,
     read_object,
 )
 from data_finops.workload.store import ArtifactOutcome, InboxOutcome, WorkloadStore
@@ -29,6 +35,12 @@ MAX_INBOX_FILE_BYTES = MAX_ARTIFACT_BYTES
 """The cap on one Inbox file, the same 512 MiB as on every other input file (spec 04); each
 event within an OpenLineage file is still capped at 1 MiB by the screening it goes through."""
 
+UNFINISHED = frozenset({"QUEUED", "RUNNING"})
+"""Athena states a query can still leave; every other state is final."""
+
+DEFAULT_HISTORY_PAGES = 200
+"""ListQueryExecutions pages per workgroup per run by default (spec 08)."""
+
 OK, REJECTED, FAILED = 0, 1, 2
 """Exit codes, as the command line's (spec 05, spec 08 §6)."""
 
@@ -38,8 +50,14 @@ class CollectionSettings:
     bucket: str
     """The Deployment's bucket, holding the Inbox."""
     region: str
+    account_id: str
+    """The account the Athena workgroups are in; BatchGetQueryExecution does not say."""
+    workgroups: tuple[str, ...]
+    """The Athena workgroups whose history is collected (spec 08: never all of them)."""
     profile: str | None = None
     """An AWS profile for a run from a laptop; None inside Lambda."""
+    max_history_pages: int = DEFAULT_HISTORY_PAGES
+    """ListQueryExecutions pages read per workgroup per run, 50 IDs a page."""
 
     @classmethod
     def from_toml(cls, path: Path) -> "CollectionSettings":
@@ -54,13 +72,27 @@ class CollectionSettings:
         unknown = sorted(set(values) - {setting.name for setting in fields(cls)})
         if unknown:
             raise ValueError(f"unknown setting {', '.join(unknown)}")
-        for key in ("bucket", "region"):
+        for key in ("bucket", "region", "account_id", "workgroups"):
             if key not in values:
                 raise ValueError(f"missing setting {key}")
-        for key, value in values.items():
-            if not isinstance(value, str) or not value:
+        for key in ("bucket", "region", "account_id", "profile"):
+            if key in values and (not isinstance(values[key], str) or not values[key]):
                 raise ValueError(f"{key} must be a non-empty string")
-        return cls(**values)
+        if not (
+            isinstance(values["account_id"], str) and re.fullmatch(r"\d{12}", values["account_id"])
+        ):
+            raise ValueError("account_id must be 12 digits")
+        workgroups = values["workgroups"]
+        if (
+            not isinstance(workgroups, list)
+            or not workgroups
+            or not all(isinstance(w, str) and w for w in workgroups)
+        ):
+            raise ValueError("workgroups must be a non-empty list of names")
+        pages = values.get("max_history_pages", DEFAULT_HISTORY_PAGES)
+        if not isinstance(pages, int) or isinstance(pages, bool) or pages < 1:
+            raise ValueError("max_history_pages must be a whole number, at least 1")
+        return cls(**values | {"workgroups": tuple(workgroups), "max_history_pages": pages})
 
 
 class _Summary(BaseModel):
@@ -98,7 +130,17 @@ class CollectionSummary(_Summary):
         return OK
 
 
-def run_collection(db: Path, settings: CollectionSettings, *, s3: S3Reader) -> CollectionSummary:
+@dataclass(frozen=True)
+class AwsClients:
+    """The clients a Collection Run reads through, made by its caller (spec 08)."""
+
+    s3: S3Reader
+    athena: AthenaReader
+
+
+def run_collection(
+    db: Path, settings: CollectionSettings, *, clients: AwsClients
+) -> CollectionSummary:
     """Collect every source into the database at `db`, then start one Calculation Run per
     Snapshot Scope on whatever was stored."""
     with tempfile.TemporaryDirectory(prefix="data-finops-collect-") as scratch:
@@ -106,14 +148,17 @@ def run_collection(db: Path, settings: CollectionSettings, *, s3: S3Reader) -> C
             # Workload metadata first (spec 08 §1); links are derived when queried, so the
             # order is for readability, never correctness.
             warnings: list[str] = []
-            dbt = _collect_dbt(store, s3, settings.bucket, Path(scratch), warnings)
-            openlineage = _collect_openlineage(store, s3, settings.bucket, Path(scratch), warnings)
+            dbt = _collect_dbt(store, clients.s3, settings.bucket, Path(scratch), warnings)
+            openlineage = _collect_openlineage(
+                store, clients.s3, settings.bucket, Path(scratch), warnings
+            )
+            athena = _collect_athena(store, clients.athena, settings, Path(scratch), warnings)
     with Ledger(db) as ledger, WorkloadStore(db) as store:
         runs = [
             run_calculation(ledger, store, scope).calculation_run_id for scope in ledger.scopes()
         ]
     return CollectionSummary(
-        sources={"dbt": dbt, "openlineage": openlineage},
+        sources={"dbt": dbt, "openlineage": openlineage, "athena": athena},
         warnings=warnings,
         calculation_run_ids=runs,
     )
@@ -214,3 +259,79 @@ def _collect_openlineage(
     except AwsSourceError as error:
         return tally.summary(failed=str(error))
     return tally.summary()
+
+
+def _collect_athena(
+    store: WorkloadStore,
+    athena: AthenaReader,
+    settings: CollectionSettings,
+    scratch: Path,
+    warnings: list[str],
+) -> SourceSummary:
+    """Each configured workgroup's Query Executions that are not stored yet."""
+    tally = _Tally()
+    try:
+        for workgroup in settings.workgroups:
+            listing = list_query_execution_ids(
+                athena, workgroup, max_pages=settings.max_history_pages
+            )
+            if not listing.complete:
+                warnings.append(
+                    f"workgroup {workgroup}: history page cap of {settings.max_history_pages}"
+                    " reached; older queries were not listed"
+                )
+            listed = list(listing.ids)
+            stored = store.stored_query_execution_ids(settings.account_id, settings.region, listed)
+            if (
+                listed
+                and listing.complete
+                and not stored
+                and _has_history(store, settings, workgroup)
+            ):
+                # Athena keeps 45 days: nothing we hold is listed, so whatever ran between
+                # the last query we hold and the oldest listed may have expired unread.
+                warnings.append(
+                    f"workgroup {workgroup}: no overlap with stored history;"
+                    " queries older than Athena's 45-day history may be missing"
+                )
+            unseen = [query for query in listed if query not in stored]
+            if not unseen:
+                continue
+            response = batch_get_query_executions(athena, unseen)
+            # An unfinished query is not stored: its later report would be a changed copy,
+            # flagged. Left unseen, the next run fetches it again (spec 08 §3).
+            response["QueryExecutions"] = [
+                entry
+                for entry in response["QueryExecutions"]
+                if entry.get("Status", {}).get("State") not in UNFINISHED
+            ]
+            path = scratch / "history.json"
+            path.write_text(json.dumps(response), encoding="utf-8")
+            result = store.ingest_query_history(
+                path, account_id=settings.account_id, region=settings.region
+            )
+            tally.stored += result.accepted
+            tally.duplicates += result.duplicates
+            written = response["QueryExecutions"]
+            tally.rejected += [
+                RejectedItem(item=f"{workgroup}/{_query_id(written, r.position)}", reason=r.detail)
+                for r in result.rejected
+            ]
+            warnings += [
+                f"{workgroup}/{entry.get('QueryExecutionId')}:"
+                f" unprocessed ({entry.get('ErrorCode')})"
+                for entry in response["UnprocessedQueryExecutionIds"]
+            ]
+    except AwsSourceError as error:
+        return tally.summary(failed=str(error))
+    return tally.summary()
+
+
+def _has_history(store: WorkloadStore, settings: CollectionSettings, workgroup: str) -> bool:
+    return store.workgroup_has_query_executions(settings.account_id, settings.region, workgroup)
+
+
+def _query_id(entries: list[Any], position: int) -> str:
+    """The query ID of the entry at a 1-based position, or the position when it has none."""
+    query = entries[position - 1].get("QueryExecutionId")
+    return query if isinstance(query, str) and query else f"#{position}"
