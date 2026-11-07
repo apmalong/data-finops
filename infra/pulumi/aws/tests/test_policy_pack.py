@@ -116,30 +116,57 @@ def test_the_program_passes_every_policy(tmp_path: Path) -> pulumi.Output[None]:
     return _after_build(tmp_path, check)
 
 
-def _open_public_access(resources: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    for resource in resources:
-        if resource["type"].endswith(":BucketPublicAccessBlock"):
-            resource["inputs"] = resource["inputs"] | {"restrictPublicBuckets": False}
-    return resources
-
-
 def _without_versioning(resources: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return [r for r in resources if not r["type"].endswith(":BucketVersioning")]
 
 
-def _unencrypted(resources: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    for resource in resources:
-        if resource["type"].endswith(":BucketServerSideEncryptionConfiguration"):
-            resource["inputs"] = resource["inputs"] | {"rules": [{}]}
-    return resources
+PLAIN_HTTP = json.dumps({"Statement": [{"Effect": "Allow", "Action": "s3:GetObject"}]})
 
 
-def _policy_allowing_plain_http(resources: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    for resource in resources:
-        if resource["type"].endswith(":BucketPolicy"):
-            allow = {"Statement": [{"Effect": "Allow", "Action": "s3:GetObject"}]}
-            resource["inputs"] = resource["inputs"] | {"policy": json.dumps(allow)}
-    return resources
+def _changed(typ_suffix: str, change: dict[str, Any], name_suffix: str = "") -> Change:
+    """A fixture changing the inputs of every resource of one type (and, if given, name)."""
+
+    def apply(resources: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        for resource in resources:
+            if resource["type"].endswith(typ_suffix) and resource["urn"].endswith(name_suffix):
+                inputs = resource["inputs"] | change
+                # A setting left out is absent from the state, never null. Analyze hands
+                # resource policies the inputs and stack policies the outputs: change both.
+                kept = {k: v for k, v in inputs.items() if v is not None}
+                resource["inputs"], resource["outputs"] = kept, dict(kept)
+        return resources
+
+    return apply
+
+
+def _granting(name_suffix: str, statement: dict[str, Any]) -> Change:
+    """A fixture adding one statement to the role policy whose name ends with `name_suffix`."""
+
+    def apply(resources: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        for resource in resources:
+            if resource["type"].endswith(":RolePolicy") and resource["urn"].endswith(name_suffix):
+                document = json.loads(resource["inputs"]["policy"])
+                document["Statement"].append(statement)
+                changed = resource["inputs"] | {"policy": json.dumps(document)}
+                resource["inputs"], resource["outputs"] = changed, dict(changed)
+        return resources
+
+    return apply
+
+
+def _with_an_actual_only_budget(resources: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    budget = {
+        "urn": "urn:pulumi:test::data-finops::aws:budgets/budget:Budget::budget",
+        "custom": True,
+        "type": "aws:budgets/budget:Budget",
+        "inputs": {
+            "budgetType": "COST",
+            "notifications": [{"notificationType": "ACTUAL", "threshold": 100}],
+        },
+        "outputs": {},
+        "parent": STACK,
+    }
+    return [*resources, budget]
 
 
 def _with_a_vpc(resources: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -157,11 +184,36 @@ def _with_a_vpc(resources: list[dict[str, Any]]) -> list[dict[str, Any]]:
 @pytest.mark.parametrize(
     ("change", "policy"),
     [
-        (_open_public_access, "s3-public-access-blocked"),
+        (
+            _changed(":BucketPublicAccessBlock", {"restrictPublicBuckets": False}),
+            "s3-public-access-blocked",
+        ),
         (_without_versioning, "s3-guarded"),
-        (_unencrypted, "s3-encrypted"),
-        (_policy_allowing_plain_http, "s3-tls-only"),
+        (_changed(":BucketServerSideEncryptionConfiguration", {"rules": [{}]}), "s3-encrypted"),
+        (_changed(":BucketPolicy", {"policy": PLAIN_HTTP}), "s3-tls-only"),
         (_with_a_vpc, "no-ruled-out-resources"),
+        (_changed(":FunctionUrl", {"authorizationType": "NONE"}), "url-iam-only"),
+        (_changed(":Function", {"memorySize": None}), "function-bounded"),
+        (_changed(":LogGroup", {"retentionInDays": None}), "function-logged"),
+        (
+            _granting(
+                "collector",
+                {"Effect": "Allow", "Action": "athena:StartQueryExecution", "Resource": "*"},
+            ),
+            "iam-least-privilege",
+        ),
+        (
+            _granting(
+                "api",
+                {
+                    "Effect": "Allow",
+                    "Action": "s3:PutObject",
+                    "Resource": "arn:aws:s3:::mock-deployment-bucket/inbox/*",
+                },
+            ),
+            "iam-least-privilege",
+        ),
+        (_with_an_actual_only_budget, "budget-alerts"),
     ],
 )
 @pulumi.runtime.test

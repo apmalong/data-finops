@@ -73,12 +73,12 @@ AWS has no hard spending cap, and Budget actions cannot stop Lambda. Cost limits
 A small custom Python pack (Pulumi's open-source AWS packs are TypeScript only and stale). All mandatory, each checking literal inputs only (an unknown value at preview only yields an advisory):
 1. S3: all four public access blocks; default encryption; a TLS-only bucket policy; versioning on.
 2. Every Function URL is `AWS_IAM`.
-3. Every Lambda function has a log group with retention set, and a timeout and memory within the stack's bounds.
+3. Every Lambda function has its log group, `/aws/lambda/<name>`, with retention set, and sets its timeout and memory explicitly within spec 08's bounds (1–900 s, 128–10,240 MB). The pack cannot read the stack's settings, so it checks those bounds, not the configured values (#189).
 4. The collector's and API's IAM policies use only allowlisted actions: no `*` action, nothing that runs queries or reads results; the API role is read-only on the bucket.
 5. Stack level: no VPC, subnet, NAT gateway, EIP, RDS, EKS, ECS or EFS resource (spec 05).
 6. A configured Budget alerts on both forecast and actual spend.
 
-The policies live in a plain module; only `__main__.py` builds the `PolicyPack`, because constructing it blocks.
+The policies live in a plain module; only `__main__.py` builds the `PolicyPack`, because constructing it blocks. `pulumi policy analyze` hands resource policies each resource's inputs and stack policies its outputs, so a state written for it carries both (#189).
 
 ## Testing
 Each seam test-first, with hand-made mutation checks recorded in the PR. No test touches a real account.
