@@ -2,6 +2,7 @@
 
 from collections.abc import Iterator, Mapping
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Protocol
 
 from data_finops.providers.aws.calls import call
@@ -41,6 +42,38 @@ def list_objects(s3: S3Reader, bucket: str, prefix: str) -> Iterator[S3Object]:
         if not page.get("IsTruncated"):
             return
         params["ContinuationToken"] = page["NextContinuationToken"]
+
+
+def list_folders(s3: S3Reader, bucket: str, prefix: str) -> list[str]:
+    """The names of the 'folders' directly under `prefix` (S3 common prefixes), sorted."""
+    params: dict[str, Any] = {"Bucket": bucket, "Prefix": prefix, "Delimiter": "/"}
+    names: list[str] = []
+    while True:
+        page = call(s3.list_objects_v2, **params)
+        names += [
+            entry["Prefix"][len(prefix) :].rstrip("/") for entry in page.get("CommonPrefixes", ())
+        ]
+        if not page.get("IsTruncated"):
+            return sorted(names)
+        params["ContinuationToken"] = page["NextContinuationToken"]
+
+
+def download_object(s3: S3Reader, bucket: str, obj: S3Object, path: Path, max_bytes: int) -> None:
+    """Write the object at its listed version to `path` in chunks, refused before any download
+    when the listing says it exceeds `max_bytes`, and stopped if the body does."""
+    if obj.size > max_bytes:
+        raise TooLarge(obj.key)
+    body = call(s3.get_object, Bucket=bucket, Key=obj.key, IfMatch=obj.etag)["Body"]
+    written = 0
+    with path.open("wb") as file:
+        while chunk := body.read(_CHUNK):
+            written += len(chunk)
+            if written > max_bytes:
+                raise TooLarge(obj.key)
+            file.write(chunk)
+
+
+_CHUNK = 8 * 1024 * 1024
 
 
 def read_object(s3: S3Reader, bucket: str, obj: S3Object, max_bytes: int) -> bytes:

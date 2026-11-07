@@ -5,12 +5,16 @@ ingested into a temporary database, asserted only through `reporting` and the su
 import dataclasses
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple
 
 import pytest
 from aws_stubs import (
     ACCOUNT,
     BUCKET,
+    EXPORT_BUCKET,
+    EXPORT_NAME,
+    EXPORT_PREFIX,
+    METADATA,
     REGION,
     WORKGROUP,
     athena_client,
@@ -19,9 +23,12 @@ from aws_stubs import (
     expect_get,
     expect_history,
     expect_listing,
+    expect_prefixes,
     s3_client,
     stubbed,
 )
+from botocore.stub import Stubber
+from delivery_files import write_delivery
 from fixture_database import EXPORT, FIXTURES
 from fixture_database import OTHER_ACCOUNT as OTHER
 
@@ -31,7 +38,11 @@ from data_finops.collection import (
     CollectionSummary,
     run_collection,
 )
-from data_finops.collection.run import MAX_INBOX_FILE_BYTES
+from data_finops.collection.run import (
+    MAX_DATA_FILE_BYTES,
+    MAX_DELIVERY_BYTES,
+    MAX_INBOX_FILE_BYTES,
+)
 from data_finops.ledger import Ledger
 from data_finops.lineage.validation import MAX_EVENT_BYTES
 from data_finops.providers.aws.athena import UNFINISHED
@@ -42,12 +53,20 @@ EVENTS = (FIXTURES / "openlineage" / "events.json").read_bytes()
 DBT = "inbox/dbt/"
 OPENLINEAGE = "inbox/openlineage/"
 SETTINGS = CollectionSettings(
-    bucket=BUCKET, region=REGION, account_id=ACCOUNT, workgroups=(WORKGROUP,)
+    bucket=BUCKET,
+    region=REGION,
+    account_id=ACCOUNT,
+    workgroups=(WORKGROUP,),
+    export_bucket=EXPORT_BUCKET,
+    export_prefix=EXPORT_PREFIX,
+    export_name=EXPORT_NAME,
 )
 
 
-def _run(db: Path, s3: Any) -> CollectionSummary:
-    """A Collection Run whose Athena history is empty: the Inbox sources alone."""
+def _run(db: Path, s3: Any, s3_stub: Stubber) -> CollectionSummary:
+    """A Collection Run whose Athena history and export are empty: the Inbox sources alone.
+    `s3_stub` already expects the Inbox calls; the export's listing is expected after them."""
+    expect_prefixes(s3_stub, METADATA, [])
     athena = athena_client()
     with stubbed(athena) as stubber:
         expect_history(stubber, [])
@@ -62,11 +81,11 @@ def test_an_inbox_event_file_is_ingested_once_and_shows_in_lineage(tmp_path: Pat
         expect_listing(stubber, DBT, {})
         expect_listing(stubber, OPENLINEAGE, {key: EVENTS})
         expect_get(stubber, key, EVENTS)
-        first = _run(db, s3)
+        first = _run(db, s3, stubber)
     with stubbed(s3) as stubber:
         expect_listing(stubber, DBT, {})
         expect_listing(stubber, OPENLINEAGE, {key: EVENTS})  # listed again, never fetched
-        second = _run(db, s3)
+        second = _run(db, s3, stubber)
 
     assert first.sources["openlineage"].stored > 0
     assert (first.sources["openlineage"].rejected, first.exit_code) == ([], 0)
@@ -96,7 +115,7 @@ def test_a_rejected_event_is_named_by_key_and_position_and_the_run_still_calcula
         expect_listing(stubber, DBT, {})
         expect_listing(stubber, OPENLINEAGE, {key: data})
         expect_get(stubber, key, data)
-        summary = _run(db, s3)
+        summary = _run(db, s3, stubber)
 
     source = summary.sources["openlineage"]
     assert source.stored == 1
@@ -116,7 +135,7 @@ def test_an_inbox_file_over_the_cap_is_rejected_without_being_downloaded(tmp_pat
     with stubbed(s3) as stubber:  # no GetObject is expected: the Stubber fails on one
         expect_listing(stubber, DBT, {})
         expect_listing(stubber, OPENLINEAGE, {key: b""}, sizes={key: MAX_INBOX_FILE_BYTES + 1})
-        summary = _run(tmp_path / "data-finops.sqlite", s3)
+        summary = _run(tmp_path / "data-finops.sqlite", s3, stubber)
     assert [(r.item, r.reason) for r in summary.sources["openlineage"].rejected] == [
         (key, "too large")
     ]
@@ -124,7 +143,7 @@ def test_an_inbox_file_over_the_cap_is_rejected_without_being_downloaded(tmp_pat
     with stubbed(s3) as stubber:  # rejected once, never again
         expect_listing(stubber, DBT, {})
         expect_listing(stubber, OPENLINEAGE, {key: b""}, sizes={key: MAX_INBOX_FILE_BYTES + 1})
-        again = _run(tmp_path / "data-finops.sqlite", s3)
+        again = _run(tmp_path / "data-finops.sqlite", s3, stubber)
     assert (again.sources["openlineage"].rejected, again.exit_code) == ([], 0)
 
 
@@ -136,7 +155,7 @@ def test_an_unreadable_inbox_fails_the_run_after_calculating_without_aws_text(
     with stubbed(s3) as stubber:
         expect_listing(stubber, DBT, {})
         expect_denied(stubber, "list_objects_v2")
-        summary = _run(db, s3)
+        summary = _run(db, s3, stubber)
     assert summary.sources["openlineage"].failed == "AccessDenied"
     assert summary.exit_code == 2
     assert len(summary.calculation_run_ids) == 1
@@ -152,12 +171,12 @@ def test_an_inbox_object_overwritten_with_new_content_is_collected_again(tmp_pat
         expect_listing(stubber, DBT, {})
         expect_listing(stubber, OPENLINEAGE, {key: first}, etags={key: '"v1"'})
         expect_get(stubber, key, first, version='"v1"')
-        _run(db, s3)
+        _run(db, s3, stubber)
     with stubbed(s3) as stubber:
         expect_listing(stubber, DBT, {})
         expect_listing(stubber, OPENLINEAGE, {key: second}, etags={key: '"v2"'})
         expect_get(stubber, key, second, version='"v2"')
-        summary = _run(db, s3)
+        summary = _run(db, s3, stubber)
     assert summary.sources["openlineage"].stored == 1
 
 
@@ -185,9 +204,9 @@ def test_dbt_artifacts_from_the_inbox_explain_a_cost_down_to_the_model(tmp_path:
             expect_get(stubber, key, data)
         expect_listing(stubber, OPENLINEAGE, {f"{OPENLINEAGE}run.json": EVENTS})
         expect_get(stubber, f"{OPENLINEAGE}run.json", EVENTS)
-        summary = _run(db, s3)
+        summary = _run(db, s3, stubber)
 
-    assert list(summary.sources) == ["dbt", "openlineage", "athena"]
+    assert list(summary.sources) == ["dbt", "openlineage", "athena", "focus"]
     assert (summary.sources["dbt"].stored, summary.exit_code) == (2, 0)
     (run_id,) = summary.calculation_run_ids
     with Reporting(db) as reporting:
@@ -204,13 +223,13 @@ def test_an_invocation_folder_waits_until_both_artifacts_have_arrived(tmp_path: 
     with stubbed(s3) as stubber:
         expect_listing(stubber, DBT, {manifest: MANIFEST})  # nothing fetched yet
         expect_listing(stubber, OPENLINEAGE, {})
-        waiting = _run(db, s3)
+        waiting = _run(db, s3, stubber)
     with stubbed(s3) as stubber:
         expect_listing(stubber, DBT, {manifest: MANIFEST, run_results: RUN_RESULTS})
         expect_get(stubber, manifest, MANIFEST)
         expect_get(stubber, run_results, RUN_RESULTS)
         expect_listing(stubber, OPENLINEAGE, {})
-        arrived = _run(db, s3)
+        arrived = _run(db, s3, stubber)
 
     assert (waiting.sources["dbt"].stored, waiting.exit_code) == (0, 0)
     assert waiting.warnings == [f"{DBT}inv-001/: waiting for run_results.json"]
@@ -228,7 +247,7 @@ def test_a_dbt_artifact_over_the_cap_or_unreadable_is_rejected_by_key(tmp_path: 
         )
         expect_get(stubber, bad, secret)
         expect_listing(stubber, OPENLINEAGE, {})
-        summary = _run(db, s3)
+        summary = _run(db, s3, stubber)
 
     dbt = summary.sources["dbt"]
     assert dbt.stored == 0
@@ -247,7 +266,7 @@ def _collect_one(db: Path, key: str, data: bytes) -> CollectionSummary:
         expect_listing(stubber, DBT, {})
         expect_listing(stubber, OPENLINEAGE, {key: data})
         expect_get(stubber, key, data)
-        return _run(db, s3)
+        return _run(db, s3, stubber)
 
 
 def test_a_changed_copy_of_an_event_is_stored_once_and_counted_once(tmp_path: Path) -> None:
@@ -311,6 +330,7 @@ def _run_history(
             )
         if fetched:
             expect_batch(stubber, fetched)
+        expect_prefixes(s3_stub, METADATA, [])
         return run_collection(db, settings, clients=AwsClients(s3=s3, athena=athena))
 
 
@@ -319,7 +339,7 @@ def test_athena_history_is_collected_and_explains_a_metered_share(tmp_path: Path
     summary = _run_history(db, [["q-001", "q-002"]], [Q1, Q2])
     again = _run_history(db, [["q-001", "q-002"]], [])  # both stored: nothing fetched
 
-    assert list(summary.sources) == ["dbt", "openlineage", "athena"]
+    assert list(summary.sources) == ["dbt", "openlineage", "athena", "focus"]
     assert (summary.sources["athena"].stored, summary.exit_code) == (2, 0)
     assert (again.sources["athena"].stored, again.exit_code) == (0, 0)
     assert "dbt_version" not in summary.model_dump_json()  # the query text never surfaces
@@ -403,6 +423,7 @@ def test_a_rejected_or_unprocessed_query_is_named_by_workgroup_and_id(tmp_path: 
         expect_listing(s3_stub, OPENLINEAGE, {})
         expect_history(stubber, ["q-001", "q-bad", "q-gone"])
         expect_batch(stubber, [Q1, broken], unprocessed={"q-gone": "INVALID_QUERY_EXECUTION_ID"})
+        expect_prefixes(s3_stub, METADATA, [])
         summary = run_collection(db, SETTINGS, clients=AwsClients(s3=s3, athena=athena))
 
     athena_summary = summary.sources["athena"]
@@ -424,6 +445,7 @@ def test_history_athena_refuses_fails_the_source_and_the_run_still_calculates(
         expect_listing(s3_stub, DBT, {})
         expect_listing(s3_stub, OPENLINEAGE, {})
         expect_denied(stubber, "list_query_executions")
+        expect_prefixes(s3_stub, METADATA, [])
         summary = run_collection(db, SETTINGS, clients=AwsClients(s3=s3, athena=athena))
     assert summary.sources["athena"].failed == "AccessDenied"
     assert (summary.exit_code, len(summary.calculation_run_ids)) == (2, 1)
@@ -464,3 +486,285 @@ def test_a_failed_query_is_collected_without_its_sql_or_free_text(tmp_path: Path
     served = query.model_dump_json()
     assert "secret" not in served
     assert "raw_orders" not in served  # the SQL after the Trusted Query Comment's line
+
+
+ROOT = f"{EXPORT_PREFIX}/{EXPORT_NAME}/"
+MANIFEST_NAME = f"{EXPORT_NAME}-Manifest.json"
+FOCUS_MANIFEST_NAME = f"{EXPORT_NAME}-Manifest-FOCUS.json"
+
+
+class Delivery(NamedTuple):
+    """One Delivery as its S3 objects: metadata keys and data keys, each to its content."""
+
+    folder: str  # billing_period=YYYY-MM/<CreatedAt>-<executionId>
+    metadata: dict[str, bytes]
+    data: dict[str, bytes]
+
+
+def _delivery(tmp_path: Path, folder: str, costs: list[float]) -> Delivery:
+    execution = folder.rsplit("-", 5)[-5:]
+    local = tmp_path / folder.replace(":", "_").replace("/", "_")
+    write_delivery(
+        local,
+        folder=folder,
+        execution="-".join(execution),
+        files={f"{EXPORT_NAME}-00001.snappy.parquet": costs},
+        bucket=EXPORT_BUCKET,
+    )
+    # delivery_files names its files after its own example export; rename to this one's
+    manifest = json.loads((local / "example-focus-1-2-Manifest.json").read_text(encoding="utf-8"))
+    return Delivery(
+        folder,
+        {
+            f"{ROOT}metadata/{folder}/{MANIFEST_NAME}": json.dumps(manifest).encode("utf-8"),
+            f"{ROOT}metadata/{folder}/{FOCUS_MANIFEST_NAME}": (
+                local / "example-focus-1-2-Manifest-FOCUS.json"
+            ).read_bytes(),
+        },
+        {
+            f"{ROOT}data/{folder}/{name}": (local / name).read_bytes()
+            for name in (uri.rsplit("/", 1)[1] for uri in manifest["dataFiles"])
+        },
+    )
+
+
+def _expect_ingest(stubber: Stubber, delivery: Delivery) -> None:
+    """The calls that download one Delivery: its manifests, its data listing, its data."""
+    for key, data in delivery.metadata.items():
+        expect_get(stubber, key, data, bucket=EXPORT_BUCKET)
+    expect_listing(stubber, f"{ROOT}data/{delivery.folder}/", delivery.data, bucket=EXPORT_BUCKET)
+    for key, data in delivery.data.items():
+        expect_get(stubber, key, data, bucket=EXPORT_BUCKET)
+
+
+def _run_exports(
+    db: Path,
+    periods: dict[str, list[Delivery]],
+    ingested: list[Delivery],
+    *,
+    settings: CollectionSettings = SETTINGS,
+) -> CollectionSummary:
+    """A Collection Run whose only source with content is the export: `periods` lists each
+    Billing Period's Deliveries; `ingested` are those the run is expected to download."""
+    s3, athena = s3_client(), athena_client()
+    with stubbed(s3) as s3_stub, stubbed(athena) as stubber:
+        expect_listing(s3_stub, DBT, {})
+        expect_listing(s3_stub, OPENLINEAGE, {})
+        expect_history(stubber, [])
+        expect_prefixes(s3_stub, f"{ROOT}metadata/", list(periods))
+        for period in list(periods)[-settings.billing_lookback_periods :]:
+            metadata = {k: v for d in periods[period] for k, v in d.metadata.items()}
+            expect_listing(s3_stub, f"{ROOT}metadata/{period}/", metadata, bucket=EXPORT_BUCKET)
+            for delivery in ingested:
+                if delivery.folder.startswith(period):
+                    _expect_ingest(s3_stub, delivery)
+        return run_collection(db, settings, clients=AwsClients(s3=s3, athena=athena))
+
+
+NOV = "billing_period=2026-11"
+FIRST = f"{NOV}/2026-11-05T13:06:53.949Z-0771642f-2e82-3988-b27a-f8171b7deb3d"
+SECOND = f"{NOV}/2026-11-05T18:43:54.994Z-980aa446-5e52-3927-9bca-c5774fc47fe8"
+
+
+def test_a_delivery_becomes_the_current_export_snapshot_and_is_calculated(
+    tmp_path: Path,
+) -> None:
+    db = tmp_path / "data-finops.sqlite"
+    delivery = _delivery(tmp_path, SECOND, [0.0003])
+    summary = _run_exports(db, {NOV: [delivery]}, [delivery])
+    again = _run_exports(db, {NOV: [delivery]}, [])  # not newer than the current snapshot
+
+    assert list(summary.sources) == ["dbt", "openlineage", "athena", "focus"]
+    assert (summary.sources["focus"].stored, summary.exit_code) == (1, 0)
+    assert (again.sources["focus"].stored, again.exit_code) == (0, 0)
+    (run_id,) = summary.calculation_run_ids
+    with Reporting(db) as reporting:
+        provenance = reporting.provenance(calculation_run_id=run_id)
+    assert provenance.export_snapshot.published_at.isoformat() == "2026-11-05T18:43:54.994000+00:00"
+
+
+def _current_billed(db: Path, run_id: str) -> str:
+    with Reporting(db) as reporting:
+        provenance = reporting.provenance(calculation_run_id=run_id)
+    assert provenance.export_snapshot is not None
+    return provenance.export_snapshot.snapshot_id
+
+
+def test_every_newer_delivery_is_ingested_oldest_first_so_the_newest_is_current(
+    tmp_path: Path,
+) -> None:
+    db = tmp_path / "data-finops.sqlite"
+    first, second = _delivery(tmp_path, FIRST, [0.0001]), _delivery(tmp_path, SECOND, [0.0003])
+    summary = _run_exports(db, {NOV: [second, first]}, [first, second])
+    assert summary.sources["focus"].stored == 2
+    (run_id,) = summary.calculation_run_ids
+    assert _current_billed(db, run_id).endswith("980aa446-5e52-3927-9bca-c5774fc47fe8")
+
+
+def test_a_delivery_older_than_the_current_snapshot_is_never_downloaded(tmp_path: Path) -> None:
+    db = tmp_path / "data-finops.sqlite"
+    first, second = _delivery(tmp_path, FIRST, [0.0001]), _delivery(tmp_path, SECOND, [0.0003])
+    _run_exports(db, {NOV: [second]}, [second])
+    late = _run_exports(db, {NOV: [first, second]}, [])  # FIRST appears late: superseded
+    assert (late.sources["focus"].stored, late.sources["focus"].duplicates) == (0, 0)
+
+
+def test_an_overwrite_mode_layout_is_refused_with_a_reason(tmp_path: Path) -> None:
+    created = _delivery(tmp_path, SECOND, [0.0003])
+    flat = Delivery(  # Data Exports' "overwrite" delivery: no <CreatedAt>-<executionId> folder
+        NOV,
+        {key.replace(SECOND, NOV): data for key, data in created.metadata.items()},
+        {},
+    )
+    summary = _run_exports(tmp_path / "data-finops.sqlite", {NOV: [flat]}, [])
+    assert summary.sources["focus"].stored == 0
+    assert summary.warnings == [
+        f"{NOV}: an overwrite-mode Delivery is refused; set the export to create new files"
+    ]
+    assert summary.exit_code == 0
+
+
+def _with_manifest(delivery: Delivery, change: Any) -> Delivery:
+    """The Delivery with its manifest's JSON passed through `change`."""
+    (key,) = (k for k in delivery.metadata if k.endswith(MANIFEST_NAME))
+    manifest = json.loads(delivery.metadata[key])
+    change(manifest)
+    return delivery._replace(metadata=delivery.metadata | {key: json.dumps(manifest).encode()})
+
+
+def _expect_manifests(stubber: Stubber, delivery: Delivery) -> None:
+    for key, data in delivery.metadata.items():
+        expect_get(stubber, key, data, bucket=EXPORT_BUCKET)
+
+
+def test_a_manifest_naming_data_outside_the_export_is_rejected_unread(tmp_path: Path) -> None:
+    def elsewhere(manifest: dict[str, Any]) -> None:
+        manifest["dataFiles"] = [
+            uri.replace(f"s3://{EXPORT_BUCKET}/", "s3://secret-other-bucket/")
+            for uri in manifest["dataFiles"]
+        ]
+
+    delivery = _with_manifest(_delivery(tmp_path, SECOND, [0.0003]), elsewhere)
+    s3, athena = s3_client(), athena_client()
+    with stubbed(s3) as s3_stub, stubbed(athena) as stubber:
+        expect_listing(s3_stub, DBT, {})
+        expect_listing(s3_stub, OPENLINEAGE, {})
+        expect_history(stubber, [])
+        expect_prefixes(s3_stub, f"{ROOT}metadata/", [NOV])
+        expect_listing(s3_stub, f"{ROOT}metadata/{NOV}/", delivery.metadata, bucket=EXPORT_BUCKET)
+        _expect_manifests(s3_stub, delivery)  # then nothing: no data is listed or fetched
+        summary = run_collection(
+            tmp_path / "data-finops.sqlite", SETTINGS, clients=AwsClients(s3=s3, athena=athena)
+        )
+    assert [(r.item, r.reason) for r in summary.sources["focus"].rejected] == [
+        (SECOND, "the manifest names a data file outside the export")
+    ]
+    assert summary.exit_code == 1
+    assert "secret" not in summary.model_dump_json()
+
+
+def test_only_the_data_files_the_manifest_lists_are_downloaded(tmp_path: Path) -> None:
+    delivery = _delivery(tmp_path, SECOND, [0.0003])
+    stale = f"{ROOT}data/{SECOND}/{EXPORT_NAME}-00002.snappy.parquet"  # left by an older run
+    s3, athena = s3_client(), athena_client()
+    with stubbed(s3) as s3_stub, stubbed(athena) as stubber:
+        expect_listing(s3_stub, DBT, {})
+        expect_listing(s3_stub, OPENLINEAGE, {})
+        expect_history(stubber, [])
+        expect_prefixes(s3_stub, f"{ROOT}metadata/", [NOV])
+        expect_listing(s3_stub, f"{ROOT}metadata/{NOV}/", delivery.metadata, bucket=EXPORT_BUCKET)
+        _expect_manifests(s3_stub, delivery)
+        expect_listing(
+            s3_stub, f"{ROOT}data/{SECOND}/", delivery.data | {stale: b"x"}, bucket=EXPORT_BUCKET
+        )
+        for key, data in delivery.data.items():  # the stale file is never fetched
+            expect_get(s3_stub, key, data, bucket=EXPORT_BUCKET)
+        summary = run_collection(
+            tmp_path / "data-finops.sqlite", SETTINGS, clients=AwsClients(s3=s3, athena=athena)
+        )
+    assert (summary.sources["focus"].stored, summary.exit_code) == (1, 0)
+
+
+def _run_delivery_listed(
+    tmp_path: Path, delivery: Delivery, *, sizes: dict[str, int] | None = None
+) -> CollectionSummary:
+    """A run that reaches `delivery`'s data listing (with these listed sizes) and fetches no
+    data unless the sizes are its own."""
+    s3, athena = s3_client(), athena_client()
+    with stubbed(s3) as s3_stub, stubbed(athena) as stubber:
+        expect_listing(s3_stub, DBT, {})
+        expect_listing(s3_stub, OPENLINEAGE, {})
+        expect_history(stubber, [])
+        expect_prefixes(s3_stub, f"{ROOT}metadata/", [NOV])
+        expect_listing(s3_stub, f"{ROOT}metadata/{NOV}/", delivery.metadata, bucket=EXPORT_BUCKET)
+        _expect_manifests(s3_stub, delivery)
+        expect_listing(
+            s3_stub,
+            f"{ROOT}data/{delivery.folder}/",
+            delivery.data,
+            bucket=EXPORT_BUCKET,
+            sizes=sizes,
+        )
+        return run_collection(
+            tmp_path / "data-finops.sqlite", SETTINGS, clients=AwsClients(s3=s3, athena=athena)
+        )
+
+
+@pytest.mark.parametrize(
+    ("size", "reason"),
+    [
+        (MAX_DATA_FILE_BYTES + 1, "a file over its cap"),
+        (MAX_DELIVERY_BYTES + 1, "the Delivery's data files exceed its cap together"),
+    ],
+)
+def test_a_delivery_over_a_cap_is_rejected_before_any_data_is_downloaded(
+    tmp_path: Path, size: int, reason: str
+) -> None:
+    delivery = _delivery(tmp_path, SECOND, [0.0003])
+    (key,) = delivery.data
+    summary = _run_delivery_listed(tmp_path, delivery, sizes={key: size})
+    assert [(r.item, r.reason) for r in summary.sources["focus"].rejected] == [(SECOND, reason)]
+
+
+def test_a_delivery_in_another_focus_release_is_rejected_by_the_reader(tmp_path: Path) -> None:
+    delivery = _delivery(tmp_path, SECOND, [0.0003])
+    (focus_key,) = (k for k in delivery.metadata if k.endswith(FOCUS_MANIFEST_NAME))
+    focus = json.loads(delivery.metadata[focus_key])
+    focus["Schema"]["FocusVersion"] = "1.3"
+    delivery = delivery._replace(
+        metadata=delivery.metadata | {focus_key: json.dumps(focus).encode()}
+    )
+    summary = _run_exports(tmp_path / "data-finops.sqlite", {NOV: [delivery]}, [delivery])
+    ((item, reason),) = [(r.item, r.reason) for r in summary.sources["focus"].rejected]
+    assert (item, reason) == (SECOND, "FOCUS 1.3, but 1.2 is pinned (ADR 0015)")
+    assert summary.exit_code == 1
+
+
+def test_a_delivery_still_being_written_is_left_for_a_later_run(tmp_path: Path) -> None:
+    db = tmp_path / "data-finops.sqlite"
+    whole = _delivery(tmp_path, SECOND, [0.0003])
+    partial = whole._replace(
+        metadata={k: v for k, v in whole.metadata.items() if not k.endswith(MANIFEST_NAME)}
+    )
+    waiting = _run_exports(db, {NOV: [partial]}, [])
+    arrived = _run_exports(db, {NOV: [whole]}, [whole])
+    assert (waiting.sources["focus"].stored, waiting.sources["focus"].rejected) == (0, [])
+    assert waiting.exit_code == 0
+    assert arrived.sources["focus"].stored == 1
+
+
+def test_only_the_most_recent_billing_periods_are_looked_at(tmp_path: Path) -> None:
+    oct_folder = (
+        "billing_period=2026-10/2026-10-31T13:06:53.949Z-0771642f-2e82-3988-b27a-f8171b7deb3d"
+    )
+    sep = "billing_period=2026-09"
+    october = _delivery(tmp_path, oct_folder, [0.0001])
+    november = _delivery(tmp_path, SECOND, [0.0003])
+    one = dataclasses.replace(SETTINGS, billing_lookback_periods=1)
+    summary = _run_exports(
+        tmp_path / "data-finops.sqlite",
+        {sep: [], "billing_period=2026-10": [october], NOV: [november]},
+        [november],
+        settings=one,
+    )  # September and October are never listed
+    assert summary.sources["focus"].stored == 1

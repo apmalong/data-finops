@@ -13,98 +13,18 @@ from pathlib import Path
 import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
+from delivery_files import (
+    ACCOUNT,
+    CREATED,
+    EXECUTION,
+    SCHEMA,
+    row,
+    write_delivery,
+)
 
 from data_finops.billing.aws_data_exports import DeliveryError, load_delivery
 from data_finops.cli import main
 from data_finops.ledger import Ledger
-
-ACCOUNT = "123456789012"
-EXPORT = "focus/example-focus-1-2"
-EXECUTION = "980aa446-5e52-3927-9bca-c5774fc47fe8"
-CREATED = "2026-11-05T18:43:54.994Z"
-FOLDER = f"billing_period=2026-11/{CREATED}-{EXECUTION}"
-SCHEMA = pa.schema(
-    [
-        ("BilledCost", pa.float64()),
-        ("EffectiveCost", pa.float64()),
-        ("ListCost", pa.float64()),
-        ("ContractedCost", pa.float64()),
-        ("BillingAccountId", pa.string()),
-        ("BillingCurrency", pa.string()),
-        ("BillingPeriodStart", pa.timestamp("ms", tz="UTC")),
-        ("BillingPeriodEnd", pa.timestamp("ms", tz="UTC")),
-        ("ChargePeriodStart", pa.timestamp("ms", tz="UTC")),
-        ("ChargePeriodEnd", pa.timestamp("ms", tz="UTC")),
-        ("ChargeCategory", pa.string()),
-        ("ProviderName", pa.string()),
-        ("ServiceName", pa.string()),
-    ]
-)
-
-
-def _row(cost: float) -> dict[str, object]:
-    return {
-        "BilledCost": cost,
-        "EffectiveCost": cost,
-        "ListCost": cost,
-        "ContractedCost": cost,
-        "BillingAccountId": ACCOUNT,
-        "BillingCurrency": "USD",
-        "BillingPeriodStart": datetime(2026, 11, 1, tzinfo=UTC),
-        "BillingPeriodEnd": datetime(2026, 12, 1, tzinfo=UTC),
-        "ChargePeriodStart": datetime(2026, 11, 1, 21, tzinfo=UTC),
-        "ChargePeriodEnd": datetime(2026, 11, 1, 22, tzinfo=UTC),
-        "ChargeCategory": "Usage",
-        "ProviderName": "AWS",
-        "ServiceName": "Amazon Athena",
-    }
-
-
-def _deliver(
-    root: Path,
-    *,
-    folder: str = FOLDER,
-    execution: str = EXECUTION,
-    files: dict[str, list[float]] | None = None,
-    listed: list[str] | None = None,
-    focus_version: str = "1.2",
-) -> Path:
-    """Write one delivery's manifests and data files flat into `root` (S3's folder names
-    hold colons, which Windows cannot store); return the manifest."""
-    files = files if files is not None else {"example-focus-1-2-00001.snappy.parquet": [0.0003]}
-    root.mkdir(parents=True, exist_ok=True)
-    for name, costs in files.items():
-        pq.write_table(pa.Table.from_pylist([_row(c) for c in costs], schema=SCHEMA), root / name)
-    names = listed if listed is not None else list(files)
-    manifest = root / "example-focus-1-2-Manifest.json"
-    manifest.write_text(
-        json.dumps(
-            {
-                "executionId": execution,
-                "exportArn": f"arn:aws:bcm-data-exports:us-east-1:{ACCOUNT}:export/example",
-                "columns": [{"name": f.name, "type": str(f.type)} for f in SCHEMA],
-                "dataFiles": [f"s3://example-bucket/{EXPORT}/data/{folder}/{n}" for n in names],
-                "additionalOutputFiles": [],
-            }
-        ),
-        encoding="utf-8",
-    )
-    (root / "example-focus-1-2-Manifest-FOCUS.json").write_text(
-        json.dumps(
-            {
-                "DataGenerator": "Amazon Web Services, Inc.",
-                "DataGeneratorVersion": "1.0.0",
-                "Schema": {
-                    "SchemaId": "1.0.0",
-                    "CreationDate": "2025-11-19T00:00:00Z",
-                    "FocusVersion": focus_version,
-                    "ColumnDefinition": [],
-                },
-            }
-        ),
-        encoding="utf-8",
-    )
-    return manifest
 
 
 def _move_data_files(source: Path, target: Path) -> Path:
@@ -115,7 +35,7 @@ def _move_data_files(source: Path, target: Path) -> Path:
 
 
 def test_a_delivery_becomes_one_export_snapshot_published_when_aws_created_it(tmp_path):
-    manifest = _deliver(tmp_path, files={"a-00002.parquet": [4.0], "a-00001.parquet": [6.0]})
+    manifest = write_delivery(tmp_path, files={"a-00002.parquet": [4.0], "a-00001.parquet": [6.0]})
 
     export = load_delivery(manifest)
 
@@ -132,7 +52,7 @@ def test_a_delivery_becomes_one_export_snapshot_published_when_aws_created_it(tm
 
 
 def test_only_the_files_the_manifest_lists_are_read(tmp_path):
-    manifest = _deliver(
+    manifest = write_delivery(
         tmp_path,
         files={"a-00001.parquet": [6.0], "left-over.parquet": [99.0]},
         listed=["a-00001.parquet"],
@@ -144,7 +64,7 @@ def test_only_the_files_the_manifest_lists_are_read(tmp_path):
 
 
 def test_a_listed_file_that_was_not_downloaded_is_an_error(tmp_path):
-    manifest = _deliver(
+    manifest = write_delivery(
         tmp_path, listed=["example-focus-1-2-00001.snappy.parquet", "missing.parquet"]
     )
 
@@ -153,7 +73,7 @@ def test_a_listed_file_that_was_not_downloaded_is_an_error(tmp_path):
 
 
 def test_data_files_can_lie_in_another_folder(tmp_path):
-    manifest = _deliver(tmp_path / "metadata")
+    manifest = write_delivery(tmp_path / "metadata")
     data = _move_data_files(tmp_path / "metadata", tmp_path / "data")
 
     export = load_delivery(manifest, data)
@@ -162,14 +82,14 @@ def test_data_files_can_lie_in_another_folder(tmp_path):
 
 
 def test_a_manifest_listing_no_data_files_is_an_error(tmp_path):
-    manifest = _deliver(tmp_path, listed=[])
+    manifest = write_delivery(tmp_path, listed=[])
 
     with pytest.raises(DeliveryError, match="no data files"):
         load_delivery(manifest)
 
 
 def test_a_folder_naming_another_execution_is_an_error(tmp_path):
-    manifest = _deliver(tmp_path, execution="0771642f-2e82-3988-b27a-f8171b7deb3d")
+    manifest = write_delivery(tmp_path, execution="0771642f-2e82-3988-b27a-f8171b7deb3d")
 
     with pytest.raises(DeliveryError, match="execution"):
         load_delivery(manifest)
@@ -185,28 +105,28 @@ def test_a_folder_naming_another_execution_is_an_error(tmp_path):
     ids=["no creation time", "not a time", "no billing period"],
 )
 def test_a_folder_without_aws_naming_is_an_error(tmp_path, folder):
-    manifest = _deliver(tmp_path, folder=folder)
+    manifest = write_delivery(tmp_path, folder=folder)
 
     with pytest.raises(DeliveryError):
         load_delivery(manifest)
 
 
 def test_a_focus_version_other_than_the_pinned_release_is_an_error(tmp_path):
-    manifest = _deliver(tmp_path, focus_version="1.3")
+    manifest = write_delivery(tmp_path, focus_version="1.3")
 
     with pytest.raises(DeliveryError, match="1.3"):
         load_delivery(manifest)
 
 
 def test_lines_from_another_billing_period_than_the_folder_names_are_an_error(tmp_path):
-    manifest = _deliver(tmp_path, folder=f"billing_period=2026-10/{CREATED}-{EXECUTION}")
+    manifest = write_delivery(tmp_path, folder=f"billing_period=2026-10/{CREATED}-{EXECUTION}")
 
     with pytest.raises(ValueError, match="Billing Period"):
         load_delivery(manifest)
 
 
 def test_the_command_line_ingests_a_delivery_by_its_manifest_and_replays_it(tmp_path, capsys):
-    manifest = _deliver(tmp_path / "metadata")
+    manifest = write_delivery(tmp_path / "metadata")
     data = _move_data_files(tmp_path / "metadata", tmp_path / "data")
     db = tmp_path / "data-finops.sqlite"
     command = ["ingest", "focus", str(manifest), "--data-dir", str(data)]
@@ -225,10 +145,10 @@ def test_the_command_line_ingests_a_delivery_by_its_manifest_and_replays_it(tmp_
 def test_a_december_delivery_ends_its_billing_period_on_new_year(tmp_path):
     folder = f"billing_period=2026-12/{CREATED}-{EXECUTION}"
     rows = {"a-00001.parquet": [1.0]}
-    manifest = _deliver(tmp_path, folder=folder, files=rows)
+    manifest = write_delivery(tmp_path, folder=folder, files=rows)
     december = pa.Table.from_pylist(
         [
-            _row(1.0)
+            row(1.0)
             | {
                 "BillingPeriodStart": datetime(2026, 12, 1, tzinfo=UTC),
                 "BillingPeriodEnd": datetime(2027, 1, 1, tzinfo=UTC),
@@ -244,7 +164,7 @@ def test_a_december_delivery_ends_its_billing_period_on_new_year(tmp_path):
 
 
 def test_a_manifest_listing_files_of_two_deliveries_is_an_error(tmp_path):
-    manifest = _deliver(tmp_path, files={"a-00001.parquet": [1.0], "a-00002.parquet": [2.0]})
+    manifest = write_delivery(tmp_path, files={"a-00001.parquet": [1.0], "a-00002.parquet": [2.0]})
     content = json.loads(manifest.read_text(encoding="utf-8"))
     content["dataFiles"][1] = content["dataFiles"][1].replace(CREATED, "2026-11-05T13:06:53.949Z")
     manifest.write_text(json.dumps(content), encoding="utf-8")
@@ -254,7 +174,7 @@ def test_a_manifest_listing_files_of_two_deliveries_is_an_error(tmp_path):
 
 
 def test_the_command_line_names_what_is_wrong_with_a_delivery_but_not_its_bucket(tmp_path, capsys):
-    manifest = _deliver(
+    manifest = write_delivery(
         tmp_path, listed=["example-focus-1-2-00001.snappy.parquet", "missing.parquet"]
     )
 

@@ -92,8 +92,11 @@
 </span><span class="line">region = "us-east-1"
 </span><span class="line">account_id = "123456789012"
 </span><span class="line">workgroups = ["example-workgroup"]
+</span><span class="line">export_bucket = "example-export-bucket"
+</span><span class="line">export_prefix = "focus"
+</span><span class="line">export_name = "example-focus-1-2"
 </span><span class="line">profile = "your-profile"</span></pre>
-<p><code>account_id</code> and <code>workgroups</code> name the Athena workgroups whose query history is collected too; see <a href="ingest-athena-history.html#collect">Ingest Athena query history</a>. <code>profile</code> is optional. An unknown setting is refused, so a typo never does nothing quietly. Then collect into a database:</p>
+<p><code>account_id</code> and <code>workgroups</code> name the Athena workgroups whose query history is collected too; see <a href="ingest-athena-history.html#collect">Ingest Athena query history</a>. The three <code>export_</code> settings name the FOCUS export, as configured in Data Exports; see <a href="ingest-focus-export.html#collect">Ingest a FOCUS export</a>. <code>profile</code> is optional. An unknown setting is refused, so a typo never does nothing quietly. Then collect into a database:</p>
 <div class="shell-tabs">
 <pre class="shell-posix"><code><span class="line">data-finops collect --db finops.sqlite --config collect.toml</span></code></pre>
 <pre class="shell-windows" data-derived=""><code><span class="line">data-finops collect --db finops.sqlite --config collect.toml</span></code></pre>

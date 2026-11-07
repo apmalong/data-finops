@@ -14,6 +14,8 @@ from data_finops.providers.aws.s3 import (
     S3Object,
     S3Reader,
     TooLarge,
+    download_object,
+    list_folders,
     list_objects,
     read_object,
 )
@@ -27,6 +29,8 @@ __all__ = [
     "S3Reader",
     "TooLarge",
     "batch_get_query_executions",
+    "download_object",
+    "list_folders",
     "list_objects",
     "list_query_execution_ids",
     "read_object",

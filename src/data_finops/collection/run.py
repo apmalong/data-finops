@@ -11,9 +11,16 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, computed_field
 
+from data_finops.billing.aws_data_exports import (
+    SOURCE,
+    DeliveryError,
+    billing_period_start,
+    delivery_created,
+    load_delivery,
+)
 from data_finops.calculation import run_calculation
 from data_finops.dbt.artifacts import MAX_ARTIFACT_BYTES
-from data_finops.ledger import Ledger
+from data_finops.ledger import Ledger, SnapshotConflictError
 from data_finops.providers.aws import (
     UNFINISHED,
     AthenaReader,
@@ -22,6 +29,8 @@ from data_finops.providers.aws import (
     S3Reader,
     TooLarge,
     batch_get_query_executions,
+    download_object,
+    list_folders,
     list_objects,
     list_query_execution_ids,
     read_object,
@@ -36,6 +45,9 @@ MAX_INBOX_FILE_BYTES = MAX_ARTIFACT_BYTES
 """The cap on one Inbox file, the same 512 MiB as on every other input file (spec 04); each
 event within an OpenLineage file is still capped at 1 MiB by the screening it goes through."""
 
+DEFAULT_LOOKBACK_PERIODS = 2
+MAX_LOOKBACK_PERIODS = 24
+"""Billing Periods looked at per run by default: the current and the previous (spec 08)."""
 DEFAULT_HISTORY_PAGES = 200
 """ListQueryExecutions pages per workgroup per run by default (spec 08)."""
 MAX_HISTORY_PAGES = 1000
@@ -59,6 +71,21 @@ class CollectionSettings:
     """An AWS profile for a run from a laptop; None inside Lambda."""
     max_history_pages: int = DEFAULT_HISTORY_PAGES
     """ListQueryExecutions pages read per workgroup per run, 50 IDs a page."""
+    export_bucket: str = ""
+    """The bucket AWS Data Exports delivers the FOCUS export to."""
+    export_prefix: str = ""
+    """The export's S3 path prefix, as configured in Data Exports (may be empty)."""
+    export_name: str = ""
+    billing_lookback_periods: int = DEFAULT_LOOKBACK_PERIODS
+    """How many of the most recent Billing Periods in the export each run looks at."""
+
+    @property
+    def export_root(self) -> str:
+        """`<prefix>/<export>/`, under which AWS writes `data/` and `metadata/`."""
+        return (
+            "/".join(part.strip("/") for part in (self.export_prefix, self.export_name) if part)
+            + "/"
+        )
 
     @classmethod
     def from_toml(cls, path: Path) -> "CollectionSettings":
@@ -73,12 +100,14 @@ class CollectionSettings:
         unknown = sorted(set(values) - {setting.name for setting in fields(cls)})
         if unknown:
             raise ValueError(f"unknown setting {', '.join(unknown)}")
-        for key in ("bucket", "region", "account_id", "workgroups"):
+        for key in ("bucket", "region", "account_id", "workgroups", "export_bucket", "export_name"):
             if key not in values:
                 raise ValueError(f"missing setting {key}")
-        for key in ("bucket", "region", "account_id", "profile"):
+        for key in ("bucket", "region", "account_id", "profile", "export_bucket", "export_name"):
             if key in values and (not isinstance(values[key], str) or not values[key]):
                 raise ValueError(f"{key} must be a non-empty string")
+        if not isinstance(values.get("export_prefix", ""), str):
+            raise ValueError("export_prefix must be a string")
         if not (
             isinstance(values["account_id"], str) and re.fullmatch(r"\d{12}", values["account_id"])
         ):
@@ -90,16 +119,29 @@ class CollectionSettings:
             or not all(isinstance(w, str) and w for w in workgroups)
         ):
             raise ValueError("workgroups must be a non-empty list of names")
-        pages = values.get("max_history_pages", DEFAULT_HISTORY_PAGES)
-        if (
-            not isinstance(pages, int)
-            or isinstance(pages, bool)
-            or not 1 <= pages <= MAX_HISTORY_PAGES
-        ):
-            raise ValueError(
-                f"max_history_pages must be a whole number from 1 to {MAX_HISTORY_PAGES}"
-            )
-        return cls(**values | {"workgroups": tuple(workgroups), "max_history_pages": pages})
+        return cls(
+            **values
+            | {
+                "workgroups": tuple(workgroups),
+                "max_history_pages": _whole_number(
+                    values, "max_history_pages", DEFAULT_HISTORY_PAGES, MAX_HISTORY_PAGES
+                ),
+                "billing_lookback_periods": _whole_number(
+                    values,
+                    "billing_lookback_periods",
+                    DEFAULT_LOOKBACK_PERIODS,
+                    MAX_LOOKBACK_PERIODS,
+                ),
+            }
+        )
+
+
+def _whole_number(values: dict[str, Any], key: str, default: int, most: int) -> int:
+    """The setting as a whole number from 1 to `most`, or `default` when it is absent."""
+    value = values.get(key, default)
+    if not isinstance(value, int) or isinstance(value, bool) or not 1 <= value <= most:
+        raise ValueError(f"{key} must be a whole number from 1 to {most}")
+    return value
 
 
 class _Summary(BaseModel):
@@ -160,12 +202,14 @@ def run_collection(
                 store, clients.s3, settings.bucket, Path(scratch), warnings
             )
             athena = _collect_athena(store, clients.athena, settings, Path(scratch), warnings)
+        with Ledger(db) as ledger:
+            focus = _collect_focus(ledger, clients.s3, settings, Path(scratch), warnings)
     with Ledger(db) as ledger, WorkloadStore(db) as store:
         runs = [
             run_calculation(ledger, store, scope).calculation_run_id for scope in ledger.scopes()
         ]
     return CollectionSummary(
-        sources={"dbt": dbt, "openlineage": openlineage, "athena": athena},
+        sources={"dbt": dbt, "openlineage": openlineage, "athena": athena, "focus": focus},
         warnings=warnings,
         calculation_run_ids=runs,
     )
@@ -343,3 +387,133 @@ def _query_id(entries: list[Any], position: int) -> str:
     """The query ID of the entry at a 1-based position, or the position when it has none."""
     query = entries[position - 1].get("QueryExecutionId")
     return query if isinstance(query, str) and query else f"#{position}"
+
+
+MAX_DATA_FILE_BYTES = 2 * 1024**3
+"""The cap on one FOCUS data file, checked against its listed size before download (Q48)."""
+MANIFEST_SUFFIX = "-Manifest.json"
+"""How AWS names a Delivery's main manifest, `<export>-Manifest.json`."""
+MAX_DELIVERY_BYTES = 8 * 1024**3
+"""The cap on one Delivery's data files together, within Lambda's 10 GiB `/tmp` (Q48)."""
+MAX_MANIFEST_BYTES = 16 * 1024 * 1024
+"""The cap on a Delivery's manifests, which list files and columns only."""
+
+
+class _RejectedDelivery(ValueError):
+    """A Delivery refused whole; the message names the problem, never a URI or content."""
+
+
+def _collect_focus(
+    ledger: Ledger, s3: S3Reader, settings: CollectionSettings, scratch: Path, warnings: list[str]
+) -> SourceSummary:
+    """Every Delivery of the most recent Billing Periods newer than its period's current
+    Export Snapshot, oldest first, each read by the existing Delivery reader (spec 08 §2)."""
+    tally = _Tally()
+    bucket, root = settings.export_bucket, settings.export_root
+    try:
+        periods = [
+            name
+            for name in list_folders(s3, bucket, f"{root}metadata/")
+            if billing_period_start(name)
+        ][-settings.billing_lookback_periods :]
+        for period in periods:
+            current = _current_publication(ledger, billing_period_start(period))
+            folders: dict[str, dict[str, S3Object]] = defaultdict(dict)
+            for obj in list_objects(s3, bucket, f"{root}metadata/{period}/"):
+                folder, _, name = obj.key.removeprefix(f"{root}metadata/{period}/").rpartition("/")
+                folders[folder][name] = obj
+            if "" in folders:  # files straight under the period: Data Exports' overwrite mode
+                warnings.append(
+                    f"{period}: an overwrite-mode Delivery is refused;"
+                    " set the export to create new files"
+                )
+                continue
+            created = {folder: delivery_created(folder) for folder in folders}
+            newer = sorted(
+                (when, folder)
+                for folder, when in created.items()
+                if when is not None
+                and (current is None or when > current)
+                # A Delivery is complete once its manifest is written (spec 08 §2); until
+                # then it is left for a later run.
+                and any(name.endswith(MANIFEST_SUFFIX) for name in folders[folder])
+            )
+            for _, folder in newer:
+                delivery = f"{period}/{folder}"
+                try:
+                    export = _download_delivery(s3, settings, delivery, folders[folder], scratch)
+                    result = ledger.import_snapshot(export)
+                except (_RejectedDelivery, DeliveryError, SnapshotConflictError, TooLarge) as error:
+                    tally.rejected.append(RejectedItem(item=delivery, reason=_reason(error)))
+                    continue
+                if result.outcome.value == "replay":
+                    tally.duplicates += 1
+                else:
+                    tally.stored += 1
+    except AwsSourceError as error:
+        return tally.summary(failed=str(error))
+    return tally.summary()
+
+
+def _reason(error: Exception) -> str:
+    if isinstance(error, TooLarge):
+        return "a file over its cap"
+    if isinstance(error, SnapshotConflictError):
+        return "its Export Snapshot is stored with other content"
+    return str(error)
+
+
+def _current_publication(ledger: Ledger, period_start: Any) -> Any:
+    """When the newest current Export Snapshot of this Billing Period from the export was
+    published, or None when the Ledger holds none."""
+    published = [
+        snapshot.snapshot.published_at
+        for scope in ledger.scopes()
+        if scope.billing_period_start == period_start and scope.source == SOURCE
+        if (snapshot := ledger.current_snapshot(scope)) is not None
+    ]
+    return max(published, default=None)
+
+
+def _download_delivery(
+    s3: S3Reader,
+    settings: CollectionSettings,
+    folder: str,
+    metadata: dict[str, S3Object],
+    scratch: Path,
+) -> Any:
+    """The Delivery in `folder` (`billing_period=…/<CreatedAt>-<executionId>`), downloaded to
+    a scratch folder of its own and read as one Export Snapshot. Only the data files its
+    manifest lists are fetched, and only from this Delivery's folder in the export (Q47)."""
+    local = scratch / "delivery"
+    if local.exists():
+        for old in local.iterdir():
+            old.unlink()
+    local.mkdir(exist_ok=True)
+    manifest = None
+    for name, obj in metadata.items():
+        download_object(s3, settings.export_bucket, obj, local / name, MAX_MANIFEST_BYTES)
+        if name.endswith(MANIFEST_SUFFIX):
+            manifest = local / name
+    if manifest is None:
+        raise _RejectedDelivery("no manifest")
+    try:
+        uris = json.loads(manifest.read_text(encoding="utf-8")).get("dataFiles") or []
+    except (ValueError, AttributeError):
+        raise _RejectedDelivery("the manifest is not valid JSON") from None
+    here = f"s3://{settings.export_bucket}/{settings.export_root}data/{folder}/"
+    if not all(isinstance(uri, str) and uri.startswith(here) for uri in uris):
+        raise _RejectedDelivery("the manifest names a data file outside the export")
+    names = {uri.removeprefix(here) for uri in uris}
+    listed = {
+        obj.key.rpartition("/")[2]: obj
+        for obj in list_objects(s3, settings.export_bucket, f"{settings.export_root}data/{folder}/")
+    }
+    missing = names - set(listed)
+    if missing:
+        raise _RejectedDelivery(f"{len(missing)} data file(s) the manifest lists are missing")
+    if sum(listed[name].size for name in names) > MAX_DELIVERY_BYTES:
+        raise _RejectedDelivery("the Delivery's data files exceed its cap together")
+    for name in sorted(names):
+        download_object(s3, settings.export_bucket, listed[name], local / name, MAX_DATA_FILE_BYTES)
+    return load_delivery(manifest)

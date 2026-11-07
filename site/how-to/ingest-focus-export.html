@@ -47,6 +47,7 @@
 <li><a href="#json">Load an Export Snapshot from a JSON file</a></li>
 <li><a href="#again">Load it again safely</a></li>
 <li><a href="#delivery">Load an AWS Data Exports Delivery</a></li>
+<li><a href="#collect">Collect Deliveries on a schedule</a></li>
 <li><a href="#refused">If the ingest is refused</a></li>
 </ul>
 </nav>
@@ -85,6 +86,17 @@
 <li><code>--data-dir</code> names where the data files were downloaded. Leave it out when they are beside the manifest.</li>
 <li>The publication time comes from the manifest, never from file times or the time you load it.</li>
 </ul>
+
+<h2 id="collect">Collect Deliveries on a schedule</h2>
+<p>A Collection Run finds and loads Deliveries itself. Run one from your machine with <code>data-finops collect</code>, as <a href="send-to-inbox.html#collect">Send workload metadata to the Inbox</a> shows; a Deployment runs one every day. Set the export to <strong>create new</strong> files when it updates a period, in the Data Exports console. Each Delivery then has a folder of its own, and its publication time comes from that folder. A Collection Run refuses an export that overwrites its files, and warns.</p>
+<p>For the <code>billing_lookback_periods</code> most recent Billing Periods (default 2, at most 24), a Collection Run:</p>
+<ul>
+<li>finds each Delivery whose manifest has been written. A Delivery still being written is left for a later run;</li>
+<li>loads every Delivery newer than the period's current Export Snapshot, oldest first, so the newest becomes current and the others are kept as history;</li>
+<li>downloads only the data files the manifest lists, and only from that Delivery's folder in the export. A manifest naming any other file is rejected unread;</li>
+<li>refuses a data file over 2 GiB, or a Delivery whose data files exceed 8 GiB together, before downloading any of them.</li>
+</ul>
+<p>A refused Delivery is named by its folder and the reason, and the run exits with <code>1</code>.</p>
 
 <h2 id="refused">If the ingest is refused</h2>
 <p>Nothing is stored, and the command exits with <code>2</code>:</p>

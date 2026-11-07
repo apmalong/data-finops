@@ -55,6 +55,19 @@ class _DeliveryFolder:
         return datetime(start.year + start.month // 12, start.month % 12 + 1, 1, tzinfo=UTC)
 
 
+def delivery_created(folder: str) -> datetime | None:
+    """When AWS created the Delivery whose S3 folder is named `folder`
+    (`<CreatedAt>-<executionId>`), or None if the name is not one AWS writes."""
+    match = _EXECUTION_FOLDER.fullmatch(folder)
+    return datetime.fromisoformat(match["created"]) if match else None
+
+
+def billing_period_start(folder: str) -> datetime | None:
+    """The first instant of the Billing Period an S3 folder `billing_period=YYYY-MM` names."""
+    match = _PERIOD.fullmatch(folder)
+    return datetime(int(match["year"]), int(match["month"]), 1, tzinfo=UTC) if match else None
+
+
 def is_manifest(path: Path) -> bool:
     """Whether `path` names a Delivery's `<export>-Manifest.json`."""
     return path.name.endswith(_MANIFEST_SUFFIX)
