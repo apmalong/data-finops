@@ -86,15 +86,16 @@
 <p>Known Billable Usage is 0.001 TB, the same as the billed quantity, so Coverage is 1. <code>q-001</code> gets a $6.00 Metered Share. Its <a href="../reference/glossary.html#trusted-query-comment">Trusted Query Comment</a> names Model Execution <code>model.demo.orders</code>, so the $6.00 rolls up to it. The bill's $4.00 S3 storage line is outside every policy, so it is Unallocated as <code>ineligible</code>.</p>
 
 <h2 id="policy">The current Athena policy</h2>
-<p>Calculation Runs record their policy version, today <code>allocation-engine/1+line-classification/1+athena-billable-usage/1+athena-billing-scope/1</code>. <code>athena-billable-usage/1</code> sets each Query Execution's Billable Usage:</p>
+<p>Calculation Runs record their policy version, today <code>allocation-engine/1+line-classification/1+athena-billable-usage/2+athena-billing-scope/2</code>. <code>athena-billable-usage/2</code> sets each Query Execution's Billable Usage:</p>
 <ul>
-<li>a failed one, or DDL that scanned 0 bytes: 0;</li>
-<li>a succeeded or cancelled one: the data it scanned, rounded up to the next MB, with a minimum of 10 MB;</li>
+<li>a failed one, or any one that scanned 0 bytes: 0;</li>
+<li>any other succeeded or cancelled one: the data it scanned, rounded up to the next MB, with a minimum of 10 MB;</li>
 <li>a queued or running one: 0 in that report;</li>
 <li>a billed one that reported no scan: unknown.</li>
 </ul>
 <p>Units are decimal: 1 MB is 10<sup>6</sup> bytes.</p>
-<p class="notice">The Athena policies are provisional until <a href="https://github.com/apmalong/data-finops/issues/91">issue #91</a> checks them against a real FOCUS export. If a check fails, a new policy version is made, and Allocations made with this one keep it.</p>
+<p>These rules were checked against a real FOCUS export in <a href="https://github.com/apmalong/data-finops/issues/91">issue #91</a>. It showed that a query that scans nothing bills nothing, whatever its statement type, so version 2 replaced version 1, which charged such queries 10 MB. Allocations made under version 1 keep it. A Billing Line can cover several hours, and its billing scope is its whole charge period.</p>
+<p class="notice">Athena billed two queries that finished seconds before an hour ended in the next hour's line. A query that finishes that close to an hour boundary can be scoped to the wrong line, which then stays Unallocated rather than misallocated (<a href="https://github.com/apmalong/data-finops/blob/main/docs/implementation/open-questions.md">open question 25</a>).</p>
 <!-- pager:start -->
 <nav class="pager" aria-label="Previous and next">
 <a rel="prev" href="bill-is-authoritative.html">Previous: The bill is authoritative</a>

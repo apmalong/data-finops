@@ -123,7 +123,7 @@ def test_step_3_the_bill_is_ten_dollars_reconciled_under_its_calculation_run(
     snapshot = summary["snapshot"]
     assert snapshot["calculation_run_id"].startswith("calc-")
     assert snapshot["created_at"]
-    assert "athena-billable-usage/1" in snapshot["policy_version"]
+    assert "athena-billable-usage/2" in snapshot["policy_version"]
 
 
 def test_step_4_q001_is_six_dollars_metered_explained_and_rolled_up(client: TestClient) -> None:

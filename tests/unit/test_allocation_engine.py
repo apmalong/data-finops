@@ -78,7 +78,7 @@ def test_existing_fixtures_golden_scenario() -> None:
             EXPORT.line_ref(0),
             ATHENA_LINE,
             MeteredCostPool(
-                "athena-on-demand:123456789012:us-east-1:demo:2026-10-01",
+                "athena-on-demand:123456789012:us-east-1:demo:2026-10-01T00:00Z/2026-10-02T00:00Z",
                 (
                     MeteredUsage(
                         "q-001",

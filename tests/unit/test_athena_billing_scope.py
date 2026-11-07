@@ -12,7 +12,7 @@ import pytest
 
 from data_finops.billing.focus import load_export
 from data_finops.contracts.workload import QueryCorrelation, QueryExecution
-from data_finops.providers.athena_billing import in_billing_scope
+from data_finops.providers.athena_billing import SCOPE_POLICY_VERSION, in_billing_scope, pool_id
 
 ROOT = Path(__file__).resolve().parents[2]
 LINE = load_export(ROOT / "fixtures" / "focus" / "export-2026-10.json").lines[0]
@@ -114,3 +114,38 @@ def test_a_trusted_query_comment_does_not_decide_scope() -> None:
     )
     assert in_billing_scope(commented, LINE)
     assert in_billing_scope(_query(), LINE)
+
+
+def _line_over(start: datetime, end: datetime):  # type: ignore[no-untyped-def]
+    return LINE.model_copy(update={"ChargePeriodStart": start, "ChargePeriodEnd": end})
+
+
+def test_a_line_spanning_several_hours_scopes_every_query_completed_in_it() -> None:
+    # The real export (#91): one line ran 2026-11-06 00:00 to 05:00 for five hourly probes.
+    line = _line_over(datetime(2026, 11, 6, tzinfo=UTC), datetime(2026, 11, 6, 5, tzinfo=UTC))
+    for hour, expected in ((0, True), (2, True), (4, True), (5, False)):
+        query = _query(completed_at=datetime(2026, 11, 6, hour, 26, tzinfo=UTC))
+        assert in_billing_scope(query, line) is expected
+
+
+def test_the_pool_is_keyed_by_the_lines_charge_period() -> None:
+    # athena-billing-scope/2: the label is the billing scope, so two lines of one day differ.
+    assert SCOPE_POLICY_VERSION == "athena-billing-scope/2"
+    morning = _line_over(datetime(2026, 11, 6, tzinfo=UTC), datetime(2026, 11, 6, 5, tzinfo=UTC))
+    noon = _line_over(datetime(2026, 11, 6, 12, tzinfo=UTC), datetime(2026, 11, 6, 13, tzinfo=UTC))
+    assert pool_id(morning) == (
+        "athena-on-demand:123456789012:us-east-1:demo:2026-11-06T00:00Z/2026-11-06T05:00Z"
+    )
+    assert pool_id(noon) != pool_id(morning)
+
+
+def test_version_one_keyed_the_pool_by_day() -> None:
+    line = _line_over(datetime(2026, 11, 6, 12, tzinfo=UTC), datetime(2026, 11, 6, 13, tzinfo=UTC))
+    assert pool_id(line, "athena-billing-scope/1") == (
+        "athena-on-demand:123456789012:us-east-1:demo:2026-11-06"
+    )
+
+
+def test_an_unknown_scope_version_is_refused() -> None:
+    with pytest.raises(ValueError, match="athena-billing-scope/9"):
+        pool_id(LINE, "athena-billing-scope/9")

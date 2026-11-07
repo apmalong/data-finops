@@ -1,4 +1,4 @@
-"""The hand-written fixtures under athena-billable-usage/1 (#82): the golden line's Coverage.
+"""The hand-written fixtures under the current athena-billable-usage (#82, #91).
 
 golden-fixtures.md assumes the $6 Athena line's 0.001 TB equals q-001's Billable Usage;
 here the policy computes it from the stored Query Executions.
