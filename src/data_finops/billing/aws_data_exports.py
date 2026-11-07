@@ -55,6 +55,19 @@ class _DeliveryFolder:
         return datetime(start.year + start.month // 12, start.month % 12 + 1, 1, tzinfo=UTC)
 
 
+def delivery_created(folder: str) -> datetime | None:
+    """When AWS created the Delivery whose S3 folder is named `folder`
+    (`<CreatedAt>-<executionId>`), or None if the name is not one AWS writes."""
+    match = _EXECUTION_FOLDER.fullmatch(folder)
+    return datetime.fromisoformat(match["created"]) if match else None
+
+
+def billing_period_start(folder: str) -> datetime | None:
+    """The first instant of the Billing Period an S3 folder `billing_period=YYYY-MM` names."""
+    match = _PERIOD.fullmatch(folder)
+    return datetime(int(match["year"]), int(match["month"]), 1, tzinfo=UTC) if match else None
+
+
 def is_manifest(path: Path) -> bool:
     """Whether `path` names a Delivery's `<export>-Manifest.json`."""
     return path.name.endswith(_MANIFEST_SUFFIX)
@@ -101,8 +114,18 @@ def load_delivery(manifest: Path, data_dir: Path | None = None) -> FocusExport:
     return load_parquet_export(files, snapshot)
 
 
+def focus_manifest_name(manifest: str) -> str:
+    """The `<export>-Manifest-FOCUS.json` that lies beside `<export>-Manifest.json`."""
+    return manifest.removesuffix(_MANIFEST_SUFFIX) + _FOCUS_MANIFEST_SUFFIX
+
+
+def billing_period_end(start: datetime) -> datetime:
+    """The first instant after the Billing Period starting at `start` (a month)."""
+    return datetime(start.year + start.month // 12, start.month % 12 + 1, 1, tzinfo=UTC)
+
+
 def _focus_version(manifest: Path) -> str:
-    name = manifest.name.removesuffix(_MANIFEST_SUFFIX) + _FOCUS_MANIFEST_SUFFIX
+    name = focus_manifest_name(manifest.name)
     path = manifest.parent / name
     if not path.is_file():
         raise DeliveryError(f"{name} is not beside the manifest")

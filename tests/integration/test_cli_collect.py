@@ -9,10 +9,12 @@ from typing import Any
 import pytest
 from aws_stubs import (
     BUCKET,
+    METADATA,
     athena_client,
     expect_get,
     expect_history,
     expect_listing,
+    expect_prefixes,
     s3_client,
     stubbed,
 )
@@ -27,7 +29,8 @@ EVENTS = (FIXTURES / "openlineage" / "events.json").read_bytes()
 KEY = "inbox/openlineage/run.json"
 SETTINGS = (
     f'bucket = "{BUCKET}"\nregion = "us-east-1"\naccount_id = "123456789012"\n'
-    'workgroups = ["demo"]\n'
+    'workgroups = ["demo"]\nexport_bucket = "example-export-bucket"\nexport_prefix = "focus"\n'
+    'export_name = "example-focus-1-2"\n'
 )
 
 
@@ -62,6 +65,7 @@ def test_collect_runs_a_collection_and_prints_its_summary_line(
         expect_listing(stubber, "inbox/dbt/", {})
         expect_listing(stubber, "inbox/openlineage/", {KEY: EVENTS})
         expect_get(stubber, KEY, EVENTS)
+        expect_prefixes(stubber, METADATA, [])
         code = main(["collect", "--db", str(db), "--config", str(config)], aws_clients=factory)
 
     assert code == 0
@@ -92,6 +96,12 @@ def _never(settings: Any) -> Any:
         (SETTINGS.replace('workgroups = ["demo"]', 'workgroups = "secret"'), "workgroups"),
         (SETTINGS + "max_history_pages = 0\n", "max_history_pages"),
         (SETTINGS + "max_history_pages = 1001\n", "max_history_pages"),
+        (SETTINGS.replace('export_bucket = "example-export-bucket"\n', ""), "export_bucket"),
+        (SETTINGS.replace('export_name = "example-focus-1-2"\n', ""), "export_name"),
+        (SETTINGS.replace('export_name = "example-focus-1-2"', "export_name = 3"), "export_name"),
+        (SETTINGS + "billing_lookback_periods = 0\n", "billing_lookback_periods"),
+        (SETTINGS + "billing_lookback_periods = 25\n", "billing_lookback_periods"),
+        (SETTINGS + 'billing_lookback_periods = "secret"\n', "billing_lookback_periods"),
         (SETTINGS + "max_history_pages = true\n", "max_history_pages"),
         (SETTINGS + 'max_history_pages = "secret"\n', "max_history_pages"),
     ],
@@ -117,6 +127,7 @@ def test_collect_lists_each_rejection_by_key_and_position(
         expect_listing(stubber, "inbox/dbt/", {})
         expect_listing(stubber, "inbox/openlineage/", {KEY: data})
         expect_get(stubber, KEY, data)
+        expect_prefixes(stubber, METADATA, [])
         argv = ["collect", "--db", str(tmp_path / "x.sqlite"), "--config", str(config)]
         assert main(argv, aws_clients=lambda settings: _clients(s3)) == 1
     lines = capsys.readouterr().out.splitlines()

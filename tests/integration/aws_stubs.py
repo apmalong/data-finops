@@ -20,6 +20,10 @@ REGION = "us-east-1"
 
 ACCOUNT = "123456789012"
 WORKGROUP = "demo"
+EXPORT_BUCKET = "example-export-bucket"
+EXPORT_PREFIX = "focus"
+EXPORT_NAME = "example-focus-1-2"
+METADATA = f"{EXPORT_PREFIX}/{EXPORT_NAME}/metadata/"
 
 
 def _client(service: str) -> Any:
@@ -78,10 +82,11 @@ def expect_listing(
     next_token: str | None = None,
     sizes: Mapping[str, int] | None = None,
     etags: Mapping[str, str] | None = None,
+    bucket: str = BUCKET,
 ) -> None:
     """One `ListObjectsV2` page listing `objects` (key → content) under `prefix`; with
     `next_token`, a truncated page whose next one the caller expects too."""
-    params: dict[str, Any] = {"Bucket": BUCKET, "Prefix": prefix}
+    params: dict[str, Any] = {"Bucket": bucket, "Prefix": prefix}
     if token is not None:
         params["ContinuationToken"] = token
     page: dict[str, Any] = {
@@ -112,12 +117,26 @@ def expect_denied(stubber: Stubber, operation: str) -> None:
     )
 
 
-def expect_get(stubber: Stubber, key: str, data: bytes, *, version: str | None = None) -> None:
+def expect_get(
+    stubber: Stubber, key: str, data: bytes, *, version: str | None = None, bucket: str = BUCKET
+) -> None:
     """One `GetObject` of `key` at the ETag the listing gave it."""
     stubber.add_response(
         "get_object",
         {"Body": StreamingBody(io.BytesIO(data), len(data)), "ContentLength": len(data)},
-        {"Bucket": BUCKET, "Key": key, "IfMatch": version or etag(key)},
+        {"Bucket": bucket, "Key": key, "IfMatch": version or etag(key)},
+    )
+
+
+def expect_prefixes(
+    stubber: Stubber, prefix: str, names: list[str], *, bucket: str = EXPORT_BUCKET
+) -> None:
+    """One delimited `ListObjectsV2` page: the 'folders' directly under `prefix`."""
+    page: dict[str, Any] = {"IsTruncated": False, "KeyCount": len(names)}
+    if names:  # the model forbids an empty list
+        page["CommonPrefixes"] = [{"Prefix": f"{prefix}{name}/"} for name in names]
+    stubber.add_response(
+        "list_objects_v2", page, {"Bucket": bucket, "Prefix": prefix, "Delimiter": "/"}
     )
 
 

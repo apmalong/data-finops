@@ -1,5 +1,7 @@
 """The AWS collectors' public functions with botocore's Stubber (spec 08 seam 1)."""
 
+from pathlib import Path
+
 import pytest
 from aws_stubs import (
     BUCKET,
@@ -17,6 +19,8 @@ from data_finops.providers.aws import (
     S3Object,
     TooLarge,
     batch_get_query_executions,
+    download_object,
+    list_folders,
     list_objects,
     list_query_execution_ids,
     read_object,
@@ -116,3 +120,38 @@ def test_fetched_history_keeps_only_the_first_line_of_sql_and_no_parameters() ->
         (fetched,) = batch_get_query_executions(athena, ["q-1"])["QueryExecutions"]
     assert fetched["Query"] == '-- /* {"node_id": "model.demo.orders"} */'
     assert "secret" not in str(fetched)
+
+
+def test_folders_are_listed_by_name_across_pages() -> None:
+    s3 = s3_client()
+    with stubbed(s3) as stubber:
+        stubber.add_response(
+            "list_objects_v2",
+            {
+                "IsTruncated": True,
+                "NextContinuationToken": "t1",
+                "CommonPrefixes": [{"Prefix": "m/billing_period=2026-11/"}],
+            },
+            {"Bucket": BUCKET, "Prefix": "m/", "Delimiter": "/"},
+        )
+        stubber.add_response(
+            "list_objects_v2",
+            {"IsTruncated": False, "CommonPrefixes": [{"Prefix": "m/billing_period=2026-10/"}]},
+            {"Bucket": BUCKET, "Prefix": "m/", "Delimiter": "/", "ContinuationToken": "t1"},
+        )
+        folders = list_folders(s3, BUCKET, "m/")
+    assert folders == ["billing_period=2026-10", "billing_period=2026-11"]
+
+
+def test_a_download_is_written_whole_or_refused_at_its_cap(tmp_path: Path) -> None:
+    s3 = s3_client()
+    target = tmp_path / "file"
+    with stubbed(s3) as stubber:
+        expect_get(stubber, "d/a", b"0123456789")
+        download_object(s3, BUCKET, S3Object("d/a", '"d/a"', 10), target, max_bytes=10)
+    assert target.read_bytes() == b"0123456789"
+    with stubbed(s3), pytest.raises(TooLarge):  # listed over the cap: never fetched
+        download_object(s3, BUCKET, S3Object("d/a", '"d/a"', 11), target, max_bytes=10)
+    with stubbed(s3) as stubber, pytest.raises(TooLarge):  # listed small, body larger
+        expect_get(stubber, "d/a", b"x" * 11)
+        download_object(s3, BUCKET, S3Object("d/a", '"d/a"', 3), target, max_bytes=10)
