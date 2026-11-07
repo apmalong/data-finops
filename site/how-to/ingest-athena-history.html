@@ -48,6 +48,7 @@
 <li><a href="#load">Load it</a></li>
 <li><a href="#again">Load overlapping history</a></li>
 <li><a href="#kept">What is kept</a></li>
+<li><a href="#collect">Collect it on a schedule</a></li>
 </ul>
 </nav>
 <!-- onpage:end -->
@@ -88,6 +89,20 @@
 
 <h2 id="kept">What is kept</h2>
 <p>Only allowlisted metadata is stored: identity, workgroup, statement type, catalog and database, state, times, error category and type, numeric statistics and engine version. Query text, execution parameters and error messages are dropped. From the Trusted Query Comment, only its <code>invocation_id</code> and <code>node_id</code> are kept. To send that comment, see <a href="ingest-dbt-artifacts.html#comment">Ingest dbt artifacts</a>.</p>
+
+<h2 id="collect">Collect it on a schedule</h2>
+<p>A Collection Run fetches the history itself, for the workgroups its settings name. Run one from your machine with <code>data-finops collect</code>, as <a href="send-to-inbox.html#collect">Send workload metadata to the Inbox</a> shows. A Deployment runs one every day. For each workgroup it:</p>
+<ul>
+<li>lists the workgroup's Query Execution IDs, at most <code>max_history_pages</code> pages of 50 (default 200, at most 1000);</li>
+<li>fetches only the Query Executions not stored yet, 50 at a time;</li>
+<li>stores the finished ones, keeping only what is listed above. A Query Execution still queued or running is left for a later run.</li>
+</ul>
+<p>Athena keeps 45 days of query history. A Collection Run warns when it may have lost some:</p>
+<ul>
+<li>The page cap was reached, so older Query Executions were not listed. Raise <code>max_history_pages</code>.</li>
+<li>None of the Query Executions already stored for the workgroup is still in Athena's history. Whatever ran in between may have expired unread, which shows as Coverage below 1.</li>
+</ul>
+<p>A Query Execution whose entry is rejected is named by its workgroup and ID, never its content. Throttled calls are retried, at most five attempts in all. After that the source fails, and the run exits with <code>2</code>.</p>
 <!-- pager:start -->
 <nav class="pager" aria-label="Previous and next">
 <a rel="prev" href="ingest-focus-export.html">Previous: Ingest a FOCUS export</a>

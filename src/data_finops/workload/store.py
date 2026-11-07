@@ -412,6 +412,31 @@ class WorkloadStore:
         ).fetchone()
         return row is not None
 
+    def stored_query_execution_ids(
+        self, account_id: str, region: str, query_execution_ids: list[str]
+    ) -> set[str]:
+        """Which of these Query Executions the store already holds, in any observation (the
+        Athena part of the Collection Watermark, spec 08)."""
+        # The IDs travel as one JSON parameter, so the statement never varies with them.
+        return {
+            row[0]
+            for row in self._connection.execute(
+                "SELECT DISTINCT query_execution_id FROM workload_query_execution"
+                " WHERE account_id = ? AND region = ?"
+                " AND query_execution_id IN (SELECT value FROM json_each(?))",
+                (account_id, region, json.dumps(query_execution_ids)),
+            )
+        }
+
+    def workgroup_has_query_executions(self, account_id: str, region: str, workgroup: str) -> bool:
+        """Whether any Query Execution from this Athena workgroup is stored."""
+        row = self._connection.execute(
+            "SELECT 1 FROM workload_query_execution"
+            " WHERE account_id = ? AND region = ? AND workgroup = ? LIMIT 1",
+            (account_id, region, workgroup),
+        ).fetchone()
+        return row is not None
+
     def record_inbox_object(self, key: str, etag: str, outcome: InboxOutcome) -> None:
         """Record that this version of an Inbox object was collected, and with what outcome;
         recording it again changes nothing."""

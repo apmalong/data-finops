@@ -22,11 +22,11 @@ Reusable, customer-managed Pulumi Python components that deploy data-finops into
 ## Collection Run
 1. Sources run in a fixed order: dbt artifacts from the Inbox, OpenLineage events from the Inbox, Athena history, FOCUS Deliveries. Every source is attempted even if an earlier one failed. Then one Calculation Run on whatever was stored.
 2. **Deliveries:** list the export's `metadata/` prefix for the `billingLookbackPeriods` most recent Billing Periods (default 2, at least 1). An execution folder with a manifest is a complete Delivery. Follow the observed real layout (lowercase `billing_period=`, `-Manifest-FOCUS.json`), not the AWS docs' spelling. Ingest a Delivery only if it is newer than the current Export Snapshot of its Snapshot Scope, by downloading it to `/tmp` and passing it to the existing FOCUS reader unchanged. The export must use "create new" delivery (ADR 0020 takes `published_at` from the execution folder); an overwrite-mode layout is refused with a reason. No Data Exports API permission.
-3. **Athena history:** for each configured workgroup, page `ListQueryExecutions` up to `maxHistoryPages` (default 200 pages of 50), call `BatchGetQueryExecution` only for IDs not yet stored (unfinished queries are fetched again), and store through the existing #61 allowlist, so `Query`, `ExecutionParameters`, the results location and free text are dropped before storage.
+3. **Athena history:** for each configured workgroup, page `ListQueryExecutions` up to `maxHistoryPages` (default 200 pages of 50), call `BatchGetQueryExecution` only for IDs not yet stored, and store only finished queries (a `QUEUED` or `RUNNING` one stays unstored, so the next run fetches it again; storing it would make its finished report a flagged changed copy, #181) through the existing #61 allowlist, so `Query`, `ExecutionParameters`, the results location and free text are dropped before storage.
 4. **Inboxes:** process keys not yet in the Collection Watermark with the existing caps (1 MiB per event, 512 MiB per dbt artifact); record each processed key.
 5. **Collection Watermark:** stored in the database: Delivery folders ingested, Athena query IDs stored, Inbox keys processed. Never a clock time alone.
 6. **Outcome:** rejected items are logged by position or key and reason, never content, and the run still calculates (the CLI's exit code 1 semantics). If any source failed (unreadable, access denied: exit code 2 semantics), the run calculates on what was stored and then ends as failed, so the scheduler retries; replay is idempotent.
-7. **Warnings:** the history page cap was hit; more than 45 days since the last successful run (Athena keeps 45 days); an overwrite-mode layout; an Inbox key older than `inboxRetentionDays` would have expired.
+7. **Warnings:** the history page cap was hit; a workgroup's complete, non-empty listing overlaps none of its stored Query Executions, so history may have expired unread (Athena keeps 45 days; detected from the data, not a stored clock, #181); an overwrite-mode layout; an Inbox key older than `inboxRetentionDays` would have expired.
 8. **Summary:** one structured JSON log line per run: per source, counts stored, duplicate and rejected; the rejections by position or key and reason; the warnings; the Calculation Run ID. No custom metrics.
 9. **`data-finops collect --db PATH --config FILE`** runs the same Collection Run from a laptop with the operator's own AWS profile. The settings file is TOML with the collector's keys. Its exit codes follow the CLI's (0, 1, 2).
 
@@ -37,19 +37,19 @@ Reusable, customer-managed Pulumi Python components that deploy data-finops into
 
 ## IAM
 Draft policies are in `docs/research/m6-collector-iam.md` and stay labelled unvalidated until the owner's wizard checks them with IAM Access Analyzer.
-- **Collector role:** `s3:ListBucket` on the export bucket limited by `s3:prefix`; `s3:GetObject` on the export prefix; `kms:Decrypt` only if the export is SSE-KMS; `athena:ListQueryExecutions`, `BatchGetQueryExecution`, `GetQueryExecution`, `GetWorkGroup` on the configured workgroup ARNs only; read, write and conditional write on its own bucket's database object and Inbox; its own log group. An explicit deny on `athena:StartQueryExecution`, `StopQueryExecution`, `GetQueryResults` and `GetQueryRuntimeStatistics`.
+- **Collector role:** `s3:ListBucket` on the export bucket limited by `s3:prefix`; `s3:GetObject` on the export prefix; `kms:Decrypt` only if the export is SSE-KMS; `athena:ListQueryExecutions` and `BatchGetQueryExecution` on the configured workgroup ARNs only, the only Athena calls the collector makes (#181); read, write and conditional write on its own bucket's database object and Inbox; its own log group. An explicit deny on `athena:StartQueryExecution`, `StopQueryExecution`, `GetQueryResults` and `GetQueryRuntimeStatistics`.
 - **API role:** `s3:GetObject` on the database object; its own log group.
 - **Producer policy** (output): `s3:PutObject` on `inbox/*` only.
 - **Reader policy** (output): `lambda:InvokeFunctionUrl` on the API function.
 - **Deployer:** created by the owner, never by the stack; a draft least-privilege deployer policy is documented, unvalidated.
 
 ## Settings
-Required: `aws:region`, `exportBucket`, `exportPrefix`, `exportName`, `workgroups` (a non-empty list; the stack refuses an empty one).
+Required: `aws:region`, `exportBucket`, `exportPrefix`, `exportName`, `workgroups` (a non-empty list; the stack refuses an empty one). The collector also needs the account ID (BatchGetQueryExecution does not carry it); the stack passes its own. `data-finops collect`'s TOML file names the same settings in snake case (`account_id`, `workgroups`, `max_history_pages`, …) and adds `bucket`, `region` and an optional `profile` (#181).
 
 | Setting | Default | Meaning |
 |---|---|---|
 | `billingLookbackPeriods` | 2 | Billing Periods listed each run (at least 1) |
-| `maxHistoryPages` | 200 | `ListQueryExecutions` pages per workgroup per run |
+| `maxHistoryPages` | 200 | `ListQueryExecutions` pages per workgroup per run (1 to 1000) |
 | `schedule` | `cron(0 6 * * ? *)` | Collection Run schedule, UTC |
 | `collectorTimeoutSeconds`, `collectorMemoryMb` | 900, 2048 | Collector bounds |
 | `apiTimeoutSeconds`, `apiMemoryMb` | 30, 1024 | API bounds |

@@ -2,6 +2,7 @@
 stores' public ingest functions and `calculation` (architecture-boundaries.md)."""
 
 from data_finops.collection.run import (
+    AwsClients,
     CollectionSettings,
     CollectionSummary,
     RejectedItem,
@@ -10,6 +11,7 @@ from data_finops.collection.run import (
 )
 
 __all__ = [
+    "AwsClients",
     "CollectionSettings",
     "CollectionSummary",
     "RejectedItem",

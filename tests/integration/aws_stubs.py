@@ -7,6 +7,7 @@ Stubber, which fails the test on any call it was not told to expect.
 import io
 from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
+from datetime import datetime
 from typing import Any
 
 import boto3
@@ -17,13 +18,43 @@ BUCKET = "example-deployment-bucket"
 REGION = "us-east-1"
 
 
-def s3_client() -> Any:
+ACCOUNT = "123456789012"
+WORKGROUP = "demo"
+
+
+def _client(service: str) -> Any:
     return boto3.client(
-        "s3",
+        service,
         region_name=REGION,
         aws_access_key_id="testing",
         aws_secret_access_key="testing",  # noqa: S106 (a fake credential for the Stubber)
     )
+
+
+def s3_client() -> Any:
+    return _client("s3")
+
+
+def athena_client() -> Any:
+    return _client("athena")
+
+
+def expect_history(
+    stubber: Stubber,
+    ids: list[str],
+    *,
+    workgroup: str = WORKGROUP,
+    token: str | None = None,
+    next_token: str | None = None,
+) -> None:
+    """One `ListQueryExecutions` page of `ids` for `workgroup`."""
+    params: dict[str, Any] = {"WorkGroup": workgroup, "MaxResults": 50}
+    if token is not None:
+        params["NextToken"] = token
+    page: dict[str, Any] = {"QueryExecutionIds": ids} if ids else {}  # the model forbids []
+    if next_token is not None:
+        page["NextToken"] = next_token
+    stubber.add_response("list_query_executions", page, params)
 
 
 @contextmanager
@@ -87,4 +118,35 @@ def expect_get(stubber: Stubber, key: str, data: bytes, *, version: str | None =
         "get_object",
         {"Body": StreamingBody(io.BytesIO(data), len(data)), "ContentLength": len(data)},
         {"Bucket": BUCKET, "Key": key, "IfMatch": version or etag(key)},
+    )
+
+
+def as_returned(entry: Mapping[str, Any]) -> dict[str, Any]:
+    """A BatchGetQueryExecution entry as boto3 returns it: timestamps as datetimes."""
+    status = dict(entry["Status"])
+    for field in ("SubmissionDateTime", "CompletionDateTime"):
+        if field in status:
+            status[field] = datetime.fromisoformat(status[field])
+    return dict(entry) | {"Status": status}
+
+
+def expect_batch(
+    stubber: Stubber,
+    entries: list[Mapping[str, Any]],
+    *,
+    unprocessed: Mapping[str, str] | None = None,
+) -> None:
+    """One `BatchGetQueryExecution` of these entries' IDs (then any `unprocessed` ones, ID →
+    error code), answering the entries and reporting the others unprocessed."""
+    ids = [e["QueryExecutionId"] for e in entries] + list(unprocessed or {})
+    stubber.add_response(
+        "batch_get_query_execution",
+        {
+            "QueryExecutions": [as_returned(e) for e in entries],
+            "UnprocessedQueryExecutionIds": [
+                {"QueryExecutionId": query, "ErrorCode": code, "ErrorMessage": "secret detail"}
+                for query, code in (unprocessed or {}).items()
+            ],
+        },
+        {"QueryExecutionIds": ids},
     )
