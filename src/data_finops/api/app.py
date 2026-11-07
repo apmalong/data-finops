@@ -140,10 +140,14 @@ def create_app(
     *,
     token: str | None = None,
     explanation_detail: BillingLineDetail = BillingLineDetail.FULL,
+    read_only: bool = False,
 ) -> FastAPI:
     """The API over the database file `db`; nothing is opened until a request needs it.
 
     Cost Explanations show their Billing Line at `explanation_detail` (ADR 0028).
+
+    With `read_only`, as a Deployment serves it, only `/health` and the `/v1/*` reads are
+    mounted: no OpenLineage receiver and no dashboard (ADR 0026, ADR 0027).
 
     With a `token`, every route, documentation included, needs `Authorization: Bearer
     <token>` (ADR 0024); without one, every route is open, for a loopback demo.
@@ -310,12 +314,14 @@ def create_app(
         with Reporting(db) as read_model:
             return read_model.explanation(ref, detail=explanation_detail)
 
-    @app.get("/", include_in_schema=False)
-    def root() -> RedirectResponse:
-        return RedirectResponse("/dashboard/", status_code=307)
+    if not read_only:  # a Deployment serves JSON only (ADR 0026, spec 08)
 
-    # The static dashboard (spec 06): HTML, CSS and JavaScript only, reading this API.
-    app.mount("/dashboard", StaticFiles(directory=DASHBOARD, html=True), name="dashboard")
+        @app.get("/", include_in_schema=False)
+        def root() -> RedirectResponse:
+            return RedirectResponse("/dashboard/", status_code=307)
+
+        # The static dashboard (spec 06): HTML, CSS and JavaScript only, reading this API.
+        app.mount("/dashboard", StaticFiles(directory=DASHBOARD, html=True), name="dashboard")
 
     @app.exception_handler(NotFound)
     def not_found(request: Request, error: NotFound) -> JSONResponse:
@@ -338,31 +344,33 @@ def create_app(
             "Give calculation_run_id or billing_account_id, billing_period and source, not both.",
         )
 
-    @app.post(
-        "/api/v1/lineage",
-        status_code=201,
-        response_model=LineageReceipt,
-        responses=_RECEIVER_RESPONSES,
-        openapi_extra={"requestBody": _ONE_EVENT},
-    )
-    async def receive_lineage(request: Request) -> Any:
-        """Store one OpenLineage RunEvent, the default endpoint of OpenLineage's HTTP transport
-        (spec 04). Screened exactly as one item of an event file.
+    if not read_only:  # the receiver writes: never in a read-only app (ADR 0027)
 
-        The one async endpoint (spec 06): it streams the body so an oversized one is refused
-        at the cap instead of buffered (ADR 0024), then ingests in the thread pool."""
-        body = await _body_within_cap(request)
-        result = await run_in_threadpool(_ingest_event, db, body)
-        if result.rejected:
-            return _problem_json(400, "Rejected event", result.rejected[0].reason)
-        if result.unsupported:
-            unsupported = LineageUnsupported(unsupported=result.unsupported[0].reason)
-            return JSONResponse(unsupported.model_dump(), status_code=202)
-        return LineageReceipt(
-            accepted=result.accepted,
-            duplicates=result.duplicates,
-            changed_copies=result.changed_copies,
+        @app.post(
+            "/api/v1/lineage",
+            status_code=201,
+            response_model=LineageReceipt,
+            responses=_RECEIVER_RESPONSES,
+            openapi_extra={"requestBody": _ONE_EVENT},
         )
+        async def receive_lineage(request: Request) -> Any:
+            """Store one OpenLineage RunEvent, the default endpoint of OpenLineage's HTTP transport
+            (spec 04). Screened exactly as one item of an event file.
+
+            The one async endpoint (spec 06): it streams the body so an oversized one is refused
+            at the cap instead of buffered (ADR 0024), then ingests in the thread pool."""
+            body = await _body_within_cap(request)
+            result = await run_in_threadpool(_ingest_event, db, body)
+            if result.rejected:
+                return _problem_json(400, "Rejected event", result.rejected[0].reason)
+            if result.unsupported:
+                unsupported = LineageUnsupported(unsupported=result.unsupported[0].reason)
+                return JSONResponse(unsupported.model_dump(), status_code=202)
+            return LineageReceipt(
+                accepted=result.accepted,
+                duplicates=result.duplicates,
+                changed_copies=result.changed_copies,
+            )
 
     @app.exception_handler(_TooLarge)
     def too_large(request: Request, error: _TooLarge) -> JSONResponse:

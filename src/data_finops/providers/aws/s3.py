@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol
 
-from data_finops.providers.aws.calls import call
+from data_finops.providers.aws.calls import AwsSourceError, call
 
 MAX_KEYS = 1000
 """S3's own page limit for ListObjectsV2."""
@@ -18,6 +18,19 @@ class S3Reader(Protocol):
     def list_objects_v2(self, **kwargs: Any) -> Mapping[str, Any]: ...
 
     def get_object(self, **kwargs: Any) -> Mapping[str, Any]: ...
+
+
+class S3Writer(Protocol):
+    """The calls the collector makes on the Deployment's own database object: its only write
+    (ADR 0026). The read-only API is never handed one."""
+
+    def get_object(self, **kwargs: Any) -> Mapping[str, Any]: ...
+
+    def put_object(self, **kwargs: Any) -> Mapping[str, Any]: ...
+
+
+class WriteConflict(RuntimeError):
+    """Another writer changed the object since it was read (S3 answered 412)."""
 
 
 @dataclass(frozen=True)
@@ -62,19 +75,18 @@ _CHUNK = 8 * 1024 * 1024
 """How much of a download is held in memory at once."""
 
 
+MAX_DATABASE_BYTES = 5 * 1000**3
+"""The database object's cap: what one PutObject can write back (spec 08; multipart is a
+revisit trigger)."""
+
+
 def download_object(s3: S3Reader, bucket: str, obj: S3Object, path: Path, max_bytes: int) -> None:
     """Write the object at its listed version to `path` in chunks, refused before any download
     when the listing says it exceeds `max_bytes`, and stopped if the body does."""
     if obj.size > max_bytes:
         raise TooLarge(obj.key)
     body = call(s3.get_object, Bucket=bucket, Key=obj.key, IfMatch=obj.etag)["Body"]
-    written = 0
-    with path.open("wb") as file:
-        while chunk := body.read(_CHUNK):
-            written += len(chunk)
-            if written > max_bytes:
-                raise TooLarge(obj.key)
-            file.write(chunk)
+    _write_body(body, path, max_bytes, obj.key)
 
 
 def read_object(s3: S3Reader, bucket: str, obj: S3Object, max_bytes: int) -> bytes:
@@ -87,3 +99,66 @@ def read_object(s3: S3Reader, bucket: str, obj: S3Object, max_bytes: int) -> byt
     if len(data) > max_bytes:
         raise TooLarge(obj.key)
     return data
+
+
+def fetch_file(s3: S3Writer, bucket: str, key: str, path: Path) -> str | None:
+    """Download the object to `path` and return its ETag, or None (nothing written) when
+    there is no such object yet. S3 says so only to a reader with `s3:ListBucket` on the
+    bucket; without it, a missing object is `AccessDenied` (spec 08, IAM)."""
+    try:
+        response = call(s3.get_object, Bucket=bucket, Key=key)
+    except AwsSourceError as error:
+        if str(error) == "NoSuchKey":
+            return None
+        raise
+    _write_body(response["Body"], path, MAX_DATABASE_BYTES, key)
+    etag: str = response["ETag"]
+    return etag
+
+
+def put_file(s3: S3Writer, bucket: str, key: str, path: Path, *, etag: str | None) -> None:
+    """Upload `path` over the version `etag` names, or as a new object when `etag` is None;
+    WriteConflict when another writer got there first (S3 conditional writes)."""
+    condition = {"IfMatch": etag} if etag is not None else {"IfNoneMatch": "*"}
+    with path.open("rb") as body:
+        try:
+            call(s3.put_object, Bucket=bucket, Key=key, Body=body, **condition)
+        except AwsSourceError as error:
+            if str(error) in ("PreconditionFailed", "ConditionalRequestConflict"):
+                raise WriteConflict(key) from None
+            raise
+
+
+def refresh_file(s3: S3Reader, bucket: str, key: str, path: Path, etag: str | None) -> str | None:
+    """Make `path` the object's current version and return its ETag, or None when there is no
+    such object yet (`path` is then removed). When `etag` is still current (S3 answers 304 to
+    `If-None-Match`), nothing is downloaded. A new version is written beside `path` and moved
+    over it, so a reader never sees half a file."""
+    params: dict[str, Any] = {"Bucket": bucket, "Key": key}
+    if etag is not None:
+        params["IfNoneMatch"] = etag
+    try:
+        response = call(s3.get_object, **params)
+    except AwsSourceError as error:
+        if etag is not None and str(error) in ("304", "NotModified"):
+            return etag
+        if str(error) == "NoSuchKey":
+            path.unlink(missing_ok=True)
+            return None
+        raise
+    partial = path.with_name(path.name + ".partial")
+    _write_body(response["Body"], partial, MAX_DATABASE_BYTES, key)
+    partial.replace(path)
+    current: str = response["ETag"]
+    return current
+
+
+def _write_body(body: Any, path: Path, max_bytes: int, key: str) -> None:
+    """Stream a response body to `path`, stopping with TooLarge past `max_bytes`."""
+    written = 0
+    with path.open("wb") as file:
+        while chunk := body.read(_CHUNK):
+            written += len(chunk)
+            if written > max_bytes:
+                raise TooLarge(key)
+            file.write(chunk)
