@@ -39,3 +39,32 @@ jobs:
         uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  infra:
+    # The Deployment's Pulumi components and policy pack, offline: Pulumi's mocks, and the pack
+    # run over the program's recorded state by the pinned CLI (spec 08 seams 6 and 7). No AWS.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.12'
+      - name: Install the pinned Pulumi CLI (the SDK's release)
+        uses: pulumi/actions@v6
+        with:
+          pulumi-version: 3.272.0
+      - name: Policy pack (unit tests; its environment is the one the CLI runs)
+        working-directory: infra/pulumi/aws/policy
+        run: |
+          uv sync --frozen
+          uv run mypy
+          uv run bandit -q -r policies.py __main__.py
+          uv run pytest
+          uv run pip-audit
+      - name: Stack (mocks, and the pack over the program's state)
+        working-directory: infra/pulumi/aws
+        run: |
+          uv sync --frozen
+          uv run mypy
+          uv run bandit -q -r deployment __main__.py
+          uv run pytest
+          uv run pip-audit

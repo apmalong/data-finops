@@ -1,0 +1,6 @@
+description: The data-finops Deployment's mandatory policies (spec 08 §Policy pack).
+runtime:
+  name: python
+  options:
+    virtualenv: .venv
+version: 0.1.0

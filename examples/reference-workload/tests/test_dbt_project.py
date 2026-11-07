@@ -5,7 +5,6 @@ import re
 from pathlib import Path
 from typing import Any, cast
 
-import infra
 import pytest
 import yaml
 from dbt.adapters.base.impl import BaseAdapter
@@ -15,6 +14,8 @@ from dbt.context.query_header import generate_query_header_context
 from dbt.contracts.graph.manifest import Manifest
 from openlineage.client import OpenLineageClient
 from openlineage.client.transport.file import FileTransport
+
+import infra
 
 WORKLOAD = Path(__file__).resolve().parents[1]
 PROJECT = WORKLOAD / "dbt"

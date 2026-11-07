@@ -1,0 +1,6 @@
+name: data-finops
+description: data-finops deployed into one AWS account (spec 08, ADR 0026). State is local; deploying is the owner's step.
+runtime:
+  name: python
+  options:
+    toolchain: uv
