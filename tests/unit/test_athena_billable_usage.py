@@ -15,13 +15,14 @@ import pytest
 
 from data_finops.contracts.workload import QueryExecution
 from data_finops.providers.athena_billing import (
+    BILLABLE_USAGE_V1,
     POLICY_VERSION,
     billable_bytes,
     bytes_in_consumed_unit,
 )
 
 MB = 1_000_000
-V1 = "athena-billable-usage/1"
+V1 = BILLABLE_USAGE_V1
 
 
 def _query(

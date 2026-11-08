@@ -11,8 +11,14 @@ from pathlib import Path
 import pytest
 
 from data_finops.billing.focus import load_export
+from data_finops.contracts.billing import FocusBillingLine
 from data_finops.contracts.workload import QueryCorrelation, QueryExecution
-from data_finops.providers.athena_billing import SCOPE_POLICY_VERSION, in_billing_scope, pool_id
+from data_finops.providers.athena_billing import (
+    BILLING_SCOPE_V1,
+    SCOPE_POLICY_VERSION,
+    in_billing_scope,
+    pool_id,
+)
 
 ROOT = Path(__file__).resolve().parents[2]
 LINE = load_export(ROOT / "fixtures" / "focus" / "export-2026-10.json").lines[0]
@@ -116,7 +122,7 @@ def test_a_trusted_query_comment_does_not_decide_scope() -> None:
     assert in_billing_scope(_query(), LINE)
 
 
-def _line_over(start: datetime, end: datetime):  # type: ignore[no-untyped-def]
+def _line_over(start: datetime, end: datetime) -> FocusBillingLine:
     return LINE.model_copy(update={"ChargePeriodStart": start, "ChargePeriodEnd": end})
 
 
@@ -141,7 +147,7 @@ def test_the_pool_is_keyed_by_the_lines_charge_period() -> None:
 
 def test_version_one_keyed_the_pool_by_day() -> None:
     line = _line_over(datetime(2026, 11, 6, 12, tzinfo=UTC), datetime(2026, 11, 6, 13, tzinfo=UTC))
-    assert pool_id(line, "athena-billing-scope/1") == (
+    assert pool_id(line, BILLING_SCOPE_V1) == (
         "athena-on-demand:123456789012:us-east-1:demo:2026-11-06"
     )
 
