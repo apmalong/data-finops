@@ -202,7 +202,7 @@
 <li>&quot;Query cost&quot; implies an exact per-query price that providers do not bill. Say &quot;Allocation to a Query Execution&quot; and state its Confidence.</li>
 <li>&quot;Unknown&quot; is used in fixtures as a target name; the domain term is Unallocated.</li>
 <li><code>no_evidence</code> names two things: a Link Outcome (a Query Execution without a Trusted Query Comment) and an Unallocated reason (a shared pool with no positive weight, #86). They never meet: Link Outcomes describe Identity Links, Unallocated reasons describe money. Say which one you mean.</li>
-<li>**Lineage Edge** was defined as a Workload Run&#x27;s read or write of a Data Asset &quot;or between two Data Assets&quot;. Only run-to-asset edges are stored (<code>contracts.workload.LineageEdge</code>), so the definition was narrowed to them (#207). Asset-to-asset lineage, for example from column lineage, would need its own decision.</li>
+<li>**Lineage Edge** was defined as a Workload Run&#x27;s read or write of a Data Asset &quot;or between two Data Assets&quot;. Only run-to-asset edges are stored (<code>contracts.workload.LineageEdge</code>), so the definition was narrowed to them (#207). Column-level lineage is the eventual goal (owner, 2026-11-07); it will need its own design and terms.</li>
 </ul>
 <!-- reference:end -->
 <!-- pager:start -->

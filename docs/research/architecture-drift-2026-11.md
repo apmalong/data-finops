@@ -22,7 +22,7 @@ ADR decisions are not rewritten (`docs/adr/README.md`): a correction to a status
 | 0013 | CI must fail on a stale lockfile | Every CI job runs `uv sync --frozen`, which never compares `uv.lock` with `pyproject.toml` | #208 |
 | 0026 | the collector "runs one Calculation Run"; "the 10 GB `/tmp` ceiling" | one per Snapshot Scope (`collection/run.py`); no ephemeral storage set, so 512 MB | Fixed (note); `/tmp` in #206 |
 | 0027 with 0026 | Inbox files up to 512 MiB | downloaded into a 512 MB `/tmp` that also holds the database copy: the cap is unreachable in a Deployment | comment on #206; Fixed (note in 0026) |
-| 0011, spec 04 | integrations implement capability-declared ports | no ports exist; one provider, plain functions | Fixed (spec 04 marks them not built; deferred until a second provider) |
+| 0011, spec 04 | integrations implement capability-declared ports | no ports exist; one provider, plain functions | Fixed (spec 04 marks them not built; deferred until a second provider; the owner wants no new ADR for it) |
 | 0023 | scope is the period "containing the query's completion" | correct for the code, but the real export billed two queries in the next hour (OQ-25) | Fixed (note); decision in #206 |
 | 0015 | "FOCUS release pin pending"; two `*verify*` markers; schema "replaced by the pinned FOCUS schema" | FOCUS 1.2 pinned (#12); code-first schema (OQ-15) | Fixed (status, markers, note) |
 | 0014 | "upstream versions unverified" | verified and pinned in the build-vs-reuse register | Fixed (status) |
@@ -54,7 +54,7 @@ There is no spec 00. No drift found: 01; 03 (methods, reasons, versions, digest)
 | Term | Says | Code does | Outcome |
 |---|---|---|---|
 | Allocation | "the portion of a Cost Pool" | the portion of one Billing Line; a pool only supplies weights | Fixed |
-| Lineage Edge | "or between two Data Assets" | only run↔asset edges are stored | Fixed, and listed under Flagged ambiguities |
+| Lineage Edge | "or between two Data Assets" | only run↔asset edges are stored | Fixed, and listed under Flagged ambiguities; column-level lineage is the eventual goal (owner) |
 | Ledger, _Avoid_: database | — | "database" is used about 230 times for the SQLite file | #216 |
 | missing terms | — | Replay and duplicate, Changed copy and Observation, Producer, Workload store, Input digest, Billing scope, Billing Line Detail | #216 |
 
