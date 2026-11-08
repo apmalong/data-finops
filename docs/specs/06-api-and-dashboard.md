@@ -3,7 +3,7 @@
 Decided in the M5 design session (2026-11-03). The `reporting` read model answers every read; `api` is a thin FastAPI adapter over it (architecture-boundaries.md). The OpenLineage receiver is in spec 04; ingress and token in ADR 0024.
 
 ## Which snapshot a read serves
-Every read serves the current Allocation Snapshot of each Snapshot Scope unless told otherwise. Filters: `billing_account_id`, `billing_period`, and `calculation_run_id` to read a superseded snapshot. The Ledger gains read-only listings of Snapshot Scopes and of the Allocation Snapshots of a scope.
+Every read serves the current Allocation Snapshot of each Snapshot Scope unless told otherwise. Filters: `billing_account_id`, `billing_period` and, on every snapshot read but the Cost Summary, `source` and `calculation_run_id` to read a superseded snapshot (the Cost Summary always reads the current snapshots; the HTTP reference lists each route's parameters). The Ledger gains read-only listings of Snapshot Scopes and of the Allocation Snapshots of a scope.
 
 ## Resources
 - `GET /health`: liveness and whether the database opens with the current schema.
@@ -17,7 +17,7 @@ Every read serves the current Allocation Snapshot of each Snapshot Scope unless 
 
 ## Wire format
 - Amounts are Decimal strings (`DecimalString`), never floats. Idle carries no Confidence (OQ-20 stays open).
-- Pagination is bounded offset and limit: `limit` defaults to 100, at most 1000. Allocation Snapshots are immutable, so offsets are stable; each page carries `calculation_run_id`, `total`, `limit` and `offset`.
+- Pagination is bounded offset and limit: `limit` defaults to 100, at most 1000. Allocation Snapshots are immutable, so offsets are stable; each page carries `calculation_run_id`, `total`, `limit` and `offset`. The Workload Run listing (`/v1/lineage`) reads the workload store, not a snapshot: its pages carry `total`, `limit` and `offset` only.
 - Errors are RFC 9457 Problem Details (`application/problem+json`: type, title, status, detail). Input values are never echoed; validation errors name the field only. No SQL or secrets in any response (acceptance.md).
 - FastAPI's generated OpenAPI 3.1 document is checked in as `schemas/openapi.json`; a drift test fails when it is stale, and contract tests validate responses against it.
 
@@ -35,7 +35,7 @@ Design follows Edward Tufte (*The Visual Display of Quantitative Information*) a
 - Small multiples when the same chart repeats across currencies or Cost Bases, with shared scales within a currency, never across currencies.
 
 ## Running the server
-One uvicorn worker; endpoints are synchronous and run in FastAPI's thread pool, except the OpenLineage receiver, which reads its body as a stream so a body over the cap is refused at the cap rather than buffered (ADR 0024), then ingests in the thread pool (#107). `reporting` opens its own read connections per request (the stores use `check_same_thread`); the receiver writes through `WorkloadStore`'s `BEGIN IMMEDIATE` beside those readers (WAL, ADR 0018). Only `data-finops calculate` and `demo` start a Calculation Run: a received event changes no cost until the next one, and the Cost Summary and provenance show when the served snapshot was calculated.
+One uvicorn worker; endpoints are synchronous and run in FastAPI's thread pool, except the OpenLineage receiver, which reads its body as a stream so a body over the cap is refused at the cap rather than buffered (ADR 0024), then ingests in the thread pool (#107). `reporting` opens its own read connections per request (the stores use `check_same_thread`); the receiver writes through `WorkloadStore`'s `BEGIN IMMEDIATE` beside those readers (WAL, ADR 0018). Only `data-finops calculate`, `demo` and a Collection Run (`collect`, or a Deployment's collector) start a Calculation Run: a received event changes no cost until the next one, and the Cost Summary and provenance show when the served snapshot was calculated.
 
 ## Testing
 Three seams, each test-first with hand-made mutation checks recorded in the PR:

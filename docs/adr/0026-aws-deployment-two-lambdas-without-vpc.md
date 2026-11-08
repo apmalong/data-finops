@@ -26,3 +26,8 @@ Each Collection Run moves the whole database file in and out of S3. At about a m
 - Cold start or Collection Run time at real scale exceeds the Lambda limits (the container-image fallback: ECR, needs Docker).
 - More than one writer is needed (ADR 0018's trigger).
 - Cross-account export buckets or member-account Athena history.
+
+## Note (drift review #207, 2026-11-07)
+Point 2's "one Calculation Run": the collector runs one per Snapshot Scope (`collection.run`), as spec 08 says.
+
+The consequence's "10 GB `/tmp` ceiling" is Lambda's maximum. No function sets ephemeral storage yet, so today `/tmp` is Lambda's default 512 MB, and it holds the database copy and any Inbox file being collected (each may be up to 512 MiB, ADR 0027): the database must stay well under it (#206). A database over 5 GB, one `PutObject`, is a further revisit trigger (multipart upload; spec 08).

@@ -84,13 +84,13 @@ A dataset or other data object that workloads read or write, identified within a
 _Avoid_: table (alone), entity
 
 **Lineage Edge**:
-An observed read or write relationship between a workload and a Data Asset, or between two Data Assets. Lineage has no financial authority.
+An observed read or write relationship between a Workload Run and a Data Asset. Lineage has no financial authority.
 _Avoid_: dependency (alone)
 
 ## Allocation
 
 **Allocation**:
-The portion of a Cost Pool assigned to one Allocation Target, with its method, Evidence and policy version.
+The portion of one Billing Line, in one Cost Basis, assigned to one Allocation Target, with its method, Evidence and policy version. A Cost Pool only supplies the weights.
 _Avoid_: charge, cost (alone)
 
 **Allocation Target**:
@@ -181,7 +181,7 @@ The bucket prefix producers write OpenLineage events and dbt artifacts to, for t
 _Avoid_: drop zone, landing area
 
 **Collection Watermark**:
-What a Deployment has already collected, per source: the Delivery folders ingested, the Athena query IDs stored and the Inbox keys processed. It is never a clock time alone.
+What a Deployment has already collected, per source: the Delivery folders ingested, the Athena query IDs stored and the Inbox objects processed, by key and ETag, so an overwritten object is collected again. It is never a clock time alone.
 _Avoid_: checkpoint, cursor
 
 ## Flagged ambiguities
@@ -189,3 +189,4 @@ _Avoid_: checkpoint, cursor
 - "Query cost" implies an exact per-query price that providers do not bill. Say "Allocation to a Query Execution" and state its Confidence.
 - "Unknown" is used in fixtures as a target name; the domain term is Unallocated.
 - `no_evidence` names two things: a Link Outcome (a Query Execution without a Trusted Query Comment) and an Unallocated reason (a shared pool with no positive weight, #86). They never meet: Link Outcomes describe Identity Links, Unallocated reasons describe money. Say which one you mean.
+- **Lineage Edge** was defined as a Workload Run's read or write of a Data Asset "or between two Data Assets". Only run-to-asset edges are stored (`contracts.workload.LineageEdge`), so the definition was narrowed to them (#207). Column-level lineage is the eventual goal (owner, 2026-11-07); it will need its own design and terms.

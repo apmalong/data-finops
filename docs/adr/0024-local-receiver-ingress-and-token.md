@@ -1,6 +1,6 @@
 # ADR 0024: The OpenLineage receiver is loopback by default and token-gated off it
 
-Status: Accepted (design, 2026-11-03). Decides OQ-6 for local use; production ingress stays with OQ-5 (M6).
+Status: Accepted (design, 2026-11-03). Decides OQ-6 for local use. Amended 2026-11-06: production ingress (point 6) is decided by ADR 0027.
 
 ## Context
 M5 adds an HTTP receiver for OpenLineage RunEvents beside the read API (spec 04). ADR 0012 and spec 04 require private ingestion by default and authenticated production ingress; plan.md defers enterprise auth. Every OpenLineage client must be configured with the receiver's address and credentials, so the ingress pattern is costly to change once pipelines send to it. A local demo must still start with one command and no secrets.

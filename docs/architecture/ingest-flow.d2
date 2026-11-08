@@ -157,7 +157,7 @@ collection: {
   dbt_inbox -> events_inbox -> history -> deliveries -> calculate -> summary
 }
 watermark: Collection Watermark {
-  workload_inbox_object: workload_inbox_object\n(Inbox keys processed) {class: table}
+  workload_inbox_object: workload_inbox_object\n(Inbox objects processed, by key and ETag) {class: table}
   export_delivery_collected: export_delivery_collected\n(Deliveries taken) {class: table}
   query_ids: Athena query IDs: the stored\nQuery Executions themselves {class: table}
 }

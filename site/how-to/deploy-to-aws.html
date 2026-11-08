@@ -71,7 +71,7 @@
 <li>The FOCUS export uses the "create new" delivery mode, as <a href="ingest-focus-export.html">Ingest a FOCUS export</a> describes. A Collection Run refuses an export that overwrites its files. An export encrypted with a KMS key is not supported yet.</li>
 <li>The database fits in a function's <code>/tmp</code>. The stack leaves it at Lambda's default, 512 MB, which both functions share with the package's own files.</li>
 <li>An AWS profile for a dedicated deployer identity, created by the account owner. The stack never creates it. A draft least-privilege policy for it is <a href="https://github.com/apmalong/data-finops/blob/main/infra/pulumi/aws/iam/deployer-policy.draft.json"><code>iam/deployer-policy.draft.json</code></a>. It is unvalidated: the wizard can check it with IAM Access Analyzer, and a missing permission shows up as an access error in <code>pulumi up</code>.</li>
-<li>The Pulumi CLI, version 3.272.0, and uv. A test checks the CLI's version against the stack's.</li>
+<li>The Pulumi CLI, version 3.272.0, and uv. A test checks the installed CLI is that release.</li>
 </ul>
 
 <h2 id="package">Build the package</h2>

@@ -1,6 +1,6 @@
 # ADR 0018: SQLite ledger store; pyarrow for Parquet
 
-Status: Accepted (2026-11-01). Narrows ADR 0009; decides OQ-4 for the MVP.
+Status: Accepted (2026-11-01). Narrows ADR 0009; decides OQ-4 for the MVP. Amended 2026-11-01 (M2): the workload store shares the file.
 
 ## Context
 M1 needs a persistent local store for the Ledger and a reader for provider Parquet exports (AWS Data Exports writes FOCUS as Parquet). ADR 0009 left the choice between DuckDB and SQLite open, and OQ-4 asked for a benchmark first.

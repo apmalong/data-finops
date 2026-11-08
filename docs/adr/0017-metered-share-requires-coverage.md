@@ -23,4 +23,4 @@ An operator never has to declare history complete; it is measured from standard 
 - Operator-declared completeness: unverifiable.
 
 ## Revisit triggers
-The provider's billed quantity is unavailable or not comparable to query-level usage (*verify* for AWS FOCUS export); a provider exposes per-query billing.
+The provider's billed quantity is unavailable or not comparable to query-level usage (checked for the AWS FOCUS export: ConsumedQuantity equals PricingQuantity, in decimal TB, and real lines reach Coverage 1; OQ-3, #91); a provider exposes per-query billing.
