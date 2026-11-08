@@ -1,11 +1,14 @@
 # Data FinOps — Claude Code implementation package
 
-Status (2026-11-06): **M0–M5 complete.**
-- **Built:** a FOCUS billing Ledger, verified against a real AWS export; workload metadata from OpenLineage, dbt and Athena; query correlation; a deterministic allocation engine; and a local API and dashboard.
-- **Not built yet:**
-  - fetching from AWS, and deployment (M6);
-  - a PyPI package.
-- **Provisional:** the Athena billing policies, until #91.
+Status (2026-11-07): **M0–M6 complete.**
+- **Built:**
+  - a FOCUS billing Ledger, verified against a real AWS export;
+  - workload metadata from OpenLineage, dbt and Athena, and query correlation;
+  - a deterministic allocation engine, its Athena policies checked against the real export (#91);
+  - a local API and dashboard;
+  - read-only collection from AWS (`data-finops collect`);
+  - an optional AWS Deployment in Pulumi, with a policy pack and owner-run deploy and teardown wizards (`infra/pulumi/aws/`). It has not been deployed to a real account yet.
+- **Not built yet:** a PyPI package.
 
 Version 0.1.
 

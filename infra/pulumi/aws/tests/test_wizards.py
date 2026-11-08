@@ -67,7 +67,15 @@ def _dry_run(
         (stubs / name).write_text(STUB, encoding="utf-8", newline="\n")
         (stubs / name).chmod(0o755)
     local = tmp_path / "local"
-    local.mkdir()
+    (local / "pulumi").mkdir(parents=True)
+    # The folder as bash's own `pwd` names it (/c/Users/... in Git Bash), as the wizards'
+    # default under the repository is named: Pulumi must still find it.
+    bash_local = subprocess.run(
+        [bash, "-c", 'cd "$1" && pwd', "_", local.as_posix()],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
     env_file = local / "deploy-wizard.env"
     env_file.write_text(
         "".join(f"{k}='{v}'\n" for k, v in SEEDED.items()), encoding="utf-8", newline="\n"
@@ -78,7 +86,7 @@ def _dry_run(
         "PATH": os.pathsep.join([str(stubs), str(Path(bash).parent)]),
         "STUB_LOG": log.as_posix(),
         "STUB_ACCOUNT_TAIL": ACCOUNT_TAIL,
-        "WIZARD_LOCAL_DIR": local.as_posix(),
+        "WIZARD_LOCAL_DIR": bash_local,
         "WIZARD_ENV_FILE": env_file.as_posix(),
         "HOME": tmp_path.as_posix(),
         "TERM": "dumb",
@@ -108,6 +116,10 @@ def _dry_run(
         ran.stderr.decode("utf-8", "replace"),
     )
     records = "".join(p.read_text(encoding="utf-8") for p in local.glob("*-record.txt"))
+    for line in log.read_text(encoding="utf-8").splitlines():
+        if line.startswith("PULUMI_BACKEND_URL="):
+            state = Path(line.removeprefix("PULUMI_BACKEND_URL=file://"))
+            assert state.is_dir(), f"Pulumi would not find its state folder: {line}"
     assert SECRETS["passphrase"] not in env_file.read_text(encoding="utf-8")  # never saved
     return result, log.read_text(encoding="utf-8").splitlines(), records
 
