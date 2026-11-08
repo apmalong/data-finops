@@ -95,7 +95,7 @@ classDiagram
         every source attempted, then a Calculation Run per Snapshot Scope
     }
     class CollectionWatermark["Collection Watermark"] {
-        Deliveries taken, Athena IDs stored, Inbox keys processed
+        Deliveries taken, Athena IDs stored, Inbox objects by key and ETag
     }
     class Inbox {
         inbox/openlineage/ and inbox/dbt/ in a Deployment's bucket
@@ -256,7 +256,7 @@ sequenceDiagram
     Rem->>S3: GetObject database/data-finops.sqlite
     S3-->>Rem: the object and its ETag (none on the first run)
     Rem->>Run: one Collection Run on the local copy
-    Run->>AWS: Inbox keys not in the Collection Watermark (dbt, then OpenLineage)
+    Run->>AWS: Inbox objects (key and ETag) not in the Collection Watermark (dbt, then OpenLineage)
     Run->>AWS: ListQueryExecutions per workgroup, BatchGet for unseen IDs
     Run->>AWS: Deliveries newer than the current Export Snapshot, oldest first
     Run->>DB: each through the same reader as `ingest`, Watermark recorded

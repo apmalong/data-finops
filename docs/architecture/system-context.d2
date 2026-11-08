@@ -47,7 +47,7 @@ product: data-finops (Python package: locally, or as a Deployment's two Lambda f
   sqlite: "One SQLite file, WAL (ADR 0018)" {
     ledger: Ledger\nExport Snapshots · Billing Lines\nAllocation Snapshots: the only cost authority {class: store}
     store: Workload store\nWorkload Runs · Model Executions · dbt Nodes\nData Assets · Lineage Edges · Query Executions {class: store}
-    watermark: Collection Watermark\nDeliveries taken · Athena IDs stored · Inbox keys processed {class: store}
+    watermark: Collection Watermark\nDeliveries taken · Athena IDs stored ·\nInbox objects processed (key and ETag) {class: store}
   }
 
   workload: workload\nWorkloadStore: stores screened records,\nresolves Identity Links when asked {class: module}

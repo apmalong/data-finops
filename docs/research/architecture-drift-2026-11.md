@@ -37,7 +37,7 @@ No drift found: 0001, 0002, 0003, 0005, 0006, 0007, 0008, 0009, 0010, 0012, 0016
 
 | Source | Says | Code does | Outcome |
 |---|---|---|---|
-| 08 §Collection Run 4, GLOSSARY Collection Watermark | Inbox "keys" in the Watermark | keyed by key **and ETag**, so an overwritten object is collected again (`workload/store.py`, Q40) | Fixed |
+| 08 §Collection Run 4 and 5, GLOSSARY Collection Watermark, both D2 diagrams, the README's Mermaid | Inbox "keys" in the Watermark | keyed by key **and ETag**, so an overwritten object is collected again (`workload/store.py`, Q40) | Fixed |
 | 08 §Collection Run 7 | warns when an Inbox key would expire | no such warning, and the collector isn't given `inboxRetentionDays`; three other warnings exist but were unlisted | Fixed (listed; the expiry warning marked not built); #211 |
 | 08 §Collection Run 8 | "the Calculation Run ID" | a list, one per Snapshot Scope | Fixed |
 | 06 | every read takes `calculation_run_id` | the Cost Summary takes neither it nor `source` | Fixed (per endpoint); #215 |
@@ -47,14 +47,14 @@ No drift found: 0001, 0002, 0003, 0005, 0006, 0007, 0008, 0009, 0010, 0012, 0016
 | 04 | only `sql.query` and `errorMessage.stackTrace` are removed | `extractionError.errors[].stackTrace` too; the Athena allowlist also keeps `Retryable` | Fixed |
 | 02 | `CostPool`, `QueryExecution`, `DataAsset` and `LineageEdge` fields | engine pools (no contract); `scanned_bytes`, `billable_bytes`, no `reservation_id`; DataAsset is namespace and name; edges are run↔asset by direction | Fixed |
 
-No drift found: 01; 03 (methods, reasons, versions, digest); 07; the rest of 05, 06 and 08 (settings, IAM, pins, caps, source order, routes, exit codes, token rules).
+There is no spec 00. No drift found: 01; 03 (methods, reasons, versions, digest); 07; the rest of 05, 06 and 08 (settings, IAM, pins, caps, source order, routes, exit codes, token rules).
 
 ## GLOSSARY
 
 | Term | Says | Code does | Outcome |
 |---|---|---|---|
 | Allocation | "the portion of a Cost Pool" | the portion of one Billing Line; a pool only supplies weights | Fixed |
-| Lineage Edge | "or between two Data Assets" | only run↔asset edges are stored | Fixed |
+| Lineage Edge | "or between two Data Assets" | only run↔asset edges are stored | Fixed, and listed under Flagged ambiguities |
 | Ledger, _Avoid_: database | — | "database" is used about 230 times for the SQLite file | #216 |
 | missing terms | — | Replay and duplicate, Changed copy and Observation, Producer, Workload store, Input digest, Billing scope, Billing Line Detail | #216 |
 
@@ -68,7 +68,7 @@ No drift found: 01; 03 (methods, reasons, versions, digest); 07; the rest of 05,
 | same | `collection` sits over `providers.aws`, the stores and `calculation` | also the `billing` Delivery reader and `collection.remote` | Fixed |
 | same | `lambda_handlers` are thin entry points | the API handler caches the database object through `providers.aws` | Fixed (doc); move in #214 |
 | `test_import_boundaries.py` | — | no entries for `ledger` or `calculation`; `workload`, `identity`, `lineage` and `dbt` not barred from the layers above them; `api` not barred from `collection` or `billing` | Guard (the code already complied) |
-| — | nothing checked the boundaries document or AGENTS.md against `src/` | — | Guard |
+| — | nothing checked the boundaries document or AGENTS.md against `src/` | — | Guard (both must name every package, and only packages that exist). Not guarded: the package names inside `system-context.d2`'s labels, which are free text; drift there is left to review. |
 | modules (judgement) | duplicate manifest parsing; duplicate Billing Period helpers; a test-only `load_events`; three 512 MiB caps; duplicate summary printing | — | #214 |
 
 ## Diagrams
@@ -84,7 +84,9 @@ No drift found: `ingest-flow.d2` (order, tables, caps); `deployment.d2`; `covera
 
 | Source | Says | Code does | Outcome |
 |---|---|---|---|
-| build-vs-reuse register, spec 08 | runtime versions are locked and vetted | the Lambda package installs from PyPI with no lock (`deployment/package.py`) | #209 |
+| build-vs-reuse register, spec 08 | runtime versions are locked and vetted | the Lambda package installs from PyPI with no lock (`infra/pulumi/aws/deployment/package.py`) | #209 |
+| register row 34 | the reference workload's `pulumi preview` "pending approval" | deployed (#22, #24), torn down (#26) | Fixed |
+| spec 08 §Layout, register | pulumi-aws 7.52.1, newer than the two-week rule allows (owner Q23) | `infra/pulumi/aws/pyproject.toml` and `examples/reference-workload` pin 7.52.1; recorded as an exception | Intended (Q23) |
 | deploy how-to, stack README | a test checks the CLI against the SDK | it checks a literal `v3.272.0`; the reference workload pins SDK 3.273.0 | Fixed (wording); #210 |
 | teardown how-to | checks in AWS "that nothing … is left" | checks the main resources in AWS, the rest through the state | Fixed (wording); #213 |
 | bill-is-authoritative page | reconciled "when an Export Snapshot is loaded" | only tests and `scripts/reconcile_delivery.py` reconcile | Fixed (wording); #212 |

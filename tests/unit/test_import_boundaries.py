@@ -1,4 +1,5 @@
-"""Enforce docs/implementation/architecture-boundaries.md with a static import scan."""
+"""Enforce docs/implementation/architecture-boundaries.md with a static import scan, and
+keep that document and AGENTS.md's package list in step with `src/` (#207)."""
 
 import ast
 import re
@@ -7,6 +8,24 @@ from pathlib import Path
 import pytest
 
 SRC = Path(__file__).resolve().parents[2] / "src" / "data_finops"
+
+# The packages that orchestrate or serve the stores: nothing below them may import them.
+_ABOVE_THE_STORES = (
+    "data_finops.calculation",
+    "data_finops.collection",
+    "data_finops.reporting",
+    "data_finops.api",
+    "data_finops.cli",
+)
+_EVIDENCE = (
+    "sqlite3",
+    "data_finops.billing",
+    "data_finops.ledger",
+    "data_finops.attribution",
+    "data_finops.workload",
+    "data_finops.providers",
+    *_ABOVE_THE_STORES,
+)
 
 FORBIDDEN_IMPORTS = {
     "contracts": ("data_finops.",),
@@ -23,55 +42,17 @@ FORBIDDEN_IMPORTS = {
         "socket",
     ),
     "billing": ("data_finops.identity", "data_finops.lineage", "data_finops.dbt"),
-    # Workload evidence never carries money, and never reaches the layers above it.
-    "identity": (
-        "data_finops.billing",
-        "data_finops.ledger",
-        "data_finops.attribution",
-        "data_finops.workload",
-        "data_finops.providers",
-        "sqlite3",
-        "data_finops.calculation",
-        "data_finops.collection",
-        "data_finops.reporting",
-        "data_finops.api",
-        "data_finops.cli",
-    ),
-    "lineage": (
-        "data_finops.billing",
-        "data_finops.ledger",
-        "data_finops.attribution",
-        "data_finops.workload",
-        "data_finops.providers",
-        "data_finops.calculation",
-        "data_finops.collection",
-        "data_finops.reporting",
-        "data_finops.api",
-        "data_finops.cli",
-    ),
-    "dbt": (
-        "data_finops.billing",
-        "data_finops.ledger",
-        "data_finops.attribution",
-        "data_finops.workload",
-        "data_finops.providers",
-        "data_finops.calculation",
-        "data_finops.collection",
-        "data_finops.reporting",
-        "data_finops.api",
-        "data_finops.cli",
-    ),
+    # Workload evidence never carries money, keeps no store, and reaches no layer above it.
+    "identity": _EVIDENCE,
+    "lineage": _EVIDENCE,
+    "dbt": _EVIDENCE,
     # The workload store reads files through `providers.athena` only: no AWS calls.
     "workload": (
         "data_finops.billing",
         "data_finops.ledger",
         "data_finops.attribution",
         "data_finops.providers.aws",
-        "data_finops.calculation",
-        "data_finops.collection",
-        "data_finops.reporting",
-        "data_finops.api",
-        "data_finops.cli",
+        *_ABOVE_THE_STORES,
     ),
     # The Ledger holds billing records; it knows no workload evidence and no layer above it.
     "ledger": (
@@ -81,11 +62,7 @@ FORBIDDEN_IMPORTS = {
         "data_finops.workload",
         "data_finops.attribution",
         "data_finops.providers",
-        "data_finops.calculation",
-        "data_finops.collection",
-        "data_finops.reporting",
-        "data_finops.api",
-        "data_finops.cli",
+        *_ABOVE_THE_STORES,
     ),
     # The Calculation Run is a thin orchestrator: no SQL, no AWS, nothing above it.
     "calculation": (
@@ -228,14 +205,17 @@ REPO = SRC.parents[1]
 _PACKAGES = sorted(p.name for p in SRC.iterdir() if p.is_dir() and (p / "__init__.py").is_file())
 
 
-def test_the_boundaries_document_names_every_package_and_no_other() -> None:
+def test_the_boundaries_document_names_exactly_the_packages() -> None:
     # Drift guard (#207): a package added, removed or renamed must be described.
     text = (REPO / "docs" / "implementation" / "architecture-boundaries.md").read_text(
         encoding="utf-8"
     )
     leads = re.findall(r"^- (.*?):", text, flags=re.MULTILINE)  # each bullet's subject
     named = {name for lead in leads for name in re.findall(r"`([a-z_]+)`", lead)}
-    assert set(_PACKAGES) <= named, set(_PACKAGES) - named
+    assert named == set(_PACKAGES), {
+        "undescribed": set(_PACKAGES) - named,
+        "gone": named - set(_PACKAGES),
+    }
 
 
 def test_agents_md_lists_every_package() -> None:
