@@ -17,9 +17,6 @@ classes: {
     shape: person
     style: {fill: "#eef2ff"; stroke: "#4338ca"}
   }
-  later: {
-    style: {stroke-dash: 4; fill: "#ffffff"; stroke: "#94a3b8"; font-color: "#64748b"; border-radius: 6}
-  }
 }
 
 aws: Customer AWS account {
@@ -36,7 +33,7 @@ workload: Workload (e.g. the reference workload, ADR 0021) {
 
 product: data-finops (Python package: locally, or as a Deployment's two Lambda functions) {
   cli: cli\ndata-finops ingest · calculate · collect · serve · demo {class: module}
-  collection: collection\nthe Collection Run: Inbox, Athena history,\nFOCUS Deliveries, then one Calculation Run {class: module}
+  collection: collection\nthe Collection Run: Inbox, Athena history,\nFOCUS Deliveries, then a Calculation Run\nfor each Snapshot Scope {class: module}
   aws_collectors: "providers.aws (the aws extra, boto3)\nread-only S3 and Athena calls" {class: module}
   handlers: "lambda_handlers\ncollector: the only writer (S3 If-Match)\napi: read-only, through Mangum (ADR 0026)" {class: module}
 

@@ -173,7 +173,7 @@ One Pulumi stack of data-finops in one AWS account (ADR 0026, spec 08).
 _Avoid_: install, environment
 
 **Collection Run**:
-One execution of the collector: it fetches every source a Deployment reads, ingests it, then starts one Calculation Run.
+One execution of the collector: it fetches every source a Deployment reads, ingests it, then starts a Calculation Run for each Snapshot Scope.
 _Avoid_: job, sync, refresh
 
 **Inbox**:

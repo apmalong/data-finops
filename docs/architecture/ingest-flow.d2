@@ -150,10 +150,10 @@ collection: {
   label: collection.run: every source attempted, in this order
   dbt_inbox: "inbox/dbt/<invocation>/: keys not in the Watermark\na folder waits for both files; each at most 512 MiB" {class: step}
   events_inbox: inbox/openlineage/: keys not in the Watermark\neach event at most 1 MiB {class: step}
-  history: Athena: page ListQueryExecutions (maxHistoryPages)\nBatchGetQueryExecution for unseen IDs only\nQUEUED or RUNNING left for the next run {class: step}
-  deliveries: Data Exports: list metadata/ for billingLookbackPeriods\ncomplete Deliveries newer than the current snapshot, oldest first\nonly manifest-listed files: at most 2 GiB each, 8 GiB a Delivery {class: step}
-  calculate: one Calculation Run on what was stored {class: step}
-  summary: "one JSON summary line: stored · duplicate · rejected per source,\nwarnings, Calculation Runs; exit 0, 1 (rejected) or 2 (a source failed)" {class: outcome}
+  history: Athena: page ListQueryExecutions\n(maxHistoryPages · max_history_pages)\nBatchGetQueryExecution for unseen IDs only\nQUEUED or RUNNING left for the next run {class: step}
+  deliveries: Data Exports: list metadata/ for\nbillingLookbackPeriods · billing_lookback_periods\ncomplete Deliveries newer than the current snapshot, oldest first\nonly manifest-listed files: at most 2 GiB each, 8 GiB a Delivery {class: step}
+  calculate: a Calculation Run for each Snapshot Scope,\non what was stored {class: step}
+  summary: "one JSON summary line: stored · duplicates · rejected per source,\nwarnings, Calculation Runs; exit 0, 1 (rejected) or 2 (a source failed)" {class: outcome}
   dbt_inbox -> events_inbox -> history -> deliveries -> calculate -> summary
 }
 watermark: Collection Watermark {

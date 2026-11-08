@@ -116,10 +116,18 @@ def _dry_run(
         ran.stderr.decode("utf-8", "replace"),
     )
     records = "".join(p.read_text(encoding="utf-8") for p in local.glob("*-record.txt"))
-    for line in log.read_text(encoding="utf-8").splitlines():
-        if line.startswith("PULUMI_BACKEND_URL="):
-            state = Path(line.removeprefix("PULUMI_BACKEND_URL=file://"))
-            assert state.is_dir(), f"Pulumi would not find its state folder: {line}"
+    urls = [
+        line.removeprefix("PULUMI_BACKEND_URL=file://")
+        for line in log.read_text(encoding="utf-8").splitlines()
+        if line.startswith("PULUMI_BACKEND_URL=")
+    ]
+    if any(
+        call.startswith("pulumi stack select")
+        for call in log.read_text(encoding="utf-8").splitlines()
+    ):
+        assert urls, "the stub logged no backend URL"
+    for url in urls:
+        assert Path(url).is_dir(), f"Pulumi would not find its state folder: {url}"
     assert SECRETS["passphrase"] not in env_file.read_text(encoding="utf-8")  # never saved
     return result, log.read_text(encoding="utf-8").splitlines(), records
 

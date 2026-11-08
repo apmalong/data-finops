@@ -1,6 +1,6 @@
 # Architecture diagrams
 
-What M0–M6 built, drawn from the code as it stands. Terms are the ones in [`GLOSSARY.md`](../../GLOSSARY.md); decisions are in [`docs/adr/`](../adr/). Anything not built yet is drawn dashed and grey, with the milestone that brings it.
+What M0–M6 built, drawn from the code as it stands. Terms are the ones in [`GLOSSARY.md`](../../GLOSSARY.md); decisions are in [`docs/adr/`](../adr/).
 
 | Diagram | Answers | Tool |
 |---|---|---|
@@ -92,7 +92,7 @@ classDiagram
         a view, never an Allocation
     }
     class CollectionRun["Collection Run"] {
-        every source attempted, then one Calculation Run
+        every source attempted, then a Calculation Run per Snapshot Scope
     }
     class CollectionWatermark["Collection Watermark"] {
         Deliveries taken, Athena IDs stored, Inbox keys processed
@@ -120,7 +120,7 @@ classDiagram
     CollectionRun --> CollectionWatermark : skips and records what it took
     CollectionRun --> ExportSnapshot : ingests newer Deliveries as
     CollectionRun --> QueryExecution : stores finished, unseen ones
-    CollectionRun --> AllocationSnapshot : starts one Calculation Run
+    CollectionRun --> AllocationSnapshot : a Calculation Run per Snapshot Scope
 ```
 
 Identity Links (M3) connect workload records using only explicit Evidence, never time overlap (ADR 0006):
@@ -258,7 +258,7 @@ sequenceDiagram
     Run->>AWS: ListQueryExecutions per workgroup, BatchGet for unseen IDs
     Run->>AWS: Deliveries newer than the current Export Snapshot, oldest first
     Run->>DB: each through the same reader as `ingest`, Watermark recorded
-    Run->>DB: one Calculation Run on what was stored
+    Run->>DB: a Calculation Run for each Snapshot Scope, on what was stored
     Run-->>Col: summary (exit 0, 1 rejected, 2 a source failed)
     Col->>S3: PutObject with If-Match (If-None-Match * on the first run)
     alt the object changed meanwhile
