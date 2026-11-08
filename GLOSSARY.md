@@ -84,13 +84,13 @@ A dataset or other data object that workloads read or write, identified within a
 _Avoid_: table (alone), entity
 
 **Lineage Edge**:
-An observed read or write relationship between a workload and a Data Asset, or between two Data Assets. Lineage has no financial authority.
+An observed read or write relationship between a Workload Run and a Data Asset. Lineage has no financial authority.
 _Avoid_: dependency (alone)
 
 ## Allocation
 
 **Allocation**:
-The portion of a Cost Pool assigned to one Allocation Target, with its method, Evidence and policy version.
+The portion of one Billing Line, in one Cost Basis, assigned to one Allocation Target, with its method, Evidence and policy version. A Cost Pool only supplies the weights.
 _Avoid_: charge, cost (alone)
 
 **Allocation Target**:
@@ -181,7 +181,7 @@ The bucket prefix producers write OpenLineage events and dbt artifacts to, for t
 _Avoid_: drop zone, landing area
 
 **Collection Watermark**:
-What a Deployment has already collected, per source: the Delivery folders ingested, the Athena query IDs stored and the Inbox keys processed. It is never a clock time alone.
+What a Deployment has already collected, per source: the Delivery folders ingested, the Athena query IDs stored and the Inbox objects processed, by key and ETag, so an overwritten object is collected again. It is never a clock time alone.
 _Avoid_: checkpoint, cursor
 
 ## Flagged ambiguities

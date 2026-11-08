@@ -117,13 +117,13 @@
 <dd>A dataset or other data object that workloads read or write, identified within a namespace.</dd>
 <dd class="avoid">Avoid: table (alone), entity</dd>
 <dt id="lineage-edge">Lineage Edge</dt>
-<dd>An observed read or write relationship between a workload and a Data Asset, or between two Data Assets. Lineage has no financial authority.</dd>
+<dd>An observed read or write relationship between a Workload Run and a Data Asset. Lineage has no financial authority.</dd>
 <dd class="avoid">Avoid: dependency (alone)</dd>
 </dl>
 <h2 id="area-allocation">Allocation</h2>
 <dl>
 <dt id="allocation">Allocation</dt>
-<dd>The portion of a Cost Pool assigned to one Allocation Target, with its method, Evidence and policy version.</dd>
+<dd>The portion of one Billing Line, in one Cost Basis, assigned to one Allocation Target, with its method, Evidence and policy version. A Cost Pool only supplies the weights.</dd>
 <dd class="avoid">Avoid: charge, cost (alone)</dd>
 <dt id="allocation-target">Allocation Target</dt>
 <dd>What an Allocation is assigned to: a Query Execution, or one of the synthetic targets Idle or Unallocated. Model Executions and Workload Runs receive cost only as Roll-ups.</dd>
@@ -194,7 +194,7 @@
 <dd>The bucket prefix producers write OpenLineage events and dbt artifacts to, for the next Collection Run to pull (ADR 0027).</dd>
 <dd class="avoid">Avoid: drop zone, landing area</dd>
 <dt id="collection-watermark">Collection Watermark</dt>
-<dd>What a Deployment has already collected, per source: the Delivery folders ingested, the Athena query IDs stored and the Inbox keys processed. It is never a clock time alone.</dd>
+<dd>What a Deployment has already collected, per source: the Delivery folders ingested, the Athena query IDs stored and the Inbox objects processed, by key and ETag, so an overwritten object is collected again. It is never a clock time alone.</dd>
 <dd class="avoid">Avoid: checkpoint, cursor</dd>
 </dl>
 <h2 id="area-flagged-ambiguities">Flagged ambiguities</h2>

@@ -1,6 +1,6 @@
 # ADR 0014 — Standards-first architecture and build-versus-reuse gate
 
-Status: Accepted (design policy; upstream versions unverified)
+Status: Accepted (design policy). Upstream versions are verified and pinned in `docs/research/build-vs-reuse-register.md`, which lists what is still pending.
 
 ## Context
 Cloud billing, lineage, telemetry, API schemas, and metadata already have established specifications and maintained implementations. Bespoke substitutes introduce interoperability and maintenance costs. Standards alone do not solve cross-system workload identity or fair cost attribution.

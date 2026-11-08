@@ -13,3 +13,6 @@ Maintain compatibility with existing lineage/observability stacks.
 
 ## Alternatives and revisit triggers
 Revisit if measured integration cost, scale, license obligations, or customer requirements make this choice unsuitable. Record a superseding ADR.
+
+## Note (drift review #207, 2026-11-07)
+A Deployment does not mount the receiver: it pulls OpenLineage event files from an S3 Inbox (ADR 0027). The receiver stays a local and self-hosted feature (ADR 0024).

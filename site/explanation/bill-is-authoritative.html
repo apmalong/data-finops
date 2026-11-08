@@ -59,9 +59,9 @@
 <p>Above a Query Execution, nothing is allocated again. A <a href="../reference/glossary.html#model-execution">Model Execution</a> or a <a href="../reference/glossary.html#workload-run">Workload Run</a> gets money only as a <a href="../reference/glossary.html#roll-up">Roll-up</a>: a sum of the Allocations linked to it. So a Roll-up can never hold more than the bill gave out.</p>
 
 <h2 id="reconciliation">Reconciliation proves it</h2>
-<p><a href="../reference/glossary.html#reconciliation">Reconciliation</a> is exact, for each Billing Line, currency and <a href="../reference/glossary.html#cost-basis">Cost Basis</a>. It is checked twice:</p>
+<p><a href="../reference/glossary.html#reconciliation">Reconciliation</a> is exact, for each Billing Line, currency and <a href="../reference/glossary.html#cost-basis">Cost Basis</a>. It is checked in two places:</p>
 <ul>
-<li>When an Export Snapshot is loaded, the Ledger's totals must equal the provider's. Rows are never deduplicated, so nothing the provider billed is lost (<a href="https://github.com/apmalong/data-finops/blob/main/docs/adr/0019-no-row-deduplication-within-export-snapshots.md">ADR 0019</a>).</li>
+<li>For a loaded Export Snapshot, the Ledger's totals equal the provider's: the tests and the delivery check script (<code>scripts/reconcile_delivery.py</code>) compare them, though loading does not run the comparison itself. Rows are never deduplicated, so nothing the provider billed is lost (<a href="https://github.com/apmalong/data-finops/blob/main/docs/adr/0019-no-row-deduplication-within-export-snapshots.md">ADR 0019</a>).</li>
 <li>After a Calculation Run, the Allocations must sum to the Billing Lines.</li>
 </ul>
 <p>The <a href="../reference/glossary.html#reconciliation-delta">Reconciliation Delta</a> is the signed difference, and it is zero when Reconciliation holds. <code>/v1/reconciliation</code> reports it. An Allocation to a Billing Line the bill lacks, or in the wrong currency, counts against a billed amount of zero, so invented money shows as a delta and cannot hide.</p>

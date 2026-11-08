@@ -74,6 +74,7 @@ product: data-finops (Python package: locally, or as a Deployment's two Lambda f
   calculation -> engine
   reporting -> ledger_api: read interface
   reporting -> workload: read interface
+  reporting -> engine: Roll-ups, pure sums
   api -> reporting: every read
   api -> workload: POST /api/v1/lineage, one event per request
   cli -> api: serve · demo

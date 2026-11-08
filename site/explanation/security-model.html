@@ -78,11 +78,11 @@
 <ul>
 <li>A <a href="../reference/glossary.html#query-execution">Query Execution</a> keeps only allowlisted metadata: identity, workgroup, statement type, catalog and database, state, times, error category and type, numeric statistics and engine version. Query text, execution parameters, state change reasons, error messages and unknown fields are dropped.</li>
 <li>From a <a href="../reference/glossary.html#trusted-query-comment">Trusted Query Comment</a>, only the dbt invocation and node are kept.</li>
-<li>OpenLineage's SQL and stack trace facets are removed before an event is stored, and a rejected event is never stored.</li>
+<li>Before an OpenLineage event is stored, the query text in its SQL facet and the stack traces in its error facets are removed. SQL quoted inside an error message is not detected. A rejected event is never stored.</li>
 <li>Keeping query text would be an explicit opt-in. Nothing does it today.</li>
 <li>No SQL literals or credentials are exported by the API or the dashboard.</li>
 </ul>
-<p>One known exception: a <a href="../reference/glossary.html#cost-explanation">Cost Explanation</a> shows the <a href="../reference/glossary.html#billing-line">Billing Line</a> exactly as exported, its tags included. A production deployment must revisit what it exposes there.</p>
+<p>A <a href="../reference/glossary.html#cost-explanation">Cost Explanation</a> can show the <a href="../reference/glossary.html#billing-line">Billing Line</a> in full, tags and free-text names included, or only the columns the contract declares (<a href="https://github.com/apmalong/data-finops/blob/main/docs/adr/0028-deployed-cost-explanation-is-minimal-by-default.md">ADR 0028</a>). <code>serve</code> shows the full line unless given <code>--explanation-detail minimal</code>; a Deployment shows the minimal one unless its <code>explanationDetail</code> setting is <code>full</code>.</p>
 
 <h2 id="fixtures">Anonymized samples</h2>
 <p>The real-world sample in <code>fixtures/reference-workload/</code> was anonymized before it was committed. Values were replaced with keyed pseudonyms, account IDs were replaced, and SQL was cut down. The scripts and their secret are described in <a href="../reference/exit-codes-and-environment.html#environment-heading">Exit codes and environment</a>.</p>

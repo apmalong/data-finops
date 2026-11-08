@@ -23,10 +23,80 @@ FORBIDDEN_IMPORTS = {
         "socket",
     ),
     "billing": ("data_finops.identity", "data_finops.lineage", "data_finops.dbt"),
-    "identity": ("data_finops.billing", "data_finops.ledger", "data_finops.attribution"),
-    "lineage": ("data_finops.billing", "data_finops.ledger", "data_finops.attribution"),
-    "dbt": ("data_finops.billing", "data_finops.ledger", "data_finops.attribution"),
-    "workload": ("data_finops.billing", "data_finops.ledger", "data_finops.attribution"),
+    # Workload evidence never carries money, and never reaches the layers above it.
+    "identity": (
+        "data_finops.billing",
+        "data_finops.ledger",
+        "data_finops.attribution",
+        "data_finops.workload",
+        "data_finops.providers",
+        "sqlite3",
+        "data_finops.calculation",
+        "data_finops.collection",
+        "data_finops.reporting",
+        "data_finops.api",
+        "data_finops.cli",
+    ),
+    "lineage": (
+        "data_finops.billing",
+        "data_finops.ledger",
+        "data_finops.attribution",
+        "data_finops.workload",
+        "data_finops.providers",
+        "data_finops.calculation",
+        "data_finops.collection",
+        "data_finops.reporting",
+        "data_finops.api",
+        "data_finops.cli",
+    ),
+    "dbt": (
+        "data_finops.billing",
+        "data_finops.ledger",
+        "data_finops.attribution",
+        "data_finops.workload",
+        "data_finops.providers",
+        "data_finops.calculation",
+        "data_finops.collection",
+        "data_finops.reporting",
+        "data_finops.api",
+        "data_finops.cli",
+    ),
+    # The workload store reads files through `providers.athena` only: no AWS calls.
+    "workload": (
+        "data_finops.billing",
+        "data_finops.ledger",
+        "data_finops.attribution",
+        "data_finops.providers.aws",
+        "data_finops.calculation",
+        "data_finops.collection",
+        "data_finops.reporting",
+        "data_finops.api",
+        "data_finops.cli",
+    ),
+    # The Ledger holds billing records; it knows no workload evidence and no layer above it.
+    "ledger": (
+        "data_finops.identity",
+        "data_finops.lineage",
+        "data_finops.dbt",
+        "data_finops.workload",
+        "data_finops.attribution",
+        "data_finops.providers",
+        "data_finops.calculation",
+        "data_finops.collection",
+        "data_finops.reporting",
+        "data_finops.api",
+        "data_finops.cli",
+    ),
+    # The Calculation Run is a thin orchestrator: no SQL, no AWS, nothing above it.
+    "calculation": (
+        "sqlite3",
+        "boto3",
+        "botocore",
+        "data_finops.collection",
+        "data_finops.reporting",
+        "data_finops.api",
+        "data_finops.cli",
+    ),
     # The read model answers from the stores' public interfaces only (no SQL of its own:
     # `test_the_read_model_writes_no_sql`), nothing from the layers above it (spec 06).
     "reporting": ("data_finops.api", "data_finops.cli", "data_finops.providers"),
@@ -38,6 +108,8 @@ FORBIDDEN_IMPORTS = {
         "data_finops.attribution",
         "data_finops.providers",
         "data_finops.cli",
+        "data_finops.collection",
+        "data_finops.billing",
     ),
     # spec 08: the AWS collectors fetch and hand over; they never write a store, and they
     # only type their clients, so importing them never needs the `aws` extra.
@@ -150,3 +222,23 @@ def test_the_lambda_handlers_are_entry_points_over_collection_and_api():
         "data_finops.cli",
     ):
         assert not any(n == forbidden or n.startswith(forbidden + ".") for n in names), forbidden
+
+
+REPO = SRC.parents[1]
+_PACKAGES = sorted(p.name for p in SRC.iterdir() if p.is_dir() and (p / "__init__.py").is_file())
+
+
+def test_the_boundaries_document_names_every_package_and_no_other() -> None:
+    # Drift guard (#207): a package added, removed or renamed must be described.
+    text = (REPO / "docs" / "implementation" / "architecture-boundaries.md").read_text(
+        encoding="utf-8"
+    )
+    leads = re.findall(r"^- (.*?):", text, flags=re.MULTILINE)  # each bullet's subject
+    named = {name for lead in leads for name in re.findall(r"`([a-z_]+)`", lead)}
+    assert set(_PACKAGES) <= named, set(_PACKAGES) - named
+
+
+def test_agents_md_lists_every_package() -> None:
+    text = (REPO / "AGENTS.md").read_text(encoding="utf-8")
+    (listed,) = re.findall(r"src/data_finops/\{([a-z_,]+)\}", text)
+    assert sorted(listed.split(",")) == _PACKAGES

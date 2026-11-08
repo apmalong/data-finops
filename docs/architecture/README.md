@@ -246,26 +246,29 @@ sequenceDiagram
     autonumber
     participant Sch as EventBridge Scheduler
     participant Col as lambda_handlers.collector
+    participant Rem as collection.remote
     participant S3 as Deployment bucket
     participant Run as collection.run
     participant AWS as providers.aws (S3, Athena)
     participant DB as /tmp SQLite copy
     Sch->>Col: once a day (UTC)
-    Col->>S3: GetObject database/data-finops.sqlite
-    S3-->>Col: the object and its ETag (none on the first run)
-    Col->>Run: one Collection Run on the local copy
+    Col->>Rem: run_remote_collection
+    Rem->>S3: GetObject database/data-finops.sqlite
+    S3-->>Rem: the object and its ETag (none on the first run)
+    Rem->>Run: one Collection Run on the local copy
     Run->>AWS: Inbox keys not in the Collection Watermark (dbt, then OpenLineage)
     Run->>AWS: ListQueryExecutions per workgroup, BatchGet for unseen IDs
     Run->>AWS: Deliveries newer than the current Export Snapshot, oldest first
     Run->>DB: each through the same reader as `ingest`, Watermark recorded
     Run->>DB: a Calculation Run for each Snapshot Scope, on what was stored
-    Run-->>Col: summary (exit 0, 1 rejected, 2 a source failed)
-    Col->>S3: PutObject with If-Match (If-None-Match * on the first run)
+    Run-->>Rem: summary (exit 0, 1 rejected, 2 a source failed)
+    Rem->>S3: PutObject with If-Match (If-None-Match * on the first run)
     alt the object changed meanwhile
-        S3-->>Col: 412: the run fails, the next one starts from the current object
+        S3-->>Rem: 412: the run fails, the next one starts from the current object
     else
-        S3-->>Col: written: the API serves it from its next request
+        S3-->>Rem: written: the API serves it from its next request
     end
+    Rem-->>Col: the summary, logged as one JSON line
 ```
 
 `data-finops collect --db PATH --config FILE` runs the same Collection Run from a laptop, against a local database, with the operator's own AWS profile (spec 08). Every source is attempted even if one fails; a failed source makes the run fail after it calculates, so the scheduler's retry replays it, and replay stores nothing twice.

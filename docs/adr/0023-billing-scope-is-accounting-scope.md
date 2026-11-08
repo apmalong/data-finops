@@ -19,3 +19,6 @@ Unlinked Query Executions (Link Outcome `no_evidence`, `unmatched`, `ambiguous`)
 
 ## Revisit triggers
 A provider bills at a scope finer than a query (no aggregation), or the export lacks a dimension needed to match scope.
+
+## Note (drift review #207, 2026-11-07)
+Point 1's "charge period containing the query's completion" is `athena-billing-scope`'s choice of timestamp, a provider policy (point 3). The real export billed two queries that completed seconds before an hour in the next hour's line (OQ-25, open): completion is not always the timestamp AWS bills by. The revisit trigger "the export lacks a dimension needed to match scope" has partly fired; OQ-25 decides whether the policy changes.

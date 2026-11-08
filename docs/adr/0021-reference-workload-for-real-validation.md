@@ -1,6 +1,6 @@
 # ADR 0021: A reference workload for validation against real billing
 
-Status: Accepted (2026-11-01).
+Status: Accepted (2026-11-01). The workload was torn down on 2026-11-07 (#26); `examples/reference-workload/` and the site's Deploy the reference workload page bring it back.
 
 ## Context
 The FOCUS export account used for M1 verification (#12) does not necessarily run the data engineering workloads this product attributes. Without real dbt-on-Athena runs and their OpenLineage events, M2–M4 (workload metadata, query correlation, Coverage-based metering) can only be validated on synthetic fixtures, and questions that only real billing can answer stay open: how Athena on-demand charges appear in FOCUS (OQ-3), the real `ConsumedUnit`, and whether Athena lines carry the workgroup as `ResourceId`.
