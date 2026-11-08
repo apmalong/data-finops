@@ -82,7 +82,7 @@
 </span><span class="line">pulumi config set budgetEmail &lt;your email&gt;</span></code></pre>
 <pre class="shell-windows"><code><span class="line">cd examples/reference-workload
 </span><span class="line">uv sync
-</span><span class="line">$env:PULUMI_BACKEND_URL = "file://$((Resolve-Path ../..).Path)/.local/pulumi"
+</span><span class="line">$env:PULUMI_BACKEND_URL = "file://$((Resolve-Path ../..).Path.Replace('\', '/'))/.local/pulumi"
 </span><span class="line">$env:PULUMI_CONFIG_PASSPHRASE = "&lt;choose one; needed for every later command&gt;"
 </span><span class="line">pulumi stack init dev
 </span><span class="line">pulumi config set aws:profile &lt;your profile&gt;
@@ -128,7 +128,7 @@
 <li>the local state in <code>.local/pulumi</code> and the outputs in <code>.local/openlineage/</code>;</li>
 <li>the WSL virtual environment, <code>.venv-linux</code>.</li>
 </ul>
-<p>The recorded teardown, and how to recreate the stack, are tracked in <a href="https://github.com/apmalong/data-finops/issues/26">issue #26</a>.</p>
+<p>The reference workload was torn down on 2026-11-07 (<a href="https://github.com/apmalong/data-finops/issues/26">issue #26</a>; the record is in <code>progress.md</code>). Its stack configuration was kept, so this page's steps bring it back: configure the stack, then deploy.</p>
 <!-- pager:start -->
 <nav class="pager" aria-label="Previous and next">
 <a rel="prev" href="serve-with-token.html">Previous: Serve with a token</a>

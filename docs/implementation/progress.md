@@ -283,7 +283,7 @@ Designed 2026-11-06 in PR #176 (spec 08; ADRs 0026–0028; GLOSSARY: Deployment,
     ```
   - **Optional, not run:** the owner's deploy-and-verify wizard (`infra/pulumi/aws/wizards/deploy-and-verify.sh`). Spec 08 makes it optional for the exit. Its output will be added here only if the owner runs it.
 - **Owner-only, still to do:**
-  - **#26:** the teardown wizard (`wizards/teardown.sh`) destroys the reference workload and checks that nothing is left. It also tears down a Deployment if one was deployed. #26 does not block the exit.
+  - **#26:** the teardown wizard (`wizards/teardown.sh`) destroys the reference workload and checks that nothing is left. It also tears down a Deployment if one was deployed. #26 does not block the exit. — **done 2026-11-07**, see below.
   - **Q22:** make `infra` a required CI check, after its first green runs (it has passed on every PR since #199).
 - **Found and fixed during M6:**
   - **The first Collection Run would have looped:** without `s3:ListBucket`, S3 answers a missing object with `AccessDenied`, not `NoSuchKey`. Both roles get `ListBucket` on their own bucket (#198, #200).
@@ -302,4 +302,35 @@ Designed 2026-11-06 in PR #176 (spec 08; ADRs 0026–0028; GLOSSARY: Deployment,
   - **Revisit triggers:** a database over 5 GB (one `PutObject`; multipart upload); Python 3.14 with Mangum.
   - **Pin exception:** pulumi-aws 7.52.1 is newer than the two-week rule allows (owner Q23).
   - **Spec 08's wording:** it credits EventBridge Scheduler with the retries of a failed run, which are Lambda's asynchronous retries (#202's owner question). The site's pages say it correctly.
-  - **The Windows `PULUMI_BACKEND_URL`** form on the deploy page is not verified on a real run.
+  - **The Windows `PULUMI_BACKEND_URL`** form on the deploy page is not verified on a real run. — **verified 2026-11-07** in #26's teardown: Pulumi opens `file://C:/…` and refuses Git Bash's `file:///c/…`. The wizards had the second form, now fixed (see below).
+
+## After M6: #91 and #26 (2026-11-07)
+On the owner's instruction ("complete the remaining issues", with their AWS session). The account ID, bucket names and profile are masked here and stayed masked in the output shown; the raw files are under the git-ignored `.local/`.
+
+- **#91, the Athena policies against the real export** (PR #204; spec 03 items 3, 8, 11; OQ-3, OQ-22, OQ-24, OQ-25):
+  - **Read:** the 2026-11-07 21:20 November delivery (`aws s3 cp` of its data and metadata folders), and the reference workgroup's whole Athena history, 36 queries (`aws athena list-query-executions` and `batch-get-query-execution`), saved before the teardown.
+  - **Found:** a query that scanned 0 bytes bills nothing, whatever its statement type, and a CTAS, an INSERT and an OPTIMIZE of a few hundred bytes bill 10 MB each. One line spans 00:00 to 05:00. Two queries that completed seconds before 20:00 were billed in the 20:00 line (OQ-25, open).
+  - **Changed:** `athena-billable-usage/2` (0-byte queries free) and `athena-billing-scope/2` (pool label by charge period); `/1` stays callable.
+  - **Run:** `data-finops ingest focus <delivery>/…-Manifest.json`, `ingest athena <history> --account-id … --region us-east-1`, `calculate`:
+    ```text
+    2026-11-01T21:00Z/22:00Z  6e-05 TB  Coverage 1   (1.83 and flagged under /1)
+    2026-11-06T00:00Z/05:00Z  3e-05 TB  Coverage 1
+    2026-11-02T20:00Z/21:00Z  2e-05 TB  Coverage 0   (OQ-25)
+    ```
+- **#26, the reference workload torn down:**
+  - **Checked first:** the stack held 8 resources: the bucket and its public access block, ownership controls and encryption; the Glue database; the Athena workgroup; the provider and the stack. No Budget, and not the FOCUS export bucket, which stays.
+  - **Destroyed:**
+    ```text
+    $ pulumi destroy --preview-only --suppress-outputs   → 8 to delete
+    $ pulumi destroy --yes --suppress-outputs            → Resources: - 8 deleted (4s)
+    ```
+  - **Checked in AWS afterwards:** each read must fail with its service's not-found error:
+    ```text
+    gone: reference bucket            (s3api head-bucket: 404)
+    gone: Glue database reference_workload   (EntityNotFoundException)
+    gone: Athena workgroup data-finops-reference   (WorkGroup is not found)
+    Budgets named data-finops*: 0
+    ```
+  - **Local state:** `pulumi stack rm --preserve-config --yes dev` removed the empty stack and kept the git-ignored `Pulumi.dev.yaml`. The site's Deploy the reference workload page brings it back.
+  - **Not run through the wizard:** `teardown.sh` starts from the Deployment's stack, which was never deployed. The same steps and checks were run by hand.
+- **Found on the way:** both wizards gave Pulumi `file://$LOCAL/pulumi` built from Git Bash's `pwd` (`/c/Users/…`), which Pulumi on Windows reads as `C:\c\Users\…`. They now use `pwd -W` where it exists, and the dry-run test hands them their folder as bash names it.

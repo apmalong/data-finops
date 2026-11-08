@@ -18,6 +18,7 @@ case "$name $*" in
   "pulumi stack output") if [[ "$PWD" == *reference-workload ]]; then echo "bucket owner-reference-bucket-5e6f"
     else echo "bucket owner-secret-bucket-1a2b"; echo "apiUrl https://abcdefghij.lambda-url.us-east-1.on.aws/"; fi ;;
   "pulumi stack export"*) echo '{}' > "$last" ;;
+  "pulumi stack select"*) echo "PULUMI_BACKEND_URL=$PULUMI_BACKEND_URL" >> "$STUB_LOG"; echo "pulumi did stack in ${ACCOUNT}" ;;
   "pulumi config get"*) exit 1 ;;
   "pulumi preview"*|"pulumi up"*|"pulumi destroy"*)  # Pulumi prints the outputs unless told not to
     echo "pulumi did $1 on arn:aws:s3:::data-finops-1a2b3c4"  # an auto-named bucket, before any output

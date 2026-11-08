@@ -255,6 +255,10 @@ quietly() { "$@" 2>/dev/null; }
 
 need() { command -v "$1" >/dev/null 2>&1 || { warn "$1 is not installed: $2"; exit 1; }; }
 
+# native_path DIR: DIR as the operating system names it. Git Bash's own pwd says /c/Users/...,
+# which Pulumi on Windows reads as C:\c\Users\...; `pwd -W` gives C:/Users/... there.
+native_path() { (cd "$1" && { pwd -W 2>/dev/null || pwd; }); }
+
 state_check() { (cd "$STACK_DIR" && uv run --frozen python -m deployment.state_check "$@"); }
 
 # with_state CHECK ARGS...: one deployment.state_check check on the current stack's exported
@@ -325,7 +329,8 @@ hide "$ACCOUNT_ID" "<account>"
 show "signed in to <account> with <deployer profile>"
 ask_secret PULUMI_CONFIG_PASSPHRASE "The Deployment stack's passphrase (not saved):"
 export PULUMI_CONFIG_PASSPHRASE
-export PULUMI_BACKEND_URL="file://$LOCAL/pulumi"
+mkdir -p "$LOCAL/pulumi"
+export PULUMI_BACKEND_URL="file://$(native_path "$LOCAL/pulumi")"
 cd "$STACK_DIR"
 run pulumi stack select "$STACK"
 BUCKET=$(quietly pulumi stack output bucket); hide "$BUCKET" "<bucket>"

@@ -1,22 +1,24 @@
 # Architecture diagrams
 
-What M0–M5 built, drawn from the code as it stands. Terms are the ones in [`GLOSSARY.md`](../../GLOSSARY.md); decisions are in [`docs/adr/`](../adr/). Anything not built yet is drawn dashed and grey, with the milestone that brings it.
+What M0–M6 built, drawn from the code as it stands. Terms are the ones in [`GLOSSARY.md`](../../GLOSSARY.md); decisions are in [`docs/adr/`](../adr/).
 
 | Diagram | Answers | Tool |
 |---|---|---|
-| [System context](#system-context) | What feeds data-finops, what it keeps, who reads it, what comes next | D2 |
-| [Ingest flow](#ingest-flow) | What happens to each input, and what is refused | D2 |
+| [System context](#system-context) | What feeds data-finops, what it keeps, who reads it, locally or deployed | D2 |
+| [Ingest flow](#ingest-flow) | What happens to each input, and what is refused, by file or by a Collection Run | D2 |
 | [Domain model](#domain-model) | How the glossary terms relate | Mermaid |
 | [Event ingest sequence](#event-ingest-sequence) | One OpenLineage file, call by call | Mermaid |
 | [Calculation Run](#calculation-run) | How a Snapshot Scope's bill becomes an Allocation Snapshot | Mermaid |
 | [Reading the results](#reading-the-results) | How the dashboard and the API answer | Mermaid |
+| [Collection Run](#collection-run) | How a Deployment's collector fetches from AWS and writes the database object | Mermaid |
+| [Deployment](#deployment) | What runs in the AWS account, and across which trust boundaries | D2 (the site's) |
 | [Database](#database) | Every table and column in the shared SQLite file | D2, generated |
 
 ## System context
 
 ![System context](system-context.svg)
 
-- **Inputs:** the product reads files through `data-finops ingest`, and receives OpenLineage events one at a time over HTTP. It makes no AWS calls. Fetching from S3 and Athena, and deployment, come with M6. Anonymized copies of real outputs become fixtures through `scripts/`.
+- **Inputs:** the product reads files through `data-finops ingest`, and receives OpenLineage events one at a time over HTTP when served locally. A Collection Run (`data-finops collect`, or a Deployment's collector) fetches the same three kinds from AWS with read-only calls: FOCUS Deliveries from the export bucket, Athena history, and the files producers put in the Inbox (ADR 0027). It hands each to the same reader. Anonymized copies of real outputs become fixtures through `scripts/`.
 - **Stores:** the Ledger is the only cost authority. Lineage and dbt records explain work and never carry money (ADR 0003).
 - **Calculating:** `calculation` is the only module that brings the two stores together with the pure `attribution` engine and the Athena policies.
 - **Reading:** `reporting` reads both stores for the API and the dashboard, through their read interfaces only (architecture-boundaries.md). Opening the Ledger may still add its newer columns to an older file.
@@ -89,6 +91,15 @@ classDiagram
     class RollUp["Roll-up"] {
         a view, never an Allocation
     }
+    class CollectionRun["Collection Run"] {
+        every source attempted, then a Calculation Run per Snapshot Scope
+    }
+    class CollectionWatermark["Collection Watermark"] {
+        Deliveries taken, Athena IDs stored, Inbox keys processed
+    }
+    class Inbox {
+        inbox/openlineage/ and inbox/dbt/ in a Deployment's bucket
+    }
 
     ExportSnapshot "1" *-- "many" BillingLine
     WorkloadRun "0..1" <-- "many" WorkloadRun : parent / root
@@ -105,6 +116,11 @@ classDiagram
     Allocation --> QueryExecution : Allocation Target (or Unallocated)
     RollUp --> ModelExecution : sum over linked Query Executions
     RollUp --> WorkloadRun : sum over linked Query Executions
+    CollectionRun --> Inbox : pulls new keys
+    CollectionRun --> CollectionWatermark : skips and records what it took
+    CollectionRun --> ExportSnapshot : ingests newer Deliveries as
+    CollectionRun --> QueryExecution : stores finished, unseen ones
+    CollectionRun --> AllocationSnapshot : a Calculation Run per Snapshot Scope
 ```
 
 Identity Links (M3) connect workload records using only explicit Evidence, never time overlap (ADR 0006):
@@ -222,6 +238,43 @@ sequenceDiagram
 ```
 
 Every route reads through `reporting`, which returns response models and holds no SQL. `/v1/reconciliation` and `/v1/provenance` answer the same way for API callers, and `/health` says whether the database opens. Each request opens and closes its own read connections in the thread that serves it, because SQLite refuses a connection used from another thread (found in M5's browser pass, `tests/integration/test_api_concurrency.py`). The OpenAPI 3.1 document is `schemas/openapi.json`, which a test keeps in step with the app. The dashboard follows spec 06's rules after Tufte and Few (`src/data_finops/api/dashboard/DESIGN.md`).
+
+## Collection Run
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Sch as EventBridge Scheduler
+    participant Col as lambda_handlers.collector
+    participant S3 as Deployment bucket
+    participant Run as collection.run
+    participant AWS as providers.aws (S3, Athena)
+    participant DB as /tmp SQLite copy
+    Sch->>Col: once a day (UTC)
+    Col->>S3: GetObject database/data-finops.sqlite
+    S3-->>Col: the object and its ETag (none on the first run)
+    Col->>Run: one Collection Run on the local copy
+    Run->>AWS: Inbox keys not in the Collection Watermark (dbt, then OpenLineage)
+    Run->>AWS: ListQueryExecutions per workgroup, BatchGet for unseen IDs
+    Run->>AWS: Deliveries newer than the current Export Snapshot, oldest first
+    Run->>DB: each through the same reader as `ingest`, Watermark recorded
+    Run->>DB: a Calculation Run for each Snapshot Scope, on what was stored
+    Run-->>Col: summary (exit 0, 1 rejected, 2 a source failed)
+    Col->>S3: PutObject with If-Match (If-None-Match * on the first run)
+    alt the object changed meanwhile
+        S3-->>Col: 412: the run fails, the next one starts from the current object
+    else
+        S3-->>Col: written: the API serves it from its next request
+    end
+```
+
+`data-finops collect --db PATH --config FILE` runs the same Collection Run from a laptop, against a local database, with the operator's own AWS profile (spec 08). Every source is attempted even if one fails; a failed source makes the run fail after it calculates, so the scheduler's retry replays it, and replay stores nothing twice.
+
+## Deployment
+
+![Deployment](../../site/assets/explanation/deployment.svg)
+
+Two Lambda functions without a VPC share one SQLite file in S3: the collector is its only writer, by S3 compare-and-swap, and the API reads it behind an `AWS_IAM` Function URL (ADR 0026). The diagram is the site's, from `deployment.d2`; the site's Deployment architecture page explains the trust boundaries and the cost. The Pulumi components and the policy pack are in `infra/pulumi/aws/` (spec 08).
 
 ## Database
 

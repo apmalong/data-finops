@@ -1,5 +1,7 @@
-# How each input reaches the shared SQLite file (as built through M5).
-# Files arrive through `data-finops ingest <kind>`; OpenLineage events also over HTTP.
+# How each input reaches the shared SQLite file (as built through M6).
+# Files arrive through `data-finops ingest <kind>`; OpenLineage events also over HTTP; and a
+# Collection Run (`data-finops collect`, or a Deployment's collector) fetches all three kinds
+# from AWS and hands each to the same reader.
 # Render: d2 --layout elk docs/architecture/ingest-flow.d2 docs/architecture/ingest-flow.svg
 direction: right
 
@@ -141,3 +143,29 @@ queries.changed -> workload_queries
 workload_queries -> links
 workload_dbt -> links
 workload_events -> links
+
+# Collection Run (M6, spec 08): fetch from AWS, then the same readers as above
+collect: data-finops collect · a Deployment's collector\nread-only AWS calls (providers.aws) {class: input}
+collection: {
+  label: collection.run: every source attempted, in this order
+  dbt_inbox: "inbox/dbt/<invocation>/: keys not in the Watermark\na folder waits for both files; each at most 512 MiB" {class: step}
+  events_inbox: inbox/openlineage/: keys not in the Watermark\neach event at most 1 MiB {class: step}
+  history: Athena: page ListQueryExecutions\n(maxHistoryPages · max_history_pages)\nBatchGetQueryExecution for unseen IDs only\nQUEUED or RUNNING left for the next run {class: step}
+  deliveries: Data Exports: list metadata/ for\nbillingLookbackPeriods · billing_lookback_periods\ncomplete Deliveries newer than the current snapshot, oldest first\nonly manifest-listed files: at most 2 GiB each, 8 GiB a Delivery {class: step}
+  calculate: a Calculation Run for each Snapshot Scope,\non what was stored {class: step}
+  summary: "one JSON summary line: stored · duplicates · rejected per source,\nwarnings, Calculation Runs; exit 0, 1 (rejected) or 2 (a source failed)" {class: outcome}
+  dbt_inbox -> events_inbox -> history -> deliveries -> calculate -> summary
+}
+watermark: Collection Watermark {
+  workload_inbox_object: workload_inbox_object\n(Inbox keys processed) {class: table}
+  export_delivery_collected: export_delivery_collected\n(Deliveries taken) {class: table}
+  query_ids: Athena query IDs: the stored\nQuery Executions themselves {class: table}
+}
+collect -> collection.dbt_inbox
+collection.dbt_inbox -> artifacts.screen: each file
+collection.events_inbox -> lineage.screen: each file
+collection.history -> queries.screen: the response
+collection.deliveries -> billing.read: the downloaded Delivery
+collection.dbt_inbox -> watermark.workload_inbox_object
+collection.events_inbox -> watermark.workload_inbox_object
+collection.deliveries -> watermark.export_delivery_collected

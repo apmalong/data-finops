@@ -1,5 +1,7 @@
 # Reference workload
 
+**Torn down 2026-11-07** (#26; the record is in `docs/implementation/progress.md`). The stack's configuration, `Pulumi.dev.yaml`, was kept, so the steps below bring it back.
+
 A small, removable AWS workload used only to validate data-finops against real billing (ADR 0021): an S3 bucket, a Glue database and an Athena workgroup, plus a tiny dbt-athena project in `dbt/` that runs in that workgroup. It is a separate uv project and is never imported by `data_finops`.
 
 ## Rules
@@ -25,7 +27,7 @@ cd examples/reference-workload
 uv sync
 uv run pytest                                   # offline, Pulumi mocks
 uv run mypy
-$env:PULUMI_BACKEND_URL = "file://$((Resolve-Path ../..).Path)/.local/pulumi"
+$env:PULUMI_BACKEND_URL = "file://$((Resolve-Path ../..).Path.Replace('\', '/'))/.local/pulumi"
 $env:PULUMI_CONFIG_PASSPHRASE = "<choose one; needed for every later command>"
 pulumi stack init dev                           # first time only
 pulumi config set aws:region us-east-1
