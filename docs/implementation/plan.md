@@ -36,6 +36,25 @@ Designed 2026-11-06 (spec 08; ADRs 0026–0028; research notes `docs/research/m6
 
 The owner's M6 decisions (Q1–Q52) are logged in `m6-decisions.md`. M6's spec issue is #177; its tickets are #178–#193, plus #26. They go in ten PRs, each against `main`, one open at a time, each closing every ticket it contains with a section per ticket (owner, 2026-11-06): #178; #179–#180; #181; #182; #183–#184; #185 and #188 (infra scaffold, `infra` CI job, first policies); #186–#187; #189; #190–#191; #192 and #193. #26 is run by the owner after #192 and never blocks the exit. Only #191 (content pages) takes milestone D's content exception; every other ticket keeps the full loop.
 
+## M7: public demo and evaluation
+Stand data-finops up for real, keep a believable workload running, publish a dashboard anyone can reach from the repository or the docs site, and compare it honestly with AWS's own cost tools. **Exit** (spec 09): the public dashboard loads a snapshot less than 48 hours old, reached by clicking from the README and the docs site; the demo's lines reconcile and their Coverage is recorded; the 7-day evaluation is recorded in progress.md and the comparison page published; a month's real cost is recorded against the $3 target.
+
+Designed 2026-11-07 (spec 09; ADRs 0029–0030; research note `docs/research/m7-aws-finops-tools.md`; owner decisions Q53–Q67 in `m7-decisions.md`):
+- **The site:** a static snapshot of the read model, published after each Collection Run behind CloudFront, served by the existing dashboard in a static mode. Only the demo workgroup's lines, with account IDs replaced.
+- **The workload:** a simulated orchestrator that runs believable Airflow and dbt DAGs whose models issue real Athena queries with real Trusted Query Comments, over a generated dataset, without MWAA.
+
+Proposed tickets and PRs, each against `main`, one open at a time; confirmed when the spec issue is made:
+1. #208, #209 and #210: the lockfile check, the locked Lambda package, the Pulumi pins.
+2. The demo dataset generator and the demo workgroup and Glue tables in the stack.
+3. The simulated orchestrator: DAGs, real queries with Trusted Query Comments, OpenLineage events and dbt artifacts to the Inbox; its schedule and role.
+4. The publisher: the Demo Snapshot, the filter, the atomic swap; its trigger and role.
+5. The dashboard's static mode and the banner.
+6. The `PublicDemo` component (bucket, CloudFront with origin access control, outputs) and the policy pack's additions.
+7. The documentation: the public-demo and compared-with-AWS pages (the latter's table filled after the evaluation), the settings reference, the deploy how-to, the README and navigation links.
+8. The owner's deploy, with the wizard's `publicDemo` stage; the 7-day evaluation; the exit record.
+
+The tooling tickets keep the full loop; only the content pages take milestone D's content exception.
+
 ## Deferred
 GCP, Snowflake, dbt Elementary optional tables, dlt, Dagster, OTel, BI connectors, automatic optimization, multi-account aggregation, enterprise auth.
 

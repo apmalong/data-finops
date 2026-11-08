@@ -184,6 +184,18 @@ _Avoid_: drop zone, landing area
 What a Deployment has already collected, per source: the Delivery folders ingested, the Athena query IDs stored and the Inbox objects processed, by key and ETag, so an overwritten object is collected again. It is never a clock time alone.
 _Avoid_: checkpoint, cursor
 
+**Public Demo**:
+The hosted, read-only dashboard over the demo workgroup's share of a Deployment's bill, served as a static snapshot to anyone (ADR 0029, spec 09).
+_Avoid_: hosted dashboard, live site
+
+**Demo Snapshot**:
+One published set of the read model's answers for the Public Demo, written after a Collection Run and swapped in whole.
+_Avoid_: cache, export
+
+**Simulated Orchestrator**:
+The scheduled function that plays Airflow and dbt for the Public Demo: it runs believable DAGs whose models issue real Athena queries with real Trusted Query Comments, and writes their OpenLineage events and dbt artifacts to the Inbox (ADR 0030).
+_Avoid_: fake Airflow, mock workload
+
 ## Flagged ambiguities
 
 - "Query cost" implies an exact per-query price that providers do not bill. Say "Allocation to a Query Execution" and state its Confidence.
