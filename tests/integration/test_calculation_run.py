@@ -341,7 +341,7 @@ def test_allocations_record_every_rule_version_that_shaped_them(
     stored = ledger.allocation_snapshot(result.calculation_run_id)
     assert stored is not None
     assert stored.snapshot.policy_version == (
-        "allocation-engine/1+line-classification/1+athena-billable-usage/1+athena-billing-scope/1"
+        "allocation-engine/1+line-classification/1+athena-billable-usage/2+athena-billing-scope/2"
     )
 
 

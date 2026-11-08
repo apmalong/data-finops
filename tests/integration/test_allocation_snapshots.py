@@ -40,7 +40,7 @@ def _allocations(run: str, amount: str = "6.00") -> list[Allocation]:
     return [
         Allocation(
             billing_line_ref="aws-focus-123456789012-2026-10-v1#0",
-            pool_id="athena-on-demand:123456789012:us-east-1:demo:2026-10-01",
+            pool_id="athena-on-demand:123456789012:us-east-1:demo:2026-10-01T00:00Z/2026-10-02T00:00Z",
             target_type=TargetType.QUERY_EXECUTION,
             target_id="q-001",
             amount=Decimal(amount),

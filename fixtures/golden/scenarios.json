@@ -17,7 +17,7 @@
     "allocations": [
       {
         "billing_line_ref": "aws-focus-123456789012-2026-10-v1#0",
-        "pool_id": "athena-on-demand:123456789012:us-east-1:demo:2026-10-01",
+        "pool_id": "athena-on-demand:123456789012:us-east-1:demo:2026-10-01T00:00Z/2026-10-02T00:00Z",
         "target_type": "query_execution",
         "target_id": "q-001",
         "amount": "6.00",

@@ -7,21 +7,37 @@ both results as given; a Calculation Run records both versions (#88).
 
 Documented by AWS: data scanned is rounded up to the nearest megabyte with a 10 MB
 minimum per query; failed queries and DDL are not charged; cancelled queries are charged
-for the data scanned. Provisional, to be checked against a real FOCUS export (#91):
-- units are decimal (MB = 10^6 bytes, TB = 10^12 bytes), and ConsumedUnit reads `TB` or
-  `Terabytes`;
+for the data scanned. Checked against the real 2026-11 FOCUS export (#91; OQ-3, OQ-24):
+- units are decimal (MB = 10^6 bytes, TB = 10^12 bytes), and ConsumedUnit reads `TB`
+  (`Terabytes`, the unit's name in AWS's pricing pages, is accepted too);
 - `DataScannedInBytes` is the raw scan, before the minimum and rounding;
-- queries answered from reused results bill like any other;
-- CTAS, INSERT INTO, OPTIMIZE and VACUUM bill their scan (CTAS is labelled `DDL`).
+- a query that scanned 0 bytes bills nothing, whatever its statement type: SELECTs, an
+  INSERT, a VACUUM and a reused result billed nothing (that a reused result always reports
+  0 bytes is AWS's documentation, observed only for a 0-byte original);
+- CTAS (labelled `DDL`), INSERT INTO and OPTIMIZE (labelled `DDL`) that scanned any bytes
+  billed the 10 MB minimum each;
+- a line names its workgroup by ARN in ResourceId, and one line may span several hours of
+  usage (00:00 to 05:00 for five hourly probes), so scope is the line's charge period.
+
+Each rule is versioned; an earlier version stays callable as it was, so what a Calculation
+Run recorded under it can be recomputed. A Calculation Run itself always uses the current
+versions. `in_billing_scope` did not change between the scope versions. `/1` charged the
+minimum for any 0-byte query but DDL, which the export contradicts (OQ-24);
+`athena-billing-scope/1` keyed the pool label by day.
 """
 
+from datetime import UTC, datetime
 from decimal import Decimal
 
 from data_finops.contracts.billing import FocusBillingLine
 from data_finops.contracts.workload import QueryExecution
 
-POLICY_VERSION = "athena-billable-usage/1"
-SCOPE_POLICY_VERSION = "athena-billing-scope/1"
+BILLABLE_USAGE_V1 = "athena-billable-usage/1"
+BILLABLE_USAGE_V2 = "athena-billable-usage/2"
+POLICY_VERSION = BILLABLE_USAGE_V2  # the current Billable Usage version
+BILLING_SCOPE_V1 = "athena-billing-scope/1"
+BILLING_SCOPE_V2 = "athena-billing-scope/2"
+SCOPE_POLICY_VERSION = BILLING_SCOPE_V2  # the current billing scope version
 
 _MB = 1_000_000
 _MINIMUM = 10 * _MB
@@ -30,22 +46,26 @@ _UNBILLED_STATES = frozenset({"QUEUED", "RUNNING", "FAILED"})
 _BYTES_PER_UNIT = {"TB": 10**12, "Terabytes": 10**12}
 
 
-def billable_bytes(query: QueryExecution) -> int | None:
-    """The bytes Athena bills for `query`, or None when a billed query reported no scan.
+def billable_bytes(query: QueryExecution, version: str = POLICY_VERSION) -> int | None:
+    """The bytes Athena bills for `query` under `version`, or None when a billed query
+    reported no scan.
 
     Succeeded and cancelled queries bill their scan rounded up to a megabyte, at least
-    10 MB. Failed queries bill nothing, and so do queued or running ones in this
-    observation (a later observation of the finished query is stored separately). A DDL
-    statement bills nothing only if it scanned nothing: Athena labels CTAS `DDL` too.
-    Raises ValueError for a state Athena does not document.
+    10 MB, except a query that scanned nothing: under `/2` it bills nothing, under `/1`
+    only a DDL statement did (Athena labels CTAS `DDL` too). Failed queries bill nothing,
+    and so do queued or running ones in this observation (a later observation of the
+    finished query is stored separately). Raises ValueError for a state Athena does not
+    document or a version this module does not know.
     """
+    if version not in (BILLABLE_USAGE_V1, BILLABLE_USAGE_V2):
+        raise ValueError(f"unknown Athena Billable Usage policy {version!r}")
     if query.state in _UNBILLED_STATES:
         return 0
     if query.state not in _BILLED_STATES:
         raise ValueError(f"{query.query_execution_id}: unknown Athena state {query.state!r}")
     if query.scanned_bytes is None:
         return None
-    if query.statement_type == "DDL" and query.scanned_bytes == 0:
+    if query.scanned_bytes == 0 and (version == BILLABLE_USAGE_V2 or query.statement_type == "DDL"):
         return 0
     return max(-(-query.scanned_bytes // _MB) * _MB, _MINIMUM)
 
@@ -60,8 +80,8 @@ def bytes_in_consumed_unit(billable: int, consumed_unit: str) -> Decimal:
 def is_on_demand_usage(line: FocusBillingLine) -> bool:
     """Whether a usage line bills Athena on-demand scanning, so it can be metered
     (`POLICY_VERSION`; ADR 0017): Athena's service, with a positive ConsumedQuantity in a
-    unit `bytes_in_consumed_unit` knows. Provisional until #91: the ServiceName and unit a
-    real export writes. Which lines are usage at all is the Calculation Run's (step B).
+    unit `bytes_in_consumed_unit` knows: the real export writes `Amazon Athena` and `TB`
+    (#91). Which lines are usage at all is the Calculation Run's (step B).
     """
     return (
         line.ServiceName == "Amazon Athena"
@@ -71,13 +91,22 @@ def is_on_demand_usage(line: FocusBillingLine) -> bool:
     )
 
 
-def pool_id(line: FocusBillingLine) -> str:
-    """The metered Cost Pool a line belongs to, by its billing scope keys
-    (`SCOPE_POLICY_VERSION`): usage account, region, workgroup (`*` when the line names
-    none) and charge period start."""
+def pool_id(line: FocusBillingLine, version: str = SCOPE_POLICY_VERSION) -> str:
+    """The metered Cost Pool a line belongs to, by its billing scope keys: usage account,
+    region, workgroup (`*` when the line names none) and, under `/2`, the line's charge
+    period in UTC (`/1` used its start day, though one day can hold several lines)."""
+    if version not in (BILLING_SCOPE_V1, BILLING_SCOPE_V2):
+        raise ValueError(f"unknown Athena billing scope policy {version!r}")
     workgroup = _workgroup(line.ResourceId) or "*"
-    day = line.ChargePeriodStart.date().isoformat()
-    return f"athena-on-demand:{line.SubAccountId}:{line.RegionId}:{workgroup}:{day}"
+    if version == BILLING_SCOPE_V2:
+        period = f"{_utc(line.ChargePeriodStart)}/{_utc(line.ChargePeriodEnd)}"
+    else:
+        period = line.ChargePeriodStart.date().isoformat()
+    return f"athena-on-demand:{line.SubAccountId}:{line.RegionId}:{workgroup}:{period}"
+
+
+def _utc(moment: datetime) -> str:
+    return moment.astimezone(UTC).strftime("%Y-%m-%dT%H:%MZ")
 
 
 def in_billing_scope(query: QueryExecution, line: FocusBillingLine) -> bool:
@@ -85,11 +114,13 @@ def in_billing_scope(query: QueryExecution, line: FocusBillingLine) -> bool:
 
     Accounting scope, never Evidence: the query ran in the line's usage account (FOCUS
     SubAccountId, not the paying BillingAccountId) and region, in the line's workgroup if
-    the line names one, and completed within the line's charge period, start inclusive.
-    A query that has not completed is not yet billed. Link Outcomes are not an input:
-    linked and unlinked queries are scoped alike. Provisional until #91: completion
-    time is the timestamp Athena bills by, and a line names its workgroup by a workgroup
-    ARN in ResourceId; a line naming none does not restrict by workgroup.
+    the line names one, and completed within the line's charge period, start inclusive,
+    however many hours that period spans. A query that has not completed is not yet
+    billed. Link Outcomes are not an input: linked and unlinked queries are scoped alike.
+    A line names its workgroup by a workgroup ARN in ResourceId (#91); a line naming none
+    does not restrict by workgroup. Completion time is the timestamp scope uses, though it
+    is not always the one Athena bills by: two queries that completed seconds before an hour
+    were billed in the next hour's line (OQ-25), which then keeps them out of its scope.
     """
     workgroup = _workgroup(line.ResourceId)
     return (
