@@ -196,6 +196,15 @@
 <dt id="collection-watermark">Collection Watermark</dt>
 <dd>What a Deployment has already collected, per source: the Delivery folders ingested, the Athena query IDs stored and the Inbox objects processed, by key and ETag, so an overwritten object is collected again. It is never a clock time alone.</dd>
 <dd class="avoid">Avoid: checkpoint, cursor</dd>
+<dt id="public-demo">Public Demo</dt>
+<dd>The hosted, read-only dashboard over the demo workgroup&#x27;s share of a Deployment&#x27;s bill, served as a static snapshot to anyone (ADR 0029, spec 09).</dd>
+<dd class="avoid">Avoid: hosted dashboard, live site</dd>
+<dt id="demo-snapshot">Demo Snapshot</dt>
+<dd>One published set of the read model&#x27;s answers for the Public Demo, written after a Collection Run and swapped in whole.</dd>
+<dd class="avoid">Avoid: cache, export</dd>
+<dt id="simulated-orchestrator">Simulated Orchestrator</dt>
+<dd>The scheduled function that plays Airflow and dbt for the Public Demo: it runs believable DAGs whose models issue real Athena queries with real Trusted Query Comments, and writes their OpenLineage events and dbt artifacts to the Inbox (ADR 0030).</dd>
+<dd class="avoid">Avoid: fake Airflow, mock workload</dd>
 </dl>
 <h2 id="area-flagged-ambiguities">Flagged ambiguities</h2>
 <ul>
