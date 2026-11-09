@@ -35,7 +35,7 @@ One page per document under `site/`, each one Diátaxis type. Home is `index.htm
 - Accessible: `lang`, one `<h1>`, ordered headings, alt text on every image, visible focus, and the nav usable by keyboard. Pages work without JavaScript.
 - No `http(s)://` in CSS or JS. Outbound links in page text are fine.
 - Diagrams are committed SVGs rendered from D2 sources in `docs/architecture/` (`d2 --layout elk`). There is no Mermaid.
-- Writing: glossary terms capitalised as in GLOSSARY, never their avoided synonyms. Short declarative sentences. Explanation pages cite their ADRs and specs, which stay authoritative. The only account ID is the placeholder `123456789012`. No real account IDs, bucket names, credentials or SQL literals appear.
+- Writing: follow the `simplified-technical-english` skill (`.claude/skills/`). Glossary terms are capitalised as in GLOSSARY, never their avoided synonyms. Explanation pages cite their ADRs and specs, which stay authoritative. The only account ID is the placeholder `123456789012`. No real account IDs, bucket names, credentials or SQL literals appear.
 
 ## The site tool (`scripts/site/`)
 Stdlib only, dev tooling outside the wheel, under ruff and mypy. Two parts import data_finops: the page runner (with FastAPI) to run commands, which only tests import, and `build`'s CLI reference, which loads the command line's parser only when it renders that page. So `check` stays stdlib-only for the Pages workflow. It has two commands: `python -m scripts.site build` rewrites the generated pages and nav, and `python -m scripts.site check` reports problems and exits non-zero on any.
