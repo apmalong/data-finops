@@ -1,6 +1,6 @@
 # M7 decisions (owner, 2026-11-07)
 
-Code, specs, PRs and tickets cite these as "Q<n>". The numbers continue from M6's log (`m6-decisions.md`, Q1–Q52). Each question was asked with a recommended answer. The owner's answer is recorded where it differs from the recommendation; otherwise the recommendation was accepted. ADRs 0029–0030 and spec 09 remain authoritative; this log records only who decided what.
+Code, specs, PRs and tickets cite these as "Q<n>". The numbers continue from M6's log (`m6-decisions.md`, Q1–Q52). Each question was asked with a recommended answer. The owner's answer is recorded where it differs from the recommendation; otherwise the recommendation was accepted. ADRs 0029–0031 and spec 09 remain authoritative; this log records only who decided what.
 
 The owner's brief (2026-11-07): stand data-finops up for real, then show what the published site looks like and why it is better than AWS's own FinOps tools. "Ideally people could go to the repo or docs site and click their way to the dashboard to see it load with recent data." The DAG data may be simulated, but it must be believable and tied to real Athena usage, without running MWAA, "because that costs a lot of money".
 
@@ -28,6 +28,16 @@ The owner's brief (2026-11-07): stand data-finops up for real, then show what th
 | Q65 | The demo dataset | A few hundred MB of generated orders and events data in S3, so queries scan visibly different amounts | ADR 0030, spec 09 |
 | Q66 | Lifetime and cost | Runs indefinitely at about $3 a month or less, with the $10 Budget alert and the kill switch; the 7-day evaluation runs inside it | spec 09 |
 | Q67 | Honesty on the page | A banner: the workload is simulated, its Athena charges are real and reconciled to the bill, and data trails by about a day | ADR 0030, spec 09 |
+
+## Round 3 (2026-11-09)
+
+| # | Question | Decision | Recorded in |
+|---|---|---|---|
+| Q68 | Publish amounts before credits | Yes | ADR 0029 |
+| Q69 | Create the M7 spec issue and tickets | Yes, with the order revised for Q70 | plan.md §M7 |
+| Q70 | **Owner's brief:** "an attribution plane allowing users to configure this for their own resources". When | A small core in M7, before the simulated orchestrator: configured dimensions from the query comment, OpenLineage tags and a workgroup map | ADR 0031, spec 09 §Cost Dimensions |
+| Q71 | Its name | **Owner:** not "attribution plane". Named Cost Dimensions | GLOSSARY, ADR 0031 |
+| Q72 | When a configuration change takes effect | **Owner:** "dimension changes should be applied going forward. no need for retroactive updates" | ADR 0031, spec 09 §Cost Dimensions |
 
 ## Facts the decisions rest on
 

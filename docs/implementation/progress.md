@@ -334,3 +334,7 @@ On the owner's instruction ("complete the remaining issues", with their AWS sess
   - **Local state:** `pulumi stack rm --preserve-config --yes dev` removed the empty stack and kept the git-ignored `Pulumi.dev.yaml`. The site's Deploy the reference workload page brings it back.
   - **Not run through the wizard:** `teardown.sh` starts from the Deployment's stack, which was never deployed. The same steps and checks were run by hand.
 - **Found on the way:** both wizards gave Pulumi `file://$LOCAL/pulumi` built from Git Bash's `pwd` (`/c/Users/…`), which Pulumi on Windows reads as `C:\c\Users\…`. They now use `pwd -W` where it exists, and the dry-run test hands them their folder as bash names it.
+
+## Architectural drift review and M7 design (2026-11-07 to 2026-11-09)
+- **Drift review (#207, PR #217):** every mismatch between the written architecture and the code is in `docs/research/architecture-drift-2026-11.md`, with how each was handled. Doc-only drift was fixed. Stricter import-boundary tests were added, and two tests that keep the boundaries document and AGENTS.md in step with `src/`. Code changes and decisions are #208–#216, and the Inbox cap's interplay with `/tmp` is on #206.
+- **M7 design (PRs #218, #219):** spec 09 and ADRs 0029–0031; the owner's decisions Q53–Q72 are in `m7-decisions.md`; research in `docs/research/m7-aws-finops-tools.md` and `m7-attribution-precedents.md`. Spec issue #220. Nothing is built or deployed yet.

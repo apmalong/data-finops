@@ -39,19 +39,22 @@ The owner's M6 decisions (Q1–Q52) are logged in `m6-decisions.md`. M6's spec i
 ## M7: public demo and evaluation
 Stand data-finops up for real, keep a believable workload running, publish a dashboard anyone can reach from the repository or the docs site, and compare it honestly with AWS's own cost tools. **Exit** (spec 09): the public dashboard loads a snapshot less than 48 hours old, reached by clicking from the README and the docs site; the demo's lines reconcile and their Coverage is recorded; the 7-day evaluation is recorded in progress.md and the comparison page published; a month's real cost is recorded against the $3 target.
 
-Designed 2026-11-07 (spec 09; ADRs 0029–0030; research note `docs/research/m7-aws-finops-tools.md`; owner decisions Q53–Q67 in `m7-decisions.md`):
-- **The site:** a static snapshot of the read model, published after each Collection Run behind CloudFront, served by the existing dashboard in a static mode. Only the demo workgroup's lines, with account IDs replaced.
+Designed 2026-11-07 and 2026-11-09 (spec 09; ADRs 0029–0031; research notes `docs/research/m7-aws-finops-tools.md` and `m7-attribution-precedents.md`; owner decisions Q53–Q72 in `m7-decisions.md`):
+- **The site:** a static snapshot of the read model, published after each Collection Run behind CloudFront, served by the existing dashboard in a static mode. Only the demo workgroup's lines, with account IDs replaced and amounts before credits.
 - **The workload:** a simulated orchestrator that runs believable Airflow and dbt DAGs whose models issue real Athena queries with real Trusted Query Comments, over a generated dataset, without MWAA.
+- **Cost Dimensions:** each organization configures the attributes it groups cost by (team, tenant, DAG run) and where they come from. They are claims recorded on Allocations, so reconciliation stays exact.
 
-Proposed tickets and PRs, each against `main`, one open at a time; confirmed when the spec issue is made:
-1. #208, #209 and #210: the lockfile check, the locked Lambda package, the Pulumi pins.
-2. The demo dataset generator and the demo workgroup and Glue tables in the stack.
-3. The simulated orchestrator: DAGs, real queries with Trusted Query Comments, OpenLineage events and dbt artifacts to the Inbox; its schedule and role.
-4. The publisher: the Demo Snapshot, the filter, the atomic swap; its trigger and role.
-5. The dashboard's static mode and the banner.
-6. The `PublicDemo` component (bucket, CloudFront with origin access control, outputs) and the policy pack's additions.
-7. The documentation: the public-demo and compared-with-AWS pages (the latter's table filled after the evaluation), the settings reference, the deploy how-to, the README and navigation links.
-8. The owner's deploy, with the wizard's `publicDemo` stage; the 7-day evaluation; the exit record.
+The PRs, each against `main`, one open at a time (the tickets are on the spec issue):
+1. The lockfile check, the locked Lambda package, the Pulumi pins (#208, #209, #210).
+2. Cost Dimensions: configuration and capture; resolution, Allocations and the roll-up route.
+3. Cost Dimensions: the dashboard view and the Deployment's configuration.
+4. The demo dataset generator and the demo workgroup and Glue tables.
+5. The simulated orchestrator.
+6. The publisher.
+7. The dashboard's static mode and the banner.
+8. The `PublicDemo` component and the policy pack's additions.
+9. The documentation.
+10. The owner's deploy, the wizard's `publicDemo` stage, the 7-day evaluation, the comparison page's table and the exit record.
 
 The tooling tickets keep the full loop; only the content pages take milestone D's content exception.
 

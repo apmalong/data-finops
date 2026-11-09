@@ -97,6 +97,10 @@ _Avoid_: charge, cost (alone)
 What an Allocation is assigned to: a Query Execution, or one of the synthetic targets Idle or Unallocated. Model Executions and Workload Runs receive cost only as Roll-ups.
 _Avoid_: owner, cost center, tenant, data product, consumer (not targets in the MVP)
 
+**Cost Dimension**:
+A business attribute an organization configures to group its cost by, such as team or tenant. Its value is a claim with a recorded source, never Evidence, and a dimension is a view: it does not change how a Billing Line is partitioned (ADR 0031).
+_Avoid_: attribution plane, tag (alone), label, Allocation Target
+
 **Roll-up**:
 The sum of Allocations over the Query Executions linked to a Model Execution, Workload Run or higher grouping. A Roll-up is a view, never a further Allocation.
 _Avoid_: re-allocation, inherited cost
