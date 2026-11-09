@@ -1,6 +1,6 @@
 # Public demo and evaluation (M7)
 
-Decided in the M7 design session (2026-11-07); each owner decision is logged in `docs/implementation/m7-decisions.md` (Q53–Q71). The hosted site is ADR 0029, the simulated workload ADR 0030 and Cost Dimensions ADR 0031. Facts about AWS's own tools are in `docs/research/m7-aws-finops-tools.md`.
+Decided in the M7 design session (2026-11-07); each owner decision is logged in `docs/implementation/m7-decisions.md` (Q53–Q72). The hosted site is ADR 0029, the simulated workload ADR 0030 and Cost Dimensions ADR 0031. Facts about AWS's own tools are in `docs/research/m7-aws-finops-tools.md`.
 
 ## Scope
 Stand data-finops up for real in the owner's account, keep a believable workload running, and publish a dashboard anyone can reach from the repository or the docs site, loading recent data. Then evaluate it against AWS's own cost tools for the question data-finops exists to answer, and publish the comparison. Out of scope: a hosted dashboard for customers, authentication, MWAA, real dbt in Lambda.
@@ -34,7 +34,7 @@ The Deployment must not ship unvetted code. These go first:
   - `openlineage_tag.<key>`: a tag in the OpenLineage tags facets of the Workload Run linked to the query, the run's own first, then its parents up to the root;
   - `workgroup_map`: the query's workgroup, or the line's for an amount with no query.
 - **Capture:** ingest keeps only the comment keys the configuration names, in a new `QueryExecution.claims`: at most 16 keys, each value at most 128 characters. A longer value is dropped, and counted in the ingest result. A key added later applies only to queries ingested after it.
-- **Resolution:** a Calculation Run records on each Allocation `dimensions: {name: {value, source}}`. Cost with no value is `unassigned`. The configuration's SHA-256 joins the input digest, and a new version, `cost-dimensions/1`, joins the policy version.
+- **Resolution:** a Calculation Run records on each Allocation `dimensions: {name: {value, source}}`. Cost with no value is `unassigned`. A new version, `cost-dimensions/1`, joins the policy version. The configuration's SHA-256 is recorded on the snapshot but is not part of the input digest, so changing the configuration never rewrites a stored snapshot and does not by itself start a new one; it applies from the next snapshot that new inputs make (Q72).
 - **Reading:** `GET /v1/rollups/dimensions/{name}` returns a page of values with their amounts per Cost Basis and how each value's source splits. Each dimension's total, `unassigned` included, equals the snapshot's. The dashboard gains a dimension view, in both data sources.
 - **A Deployment:** the setting `costDimensions` holds the file's path. The stack uploads it to `config/cost-dimensions.toml` in the Deployment's bucket, because the collector's settings travel in an environment variable capped at 4 KB. The collector's and publisher's roles may read that one object.
 - **Sensitive dimensions:** left out of the minimal Cost Explanation, the dimension route's public form and the Demo Snapshot.
@@ -123,7 +123,7 @@ About $3 a month or less (Q66): Athena about $1–2, with CloudFront, S3, Lambda
 
 ## Testing
 Each seam test-first, with hand-made mutation checks recorded in the PR. No test touches a real account.
-0. **Cost Dimensions:** the configuration's validation; only configured keys stored, and the caps; first-source-wins across all three sources; `unassigned`; each dimension's total equals the snapshot's for every Cost Basis; a changed configuration makes a new snapshot; a claim never creates an Identity Link; sensitive dimensions withheld; OpenAPI drift.
+0. **Cost Dimensions:** the configuration's validation; only configured keys stored, and the caps; first-source-wins across all three sources; `unassigned`; each dimension's total equals the snapshot's for every Cost Basis; a changed configuration alone makes no new snapshot and leaves stored ones unchanged, and the next snapshot from new inputs uses it; a claim never creates an Identity Link; sensitive dimensions withheld; OpenAPI drift.
 1. **The simulated orchestrator:**
    - run with botocore's Stubber for Athena and S3, and a fixed seed;
    - every event and artifact it writes passes the existing readers;

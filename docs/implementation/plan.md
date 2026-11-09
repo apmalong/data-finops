@@ -39,7 +39,7 @@ The owner's M6 decisions (Q1–Q52) are logged in `m6-decisions.md`. M6's spec i
 ## M7: public demo and evaluation
 Stand data-finops up for real, keep a believable workload running, publish a dashboard anyone can reach from the repository or the docs site, and compare it honestly with AWS's own cost tools. **Exit** (spec 09): the public dashboard loads a snapshot less than 48 hours old, reached by clicking from the README and the docs site; the demo's lines reconcile and their Coverage is recorded; the 7-day evaluation is recorded in progress.md and the comparison page published; a month's real cost is recorded against the $3 target.
 
-Designed 2026-11-07 and 2026-11-09 (spec 09; ADRs 0029–0031; research notes `docs/research/m7-aws-finops-tools.md` and `m7-attribution-precedents.md`; owner decisions Q53–Q71 in `m7-decisions.md`):
+Designed 2026-11-07 and 2026-11-09 (spec 09; ADRs 0029–0031; research notes `docs/research/m7-aws-finops-tools.md` and `m7-attribution-precedents.md`; owner decisions Q53–Q72 in `m7-decisions.md`):
 - **The site:** a static snapshot of the read model, published after each Collection Run behind CloudFront, served by the existing dashboard in a static mode. Only the demo workgroup's lines, with account IDs replaced and amounts before credits.
 - **The workload:** a simulated orchestrator that runs believable Airflow and dbt DAGs whose models issue real Athena queries with real Trusted Query Comments, over a generated dataset, without MWAA.
 - **Cost Dimensions:** each organization configures the attributes it groups cost by (team, tenant, DAG run) and where they come from. They are claims recorded on Allocations, so reconciliation stays exact.

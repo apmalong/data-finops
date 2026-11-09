@@ -37,6 +37,7 @@ The owner's brief (2026-11-07): stand data-finops up for real, then show what th
 | Q69 | Create the M7 spec issue and tickets | Yes, with the order revised for Q70 | plan.md §M7 |
 | Q70 | **Owner's brief:** "an attribution plane allowing users to configure this for their own resources". When | A small core in M7, before the simulated orchestrator: configured dimensions from the query comment, OpenLineage tags and a workgroup map | ADR 0031, spec 09 §Cost Dimensions |
 | Q71 | Its name | **Owner:** not "attribution plane". Named Cost Dimensions | GLOSSARY, ADR 0031 |
+| Q72 | When a configuration change takes effect | **Owner:** "dimension changes should be applied going forward. no need for retroactive updates" | ADR 0031, spec 09 §Cost Dimensions |
 
 ## Facts the decisions rest on
 
