@@ -8,6 +8,7 @@ Status (2026-11-07): **M0–M6 complete.**
   - a local API and dashboard;
   - read-only collection from AWS (`data-finops collect`);
   - an optional AWS Deployment in Pulumi, with a policy pack and owner-run deploy and teardown wizards (`infra/pulumi/aws/`). It has not been deployed to a real account yet.
+- **In progress, M7 (#220):** a public demo dashboard, Cost Dimensions, and a comparison with AWS's own cost tools. Designed in spec 09, not built yet.
 - **Not built yet:** a PyPI package.
 
 Version 0.1.
