@@ -1,6 +1,6 @@
 # Public demo and evaluation (M7)
 
-Decided in the M7 design session (2026-11-07); each owner decision is logged in `docs/implementation/m7-decisions.md` (Q53–Q67). The hosted site is ADR 0029 and the simulated workload ADR 0030. Facts about AWS's own tools are in `docs/research/m7-aws-finops-tools.md`.
+Decided in the M7 design session (2026-11-07); each owner decision is logged in `docs/implementation/m7-decisions.md` (Q53–Q71). The hosted site is ADR 0029, the simulated workload ADR 0030 and Cost Dimensions ADR 0031. Facts about AWS's own tools are in `docs/research/m7-aws-finops-tools.md`.
 
 ## Scope
 Stand data-finops up for real in the owner's account, keep a believable workload running, and publish a dashboard anyone can reach from the repository or the docs site, loading recent data. Then evaluate it against AWS's own cost tools for the question data-finops exists to answer, and publish the comparison. Out of scope: a hosted dashboard for customers, authentication, MWAA, real dbt in Lambda.
@@ -16,12 +16,35 @@ The Deployment must not ship unvetted code. These go first:
 - `infra/pulumi/aws/deployment/demo.py`: the `PublicDemo` component, created only when `publicDemo` is `true`.
 - `src/data_finops/api/dashboard/`: the static mode (below).
 
+## Cost Dimensions (ADR 0031)
+- **Configuration:** one TOML file, the same for `data-finops ingest`, `calculate` and `collect` (`--dimensions FILE`). At most 8 dimensions; an unknown source or key is refused, as in `collect`'s settings. For example:
+
+  ```toml
+  [dimensions.team]
+  sources = ["query_comment.team", "openlineage_tag.team", "workgroup_map"]
+  workgroup_map = { "etl-finance" = "finance" }
+
+  [dimensions.tenant]
+  sources = ["query_comment.tenant_id"]
+  sensitive = true
+  ```
+
+- **Sources, in the order configured, the first with a value winning:**
+  - `query_comment.<key>`: a key in the query's first-line JSON comment (the Trusted Query Comment's syntax; `app`, `node_id` and `invocation_id` are not required for a dimension);
+  - `openlineage_tag.<key>`: a tag in the OpenLineage tags facets of the Workload Run linked to the query, the run's own first, then its parents up to the root;
+  - `workgroup_map`: the query's workgroup, or the line's for an amount with no query.
+- **Capture:** ingest keeps only the comment keys the configuration names, in a new `QueryExecution.claims`: at most 16 keys, each value at most 128 characters. A longer value is dropped, and counted in the ingest result. A key added later applies only to queries ingested after it.
+- **Resolution:** a Calculation Run records on each Allocation `dimensions: {name: {value, source}}`. Cost with no value is `unassigned`. The configuration's SHA-256 joins the input digest, and a new version, `cost-dimensions/1`, joins the policy version.
+- **Reading:** `GET /v1/rollups/dimensions/{name}` returns a page of values with their amounts per Cost Basis and how each value's source splits. Each dimension's total, `unassigned` included, equals the snapshot's. The dashboard gains a dimension view, in both data sources.
+- **A Deployment:** the setting `costDimensions` holds the file's path. The stack uploads it to `config/cost-dimensions.toml` in the Deployment's bucket, because the collector's settings travel in an environment variable capped at 4 KB. The collector's and publisher's roles may read that one object.
+- **Sensitive dimensions:** left out of the minimal Cost Explanation, the dimension route's public form and the Demo Snapshot.
+
 ## The simulated orchestrator (ADR 0030)
 - **Schedule:** EventBridge Scheduler, a few times a day, each start between :10 and :40 past the hour so that no query finishes near an hour boundary (OQ-25).
 - **DAGs:** `daily_orders` (once a day), `hourly_events` (every six hours) and `weekly_finance` (Mondays). Each has two to four tasks, and each dbt task runs two to five models from the demo's dbt project.
 - **Queries:**
   - each model runs one to three real statements in the `data-finops-demo` workgroup, against the demo dataset;
-  - the first line of each is the dbt-athena query comment (`-- /* {"app": "dbt", "node_id": …, "invocation_id": …} */`), with the run's own invocation ID;
+  - the first line of each is the dbt-athena query comment (`-- /* {"app": "dbt", "node_id": …, "invocation_id": …, "team": …, "tenant_id": …, "dag_run_id": …} */`), with the run's own invocation ID and believable fictional teams and tenants;
   - the workgroup has a per-query scan cutoff, as the reference workload's did.
 - **Variety:** models scan from under 10 MB to a few hundred MB. About 5% of tasks fail once and succeed on retry, and an occasional run fails outright.
 - **Records:**
@@ -49,6 +72,7 @@ The Deployment must not ship unvetted code. These go first:
   - the Allocation pages;
   - the Roll-ups by kind;
   - the Workload Run listing and each root run's lineage;
+  - the Roll-ups by each non-sensitive Cost Dimension;
   - each published Allocation's minimal Cost Explanation;
 
   plus `snapshot.json`: when it was published, the Calculation Run, the period covered, and the explained share.
@@ -66,7 +90,7 @@ The Deployment must not ship unvetted code. These go first:
 - **Links:** the README and the docs site (home page, navigation) link the public URL. The stack outputs it as `demoUrl`.
 
 ## Stack, settings and policy pack
-- **New settings:** `publicDemo` (default `false`); `demoScanCutoffBytes`; `demoSchedule`. Each takes a docstring, so the generated settings reference picks it up.
+- **New settings:** `publicDemo` (default `false`); `demoScanCutoffBytes`; `demoSchedule`; `costDimensions`. Each takes a docstring, so the generated settings reference picks it up.
 - **New outputs:** `demoUrl`, `demoBucket`.
 - **Policy pack:**
   - the demo bucket gets the same S3 policies as the Deployment's bucket;
@@ -80,7 +104,7 @@ About $3 a month or less (Q66): Athena about $1–2, with CloudFront, S3, Lambda
 - or disable the simulator's schedule.
 
 ## Evaluation (Q55–Q57)
-- **The window:** once the demo has run for 7 days, answer each of Q57's questions with data-finops (the public dashboard and the API) and with each of Q56's tools:
+- **The window:** once the demo has run for 7 days, answer each of Q57's questions, and "what did each team and tenant cost, reconciled?" (Q70), with data-finops (the public dashboard and the API) and with each of Q56's tools:
   - Cost Explorer;
   - the Athena console's query history;
   - the FOCUS export queried with Athena SQL;
@@ -92,12 +116,14 @@ About $3 a month or less (Q66): Athena about $1–2, with CloudFront, S3, Lambda
 - **Explanation pages:**
   - "Compared with AWS's cost tools", with the evaluation's table and its honest limits;
   - the demo's own page: what is simulated and what is real.
-- **Reference:** the generated settings page gains the new settings and outputs.
+- **Reference:** the generated settings page gains the new settings and outputs; the CLI, HTTP and data-contract pages regenerate.
+- **How-to:** a new page, `configure-cost-dimensions`, with the dbt macro that writes the comment.
 - **How-to:** deploy-to-aws gains the `publicDemo` step.
 - **Links:** the README, and the docs site's home page and navigation, link the public demo.
 
 ## Testing
 Each seam test-first, with hand-made mutation checks recorded in the PR. No test touches a real account.
+0. **Cost Dimensions:** the configuration's validation; only configured keys stored, and the caps; first-source-wins across all three sources; `unassigned`; each dimension's total equals the snapshot's for every Cost Basis; a changed configuration makes a new snapshot; a claim never creates an Identity Link; sensitive dimensions withheld; OpenAPI drift.
 1. **The simulated orchestrator:**
    - run with botocore's Stubber for Athena and S3, and a fixed seed;
    - every event and artifact it writes passes the existing readers;
@@ -118,6 +144,6 @@ Each seam test-first, with hand-made mutation checks recorded in the PR. No test
 
 ## Exit
 - `demoUrl` loads the dashboard with a snapshot less than 48 hours old, reached by clicking from the README and from the docs site.
-- The demo's lines reconcile, and their Coverage is recorded.
+- The demo's lines reconcile, their Coverage is recorded, and each public Cost Dimension's total equals the snapshot's.
 - The 7-day evaluation is recorded in progress.md, and the comparison page is published.
 - A month's real cost of the demo is recorded against the $3 target.

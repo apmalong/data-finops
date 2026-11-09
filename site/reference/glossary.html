@@ -128,6 +128,9 @@
 <dt id="allocation-target">Allocation Target</dt>
 <dd>What an Allocation is assigned to: a Query Execution, or one of the synthetic targets Idle or Unallocated. Model Executions and Workload Runs receive cost only as Roll-ups.</dd>
 <dd class="avoid">Avoid: owner, cost center, tenant, data product, consumer (not targets in the MVP)</dd>
+<dt id="cost-dimension">Cost Dimension</dt>
+<dd>A business attribute an organization configures to group its cost by, such as team or tenant. Its value is a claim with a recorded source, never Evidence, and a dimension is a view: it does not change how a Billing Line is partitioned (ADR 0031).</dd>
+<dd class="avoid">Avoid: attribution plane, tag (alone), label, Allocation Target</dd>
 <dt id="roll-up">Roll-up</dt>
 <dd>The sum of Allocations over the Query Executions linked to a Model Execution, Workload Run or higher grouping. A Roll-up is a view, never a further Allocation.</dd>
 <dd class="avoid">Avoid: re-allocation, inherited cost</dd>
