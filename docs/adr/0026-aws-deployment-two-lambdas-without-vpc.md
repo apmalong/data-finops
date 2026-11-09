@@ -1,6 +1,6 @@
 # ADR 0026: The AWS deployment is two Lambda functions without a VPC, sharing one SQLite file in S3
 
-Status: Accepted (design, 2026-11-06). Decides OQ-5's topology for M6. Research: `docs/research/m6-aws-topology.md`, `docs/research/m6-pulumi-components-policies.md`.
+Status: Accepted (design, 2026-11-06). Decides OQ-5's topology for M6. Research: `docs/research/m6-aws-topology.md`, `docs/research/m6-pulumi-components-policies.md`. Amended 2026-11-07 by ADR 0029: the public demo's dashboard is hosted as a static snapshot.
 
 ## Context
 M6 deploys data-finops to one AWS account with Pulumi Python (ADR 0002): scheduled read-only ingestion, a private API, encrypted storage and cost limits. Spec 05 rules out a mandatory VPC, NAT, RDS, Marquez or Kubernetes. The store is one SQLite file in WAL mode with one writer (ADR 0018), and sqlite.org says WAL does not work over a network filesystem. EFS and S3 Files both need a VPC; Mountpoint for S3 cannot modify files. App Runner closed to new customers on 2026-04-30. Always-on Fargate costs about $11 a month before any IAM authentication, and an ALB adds at least $16. At the expected scale (a few thousand to about a million Billing Lines a month), Lambda, S3, EventBridge Scheduler and CloudWatch Logs cost under $1 a month.

@@ -120,6 +120,8 @@ About $3 a month or less (Q66): Athena about $1–2, with CloudFront, S3, Lambda
 - **How-to:** a new page, `configure-cost-dimensions`, with the dbt macro that writes the comment.
 - **How-to:** deploy-to-aws gains the `publicDemo` step.
 - **Links:** the README, and the docs site's home page and navigation, link the public demo.
+- **Diagrams, as each part lands:** `system-context.d2`, `ingest-flow.d2` and `deployment.d2`, re-rendered, and the architecture README (the domain model, a Cost Dimensions and Public Demo section, the table of diagrams).
+- **Specs, as each part lands:** spec 02 (`QueryExecution.claims`, the Allocation's `dimensions`), spec 06 (the dimension route, the dashboard's static mode) and spec 05 (the public surface).
 
 ## Testing
 Each seam test-first, with hand-made mutation checks recorded in the PR. No test touches a real account.
