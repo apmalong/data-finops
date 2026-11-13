@@ -5,6 +5,7 @@ and no account. This is the offline form of "preview policies validated" (spec 0
 
 import json
 import os
+from importlib import metadata
 import shutil
 import subprocess
 from collections.abc import Callable
@@ -19,8 +20,9 @@ from deployment.settings import Settings
 from tests.mocks import MOCKS
 
 PACK = Path(__file__).resolve().parents[1] / "policy"
-CLI_VERSION = "v3.272.0"
-"""The pinned CLI, the same release as the SDK in pyproject.toml (owner, M6 design Q23)."""
+CLI_VERSION = f"v{metadata.version('pulumi')}"
+"""The CLI must be the installed SDK's release (owner, M6 design Q23). Read from the SDK, so a
+change to the SDK pin alone fails `test_the_cli_is_the_pinned_release` (#210)."""
 STACK = "urn:pulumi:test::data-finops::pulumi:pulumi:Stack::data-finops-test"
 SETTINGS = Settings(
     region="us-east-1",
