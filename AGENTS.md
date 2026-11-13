@@ -20,9 +20,9 @@ All development follows Matt Pocock's engineering skills (`mattpocock-skills` pl
 1. **Design** (when terms, scope or architecture change): `grill-with-docs`, updating `GLOSSARY.md` and ADRs inline. Unresolved decisions go to `docs/implementation/open-questions.md`.
 2. **Spec:** take the next unfinished milestone in `docs/implementation/plan.md` and run `to-spec`: one spec issue per milestone, labelled `ready-for-agent`, with test seams agreed with the owner.
 3. **Tickets:** `to-tickets` splits the spec into tracer-bullet vertical slices, published as sub-issues of the spec with native blocked-by links and the `ready-for-agent` label. Work the frontier: tickets whose blockers are all closed.
-4. **Build:** `implement`, one ticket per branch. Use `tdd` (red, then green) only at the seams agreed for that ticket. Run type checks and single test files often and the full suite at the end, then run `code-review` against `main`. Commit with `Closes #<ticket>`.
+4. **Build:** `implement`, one ticket per branch. Use `tdd` (red, then green) only at the seams agreed for that ticket. Run type checks and single test files often. At the end, run `python -m scripts.gates` (every gate, in every project), then run `code-review` against `main`. Commit with `Closes #<ticket>`.
 5. **Standards gate:** before any collector, parser, serializer, lineage model, telemetry format, allocation algorithm or integration, apply ADR 0014 (see the section below).
-6. **Pull request:** body follows the `pr` skill (Summary, Evidence, Merge Danger). `main` is protected: a PR and a passing `quality` check are required.
+6. **Pull request:** body follows the `pr` skill (Summary, Evidence, Merge Danger). For test and check results, the Evidence section quotes the `## Gates` block that `python -m scripts.gates` printed, or links the CI run. Do not write these results by hand. `main` is protected: a PR and a passing `quality` check are required.
 7. **Documentation:** every ticket names the Diátaxis documentation type it changes (tutorial, how-to, reference, explanation, or none) in a `## Documentation` section, and done includes that change (ADR 0025, spec 07). The code-review Spec reviewer checks it against the diff.
    Write and edit documentation with the `simplified-technical-english` skill (`.claude/skills/`).
    *Milestone D exception (owner, 2026-11-05):*

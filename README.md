@@ -44,8 +44,25 @@ No production AWS account required for local demo. No automatic remediation, no 
 ## Deliverables
 Python package, local runnable API, synthetic end-to-end demo, deterministic ledger, tests, optional Pulumi AWS deployment, license/provenance records, operator documentation.
 
-## Bootstrap (M-1)
-Install Python 3.12 and `uv`. In a network-enabled environment run `uv lock`, inspect and commit `uv.lock`, then `uv sync --extra dev --frozen`. Run `uv run pytest`, `uv run ruff check .`, `uv run ruff format --check .`, and `uv run mypy src`. CI intentionally requires the lockfile. No cloud account is needed for M-1.
+## Run the checks
+Install Python 3.12 and `uv`. Then make the environment of each project from its committed lockfile:
+
+```
+uv sync --extra dev --extra api --extra aws --frozen
+uv sync --frozen --directory examples/reference-workload
+uv sync --frozen --directory infra/pulumi/aws/policy
+uv sync --frozen --directory infra/pulumi/aws
+```
+
+Then run all the checks with one command:
+
+```
+python -m scripts.gates
+```
+
+The command stops at the first check that fails. At the end, it prints a block that starts with `## Gates`. To run the checks of some projects only, give their names, for example `python -m scripts.gates root policy`. CI runs the same command.
+
+Some tests of the policy pack and the stack use the Pulumi CLI 3.272.0. You do not need a cloud account.
 
 ## Standards and reuse policy
 See `docs/adr/0014-standards-first-and-build-vs-reuse.md`, `docs/research/standards-conformance-matrix.md`, and `docs/research/build-vs-reuse-register.md` before implementing integrations. The matrices distinguish intended compatibility from verified conformance.
