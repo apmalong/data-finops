@@ -6,7 +6,9 @@ import pytest
 from scripts import gates
 
 
-def _runner(failing: str | None = None, outputs: dict[str, str] | None = None):  # type: ignore[no-untyped-def]
+def _runner(
+    failing: str | None = None, outputs: dict[str, str] | None = None
+) -> tuple[gates.Runner, list[str]]:
     ran: list[str] = []
 
     def run(gate: gates.Gate) -> gates.Result:

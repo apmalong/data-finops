@@ -7,8 +7,12 @@ Each project's gates run with that project's own `.venv` (create it with `uv syn
 command streams each gate's output, then prints a block that starts with `## Gates`. A PR's
 Evidence section quotes that block, or links the CI run, in place of hand-written results.
 The block has no timings, so the same tree gives the same block. CI runs this command too, so
-CI and a local run check the same things. `pip-audit` and the secret scan need the network and
-stay as separate CI steps.
+CI and a local run check the same things. `pip-audit` and the secret scan use the network, so
+they stay as separate CI steps.
+
+Two checks run inside a pytest gate, not as gates of their own. `root/pytest` compares the
+committed site with what `python -m scripts.site build` writes. `stack/pytest` runs `bash -n` on
+the wizards, and skips that test when Git Bash or bash is not available.
 
 Stdlib only, so that it runs before any project is installed.
 """
@@ -25,12 +29,18 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 
-# Project name -> (directory, the command that creates its environment).
-PROJECTS: dict[str, tuple[Path, str]] = {
-    "root": (ROOT, "uv sync --extra dev --extra api --extra aws --frozen"),
-    "reference-workload": (ROOT / "examples" / "reference-workload", "uv sync --frozen"),
-    "policy": (ROOT / "infra" / "pulumi" / "aws" / "policy", "uv sync --frozen"),
-    "stack": (ROOT / "infra" / "pulumi" / "aws", "uv sync --frozen"),
+
+@dataclass(frozen=True)
+class Project:
+    directory: Path
+    setup: str  # the command that makes the project's environment
+
+
+PROJECTS: dict[str, Project] = {
+    "root": Project(ROOT, "uv sync --extra dev --extra api --extra aws --frozen"),
+    "reference-workload": Project(ROOT / "examples" / "reference-workload", "uv sync --frozen"),
+    "policy": Project(ROOT / "infra" / "pulumi" / "aws" / "policy", "uv sync --frozen"),
+    "stack": Project(ROOT / "infra" / "pulumi" / "aws", "uv sync --frozen"),
 }
 
 SUMMARY_START = "## Gates"
@@ -82,22 +92,21 @@ _PYTEST_TOTALS = re.compile(r"^=+ (?P<totals>.+?) in [\d.]+s\b.*=+\r?$", re.MULT
 
 
 def _python(project: str) -> Path:
-    venv = PROJECTS[project][0] / ".venv"
+    venv = PROJECTS[project].directory / ".venv"
     return venv / "Scripts" / "python.exe" if os.name == "nt" else venv / "bin" / "python"
 
 
 def run_gate(gate: Gate) -> Result:
     """Run one gate in its project with that project's environment, and stream its output."""
-    directory, setup = PROJECTS[gate.project]
+    project = PROJECTS[gate.project]
     python = _python(gate.project)
     if not python.exists():
-        message = f"No environment at {python.parent.parent}. Run `{setup}` in {directory}.\n"
+        message = f"No environment at {python.parent.parent}. Run `{project.setup}` there.\n"
         sys.stdout.write(message)
         return Result(1, message)
-    # nosec B603 - the interpreter and arguments are the fixed GATES above
-    process = subprocess.Popen(  # nosec B603
+    process = subprocess.Popen(  # nosec B603 - the fixed interpreter and GATES above
         [str(python), *gate.args],
-        cwd=directory,
+        cwd=project.directory,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
     )
@@ -111,7 +120,10 @@ def run_gate(gate: Gate) -> Result:
 
 
 def tree_state() -> str:
-    """The commit and whether tracked files differ from it, for example `1a2b3c4 (clean)`."""
+    """The commit and whether the working tree differs from it, for example `1a2b3c4 (clean)`.
+
+    Untracked files count, because a new test file changes what the gates run.
+    """
     try:
         head = subprocess.run(  # nosec B603 B607 - fixed git command
             ["git", "rev-parse", "--short", "HEAD"],
@@ -121,14 +133,18 @@ def tree_state() -> str:
             check=True,
         ).stdout.strip()
         changed = subprocess.run(  # nosec B603 B607 - fixed git command
-            ["git", "diff", "--quiet", "HEAD"], cwd=ROOT, check=False
-        ).returncode
+            ["git", "status", "--porcelain"],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
     except (OSError, subprocess.CalledProcessError):
         return "unknown (git is not available)"
     return f"{head} ({'uncommitted changes' if changed else 'clean'})"
 
 
-def _detail(gate: Gate, result: Result) -> str:
+def _pytest_totals(gate: Gate, result: Result) -> str:
     if gate.name != "pytest":
         return ""
     totals = _PYTEST_TOTALS.findall(result.output)
@@ -143,7 +159,7 @@ def summary(chosen: Sequence[Gate], results: Sequence[Result], tree: str) -> str
         elif results[index].returncode:
             lines.append(f"- {gate.label}: FAILED (exit {results[index].returncode})")
         else:
-            lines.append(f"- {gate.label}: passed{_detail(gate, results[index])}")
+            lines.append(f"- {gate.label}: passed{_pytest_totals(gate, results[index])}")
     failed = next((g for g, r in zip(chosen, results, strict=False) if r.returncode), None)
     lines.append("")
     if failed:

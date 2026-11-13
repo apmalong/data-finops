@@ -20,7 +20,7 @@ jobs:
           uv sync --frozen --directory examples/reference-workload
       # The same command a contributor runs locally (#241): it stops at the first failure.
       - name: Gates (root and reference workload)
-        run: .venv/bin/python -m scripts.gates root reference-workload
+        run: uv run --no-project python -m scripts.gates root reference-workload
       - name: Audit dependencies and write CycloneDX SBOM
         run: uv run pip-audit --format cyclonedx-json --output sbom.cdx.json
       - uses: actions/upload-artifact@v4

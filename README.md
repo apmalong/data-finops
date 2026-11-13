@@ -54,6 +54,8 @@ uv sync --frozen --directory infra/pulumi/aws/policy
 uv sync --frozen --directory infra/pulumi/aws
 ```
 
+If you change the dependencies of a project, run `uv lock` in that project. Then examine and commit its `uv.lock`.
+
 Then run all the checks with one command:
 
 ```
@@ -62,7 +64,7 @@ python -m scripts.gates
 
 The command stops at the first check that fails. At the end, it prints a block that starts with `## Gates`. To run the checks of some projects only, give their names, for example `python -m scripts.gates root policy`. CI runs the same command.
 
-Some tests of the policy pack and the stack use the Pulumi CLI 3.272.0. You do not need a cloud account.
+Some tests of the policy pack and the stack use the Pulumi CLI 3.272.0. A cloud account is not necessary.
 
 ## Standards and reuse policy
 See `docs/adr/0014-standards-first-and-build-vs-reuse.md`, `docs/research/standards-conformance-matrix.md`, and `docs/research/build-vs-reuse-register.md` before implementing integrations. The matrices distinguish intended compatibility from verified conformance.
