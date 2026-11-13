@@ -81,8 +81,8 @@ def test_ci_runs_every_project_through_the_command() -> None:
 
     named = set()
     for line in workflow.splitlines():
-        if "python -m scripts.gates" in line:
-            named.update(line.split("python -m scripts.gates", 1)[1].split())
+        if "-m scripts.gates" in line:
+            named.update(line.split("-m scripts.gates", 1)[1].split())
 
     assert named == set(gates.PROJECTS)
 

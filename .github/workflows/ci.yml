@@ -18,9 +18,11 @@ jobs:
         run: |
           uv sync --extra dev --extra api --extra aws --frozen
           uv sync --frozen --directory examples/reference-workload
-      # The same command a contributor runs locally (#241): it stops at the first failure.
+      # The same command a contributor runs locally (#241): it stops at the first failure. It is
+      # stdlib only, so the runner's python3 starts it. `uv run` would put its Python's directory
+      # first on PATH, and the image's /usr/local/bin has a different Pulumi CLI than the pinned one.
       - name: Gates (root and reference workload)
-        run: uv run --no-project python -m scripts.gates root reference-workload
+        run: python3 -m scripts.gates root reference-workload
       - name: Audit dependencies and write CycloneDX SBOM
         run: uv run pip-audit --format cyclonedx-json --output sbom.cdx.json
       - uses: actions/upload-artifact@v4
@@ -54,7 +56,7 @@ jobs:
       - name: Gates (policy pack, then the stack with the real Lambda package)
         env:
           DATA_FINOPS_BUILD_PACKAGE: '1'  # builds the arm64 zip from this checkout (spec 08 seam 8)
-        run: uv run --no-project python -m scripts.gates policy stack
+        run: python3 -m scripts.gates policy stack
       - name: Audit the policy pack's and the stack's dependencies
         run: |
           uv run --directory infra/pulumi/aws/policy pip-audit
