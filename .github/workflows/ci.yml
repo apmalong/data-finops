@@ -14,27 +14,24 @@ jobs:
       - uses: astral-sh/setup-uv@v6
         with:
           python-version: '3.12'
-      - name: Sync dependencies from committed lockfile
-        run: uv sync --extra dev --extra api --extra aws --frozen
-      - run: uv run ruff check .
-      - run: uv run ruff format --check .
-      - run: uv run mypy src scripts/site
-      - run: uv run pytest --cov=data_finops --cov-report=term-missing
-      - run: uv run bandit -q -r src scripts/site
+      - name: Sync dependencies from committed lockfiles
+        run: |
+          uv sync --extra dev --extra api --extra aws --frozen
+          uv sync --frozen --directory examples/reference-workload
+      # The same command a contributor runs locally (#241): it stops at the first failure. It is
+      # stdlib only, so the runner's python3 starts it. `uv run` would put its Python's directory
+      # first on PATH, and the image's /usr/local/bin has a different Pulumi CLI than the pinned one.
+      - name: Gates (root and reference workload)
+        run: python3 -m scripts.gates root reference-workload
       - name: Audit dependencies and write CycloneDX SBOM
         run: uv run pip-audit --format cyclonedx-json --output sbom.cdx.json
       - uses: actions/upload-artifact@v4
         with:
           name: sbom
           path: sbom.cdx.json
-      - name: Reference workload tests (offline, Pulumi mocks)
+      - name: Audit the reference workload's dependencies
         working-directory: examples/reference-workload
-        run: |
-          uv sync --frozen
-          uv run mypy
-          uv run bandit -q -r infra.py __main__.py
-          uv run pytest
-          uv run pip-audit
+        run: uv run pip-audit
       - name: Secret scan
         uses: gitleaks/gitleaks-action@v2
         env:
@@ -52,21 +49,15 @@ jobs:
         uses: pulumi/actions@v6
         with:
           pulumi-version: 3.272.0
-      - name: Policy pack (unit tests; its environment is the one the CLI runs)
-        working-directory: infra/pulumi/aws/policy
+      - name: Sync the policy pack and the stack from their lockfiles
         run: |
-          uv sync --frozen
-          uv run mypy
-          uv run bandit -q -r policies.py __main__.py
-          uv run pytest
-          uv run pip-audit
-      - name: Stack (mocks, the pack over the program's state, and the real Lambda package)
-        working-directory: infra/pulumi/aws
+          uv sync --frozen --directory infra/pulumi/aws/policy
+          uv sync --frozen --directory infra/pulumi/aws
+      - name: Gates (policy pack, then the stack with the real Lambda package)
         env:
           DATA_FINOPS_BUILD_PACKAGE: '1'  # builds the arm64 zip from this checkout (spec 08 seam 8)
+        run: python3 -m scripts.gates policy stack
+      - name: Audit the policy pack's and the stack's dependencies
         run: |
-          uv sync --frozen
-          uv run mypy
-          uv run bandit -q -r deployment __main__.py
-          uv run pytest
-          uv run pip-audit
+          uv run --directory infra/pulumi/aws/policy pip-audit
+          uv run --directory infra/pulumi/aws pip-audit
