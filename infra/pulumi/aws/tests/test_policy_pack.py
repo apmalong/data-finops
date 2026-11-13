@@ -5,10 +5,10 @@ and no account. This is the offline form of "preview policies validated" (spec 0
 
 import json
 import os
-from importlib import metadata
 import shutil
 import subprocess
 from collections.abc import Callable
+from importlib import metadata
 from pathlib import Path
 from typing import Any
 
