@@ -44,7 +44,7 @@ Price and charge reconciliation is specific to each provider.
 ## Airflow / OpenLineage MVP
 
 ### Events
-Accept OpenLineage RunEvents: START, COMPLETE, FAIL, ABORT, and other event types are tolerated. JobEvent and DatasetEvent are reported as unsupported. Validate each event against the pinned RunEvent schema. Each event is limited to 1 MiB. Keep the namespace, job, run and parent facets, and the dataset inputs and outputs.
+Accept OpenLineage START, COMPLETE, FAIL and ABORT RunEvents. Tolerate other event types. JobEvent and DatasetEvent are reported as unsupported. Validate each event against the pinned RunEvent schema. Each event is limited to 1 MiB. Keep the namespace, job, run and parent facets, and the dataset inputs and outputs.
 
 Support offline event files as a JSON array or JSON Lines (the format that the file transport of `dbt-ol` writes, #31). M2 ingests only files.
 
@@ -67,13 +67,13 @@ Rejected events are never stored. The ingest result reports each rejected event 
 ### Airflow
 Do not require Airflow itself to run for the demo.
 
-Parent runs get to dbt only if the DAG gives them to `dbt-ol`. The DAG gives the `lineage_parent_id` and `lineage_root_parent_id` macros of the provider as `OPENLINEAGE_PARENT_ID` and `OPENLINEAGE_ROOT_PARENT_ID`. This was observed with Airflow 3.3.2 and provider 2.20.1 (#75). The DAG is in `examples/reference-workload/airflow/`. Then dbt-ol reports its invocation run in the OpenLineage namespace of Airflow. Its model runs keep `dbt`.
+Parent runs get to dbt only if the DAG gives them to `dbt-ol`. The DAG must give the `lineage_parent_id` and `lineage_root_parent_id` macros of the provider as `OPENLINEAGE_PARENT_ID` and `OPENLINEAGE_ROOT_PARENT_ID`. This was observed with Airflow 3.3.2 and provider 2.20.1 (#75). The DAG is in `examples/reference-workload/airflow/`. Then dbt-ol reports its invocation run in the OpenLineage namespace of Airflow. Its model runs keep `dbt`.
 
 ## dbt MVP
 Parse `manifest.json` and `run_results.json` with version checks. Link node IDs, invocation IDs, status, `timing` and dependencies. Later, data-finops can read Elementary tables that already exist, as an option. Do not require an Elementary installation.
 
 ## Later adapters
-- GCP: Cloud Billing export, BigQuery INFORMATION_SCHEMA jobs and reservations. Show the difference between on-demand and capacity pricing.
+- GCP: Cloud Billing export, BigQuery INFORMATION_SCHEMA jobs and reservations. Keep on-demand pricing separate from capacity pricing.
 - dlt: pipeline traces, load info and destination IDs.
 - Dagster and Prefect: native run and asset APIs, and OpenLineage if it is there.
 - OTel: receive spans with run IDs and cloud resource identities. Do not correlate arbitrary traces.

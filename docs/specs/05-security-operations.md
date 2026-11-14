@@ -36,7 +36,7 @@ Keep the deployer identity separate from the collector identity.
 - Athena query history: read and list only, where the APIs permit it.
 - CloudWatch: read only, optional.
 
-The collector has no permission to run arbitrary customer queries, to change data or to remediate automatically. Document the AWS API actions after validation. Do not invent ARNs or permissions.
+No data-finops identity has permission to run arbitrary customer queries, to change data or to remediate automatically. Document the AWS API actions after validation. Do not invent ARNs or permissions.
 
 ## Threat model
 Risks:

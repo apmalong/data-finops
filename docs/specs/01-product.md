@@ -4,7 +4,7 @@
 Data platform engineer, data reliability engineer, platform owner, FinOps analyst. The deployment is customer-managed, and a subscription is not necessary.
 
 ## MVP user journeys
-1. Start the local demo with one command. Examine the Cost Summary, the Roll-ups to Model Executions, the Unallocated and Idle amounts, the lineage and the provenance (spec 06).
+1. Start the local demo with one command. Examine the Cost Summary and the Roll-ups to Model Executions. Also examine the Unallocated and Idle amounts, the lineage and the provenance (spec 06).
 2. Import synthetic AWS billing lines and Athena query executions. Ingest OpenLineage run events and the dbt `manifest.json` and `run_results.json`.
 3. Use explicit IDs to resolve the identity of a query, its dbt model and its Airflow run deterministically. If the IDs are not there, show the costs that are not attributed.
 4. Explain each Allocation from the Billing Line through the Query Execution and the Model Execution to the Workload Run. This is the Cost Explanation (spec 06). Data products are deferred (ADR 0016).
@@ -36,7 +36,7 @@ The MVP also includes:
 ## Nonfunctional
 - The offline demo takes 5 minutes or less on a developer laptop, after the dependencies are installed.
 - Event ingestion is idempotent, and replay is deterministic. Memory for fixtures is bounded. Timestamps are UTC, and currency is explicit. Unknown cost is never allocated in a hidden way.
-- You can configure the ingestion lookback, and when data is processed again. A lineage service that is always on is not mandatory.
+- You can configure the ingestion lookback, and whether and when data is processed again. A lineage service that is always on is not mandatory.
 - The cost overhead is measurable and documented. Do not claim an AWS install of less than 15 minutes until it is measured.
 
 ## Success measures

@@ -25,9 +25,9 @@ Typed Pydantic models in `src/data_finops` are the source of truth for contracts
   - A reservation ID and other workload metadata are not stored yet.
 - `DataAsset`: namespace and name, as the OpenLineage "Naming Conventions" give them for datasets. Kind and metadata are not stored yet.
 - `LineageEdge`: a Workload Run and a Data Asset that it read (`input`) or wrote (`output`), observed_at and provenance. Edges between two Data Assets are not stored. Column-level lineage is the eventual goal (owner, 2026-11-07).
-- `IdentityLink`: source, target, evidence_type, evidence_value and deterministic policy version.
+- `IdentityLink` (M3): source, target, evidence_type, evidence_value and deterministic policy version.
   - Ambiguous links and links that conflict are recorded, and they are never used for allocation.
-  - Links are derived when they are asked for, and they are returned with their Link Outcome (M3).
+  - Links are derived when they are asked for, and they are returned with their Link Outcome.
   - A Model Execution target is identified as the compact JSON array `["<invocation_id>","<node_id>"]`.
   - Evidence values are compact JSON objects with sorted keys. They name the facet fields that they come from.
 - `Allocation`: billing_line_ref, pool_id, target_type and target_id, amount (Decimal), currency, cost basis, category, method, confidence, coverage, policy_version, calculation_run_id, evidence_refs and as_of.

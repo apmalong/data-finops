@@ -29,12 +29,12 @@
 - Resolve the dbt invocation to the Airflow run through the OpenLineage ParentRunFacet.
 - One Model Execution can own more than one Query Execution. A Query Execution that links to more than one Model Execution is ambiguous, and it makes no Identity Link.
 - Only a Trusted Query Comment at the very start of the query text is Evidence. Only its `node_id` and `invocation_id` are kept. The query text is never stored.
-- Resolve each dbt-ol model run to its Model Execution by the `dbt_node.unique_id` job facet and the `dbt_run.invocation_id` run facet (ADR 0022).
+- Resolve each dbt-ol model run to its Model Execution (ADR 0022). Use the `dbt_node.unique_id` job facet and the `dbt_run.invocation_id` run facet.
 - Each attempt has a Link Outcome: linked, no_evidence, unmatched or ambiguous. A comment that names a (node, invocation) that no run results report is unmatched, and it links to nothing.
 - Links are derived from stored observations when they are queried. Thus the arrival order is not important.
 
 **E. Allocate direct charges.**
-- Allocate direct charges only where the provider pricing or billing permits a defensible match from a line to a query.
+- Allocate direct charges only where the provider billing permits a defensible match from a line to a query.
 - When billing is aggregated, compute Coverage for each Billing Line (ADR 0017): the known Billable Usage divided by the billed usage quantity of the line.
   - Coverage = 1: split the line by Billable Usage.
   - Coverage < 1: split the covered fraction, put the remainder in Unallocated, and record Coverage.
@@ -46,8 +46,8 @@
 **F. Allocate shared pools.**
 - For a shared pool, allocate by documented weights that are not negative, over aligned time intervals.
 - If there is no observed activity, allocate to `idle`: an explicit idle pool (M4 structure 1).
-- If the split is ambiguous, or all the weights are zero so that nothing is Evidence for a split, allocate to `unallocated` (`no_evidence`, M4 structure 10).
-- If the weights cover only part of the activity, record the coverage, and allocate the unknown remainder by an explicit policy.
+- If the split is ambiguous, or if all the weights are zero, allocate to `unallocated` (`no_evidence`, M4 structure 10). When all the weights are zero, nothing gives a reason for a split.
+- If the weights cover only part of the activity, record the coverage. Then allocate the unknown remainder by an explicit policy.
 
 **G. Quantize.**
 - Quantize the allocations of each line at the decimal scale of that line. Never use a scale coarser than the currency minor unit.
@@ -74,12 +74,12 @@
    - A thin Calculation Run reads the Ledger and the workload store, calls the engine and stores the result. It is in its own package, `calculation`, because `attribution` must not import the Ledger, the workload store or provider policies (#88).
    - The Calculation Run classifies each line (step B, `line-classification/1`):
      - FOCUS `Credit` and `Adjustment` lines are Adjustments.
-     - A usage line is metered if it is not a correction, and if the Athena policy recognizes it as an on-demand scan charge (a positive ConsumedQuantity in a known unit).
+     - A usage line is metered if two conditions are true. It is not a correction. The Athena policy recognizes it as an on-demand scan charge (a positive ConsumedQuantity in a known unit).
      - All other lines are Ineligible and reported. These include tax, purchases, corrections and other services.
    - A metered line without a usage account or Region has nothing in scope (Coverage 0).
    - A billed query with unknown Billable Usage is not included in the known usage, and it is reported.
    - Allocations record one policy version. It joins with `+` the versions of the engine, the line classification and the two Athena policies.
-   - The input digest covers the Export Snapshot ID, the reference and pool of each line, and the Billable Usage and Evidence of each Query Execution in scope. It also covers the queries whose usage is unknown, and that version.
+   - The input digest covers the Export Snapshot ID, and the reference and pool of each line. It also covers the Billable Usage and Evidence of each Query Execution in scope. Last, it covers the queries whose usage is unknown, and that version.
 
 3. **Scope.**
    - The Query Executions that count toward the Coverage of a line are the billing scope of the line. This is an accounting scope, not Evidence (ADR 0023).
@@ -127,14 +127,14 @@
     - `adjustment`: a credit, refund or discount
     - `coverage_remainder`: the part that is not covered when Coverage < 1, or the whole line when no Query Execution is known
     - `coverage_exceeded`: Coverage > 1, with a flag
-    - `no_evidence`: an explicit shared pool with no positive weight, so nothing is Evidence for a split (#86, from the golden oracle)
+    - `no_evidence`: an explicit shared pool with no positive weight, so nothing gives a reason for a split (#86, from the golden oracle)
 
     Allocated amounts also name their method. These are `estimated_metered_share` (metered), `provider_line_match` (direct) and `weighted_share` (shared). For Idle, the method is `no_observed_activity`.
 
 11. **Real-export checks (#91, done 2026-11-07).**
     - These were checked against the 2026-11 FOCUS export and the saved history of the reference workgroup (OQ-3): units, reused results, CTAS and INSERT, OPTIMIZE and VACUUM, failed queries, ResourceId, and lines of more than one hour.
     - Under `/2`, the 2026-11-01 and 2026-11-06 lines get to Coverage 1.
-    - Not yet observed: a reused result of a query that scanned data, and two workgroups billed in one hour. One row for each workgroup is inferred from ResourceId.
+    - Not yet observed: a reused result of a query that scanned data, and two workgroups billed in one hour. It is inferred from ResourceId that each workgroup has its own rows.
 
 ## Pseudocode
 ```
