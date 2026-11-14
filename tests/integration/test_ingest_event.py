@@ -1,7 +1,7 @@
 """One OpenLineage event from bytes through the workload store's public interface (#104).
 
 The HTTP receiver (spec 04, M5) passes each request body here; it must screen and store
-exactly as a file item does (spec 06, Testing seam 3).
+exactly as a file item does (spec 06, Tests, seam 3).
 """
 
 import codecs

@@ -1,14 +1,14 @@
 # Documentation site (D)
 
-Decided in the D design session (2026-11-05, #135). Format and structure are in ADR 0025. The site is for people who run data-finops; contributors come second.
+Decided in the D design session (2026-11-05, #135). Format and structure are in ADR 0025. The site is for people who run data-finops. Contributors come second.
 
 ## Pages
 One page per document under `site/`, each one Diátaxis type. Home is `index.html`, with an index page for each type.
 
 - **Tutorials:** `first-allocation` (the demo walkthrough). "Instrument an Airflow and dbt workload" waits until after M6 and #26, since it costs real AWS money.
 - **How-to guides:** `install`, `ingest-focus-export`, `receive-openlineage`, `ingest-dbt-artifacts`, `ingest-athena-history`, `calculate`, `handle-restated-export`, `serve-with-token`, `read-cost-explanation`, `deploy-reference-workload` (teardown steps link to the reference workload). M6 adds `deploy-to-aws`, `send-to-inbox`, `read-deployment` and `tear-down-deployment`, a generated `deployment-settings` reference page and a `deployment-architecture` explanation (spec 08). M7 adds the how-to `configure-cost-dimensions`, the explanations `compared-with-aws-tools` and `public-demo`, and links the Public Demo from the home page and the navigation (spec 09).
-- **Reference:** `cli`, `http-api`, `data-contracts` (generated); `exit-codes-and-environment` (hand-written); `deployment-settings` and `glossary` (generated).
-- **Explanation:** `bill-is-authoritative`, `allocation-and-coverage`, `identity-links-and-evidence`, `export-snapshots-and-restatements`, `security-model`, `decision-records` (an index of ADR titles linking to GitHub, never copies). The Athena policy text names the current policy version and what #91 found in the real export.
+- **Reference:** `cli`, `http-api`, `data-contracts`, `deployment-settings` and `glossary` (generated), and `exit-codes-and-environment` (hand-written).
+- **Explanation:** `bill-is-authoritative`, `allocation-and-coverage`, `identity-links-and-evidence`, `export-snapshots-and-restatements`, `security-model`, `decision-records` (an index of ADR titles with links to GitHub, never copies). The Athena policy text names the current policy version and what #91 found in the real export.
 - `contributing.html` links to the specs, ADRs, plan, progress and research on GitHub.
 
 ## Layout
