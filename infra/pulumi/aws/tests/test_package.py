@@ -109,7 +109,7 @@ def _normalized(name: str) -> str:
 
 def _installed_versions(names: set[str]) -> dict[str, str | None]:
     """Each distribution in the zip and its version, from its `<name>-<version>.dist-info`."""
-    folders = {n.split("/", 1)[0] for n in names if n.split("/", 1)[0].endswith(".dist-info")}
+    folders = {top for top in (n.split("/", 1)[0] for n in names) if top.endswith(".dist-info")}
     pairs = (folder.removesuffix(".dist-info").rsplit("-", 1) for folder in folders)
     return {_normalized(name): version for name, version in pairs if name != "data_finops"}
 

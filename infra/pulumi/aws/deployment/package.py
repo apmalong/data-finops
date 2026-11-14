@@ -81,12 +81,12 @@ def build(repo: Path, package: Path) -> Path:
             "--extra", "aws", "--extra", "api", "--no-emit-project",
             "--output-file", str(requirements),
         )  # fmt: skip
-        target = (
+        install_options = (
             "--target", str(site), "--python-platform", PLATFORM, "--python-version", PYTHON,
             "--only-binary", ":all:",
         )  # fmt: skip
-        _uv("pip", "install", *target, "--require-hashes", "-r", str(requirements))
-        _uv("pip", "install", *target, "--no-deps", str(wheel))
+        _uv("pip", "install", *install_options, "--require-hashes", "-r", str(requirements))
+        _uv("pip", "install", *install_options, "--no-deps", str(wheel))
         return assemble(site, package)
 
 
