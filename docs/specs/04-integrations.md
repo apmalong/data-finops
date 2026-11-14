@@ -1,27 +1,88 @@
 # Integration contracts
 
 ## Core ports (not built)
-`BillingSource.list_records(window, cursor)`; `QueryHistory.list_executions(window)`; `LineageReceiver.accept(event)`; `DbtArtifactReader.parse(manifest, run_results)`; `IdentityResolver.resolve(executions, runs, assets)`; `CostAllocator.allocate(pools, evidence, policy)`; `CostLedger.reconcile()`.
+- `BillingSource.list_records(window, cursor)`
+- `QueryHistory.list_executions(window)`
+- `LineageReceiver.accept(event)`
+- `DbtArtifactReader.parse(manifest, run_results)`
+- `IdentityResolver.resolve(executions, runs, assets)`
+- `CostAllocator.allocate(pools, evidence, policy)`
+- `CostLedger.reconcile()`
 
-All adapters support capability discovery, explicit permission list, health checks, watermark, pagination, rate-limit/backoff, and provenance. Unknown fields preserved in metadata; schema evolution is backward compatible.
+All adapters support capability discovery, an explicit permission list, health checks, a watermark, pagination, rate limits with backoff, and provenance. Unknown fields are kept in metadata. Schema evolution is backward compatible.
 
-**Status (drift review #207, 2026-11-07):** none of these ports exists. With one provider, the seams are plain functions: `billing.focus.load_export` and `billing.aws_data_exports.load_delivery`, `WorkloadStore.ingest_*`, `calculation.run_calculation`, `attribution.engine.allocate` and `Ledger.reconcile`. Pagination and the watermark exist only in the AWS collectors (`providers.aws`, `collection`). ADR 0011's capability-declared ports wait for a second provider.
+**Status (drift review #207, 2026-11-07):** none of these ports exists. With one provider, the seams are plain functions: `billing.focus.load_export` and `billing.aws_data_exports.load_delivery`, `WorkloadStore.ingest_*`, `calculation.run_calculation`, `attribution.engine.allocate` and `Ledger.reconcile`. Pagination and the watermark exist only in the AWS collectors (`providers.aws`, `collection`). The capability-declared ports of ADR 0011 wait for a second provider.
 
 ## AWS Athena MVP
-Read FOCUS billing exports from local Parquet/CSV for demo, then the customer-configured AWS native FOCUS export (Data Exports) in S3 (ADR 0015). CUR 2.0 via `focus_converters` is deferred. Query Athena history via AWS API or customer-provided query history extract; a plain BatchGetQueryExecution response is accepted with the account and region supplied alongside it (#31). Verify API retention and permissions at implementation time. Correlation via Athena query execution ID and dbt query comment where supported; don't assume generic dbt artifacts contain Athena query IDs. The default dbt query comment carries `node_id` but not `invocation_id` (verified in dbt-adapters' `DEFAULT_QUERY_COMMENT`, #23), so operators must configure a `query-comment` that includes both; the exact config is in `examples/reference-workload/README.md`. dbt-athena sends the comment as a single line, `-- /* {json} */`, before the statement, and sends statements starting with `alter`, `drop`, `optimize`, `vacuum` or `msck` without it (OQ-22). One dbt model may issue several Athena queries. A query history file is capped at 512 MiB and must be a BatchGetQueryExecution response; an entry that fails validation is reported by position and reason without echoing its content. The comment is read only from the first line of each query; only its `node_id` and `invocation_id` are stored, never the query text (M3). A stored Query Execution keeps only allowlisted metadata (identity, workgroup, statement type, catalog and database, state, times, error category, type and whether it is retryable, numeric statistics, engine version); query text, `ExecutionParameters`, `StateChangeReason`, error messages and unknown fields are dropped (#61). The Trusted Query Comment's `invocation_id` and `node_id` are stored beside that metadata (as `dbt_query_comment`) and are part of the observation's digest, so two reports of one query naming different Model Executions are kept apart and flagged (#63). Price/charge reconciliation is provider-specific.
+
+### Billing
+For the demo, read FOCUS billing exports from local Parquet or CSV. Then read the AWS native FOCUS export (Data Exports) in S3, as the customer configures it (ADR 0015). CUR 2.0 through `focus_converters` is deferred.
+
+### Query history
+Get the Athena history through the AWS API, or from a query history extract that the customer gives. A plain BatchGetQueryExecution response is accepted, with the account and the Region given next to it (#31). At implementation time, verify the API retention and permissions.
+
+A query history file is limited to 512 MiB, and it must be a BatchGetQueryExecution response. An entry that fails validation is reported by position and reason, and its content is not shown.
+
+A stored Query Execution keeps only allowlisted metadata (#61):
+- identity, workgroup, statement type, catalog and database, state and times
+- error category, error type, and whether the error is retryable
+- numeric statistics and engine version
+
+Query text, `ExecutionParameters`, `StateChangeReason`, error messages and unknown fields are removed.
+
+### Correlation
+Correlate through the Athena query execution ID and the dbt query comment, where they are supported. Do not assume that generic dbt artifacts contain Athena query IDs.
+
+The default dbt query comment has `node_id` but not `invocation_id`. This was verified in `DEFAULT_QUERY_COMMENT` of dbt-adapters (#23). Thus operators must configure a `query-comment` that includes both IDs. The exact configuration is in `examples/reference-workload/README.md`.
+
+dbt-athena sends the comment as one line, `-- /* {json} */`, before the statement. It sends a statement that starts with `alter`, `drop`, `optimize`, `vacuum` or `msck` without the comment (OQ-22). One dbt model can issue more than one Athena query.
+
+data-finops reads the comment only from the first line of each query. It stores only its `node_id` and `invocation_id`, never the query text (M3). The `invocation_id` and `node_id` of the Trusted Query Comment are stored next to the metadata (as `dbt_query_comment`). They are part of the digest of the observation. Thus two reports of one query that name different Model Executions are kept separate, and they get a flag (#63).
+
+Price and charge reconciliation is specific to each provider.
 
 ## Airflow / OpenLineage MVP
-Accept OpenLineage RunEvents (START, COMPLETE, FAIL, ABORT and others tolerated; JobEvent and DatasetEvent reported as unsupported), validate each against the pinned RunEvent schema, cap each event at 1 MiB, persist namespace/job/run/parent facets and dataset IO. Support offline event files as a JSON array or JSON Lines (what `dbt-ol`'s file transport writes, #31). M2 ingests files only. The M5 HTTP receiver takes one event per request at `POST /api/v1/lineage` (the OpenLineage HTTP transport's default endpoint) and screens it through the same path as a file item: 201 when accepted or a duplicate, with the ingest counts; 202 when unsupported (JobEvent, DatasetEvent); 400 when rejected, with kind and reason but no content; 413 above 1 MiB, before parsing; 415 for a body with a `Content-Encoding` (compressed bodies are out of scope, #107); 401 without the configured token. Arrays and JSON Lines stay file-only. Ingress and authentication follow ADR 0024 (OQ-6). Before storage, the `sql` facet's `query`, `errorMessage.stackTrace` and each `extractionError.errors[].stackTrace` are removed; all other facets are kept verbatim. SQL quoted inside an error message is not detected. Rejected events are never stored: the ingest result reports each by position and reason without echoing its content. dbt artifacts are capped at 512 MiB. Avoid requiring Airflow itself to run for demo. Parent runs reach dbt only if the DAG passes them: the provider's `lineage_parent_id` and `lineage_root_parent_id` macros as `OPENLINEAGE_PARENT_ID` and `OPENLINEAGE_ROOT_PARENT_ID` to `dbt-ol` (observed with Airflow 3.3.2 and provider 2.20.1, #75; the DAG is in `examples/reference-workload/airflow/`). dbt-ol then reports its invocation run in Airflow's OpenLineage namespace; its model runs keep `dbt`.
+
+### Events
+Accept OpenLineage RunEvents: START, COMPLETE, FAIL, ABORT, and other event types are tolerated. JobEvent and DatasetEvent are reported as unsupported. Validate each event against the pinned RunEvent schema. Each event is limited to 1 MiB. Keep the namespace, job, run and parent facets, and the dataset inputs and outputs.
+
+Support offline event files as a JSON array or JSON Lines (the format that the file transport of `dbt-ol` writes, #31). M2 ingests only files.
+
+### The HTTP receiver (M5)
+The M5 HTTP receiver takes one event in each request at `POST /api/v1/lineage`. That is the default endpoint of the OpenLineage HTTP transport. The receiver screens the event through the same path as a file item:
+- 201: accepted or a duplicate, with the ingest counts
+- 202: unsupported (JobEvent, DatasetEvent)
+- 400: rejected, with the kind and the reason but no content
+- 413: above 1 MiB, before the event is parsed
+- 415: a body with a `Content-Encoding`. Compressed bodies are out of scope (#107).
+- 401: without the configured token
+
+Arrays and JSON Lines are for files only. Ingress and authentication follow ADR 0024 (OQ-6).
+
+### What is kept
+Before storage, these fields are removed: the `query` of the `sql` facet, `errorMessage.stackTrace`, and each `extractionError.errors[].stackTrace`. All other facets are kept exactly as they are. SQL quoted inside an error message is not detected.
+
+Rejected events are never stored. The ingest result reports each rejected event by position and reason, and its content is not shown. dbt artifacts are limited to 512 MiB.
+
+### Airflow
+Do not require Airflow itself to run for the demo.
+
+Parent runs get to dbt only if the DAG gives them to `dbt-ol`. The DAG gives the `lineage_parent_id` and `lineage_root_parent_id` macros of the provider as `OPENLINEAGE_PARENT_ID` and `OPENLINEAGE_ROOT_PARENT_ID`. This was observed with Airflow 3.3.2 and provider 2.20.1 (#75). The DAG is in `examples/reference-workload/airflow/`. Then dbt-ol reports its invocation run in the OpenLineage namespace of Airflow. Its model runs keep `dbt`.
 
 ## dbt MVP
-Parse `manifest.json` and `run_results.json` with version checks. Link node IDs, invocation IDs, status, timing and dependencies. Optional existing Elementary tables later; do not require Elementary installation.
+Parse `manifest.json` and `run_results.json` with version checks. Link node IDs, invocation IDs, status, `timing` and dependencies. Later, data-finops can read Elementary tables that already exist, as an option. Do not require an Elementary installation.
 
 ## Later adapters
-- GCP: Cloud Billing export, BigQuery INFORMATION_SCHEMA jobs and reservations; distinguish on-demand vs capacity pricing.
-- dlt: pipeline traces/load info and destination IDs.
-- Dagster/Prefect: native run/asset APIs and OpenLineage if present.
-- OTel: receive spans with run IDs and cloud resource identities, avoid arbitrary trace correlation.
-- BI: QuickSight/Tableau metadata and consumption, with warehouse query IDs where available; no assumption dashboard views equal warehouse spend.
+- GCP: Cloud Billing export, BigQuery INFORMATION_SCHEMA jobs and reservations. Show the difference between on-demand and capacity pricing.
+- dlt: pipeline traces, load info and destination IDs.
+- Dagster and Prefect: native run and asset APIs, and OpenLineage if it is there.
+- OTel: receive spans with run IDs and cloud resource identities. Do not correlate arbitrary traces.
+- BI: QuickSight and Tableau metadata and consumption, with warehouse query IDs where they are available. Do not assume that dashboard views are equal to warehouse spend.
 
 ## Data protection
-Metadata allowlist; strip/redact SQL literals, tokens, PII, and customer identifiers in exported demos. Query collectors extract the correlation comment from query text and discard the text before persistence; retaining query text is an explicit operator opt-in. Ingestion API private by default; authenticate production ingress. Do not require write access to customer data planes.
+- Use a metadata allowlist.
+- In exported demos, remove or redact SQL literals, tokens, PII and customer identifiers.
+- Query collectors extract the correlation comment from the query text, and remove the text before persistence.
+- To keep query text, the operator must opt in explicitly.
+- By default, the ingestion API is private. Authenticate production ingress.
+- Do not require write access to the data planes of the customer.
