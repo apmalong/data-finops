@@ -64,6 +64,8 @@ python -m scripts.gates
 
 The command stops at the first check that fails. At the end, it prints a block that starts with `## Gates`. To run the checks of some projects only, give their names, for example `python -m scripts.gates root policy`. CI runs the same command.
 
+To check the documents against the Simplified Technical English rules, run `python -m scripts.ste_check`. The documents in `scripts/ste_converted.txt` are a gate: if one of them breaks a rule, the check fails. The check only shows the problems in the other documents.
+
 Some tests of the policy pack and the stack use the Pulumi CLI 3.272.0. A cloud account is not necessary.
 
 ## Standards and reuse policy

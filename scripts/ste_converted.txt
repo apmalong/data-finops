@@ -1,0 +1,3 @@
+# Documents converted to Simplified Technical English (#234). Each one is a gate:
+# `python -m scripts.ste_check` fails when one of them breaks a rule.
+# One repository path in each line. A content PR adds the paths that it converts.
