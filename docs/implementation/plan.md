@@ -45,18 +45,18 @@ Designed 2026-11-07 and 2026-11-09 (spec 09; ADRs 0029–0031; research notes `d
 - **Cost Dimensions:** each organization configures the attributes it groups cost by (team, tenant, DAG run) and where they come from. They are claims recorded on Allocations, so reconciliation stays exact.
 
 The PRs, each against `main`, one open at a time (the tickets are on the spec issue):
-1. The lockfile check, the locked Lambda package, the Pulumi pins (#208, #209, #210).
-2. Cost Dimensions: configuration and capture; resolution, Allocations and the roll-up route.
-3. Cost Dimensions: the dashboard view and the Deployment's configuration.
-4. The demo dataset generator and the demo workgroup and Glue tables.
-5. The simulated orchestrator.
-6. The publisher.
-7. The dashboard's static mode and the banner.
-8. The `PublicDemo` component and the policy pack's additions.
-9. The documentation.
-10. The owner's deploy, the wizard's `publicDemo` stage, the 7-day evaluation, the comparison page's table and the exit record.
+1. The lockfile check, the locked Lambda package, the Pulumi pins (#208, #209, #210). Done.
+2. Cost Dimensions: configuration and capture; resolution, Allocations and the roll-up route (#221, #222).
+3. Cost Dimensions: the dashboard view and the Deployment's configuration (#223, #224).
+4. The demo dataset generator and the demo workgroup and Glue tables (#225).
+5. The simulated orchestrator (#226).
+6. The publisher (#227).
+7. The dashboard's static mode and the banner (#228).
+8. The `PublicDemo` component and the policy pack's additions (#229).
+9. The documentation (#230).
+10. The owner's deploy, the wizard's `publicDemo` stage, the 7-day evaluation, the comparison page's table and the exit record (#231, #232).
 
-The tooling tickets keep the full loop; only the content pages take milestone D's content exception.
+The groups follow AGENTS.md, "Tickets in one PR". The tooling tickets keep the full loop; only the content pages take milestone D's content exception.
 
 ## Deferred
 GCP, Snowflake, dbt Elementary optional tables, dlt, Dagster, OTel, BI connectors, automatic optimization, multi-account aggregation, enterprise auth.
