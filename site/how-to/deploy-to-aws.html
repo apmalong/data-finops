@@ -84,7 +84,7 @@
 </span><span class="line">uv sync --frozen
 </span><span class="line">uv run python -m deployment.package</span></code></pre>
 </div>
-<p>This writes <code>build/data-finops-lambda.zip</code>, about 66 MB, after downloading the arm64 wheels from PyPI. <code>pulumi up</code> refuses to run without it. Build it again after every change to the checkout: a changed zip redeploys both functions.</p>
+<p>This writes <code>build/data-finops-lambda.zip</code>, about 66 MB, after downloading the arm64 wheels from PyPI. The versions are the ones in <code>uv.lock</code>. <code>pulumi up</code> refuses to run without the zip. Build it again after every change to the checkout: a changed zip redeploys both functions.</p>
 
 <h2 id="configure">Configure the stack</h2>
 <p>Still in <code>infra/pulumi/aws</code>:</p>

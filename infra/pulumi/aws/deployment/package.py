@@ -4,7 +4,8 @@
     python -m deployment.package        writes build/data-finops-lambda.zip (the deploy wizard's
                                         first step; `pulumi up` uploads it)
 
-Building downloads the arm64 wheels from PyPI with uv; packing is stdlib only and repeatable:
+Building downloads the arm64 wheels of `uv.lock`'s versions from PyPI with uv, checked against
+the lock's hashes; packing is stdlib only and repeatable:
 the same installed tree always gives the same zip.
 """
 
@@ -65,17 +66,27 @@ def assemble(tree: Path, package: Path, *, limit: int = LAMBDA_UNZIPPED_LIMIT) -
 
 
 def build(repo: Path, package: Path) -> Path:
-    """Build the wheel from the checkout at `repo`, install it with its `aws` and `api` extras
-    for arm64 Linux, and assemble the package."""
+    """Build the wheel from the checkout at `repo`, install `uv.lock`'s versions of its `aws`
+    and `api` extras for arm64 Linux, then the wheel itself, and assemble the package.
+
+    The dependencies come from the lock, with its hashes, so the zip holds the versions the
+    tests ran (#209). The wheel is installed without dependencies, so nothing resolves fresh."""
     with tempfile.TemporaryDirectory(prefix="data-finops-package-") as scratch:
         wheels, site = Path(scratch) / "wheels", Path(scratch) / "site"
+        requirements = Path(scratch) / "requirements.txt"
         _uv("build", "--wheel", "--out-dir", str(wheels), str(repo))
         (wheel,) = wheels.glob("data_finops-*.whl")
         _uv(
-            "pip", "install", "--target", str(site),
-            "--python-platform", PLATFORM, "--python-version", PYTHON,
-            "--only-binary", ":all:", f"{wheel}[aws,api]",
+            "export", "--project", str(repo), "--frozen", "--no-dev",
+            "--extra", "aws", "--extra", "api", "--no-emit-project",
+            "--output-file", str(requirements),
         )  # fmt: skip
+        install_options = (
+            "--target", str(site), "--python-platform", PLATFORM, "--python-version", PYTHON,
+            "--only-binary", ":all:",
+        )  # fmt: skip
+        _uv("pip", "install", *install_options, "--require-hashes", "-r", str(requirements))
+        _uv("pip", "install", *install_options, "--no-deps", str(wheel))
         return assemble(site, package)
 
 

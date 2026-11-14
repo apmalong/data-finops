@@ -84,7 +84,7 @@ No drift found: `ingest-flow.d2` (order, tables, caps); `deployment.d2`; `covera
 
 | Source | Says | Code does | Outcome |
 |---|---|---|---|
-| build-vs-reuse register, spec 08 | runtime versions are locked and vetted | the Lambda package installs from PyPI with no lock (`infra/pulumi/aws/deployment/package.py`) | #209 |
+| build-vs-reuse register, spec 08 | runtime versions are locked and vetted | the Lambda package installs from PyPI with no lock (`infra/pulumi/aws/deployment/package.py`) | Fixed in #209: the build installs `uv.lock`'s versions with their hashes, and a test checks the zip |
 | register row 34 | the reference workload's `pulumi preview` "pending approval" | deployed (#22, #24), torn down (#26) | Fixed |
 | spec 08 §Layout, register | pulumi-aws 7.52.1, newer than the two-week rule allows (owner Q23) | `infra/pulumi/aws/pyproject.toml` and `examples/reference-workload` pin 7.52.1; recorded as an exception | Intended (Q23) |
 | deploy how-to, stack README | a test checks the CLI against the SDK | it checks a literal `v3.272.0`; the reference workload pins SDK 3.273.0 | Fixed in #210: the test reads the installed SDK, and one release is pinned everywhere |
