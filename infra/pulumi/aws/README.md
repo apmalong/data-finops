@@ -15,7 +15,7 @@ cd infra/pulumi/aws/policy && uv sync --frozen && uv run pytest
 cd .. && uv sync --frozen && uv run pytest
 ```
 
-The second runs the stack under Pulumi's mocks. It also runs `pulumi policy analyze` with the real pack over the resources the program declared, a compliant stack and deliberately non-compliant ones. Nothing reaches AWS. CI also sets `DATA_FINOPS_BUILD_PACKAGE=1`, which builds the real Lambda package from the checkout and checks it. That downloads the arm64 wheels from PyPI.
+The second runs the stack under Pulumi's mocks. It also runs `pulumi policy analyze` with the real pack over the resources the program declared, a compliant stack and deliberately non-compliant ones. Nothing reaches AWS. CI also sets `DATA_FINOPS_BUILD_PACKAGE=1`, which builds the real Lambda package from the checkout and checks it. That downloads the arm64 wheels from PyPI, at the versions in `uv.lock`. The test checks that every version in the package is the locked version.
 
 ## The Lambda package
 

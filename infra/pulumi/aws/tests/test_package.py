@@ -6,6 +6,8 @@ arm64 wheels from PyPI, so it runs only where `DATA_FINOPS_BUILD_PACKAGE=1` (the
 """
 
 import os
+import re
+import tomllib
 import zipfile
 from pathlib import Path
 
@@ -96,3 +98,23 @@ def test_the_real_package_builds_from_the_checkout(tmp_path: Path) -> None:
         header = archive.read(library)[:20]
     assert header[:4] == b"ELF"
     assert int.from_bytes(header[18:20], "little") == 183  # e_machine EM_AARCH64: arm64
+    installed = _installed_versions(names)
+    assert installed == _locked_versions(set(installed))  # uv.lock's versions, not PyPI's newest
+
+
+def _normalized(name: str) -> str:
+    return re.sub(r"[-_.]+", "-", name).lower()
+
+
+def _installed_versions(names: set[str]) -> dict[str, str | None]:
+    """Each distribution in the zip and its version, from its `<name>-<version>.dist-info`."""
+    folders = {n.split("/", 1)[0] for n in names if n.split("/", 1)[0].endswith(".dist-info")}
+    pairs = (folder.removesuffix(".dist-info").rsplit("-", 1) for folder in folders)
+    return {_normalized(name): version for name, version in pairs if name != "data_finops"}
+
+
+def _locked_versions(wanted: set[str]) -> dict[str, str | None]:
+    """uv.lock's version of each wanted distribution (None when the lock does not have it)."""
+    with (REPO / "uv.lock").open("rb") as file:
+        locked = {_normalized(p["name"]): p.get("version") for p in tomllib.load(file)["package"]}
+    return {name: locked.get(name) for name in wanted}
