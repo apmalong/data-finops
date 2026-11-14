@@ -66,10 +66,11 @@ With `run_id`, the route gives these items:
 
 For an invocation run, the links are these:
 - the invocation and its outcome
-- when the invocation links to this run, its Model Executions. Each Model Execution comes with each query that claims it (`linked` or `ambiguous`).
-- the queries that name the invocation but a node that is not reported (`unmatched`)
+- when the invocation links to this run, two more items:
+  - its Model Executions. Each Model Execution comes with each query that claims it (`linked` or `ambiguous`).
+  - the queries that name the invocation but a node that is not reported (`unmatched`)
 
-For a dbt-ol model run, the link is its link to its Model Execution.
+For a dbt-ol model run, the route gives its link to its Model Execution.
 
 `no_evidence` queries name no run, so they never show in lineage. The workload store lists the root runs.
 
@@ -79,7 +80,7 @@ Allocations against the bill, for each Billing Line, Cost Basis and currency (#1
 - Totals for each currency cover all rows. The rows are in pages.
 - The snapshot is selected as for `/v1/allocations`.
 - Without `cost_basis`, each Cost Basis is shown, because each one reconciles on its own (OQ-17).
-- An amount allocated to a line that is not in the bill, or in a currency different from its line, is billed zero there. Thus invented amounts show as a negative delta.
+- An amount can be allocated to a line that is not in the bill, or in a currency different from the currency of its line. Then it is billed zero there. Thus invented amounts show as a negative delta.
 - The Reconciliation of the Ledger against the export stays at import (M1).
 
 ### `GET /v1/provenance`
@@ -104,8 +105,8 @@ Static HTML, CSS and JavaScript that the API serves from the package. It has no 
 The design follows Edward Tufte (*The Visual Display of Quantitative Information*) and Stephen Few (*Information Dashboard Design*, *Show Me the Numbers*):
 - One screen answers the first question at a glance: where did the bill of this period go? The Cost Summary is the overview. Details come on demand, through the Cost Explanation.
 - Maximize the data-ink. Use no gauges, dials, pie or donut charts, 3-D, gradients, shadows, decorative icons or heavy gridlines. Each mark encodes data.
-- Use tables where exact amounts are important. Use right-aligned tabular figures at the scale of the line. State the currency one time in each column. Use light rules only between groups.
-- To compare parts of the bill, use horizontal bars on a common zero baseline, sorted by amount. Put labels directly on the bars, not in a legend. The parts are the amounts allocated by Confidence, Unallocated by reason, Adjustments and Roll-ups.
+- Use tables where exact amounts are important. Use right-aligned tabular figures at the scale of each line. State the currency one time in each column. Use light rules only between groups.
+- To compare parts of the bill, use horizontal bars on a common zero baseline, sorted by amount. Label the bars directly, not through a legend. The parts are the amounts allocated by Confidence, Unallocated by reason, Adjustments and Roll-ups.
 - By default, color is muted. Use it only to get attention: one highlight for amounts that require attention (Unallocated, a Reconciliation Delta that is not zero, failed runs). Never use color as decoration or as the only cue.
 - Estimates look different from billed facts. Metered Shares show their Confidence and Coverage next to the amount (acceptance.md). Thus the reader never thinks that an estimate is an exact cost.
 - Keep the placement and the terms consistent. Use only GLOSSARY terms (Unallocated, never "unknown"). The policy version, the Calculation Run and the Reconciliation Delta are always visible, but not prominent.
@@ -123,8 +124,8 @@ Only `data-finops calculate`, `demo` and a Collection Run (`collect`, or the col
 ## Tests
 There are three seams. Each is test-first, with hand-made mutation checks recorded in the PR:
 1. The public interface of `reporting`, on a temporary SQLite file. The current public ingest functions and `run_calculation` fill it from the fixtures. Assertions are only on the returned models, never on tables. They cover the golden amounts, Roll-ups, a zero Reconciliation Delta, the Cost Explanation chain and the page limits. Most cases are here.
-2. The HTTP app, through the test client of FastAPI, over the same database. The tests cover status codes and Problem Details, and the validation of filters and pages. They also cover the 201, 202, 400, 413 and 401 of the receiver, and the token and bind rules. Responses must be valid against `schemas/openapi.json`, with no SQL or token in a response. No business numbers are asserted here.
-3. `WorkloadStore.ingest_event(bytes)`, on the current store seam. Ingest the items of a fixture file one at a time. The counts and the stored runs are the same as from `ingest_events` on the file. The invalid fixtures are rejected with the same kinds.
+2. The HTTP app, through the test client of FastAPI, over the same database. The tests cover status codes and Problem Details, and the validation of filters and pages. They also cover the 201, 202, 400, 413 and 401 of the receiver, and the token and bind rules. Responses must be valid against `schemas/openapi.json`. No response contains SQL or the token. No business numbers are asserted here.
+3. `WorkloadStore.ingest_event(bytes)`, on the current store seam. The test ingests the items of a fixture file one at a time. The counts and the stored runs are the same as from `ingest_events` on the file. The invalid fixtures are rejected with the same kinds.
 
 The command line is tested through `main(argv)` on a temporary database, without a server. The dashboard has a smoke test only. It checks that its files are served, and that each API path that it calls is in the OpenAPI document. Its design is checked by eye in the exit walkthrough.
 
@@ -134,7 +135,7 @@ The command line is tested through `main(argv)` on a temporary database, without
 - `q-001` with $6 metered, Coverage 1, rolled up to `model.demo.orders`
 - `model.demo.customers` with no linked query (only an ambiguous claim)
 - $4 Unallocated
-- an import that occurs again changes nothing
+- a second import of the same export changes nothing
 - the restated export (`fixtures/focus/export-2026-10-restated.json`, added by #113) makes a new current Allocation Snapshot, and keeps the old one
 
 A manual browser pass of the dashboard is recorded in progress.md, with one screenshot and its time against the five-minute budget (spec 01).
