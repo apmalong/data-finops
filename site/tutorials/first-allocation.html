@@ -175,7 +175,7 @@
 </span><span class="line">dbt: duplicate inv-001
 </span><span class="line">dbt: duplicate inv-001
 </span><span class="line">calculate: 123456789012 2026-10-01 aws-data-exports:FOCUS_1_2_AWS: replay calc-…</span></pre>
-<p>data-finops recognizes each input as an input that is already stored. The calculation gives the same Calculation Run. The dashboard still shows $10.00. If you load the same inputs two times, data-finops never counts a cost two times.</p>
+<p>data-finops recognizes each input as an input that is already stored. The calculation replays the same Calculation Run. The dashboard still shows $10.00. If you load the same inputs two times, data-finops never counts a cost two times.</p>
 
 <h2 id="restatement">8. The provider restates the bill</h2>
 <p>Providers republish a month when charges change. Here October is republished with $5.00 of S3, as <code>aws-focus-123456789012-2026-10-v2</code>:</p>

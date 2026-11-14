@@ -73,7 +73,7 @@
 <dl id="environment">
 <dt><code>DATA_FINOPS_TOKEN</code></dt>
 <dd>
-<p>The bearer token for <code>serve</code>. When a token is set, each route requires the header <code>Authorization: Bearer &lt;token&gt;</code>. Without one, every route is open.</p>
+<p>The bearer token for <code>serve</code>. When a token is set, each route requires the header <code>Authorization: Bearer &lt;token&gt;</code>, also the API documentation. Without one, every route is open.</p>
 <ul>
 <li>Set the token in this variable or in a file named by <code>--token-file</code>, not both. If both are set, <code>serve</code> exits with <code>2</code>.</li>
 <li>The spaces and line breaks at the start and end of the token are removed. What remains must be at least 16 characters. A shorter token makes <code>serve</code> exit with <code>2</code>.</li>

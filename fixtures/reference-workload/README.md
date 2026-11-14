@@ -21,7 +21,7 @@ These files are real outputs of a run of the reference workload (ADR 0021) on 20
 ## Anonymization
 
 The anonymizer made these changes:
-- Bucket names, account IDs and local paths became keyed pseudonyms, the same as the FOCUS anonymizer makes.
+- Bucket names, account IDs and local paths became keyed pseudonyms, made in the same way as the FOCUS anonymizer makes them.
 - dbt `user_id` became empty (null), and `project_id` became a pseudonym.
 - The run-results `args` keep only flags, numbers and selection settings.
 - Only the dbt and OpenLineage fields on the allowlists stay.

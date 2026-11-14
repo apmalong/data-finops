@@ -6,7 +6,7 @@ This folder holds the Pulumi Python components that deploy data-finops into one 
 
 - **Owner-only:** a `pulumi preview`, `pulumi up` or `pulumi destroy` against a real account is permitted only with the explicit approval of the account owner (`docs/implementation/execution-permissions.md`). The owner runs these commands through the deploy wizard (spec 08, owner-only steps). An agent never runs them.
 - **Local state:** Pulumi keeps the state locally, in the git-ignored `.local/` folder of the repository. The program refuses a `PULUMI_BACKEND_URL` that is not `file://` (ADR 0001).
-- **Pinned CLI:** the Pulumi CLI release is the release of the SDK, 3.272.0. A test compares the installed CLI with the release of the installed SDK. Another test makes sure that the stack, the policy pack, the reference workload, CI and the wizards name one release.
+- **Pinned CLI:** the Pulumi CLI is pinned to 3.272.0, the release of the SDK. A test compares the installed CLI with the release of the installed SDK. Another test makes sure that the stack, the policy pack, the reference workload, CI and the wizards name one release.
 
 ## Offline checks (what CI runs)
 

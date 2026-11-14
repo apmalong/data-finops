@@ -62,7 +62,7 @@
 <h2 id="layout">What goes where</h2>
 <ul>
 <li><code>inbox/openlineage/</code>: OpenLineage event files, one event per file or JSON Lines. Each event is capped at 1 MiB, as on every other path.</li>
-<li><code>inbox/dbt/&lt;invocation&gt;/</code>: one dbt invocation's <code>manifest.json</code> and <code>run_results.json</code>. A folder is collected when both files are in it. Until then, each Collection Run shows the warning <code>&lt;folder&gt;/: waiting for &lt;file&gt;</code>.</li>
+<li><code>inbox/dbt/&lt;invocation&gt;/</code>: one dbt invocation's <code>manifest.json</code> and <code>run_results.json</code>. A folder is collected when both files are in it. Until then, each Collection Run shows the warning <code>&lt;folder&gt;/: waiting for &lt;files&gt;</code>.</li>
 </ul>
 <p>Every file is capped at 512 MiB. A larger file is rejected by its key and never downloaded.</p>
 
