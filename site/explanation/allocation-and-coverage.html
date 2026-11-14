@@ -8,7 +8,7 @@
 <script src="../assets/site.js" defer></script>
 <!-- head:end -->
 <title>Allocation and Coverage - data-finops</title>
-<meta name="description" content="How data-finops splits a Billing Line into Allocations, and why a Metered Share needs measured Coverage.">
+<meta name="description" content="How data-finops splits a Billing Line into Allocations, and why a Metered Share requires measured Coverage.">
 </head>
 <body>
 <!-- nav:start -->
@@ -30,7 +30,7 @@
 <li><a href="decision-records.html">Decision records</a></li>
 </ul>
 </li>
-<li><a href="../contributing.html">Contributing</a></li>
+<li><a href="../contributing.html">Contribute to data-finops</a></li>
 </ul>
 </nav>
 <!-- nav:end -->
@@ -42,7 +42,7 @@
 <ul>
 <li><a href="#deterministic">The same inputs give the same Allocations</a></li>
 <li><a href="#targets">Three Allocation Targets</a></li>
-<li><a href="#coverage">A Metered Share needs measured Coverage</a></li>
+<li><a href="#coverage">A Metered Share requires measured Coverage</a></li>
 <li><a href="#scope">Billing scope is accounting, not Evidence</a></li>
 <li><a href="#worked">A worked example</a></li>
 <li><a href="#policy">The current Athena policy</a></li>
@@ -52,30 +52,36 @@
 <p>This page explains how a <a href="../reference/glossary.html#calculation-run">Calculation Run</a> splits a <a href="../reference/glossary.html#billing-line">Billing Line</a>, and why it splits a metered line only as far as <a href="../reference/glossary.html#coverage">Coverage</a> allows. The decisions are in <a href="https://github.com/apmalong/data-finops/blob/main/docs/adr/0007-deterministic-cost-allocation.md">ADR 0007</a>, <a href="https://github.com/apmalong/data-finops/blob/main/docs/adr/0016-allocate-to-query-executions-with-roll-ups.md">ADR 0016</a>, <a href="https://github.com/apmalong/data-finops/blob/main/docs/adr/0017-metered-share-requires-coverage.md">ADR 0017</a> and <a href="https://github.com/apmalong/data-finops/blob/main/docs/adr/0023-billing-scope-is-accounting-scope.md">ADR 0023</a>, and the rules are in <a href="https://github.com/apmalong/data-finops/blob/main/docs/specs/03-attribution.md">spec 03</a>. They stay authoritative.</p>
 
 <h2 id="deterministic">The same inputs give the same Allocations</h2>
-<p>A Calculation Run is deterministic. It uses decimal amounts, stable rounding and a versioned <a href="../reference/glossary.html#allocation-policy">Allocation Policy</a>. Running it again on the same inputs stores nothing new. A changed policy gets a new version, and the Allocations it made before keep the old one, so any number can be traced to the rules that made it.</p>
+<p>A Calculation Run is deterministic. It uses decimal amounts, stable rounding and a versioned <a href="../reference/glossary.html#allocation-policy">Allocation Policy</a>. If you run it again on the same inputs, it stores nothing new. A changed policy gets a new version. The Allocations that the policy made before keep the old version. Thus you can trace each number to the rules that made it.</p>
 
 <h2 id="targets">Three Allocation Targets</h2>
 <p>Every <a href="../reference/glossary.html#allocation">Allocation</a> goes to one of three <a href="../reference/glossary.html#allocation-target">Allocation Targets</a>:</p>
 <ul>
-<li>a <a href="../reference/glossary.html#query-execution">Query Execution</a>, the unit a provider actually bills for;</li>
-<li><a href="../reference/glossary.html#idle">Idle</a>, capacity that was paid for but had no observed activity;</li>
-<li><a href="../reference/glossary.html#unallocated">Unallocated</a>, money with no <a href="../reference/glossary.html#evidence">Evidence</a>, named with its reason.</li>
+<li>a <a href="../reference/glossary.html#query-execution">Query Execution</a>: the unit that a provider actually bills for</li>
+<li><a href="../reference/glossary.html#idle">Idle</a>: capacity that was paid for but had no observed activity</li>
+<li><a href="../reference/glossary.html#unallocated">Unallocated</a>: money with no <a href="../reference/glossary.html#evidence">Evidence</a>, named with its reason</li>
 </ul>
 <p>A <a href="../reference/glossary.html#model-execution">Model Execution</a> or <a href="../reference/glossary.html#workload-run">Workload Run</a> is never a target. It gets money only as a <a href="../reference/glossary.html#roll-up">Roll-up</a> over its <a href="../reference/glossary.html#identity-link">Identity Links</a>. Failed and retried work is charged to its Query Execution and shown with its status, so a failure's cost stays visible.</p>
 
-<h2 id="coverage">A Metered Share needs measured Coverage</h2>
+<h2 id="coverage">A Metered Share requires measured Coverage</h2>
 <p>An Athena on-demand Billing Line bills a quantity of data scanned. Each Query Execution in the line's billing scope has a <a href="../reference/glossary.html#billable-usage">Billable Usage</a>: what the provider bills for it, which is not always what it scanned. Coverage compares the two:</p>
 <p>Coverage = known Billable Usage ÷ the Billing Line's billed quantity.</p>
 <img src="../assets/explanation/coverage.svg" alt="Coverage is the known Billable Usage of the Query Executions in a Billing Line's billing scope, divided by the line's billed quantity. At Coverage 1, the whole line is split by Billable Usage into Metered Shares. Below 1, the covered fraction is split into Metered Shares and the rest is Unallocated with the reason coverage_remainder. Above 1, the whole line is Unallocated with the reason coverage_exceeded, and flagged." width="930" height="735">
 <ul>
 <li>At Coverage 1, the line is split by Billable Usage. Each share is a <a href="../reference/glossary.html#metered-share">Metered Share</a>: <a href="../reference/glossary.html#allocation-category">Allocation Category</a> <code>direct</code>, <a href="../reference/glossary.html#confidence">Confidence</a> <code>metered_estimate</code>.</li>
-<li>Below 1, some of the history is missing. Only the covered fraction is split. The remainder is Unallocated as <code>coverage_remainder</code>, rather than spread over the Query Executions that happen to be known.</li>
+<li>Below 1, the history is not complete. Only the covered fraction is split. The remainder is Unallocated as <code>coverage_remainder</code>. It is not spread over the Query Executions that are known.</li>
 <li>Above 1, the known history claims more than was billed, which means something is wrong. The whole line is Unallocated as <code>coverage_exceeded</code>, and flagged.</li>
 </ul>
-<p>Coverage counts as 1 within half a unit of the last digit the provider bills in. A Metered Share is an estimate, so it is never labelled as exact.</p>
+<p>Coverage counts as 1 within half a unit of the last digit the provider bills in. A Metered Share is an estimate, so it is never labeled as exact.</p>
 
 <h2 id="scope">Billing scope is accounting, not Evidence</h2>
-<p>A Query Execution is in a Billing Line's billing scope when it ran in the line's usage account and Region, in its workgroup when the line names one, and completed within the line's charge period. That makes it share the line's cost. It does not say which Model Execution ran it. A Query Execution with no Identity Link still counts toward Coverage and still gets its Metered Share. It just has no Roll-up (ADR 0023).</p>
+<p>A Query Execution is in the billing scope of a Billing Line when these conditions are true:</p>
+<ul>
+<li>It ran in the usage account and Region of the line.</li>
+<li>It ran in the workgroup of the line, if the line names a workgroup.</li>
+<li>It completed in the charge period of the line.</li>
+</ul>
+<p>Then the Query Execution gets a share of the cost of the line. The billing scope does not show which Model Execution ran it. A Query Execution with no Identity Link still counts toward Coverage and still gets its Metered Share. It only has no Roll-up (ADR 0023).</p>
 
 <h2 id="worked">A worked example</h2>
 <p>The tutorial's bill has one Athena Billing Line of $6.00, for 0.001 TB scanned in workgroup <code>demo</code>. Two Query Executions are in its billing scope:</p>
@@ -88,13 +94,13 @@
 <h2 id="policy">The current Athena policy</h2>
 <p>Calculation Runs record their policy version, today <code>allocation-engine/1+line-classification/1+athena-billable-usage/2+athena-billing-scope/2</code>. <code>athena-billable-usage/2</code> sets each Query Execution's Billable Usage:</p>
 <ul>
-<li>a failed one, or any one that scanned 0 bytes: 0;</li>
-<li>any other succeeded or cancelled one: the data it scanned, rounded up to the next MB, with a minimum of 10 MB;</li>
-<li>a queued or running one: 0 in that report;</li>
-<li>a billed one that reported no scan: unknown.</li>
+<li>a failed one, or one that scanned 0 bytes: 0</li>
+<li>any other one that succeeded or was canceled: the data that it scanned, rounded up to the next MB, with a minimum of 10 MB</li>
+<li>a queued one, or one that is still in progress: 0 in that report</li>
+<li>a billed one that reported no scan: unknown</li>
 </ul>
 <p>Units are decimal: 1 MB is 10<sup>6</sup> bytes.</p>
-<p>These rules were checked against a real FOCUS export in <a href="https://github.com/apmalong/data-finops/issues/91">issue #91</a>. It showed that a query that scans nothing bills nothing, whatever its statement type, so version 2 replaced version 1, which charged such queries 10 MB. Allocations made under version 1 keep it. A Billing Line can cover several hours, and its billing scope is its whole charge period.</p>
+<p>These rules were checked against a real FOCUS export in <a href="https://github.com/apmalong/data-finops/issues/91">issue #91</a>. It showed that a query that scans nothing bills nothing, whatever its statement type, so version 2 replaced version 1, which charged such queries 10 MB. Allocations made under version 1 keep it. A Billing Line can cover more than one hour, and its billing scope is its whole charge period.</p>
 <p class="notice">Athena billed two queries that finished seconds before an hour ended in the next hour's line. A query that finishes that close to an hour boundary can be scoped to the wrong line, which then stays Unallocated rather than misallocated (<a href="https://github.com/apmalong/data-finops/blob/main/docs/implementation/open-questions.md">open question 25</a>).</p>
 <!-- pager:start -->
 <nav class="pager" aria-label="Previous and next">

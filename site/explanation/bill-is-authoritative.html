@@ -30,7 +30,7 @@
 <li><a href="decision-records.html">Decision records</a></li>
 </ul>
 </li>
-<li><a href="../contributing.html">Contributing</a></li>
+<li><a href="../contributing.html">Contribute to data-finops</a></li>
 </ul>
 </nav>
 <!-- nav:end -->
@@ -61,13 +61,13 @@
 <h2 id="reconciliation">Reconciliation proves it</h2>
 <p><a href="../reference/glossary.html#reconciliation">Reconciliation</a> is exact, for each Billing Line, currency and <a href="../reference/glossary.html#cost-basis">Cost Basis</a>. It is checked in two places:</p>
 <ul>
-<li>For a loaded Export Snapshot, the Ledger's totals equal the provider's: the tests and the delivery check script (<code>scripts/reconcile_delivery.py</code>) compare them, though loading does not run the comparison itself. Rows are never deduplicated, so nothing the provider billed is lost (<a href="https://github.com/apmalong/data-finops/blob/main/docs/adr/0019-no-row-deduplication-within-export-snapshots.md">ADR 0019</a>).</li>
+<li>For a loaded Export Snapshot, the Ledger's totals equal the provider's: the tests and the delivery check script (<code>scripts/reconcile_delivery.py</code>) compare them, but a load does not run the comparison. Rows are never deduplicated, so nothing the provider billed is lost (<a href="https://github.com/apmalong/data-finops/blob/main/docs/adr/0019-no-row-deduplication-within-export-snapshots.md">ADR 0019</a>).</li>
 <li>After a Calculation Run, the Allocations must sum to the Billing Lines.</li>
 </ul>
-<p>The <a href="../reference/glossary.html#reconciliation-delta">Reconciliation Delta</a> is the signed difference, and it is zero when Reconciliation holds. <code>/v1/reconciliation</code> reports it. An Allocation to a Billing Line the bill lacks, or in the wrong currency, counts against a billed amount of zero, so invented money shows as a delta and cannot hide.</p>
+<p>The <a href="../reference/glossary.html#reconciliation-delta">Reconciliation Delta</a> is the signed difference, and it is zero when Reconciliation holds. <code>/v1/reconciliation</code> reports it. An Allocation to a Billing Line that is not in the bill, or in the wrong currency, counts against a billed amount of zero. Thus invented money shows as a delta and cannot hide.</p>
 
 <h2 id="cost-basis">Each Cost Basis reconciles on its own</h2>
-<p>A FOCUS Billing Line has several cost columns, such as BilledCost and EffectiveCost. Each one is reconciled separately, and none is derived from another. The default view is BilledCost, because it matches the invoice. EffectiveCost, which spreads commitments and discounts, can be selected instead. See <a href="../reference/http-api.html">HTTP API</a> for the <code>cost_basis</code> parameter.</p>
+<p>A FOCUS Billing Line has more than one cost column, for example BilledCost and EffectiveCost. Each one is reconciled separately, and none is derived from another. The default view is BilledCost, because it matches the invoice. EffectiveCost, which spreads commitments and discounts, can be selected instead. See <a href="../reference/http-api.html">HTTP API</a> for the <code>cost_basis</code> parameter.</p>
 <!-- pager:start -->
 <nav class="pager" aria-label="Previous and next">
 <a rel="prev" href="index.html">Previous: Explanation</a>

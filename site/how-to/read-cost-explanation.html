@@ -37,7 +37,7 @@
 </li>
 <li><a href="../reference/index.html">Reference</a></li>
 <li><a href="../explanation/index.html">Explanation</a></li>
-<li><a href="../contributing.html">Contributing</a></li>
+<li><a href="../contributing.html">Contribute to data-finops</a></li>
 </ul>
 </nav>
 <!-- nav:end -->
@@ -78,7 +78,7 @@
 </div>
 <pre class="output checked"><span class="line">calculate: 123456789012 2026-10-01 aws-data-exports:FOCUS_1_2_AWS: new calc-…
 </span><span class="line">serving finops.sqlite at http://127.0.0.1:8000/ (Ctrl+C to stop)</span></pre>
-<p><code>serve</code> keeps running, so run the rest in a second terminal. Set <code>CALCULATION_RUN_ID</code> to the ID <code>calculate</code> printed:</p>
+<p><code>serve</code> does not stop, so run the other commands in a second terminal. Set <code>CALCULATION_RUN_ID</code> to the ID that <code>calculate</code> printed:</p>
 <div class="shell-tabs">
 <pre class="shell-posix"><code><span class="line">CALCULATION_RUN_ID=calc-&lt;the ID calculate printed&gt;</span></code></pre>
 <pre class="shell-windows" data-derived=""><code><span class="line">$CALCULATION_RUN_ID = "calc-&lt;the ID calculate printed&gt;"</span></code></pre>
@@ -94,7 +94,7 @@
 <p>Each item's <code>ref</code> addresses one Allocation as <code>&lt;calculation_run_id&gt;#&lt;position&gt;</code>. This one gives $6.00 to Query Execution <code>q-001</code>.</p>
 
 <h2 id="read">Read its Cost Explanation</h2>
-<p>Ask for <code>/v1/allocations/&lt;ref&gt;/explanation</code>, sending the <code>#</code> as <code>%23</code>:</p>
+<p>Ask for <code>/v1/allocations/&lt;ref&gt;/explanation</code>. Send the <code>#</code> as <code>%23</code>:</p>
 <div class="shell-tabs">
 <pre class="shell-posix"><code class="run"><span class="line">curl -s "http://127.0.0.1:8000/v1/allocations/$CALCULATION_RUN_ID%230/explanation"</span></code></pre>
 <pre class="shell-windows" data-derived=""><code><span class="line">curl.exe -s "http://127.0.0.1:8000/v1/allocations/$CALCULATION_RUN_ID%230/explanation"</span></code></pre>
@@ -110,12 +110,18 @@
 <p>For an Unallocated Allocation, <code>unallocated_reason</code> says why it is Unallocated, such as <code>ineligible</code>. The dashboard shows the same Cost Explanation when you click an Allocation.</p>
 
 <h2 id="minimal">Show less of the Billing Line</h2>
-<p>Tags and free-text names often carry team, customer or project names. When the people reading the API should not see them, serve a minimal Billing Line (ADR 0028):</p>
+<p>Tags and free-text names often carry team, customer or project names. If the readers of the API must not see them, serve a minimal Billing Line (ADR 0028):</p>
 <div class="shell-tabs">
 <pre class="shell-posix"><code><span class="line">data-finops serve --db finops.sqlite --explanation-detail minimal</span></code></pre>
 <pre class="shell-windows" data-derived=""><code><span class="line">data-finops serve --db finops.sqlite --explanation-detail minimal</span></code></pre>
 </div>
-<p>Each Cost Explanation then shows <code>"billing_line_detail":"minimal"</code>. Its Billing Line keeps the columns data-finops computes with: the cost columns, accounts, periods, charge category and class, provider, service, SKU, region, <code>ResourceId</code>, <code>SubAccountId</code>, quantities and units, and their raw provider values. <code>Tags</code> and every other column, such as <code>ChargeDescription</code> and the provider's <code>x_</code> columns, are left out. Amounts, Evidence and Roll-ups are the same at either level.</p>
+<p>Each Cost Explanation then shows <code>"billing_line_detail":"minimal"</code>. Its Billing Line keeps the columns that data-finops uses in its calculations:</p>
+<ul>
+<li>the cost columns, accounts, periods, and charge category and class</li>
+<li>provider, service, SKU, region, <code>ResourceId</code> and <code>SubAccountId</code></li>
+<li>quantities and units, and their raw provider values</li>
+</ul>
+<p><code>Tags</code> and each other column, for example <code>ChargeDescription</code> and the <code>x_</code> columns of the provider, are left out. Amounts, Evidence and Roll-ups are the same at the two levels.</p>
 <!-- pager:start -->
 <nav class="pager" aria-label="Previous and next">
 <a rel="prev" href="handle-restated-export.html">Previous: Handle a restated export</a>

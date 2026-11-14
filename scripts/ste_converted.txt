@@ -1,3 +1,44 @@
 # Documents converted to Simplified Technical English (#234). Each one is a gate:
 # `python -m scripts.ste_check` fails when one of them breaks a rule.
 # One repository path in each line. A content PR adds the paths that it converts.
+
+# #236: the docs site (hand-written text; generated regions are #237's) and the READMEs.
+# site/explanation/decision-records.html waits for #239: its table repeats each ADR's title and status.
+site/contributing.html
+site/explanation/allocation-and-coverage.html
+site/explanation/bill-is-authoritative.html
+site/explanation/deployment-architecture.html
+site/explanation/export-snapshots-and-restatements.html
+site/explanation/identity-links-and-evidence.html
+site/explanation/index.html
+site/explanation/security-model.html
+site/how-to/calculate.html
+site/how-to/deploy-reference-workload.html
+site/how-to/deploy-to-aws.html
+site/how-to/handle-restated-export.html
+site/how-to/index.html
+site/how-to/ingest-athena-history.html
+site/how-to/ingest-dbt-artifacts.html
+site/how-to/ingest-focus-export.html
+site/how-to/install.html
+site/how-to/read-cost-explanation.html
+site/how-to/read-deployment.html
+site/how-to/receive-openlineage.html
+site/how-to/send-to-inbox.html
+site/how-to/serve-with-token.html
+site/how-to/tear-down-deployment.html
+site/index.html
+site/reference/cli.html
+site/reference/data-contracts.html
+site/reference/deployment-settings.html
+site/reference/exit-codes-and-environment.html
+site/reference/glossary.html
+site/reference/http-api.html
+site/reference/index.html
+site/tutorials/first-allocation.html
+site/tutorials/index.html
+README.md
+examples/demo/README.md
+examples/reference-workload/README.md
+fixtures/reference-workload/README.md
+infra/pulumi/aws/README.md

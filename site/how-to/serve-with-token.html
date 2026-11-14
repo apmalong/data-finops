@@ -37,7 +37,7 @@
 </li>
 <li><a href="../reference/index.html">Reference</a></li>
 <li><a href="../explanation/index.html">Explanation</a></li>
-<li><a href="../contributing.html">Contributing</a></li>
+<li><a href="../contributing.html">Contribute to data-finops</a></li>
 </ul>
 </nav>
 <!-- nav:end -->
@@ -54,7 +54,7 @@
 </ul>
 </nav>
 <!-- onpage:end -->
-<p><code>serve</code> runs the API, the dashboard and the OpenLineage receiver. On loopback, a token is optional. To serve on any other address, you need one. This guide sets a token and serves with it (ADR 0024).</p>
+<p><code>serve</code> runs the API, the dashboard and the OpenLineage receiver. On loopback, a token is optional. To serve on a different address, a token is necessary. This guide sets a token and serves with it (ADR 0024).</p>
 
 <h2 id="make">Make a token</h2>
 <p>A token is at least 16 characters. Make a long random one and keep it in a file only you can read:</p>
@@ -76,12 +76,12 @@
 <pre class="output checked"><span class="line">focus: new aws-focus-123456789012-2026-10-v1
 </span><span class="line">serving finops.sqlite at http://127.0.0.1:8000/ (Ctrl+C to stop)
 </span><span class="line">{"status":"ok"}</span></pre>
-<p><code>$(cat …)</code> puts the token in the header without writing it into the command, so with your own token, use <code>$(cat finops.token)</code>. Every route now needs the header <code>Authorization: Bearer &lt;token&gt;</code>, the dashboard and the API documentation included. A request without it, or with another token, gets <code>401</code>:</p>
+<p><code>$(cat …)</code> puts the token in the header, but does not write it into the command. Thus with your own token, use <code>$(cat finops.token)</code>. Now each route requires the header <code>Authorization: Bearer &lt;token&gt;</code>, also the dashboard and the API documentation. A request without it, or with a different token, gets <code>401</code>:</p>
 <pre class="output"><span class="line">{"type":"about:blank","title":"Unauthorized","status":401,"detail":"A valid bearer token is required."}</span></pre>
 <p>An OpenLineage client sends the token as its API key, for example in <code>OPENLINEAGE_API_KEY</code>. See <a href="receive-openlineage.html">Receive OpenLineage events</a>.</p>
 
 <h2 id="variable">Serve with the token in the environment</h2>
-<p>Set <code>DATA_FINOPS_TOKEN</code> instead of passing <code>--token-file</code>:</p>
+<p>In place of <code>--token-file</code>, you can set <code>DATA_FINOPS_TOKEN</code>:</p>
 <div class="shell-tabs">
 <pre class="shell-posix"><code><span class="line">export DATA_FINOPS_TOKEN="$(cat finops.token)"
 </span><span class="line">data-finops serve --db finops.sqlite</span></code></pre>
@@ -101,7 +101,7 @@
 <p>Without a token, <code>serve</code> refuses and exits with <code>2</code>:</p>
 <pre class="output"><span class="line">data-finops: refusing to serve on 0.0.0.0 without a token: set DATA_FINOPS_TOKEN or --token-file (ADR 0024)</span></pre>
 <ul>
-<li>Only a literal loopback address, such as <code>127.0.0.1</code> or <code>::1</code>, counts as loopback. A name such as <code>localhost</code> needs a token too, because it could resolve to any address.</li>
+<li>Only a literal loopback address, such as <code>127.0.0.1</code> or <code>::1</code>, counts as loopback. A name such as <code>localhost</code> also requires a token, because it can resolve to any address.</li>
 <li>The token travels in plain text over HTTP. Off loopback, put the server behind TLS.</li>
 <li><code>demo</code> ignores any token. It always serves on loopback with every route open.</li>
 </ul>

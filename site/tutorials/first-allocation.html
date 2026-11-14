@@ -24,7 +24,7 @@
 <li><a href="../how-to/index.html">How-to guides</a></li>
 <li><a href="../reference/index.html">Reference</a></li>
 <li><a href="../explanation/index.html">Explanation</a></li>
-<li><a href="../contributing.html">Contributing</a></li>
+<li><a href="../contributing.html">Contribute to data-finops</a></li>
 </ul>
 </nav>
 <!-- nav:end -->
@@ -47,12 +47,12 @@
 </ul>
 </nav>
 <!-- onpage:end -->
-<p>In this tutorial we load a small bill and the metadata of the workload that ran against it. Then we allocate the bill and follow $10.00 of cost to the Query Execution, dbt Model Execution and Airflow Workload Runs that used it. It takes about five minutes and needs no cloud account.</p>
+<p>In this tutorial we load a small bill and the metadata of the workload that ran against it. Then we allocate the bill and follow $10.00 of cost to the Query Execution, dbt Model Execution and Airflow Workload Runs that used it. It takes about five minutes and does not use a cloud account.</p>
 <p class="notice">The inputs are synthetic test fixtures, not real AWS billing records or provider prices.</p>
-<p>Every command in steps 1 to 8, and every output marked as checked, is run by a test on each change to data-finops, so what you see in them is what you will see.</p>
+<p>On each change to data-finops, a test runs each command in steps 1 to 8. The test also checks each output that is marked as checked. Thus what you see in these steps is what you will see.</p>
 
 <h2 id="before-you-start">Before you start</h2>
-<p>You need Python 3.12, <a href="https://docs.astral.sh/uv/">uv</a> and a source checkout, because the tutorial reads the fixtures in <code>fixtures/</code>:</p>
+<p>Before you start, install Python 3.12 and <a href="https://docs.astral.sh/uv/">uv</a>. Also get a source checkout, because the tutorial reads the fixtures in <code>fixtures/</code>:</p>
 <div class="shell-tabs">
 <pre class="shell-posix"><code><span class="line">git clone https://github.com/apmalong/data-finops.git
 </span><span class="line">cd data-finops
@@ -66,10 +66,10 @@
 <h2 id="load">1. Load the bill and the workload</h2>
 <p>We load four kinds of input into one database file, <code>demo.sqlite</code>:</p>
 <ul>
-<li>one FOCUS Export Snapshot with two Billing Lines, $6.00 of Athena and $4.00 of S3;</li>
-<li>the Athena query history;</li>
-<li>the Airflow and dbt OpenLineage events;</li>
-<li>the dbt artifacts.</li>
+<li>one FOCUS Export Snapshot with two Billing Lines, $6.00 of Athena and $4.00 of S3</li>
+<li>the Athena query history</li>
+<li>the Airflow and dbt OpenLineage events</li>
+<li>the dbt artifacts</li>
 </ul>
 <div class="shell-tabs">
 <pre class="shell-posix"><code class="run"><span class="line">data-finops ingest focus fixtures/focus/export-2026-10.json --db demo.sqlite
@@ -114,7 +114,7 @@
 </div>
 <pre class="output checked"><span class="line">serving demo.sqlite at http://127.0.0.1:8000/ (Ctrl+C to stop)
 </span><span class="line">{"summaries":[…"currencies":[{"currency":"USD","billed":"10.00","allocated":[{"category":"direct","confidence":"metered_estimate","amount":"6.00","coverage_min":"1","coverage_max":"1"}],"unallocated":[{"reason":"ineligible","amount":"4.00"}],"adjustments":"0.00","reconciliation_delta":"0.00"}]}],"uncalculated_scopes":[]}</span></pre>
-<p><code>serve</code> keeps running, so run <code>curl</code> in a second terminal. Then open <a href="http://127.0.0.1:8000/">http://127.0.0.1:8000/</a> in a browser. The dashboard shows the same answer:</p>
+<p><code>serve</code> does not stop, so run <code>curl</code> in a second terminal. Then open <a href="http://127.0.0.1:8000/">http://127.0.0.1:8000/</a> in a browser. The dashboard shows the same answer:</p>
 <img src="../assets/tutorial/dashboard-overview.png" alt="The dashboard: a BilledCost total of 10.00 USD with a Reconciliation Delta of 0.00; bars for Direct, metered estimate, Coverage 1, 6.00 and Unallocated, ineligible, 4.00; and Roll-ups of 6.00 to model.demo.orders and to each of three Workload Runs." width="1200" height="1500">
 <ul>
 <li>The BilledCost total is <strong>10.00</strong> USD, and the Reconciliation Delta is <strong>0.00</strong>: every cent of the bill is in exactly one Allocation.</li>
@@ -131,7 +131,7 @@
 </div>
 <pre class="output checked"><span class="line">{"calculation_run_id":"calc-…","total":1,…"target_type":"query_execution","target_id":"q-001","amount":"6.00",…"method":"estimated_metered_share","confidence":"metered_estimate","coverage":"1",…}}]}
 </span><span class="line">{…"items":[{"key":"[\"inv-001\",\"model.demo.orders\"]","totals":[{"currency":"USD","cost_basis":"BilledCost","amount":"6.00"},…]}]}</span></pre>
-<p>The whole $6.00 Athena line goes to Query Execution <code>q-001</code>. The line bills exactly the Billable Usage of the Query Executions known in its billing scope, so Coverage is 1 and <code>q-001</code> gets the line by its Billable Usage. In the dashboard, click <strong>Direct</strong> to open its Cost Explanation:</p>
+<p>The whole $6.00 Athena line goes to Query Execution <code>q-001</code>. The line bills exactly the Billable Usage of the known Query Executions in its billing scope. Thus Coverage is 1, and <code>q-001</code> gets the line by its Billable Usage. In the dashboard, click <strong>Direct</strong> to open its Cost Explanation:</p>
 <img src="../assets/tutorial/dashboard-cost-explanation.png" alt="The Cost Explanation of the 6.00 Allocation: 1, the Billing Line, 6.00 USD of Amazon Athena; 2, the Allocation, Direct, estimated metered share, Coverage 1; 3, the Evidence, Query Execution q-001, Model Execution model.demo.orders, then Workload Runs nearest first; 4, the Roll-ups it contributes to, each 6.00 USD." width="1200" height="2400">
 <p>It reads in order: the Billing Line as exported, the Allocation, the Evidence nearest first, and the Roll-ups. Model Execution <code>model.demo.orders</code> has $6.00, and so do the dbt Workload Run and the Airflow Workload Runs above it. A Roll-up is a sum of Allocations, never a further Allocation.</p>
 
@@ -146,7 +146,7 @@
 <img src="../assets/tutorial/dashboard-lineage.png" alt="The lineage of Workload Run 00000000-0000-4000-8000-000000000002: the runs above it, the dbt Workload Run below it, and its Identity Links, where model.demo.customers is claimed only by q-004, Link Outcome ambiguous, and model.demo.orders by q-001 and q-002, linked, and by q-004, ambiguous." width="1200" height="2400">
 
 <h2 id="unallocated">6. The $4.00 S3 line stays Unallocated</h2>
-<p>In the Cost Summary from step 3, <code>"unallocated":[{"reason":"ineligible","amount":"4.00"}]</code>. No policy allocates S3 storage yet, so its $4.00 stays Unallocated, named with its reason, and is never spread over the Query Executions. The dashboard shows it in the highlight colour.</p>
+<p>In the Cost Summary from step 3, <code>"unallocated":[{"reason":"ineligible","amount":"4.00"}]</code>. No policy allocates S3 storage yet, so its $4.00 stays Unallocated, named with its reason, and is never spread over the Query Executions. The dashboard shows it in the highlight color.</p>
 
 <h2 id="replay">7. Load everything again: nothing changes</h2>
 <div class="shell-tabs">
@@ -175,7 +175,7 @@
 </span><span class="line">dbt: duplicate inv-001
 </span><span class="line">dbt: duplicate inv-001
 </span><span class="line">calculate: 123456789012 2026-10-01 aws-data-exports:FOCUS_1_2_AWS: replay calc-…</span></pre>
-<p>Every input is recognised as one already stored, and the calculation replays the same Calculation Run. The dashboard still shows $10.00. Loading the same inputs twice never counts a cost twice.</p>
+<p>data-finops recognizes each input as an input that is already stored. The calculation gives the same Calculation Run. The dashboard still shows $10.00. If you load the same inputs two times, data-finops never counts a cost two times.</p>
 
 <h2 id="restatement">8. The provider restates the bill</h2>
 <p>Providers republish a month when charges change. Here October is republished with $5.00 of S3, as <code>aws-focus-123456789012-2026-10-v2</code>:</p>
@@ -190,10 +190,16 @@
 <pre class="output checked"><span class="line">focus: new aws-focus-123456789012-2026-10-v2
 </span><span class="line">calculate: 123456789012 2026-10-01 aws-data-exports:FOCUS_1_2_AWS: new calc-…
 </span><span class="line">{"summaries":[…"export_snapshot_id":"aws-focus-123456789012-2026-10-v2"},"currencies":[{"currency":"USD","billed":"11.00",…"unallocated":[{"reason":"ineligible","amount":"5.00"}],"adjustments":"0.00","reconciliation_delta":"0.00"}]}],"uncalculated_scopes":[]}</span></pre>
-<p>The bill is now $11.00 and the new Calculation Run is current. The previous one is kept, not overwritten: ask for <code>/v1/provenance?calculation_run_id=</code> with the first run's ID, and it answers <code>"is_current": false</code> with <code>superseded_by</code> naming the new run.</p>
+<p>The bill is now $11.00 and the new Calculation Run is current. data-finops keeps the previous Calculation Run and does not overwrite it. Ask for <code>/v1/provenance?calculation_run_id=</code> with the ID of the first run. The answer has <code>"is_current": false</code>, and <code>superseded_by</code> names the new run.</p>
 
 <h2 id="next">What we did</h2>
-<p>We loaded a bill and the metadata of the workload behind it, and allocated every Billing Line. Then we followed $6.00 through a Query Execution to its Model Execution and Workload Runs, saw a Model Execution with no Evidence get nothing, saw $4.00 stay Unallocated with its reason, and saw a restated bill make a new Allocation Snapshot while keeping the old one.</p>
+<p>We loaded a bill and the metadata of the workload behind it. Then we allocated each Billing Line. After that, we saw these results:</p>
+<ul>
+<li>$6.00 went through a Query Execution to its Model Execution and Workload Runs.</li>
+<li>A Model Execution with no Evidence got nothing.</li>
+<li>$4.00 stayed Unallocated, with its reason.</li>
+<li>A restated bill made a new Allocation Snapshot and kept the old one.</li>
+</ul>
 <p>To try the whole thing in one command, <code>data-finops demo</code> loads every fixture into a temporary database, calculates, and serves the dashboard until you press Ctrl+C.</p>
 <!-- pager:start -->
 <nav class="pager" aria-label="Previous and next">

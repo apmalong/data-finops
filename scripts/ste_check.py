@@ -82,12 +82,13 @@ BRITISH = _british()
 """British spellings and the American spellings to write in their place (1.14)."""
 
 TECHNICAL_ING = frozenset({
-    "billing", "caching", "encoding", "hashing", "heading", "logging", "mapping", "padding",
-    "pricing", "rounding", "routing", "setting", "staging", "tagging", "warning",
+    "accounting", "billing", "caching", "docstring", "encoding", "engineering", "floating",
+    "hashing", "heading", "logging", "mapping", "padding", "pricing", "rounding", "routing",
+    "setting", "staging", "tagging", "versioning", "warning",
 })  # fmt: skip
 """Technical nouns that end in "-ing" (3.5). GLOSSARY terms pass too. Add a word only when it
 is a noun in every use in our documents."""
-_NOT_VERBS = frozenset({"ceiling", "during", "evening", "morning"})
+_NOT_VERBS = frozenset({"ceiling", "during", "evening", "meaning", "morning"})
 """Words that end in "-ing" but are not verb forms."""
 
 

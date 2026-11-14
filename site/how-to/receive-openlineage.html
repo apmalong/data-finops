@@ -37,7 +37,7 @@
 </li>
 <li><a href="../reference/index.html">Reference</a></li>
 <li><a href="../explanation/index.html">Explanation</a></li>
-<li><a href="../contributing.html">Contributing</a></li>
+<li><a href="../contributing.html">Contribute to data-finops</a></li>
 </ul>
 </nav>
 <!-- nav:end -->
@@ -63,7 +63,7 @@
 </div>
 <pre class="output checked"><span class="line">openlineage: 5 accepted, 0 duplicates, 0 changed copies, 0 unsupported, 0 rejected</span></pre>
 <ul>
-<li><code>duplicates</code>: events already stored with the same content. Loading the file again stores nothing.</li>
+<li><code>duplicates</code>: events already stored with the same content. If you load the file again, nothing is stored.</li>
 <li><code>changed copies</code>: an event already stored, reported again with different content. Both are kept.</li>
 <li><code>unsupported</code>: a JobEvent or DatasetEvent, which data-finops does not read. These do not change the exit code.</li>
 <li><code>rejected</code>: an event that is not a valid RunEvent. The rest of the file is stored, and the command exits with <code>1</code>.</li>
@@ -87,7 +87,7 @@
 </div>
 <pre class="output checked"><span class="line">serving finops.sqlite at http://127.0.0.1:8000/ (Ctrl+C to stop)
 </span><span class="line">{"accepted":1,"duplicates":0,"changed_copies":0}</span></pre>
-<p><code>serve</code> keeps running, so send events from a second terminal. The receiver screens each event exactly as it screens one item of a file:</p>
+<p><code>serve</code> does not stop, so send events from a second terminal. The receiver screens each event exactly as it screens one item of a file:</p>
 <ul>
 <li><code>201</code> with the counts above when the event is stored, or was already there.</li>
 <li><code>202</code> for an unsupported event, which is not stored.</li>
@@ -106,7 +106,7 @@
 </span><span class="line">$env:OPENLINEAGE_ENDPOINT = "api/v1/lineage"</span></code></pre>
 </div>
 <p class="notice">Not run on this page: it configures a client outside data-finops.</p>
-<p>To receive events from another machine, <code>serve</code> needs a token, which the client sends as its API key. See <a href="serve-with-token.html">Serve with a token</a>.</p>
+<p>To receive events from another machine, <code>serve</code> requires a token, which the client sends as its API key. See <a href="serve-with-token.html">Serve with a token</a>.</p>
 <!-- pager:start -->
 <nav class="pager" aria-label="Previous and next">
 <a rel="prev" href="ingest-dbt-artifacts.html">Previous: Ingest dbt artifacts</a>
