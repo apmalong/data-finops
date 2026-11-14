@@ -87,7 +87,7 @@ No drift found: `ingest-flow.d2` (order, tables, caps); `deployment.d2`; `covera
 | build-vs-reuse register, spec 08 | runtime versions are locked and vetted | the Lambda package installs from PyPI with no lock (`infra/pulumi/aws/deployment/package.py`) | #209 |
 | register row 34 | the reference workload's `pulumi preview` "pending approval" | deployed (#22, #24), torn down (#26) | Fixed |
 | spec 08 §Layout, register | pulumi-aws 7.52.1, newer than the two-week rule allows (owner Q23) | `infra/pulumi/aws/pyproject.toml` and `examples/reference-workload` pin 7.52.1; recorded as an exception | Intended (Q23) |
-| deploy how-to, stack README | a test checks the CLI against the SDK | it checks a literal `v3.272.0`; the reference workload pins SDK 3.273.0 | Fixed (wording); #210 |
+| deploy how-to, stack README | a test checks the CLI against the SDK | it checks a literal `v3.272.0`; the reference workload pins SDK 3.273.0 | Fixed in #210: the test reads the installed SDK, and one release is pinned everywhere |
 | teardown how-to | checks in AWS "that nothing … is left" | checks the main resources in AWS, the rest through the state | Fixed (wording); #213 |
 | bill-is-authoritative page | reconciled "when an Export Snapshot is loaded" | only tests and `scripts/reconcile_delivery.py` reconcile | Fixed (wording); #212 |
 | security-model page | a Cost Explanation always shows the full line | ADR 0028: full in `serve` by default, minimal in a Deployment by default | Fixed |

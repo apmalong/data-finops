@@ -6,7 +6,7 @@ Pulumi Python components that deploy data-finops into one AWS account (spec 08, 
 
 - **Owner-only:** every `pulumi preview`, `pulumi up` and `pulumi destroy` against a real account needs the account owner's explicit approval (`docs/implementation/execution-permissions.md`). The owner runs them through the deploy wizard (spec 08, owner-only steps); an agent never does.
 - **Local state:** state is kept locally under the repository's git-ignored `.local/`. The program refuses any `PULUMI_BACKEND_URL` that is not `file://` (ADR 0001).
-- **Pinned CLI:** the Pulumi CLI is pinned to the SDK's release, 3.272.0. A test checks the installed CLI against that release, written in the test (#210 makes it read the SDK's pin).
+- **Pinned CLI:** the Pulumi CLI is pinned to the SDK's release, 3.272.0. A test checks the installed CLI against the release of the installed SDK. Another test checks that the stack, the policy pack, the reference workload, CI and the wizards name one release.
 
 ## Offline checks (what CI runs)
 

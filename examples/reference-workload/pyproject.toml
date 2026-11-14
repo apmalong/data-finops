@@ -9,7 +9,7 @@ dependencies = [
     "openlineage-dbt==1.54.0 ; sys_platform != 'win32'",
     "openlineage-python==1.54.0",
     "openlineage-sql==1.54.0 ; sys_platform != 'win32'",
-    "pulumi==3.273.0",
+    "pulumi==3.272.0",
     "pulumi-aws==7.52.1",
 ]
 
