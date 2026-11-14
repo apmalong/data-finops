@@ -346,3 +346,11 @@ def test_quoted_text_is_not_checked_for_words() -> None:
 
 def test_a_latin_abbreviation_does_not_end_a_sentence() -> None:
     assert _rules("A, e.g. b. C, i.e. d. E vs. f. G. H. I.") == []
+
+
+def test_a_comment_marker_inside_a_code_span_does_not_start_a_skipped_region() -> None:
+    text = "- Stamped between `<!-- onpage:start -->` and `<!-- onpage:end -->`.\n\nYou should."
+    plain = "Write `<!--` to start a comment.\n\nYou should."
+
+    assert _rules(text) == ["should"]
+    assert _rules(plain) == ["should"]
