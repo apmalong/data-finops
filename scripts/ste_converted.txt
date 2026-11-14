@@ -42,3 +42,10 @@ examples/demo/README.md
 examples/reference-workload/README.md
 fixtures/reference-workload/README.md
 infra/pulumi/aws/README.md
+
+# #238 part 1: specs 01-05.
+docs/specs/01-product.md
+docs/specs/02-data-contracts.md
+docs/specs/03-attribution.md
+docs/specs/04-integrations.md
+docs/specs/05-security-operations.md

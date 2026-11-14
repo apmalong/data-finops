@@ -1,29 +1,48 @@
 # Product requirements and scope
 
 ## Personas
-Data platform engineer, data reliability engineer, platform owner, FinOps analyst. Customer-managed deployment, no subscription required.
+Data platform engineer, data reliability engineer, platform owner, FinOps analyst. The deployment is customer-managed, and a subscription is not necessary.
 
 ## MVP user journeys
-1. Launch local demo with one command; inspect the Cost Summary, Roll-ups to Model Executions, Unallocated and Idle amounts, lineage and provenance (spec 06).
-2. Import synthetic AWS billing lines and Athena query executions; ingest OpenLineage run events and dbt `manifest.json` / `run_results.json`.
-3. Resolve deterministic query-to-dbt-to-Airflow identity using explicit IDs; present unattributed costs when IDs absent.
-4. Explain any Allocation from Billing Line through Query Execution and Model Execution to Workload Run (the Cost Explanation, spec 06; data products are deferred, ADR 0016).
-5. Re-run same inputs without increasing allocated costs; apply corrected billing snapshot with deterministic replacement.
-6. Configure optional AWS ingestion and deploy via Pulumi after demo passes.
+1. Start the local demo with one command. Examine the Cost Summary and the Roll-ups to Model Executions. Also examine the Unallocated and Idle amounts, the lineage and the provenance (spec 06).
+2. Import synthetic AWS billing lines and Athena query executions. Ingest OpenLineage run events and the dbt `manifest.json` and `run_results.json`.
+3. Use explicit IDs to resolve the identity of a query, its dbt model and its Airflow run deterministically. If the IDs are not there, show the costs that are not attributed.
+4. Explain each Allocation from the Billing Line through the Query Execution and the Model Execution to the Workload Run. This is the Cost Explanation (spec 06). Data products are deferred (ADR 0016).
+5. Run the same inputs again, and make sure that the allocated costs do not increase. Apply a corrected billing snapshot, which replaces the earlier one deterministically.
+6. After the demo passes, configure the optional AWS ingestion and deploy through Pulumi.
 
 ## MVP scope
-AWS Athena **on-demand query scan charges** only for direct job attribution, plus generic shared/idle/unallocated cost pools for demonstration. Other AWS cost categories remain unallocated until explicit allocators exist. No assertion that Athena billed bytes always map 1:1 to invoice charges: free tiers, minimums, discounts, credits, rounding, pricing changes and billing adjustments matter.
+For direct job attribution, the MVP allocates only AWS Athena **on-demand query scan charges**. It also has generic cost pools (shared, idle and unallocated) for the demonstration. Other AWS cost categories stay unallocated until explicit allocators exist.
 
-Airflow/OpenLineage run hierarchy; dbt artifact ingestion; query-ID correlation via provider metadata/query comments when available; HTML API/dashboard; JSON/Parquet fixture ingestion; SQLite local store (ADR 0018); optional Postgres later.
+The MVP does not say that Athena billed bytes always map 1:1 to invoice charges. Free tiers, minimums, discounts, credits, rounding, pricing changes and billing adjustments are important.
+
+The MVP also includes:
+- the Airflow and OpenLineage run hierarchy
+- dbt artifact ingestion
+- query-ID correlation through provider metadata or query comments, when they are available
+- an HTML API and dashboard
+- JSON and Parquet fixture ingestion
+- a local SQLite store (ADR 0018), and optional Postgres later
 
 ## Next releases (interfaces only in MVP)
-GCP BigQuery on-demand and capacity/reservation allocation, S3/GCS storage, ECS/Fargate, Glue, Cloud Run, Dataflow, Snowflake, dlt, Dagster, Prefect, OpenTelemetry, QuickSight, Tableau, Looker, Power BI, OpenCost/K8s, optimizer recommendations, unit economics, policy guardrails.
+- GCP: BigQuery on-demand and capacity/reservation allocation, GCS storage, Cloud Run, Dataflow
+- AWS: S3 storage, ECS/Fargate, Glue
+- data platforms and orchestrators: Snowflake, dlt, Dagster, Prefect
+- telemetry: OpenTelemetry
+- BI tools: QuickSight, Tableau, Looker, Power BI
+- Kubernetes: OpenCost/K8s
+- features: optimizer recommendations, unit economics, policy guardrails
 
 ## Nonfunctional
-- Offline demo <= 5 minutes on developer laptop after dependencies installed.
-- Idempotent event ingestion, deterministic replay, bounded memory for fixtures, UTC timestamps, explicit currency, no hidden allocation of unknown cost.
-- Configurable ingestion lookback and reprocessing; zero mandatory always-on lineage service.
-- Cost overhead measurable and documented; no claim of <15-minute AWS install until measured.
+- The offline demo takes 5 minutes or less on a developer laptop, after the dependencies are installed.
+- Event ingestion is idempotent, and replay is deterministic. Memory for fixtures is bounded. Timestamps are UTC, and currency is explicit. Unknown cost is never allocated in a hidden way.
+- You can configure the ingestion lookback, and whether and when data is processed again. A lineage service that is always on is not mandatory.
+- The cost overhead is measurable and documented. Do not claim an AWS install of less than 15 minutes until it is measured.
 
 ## Success measures
-100% of eligible fixture billing cost reconciled; no duplicate cost under repeated ingestion; all displayed amounts traceable; ambiguous matches remain unallocated; no third-party code with missing license provenance; test suite passes offline.
+- 100% of the eligible fixture billing cost is reconciled.
+- Repeated ingestion does not duplicate a cost.
+- Each displayed amount is traceable.
+- Ambiguous matches stay unallocated.
+- All third-party code has license provenance.
+- The test suite passes offline.
