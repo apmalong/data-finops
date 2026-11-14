@@ -84,6 +84,7 @@ def test_lambdas_limit_is_250_mb() -> None:
     reason="downloads the arm64 wheels; the infra CI job sets DATA_FINOPS_BUILD_PACKAGE=1",
 )
 def test_the_real_package_builds_from_the_checkout(tmp_path: Path) -> None:
+    locked = _locked_versions()  # read first: a build that rewrites the lock must still fail
     package = build(REPO, tmp_path / "data-finops-lambda.zip")
     with zipfile.ZipFile(package) as archive:
         names = set(archive.namelist())
@@ -99,7 +100,7 @@ def test_the_real_package_builds_from_the_checkout(tmp_path: Path) -> None:
     assert header[:4] == b"ELF"
     assert int.from_bytes(header[18:20], "little") == 183  # e_machine EM_AARCH64: arm64
     installed = _installed_versions(names)
-    assert installed == _locked_versions(set(installed))  # uv.lock's versions, not PyPI's newest
+    assert installed == {name: locked.get(name) for name in installed}  # not PyPI's newest
 
 
 def _normalized(name: str) -> str:
@@ -113,8 +114,7 @@ def _installed_versions(names: set[str]) -> dict[str, str | None]:
     return {_normalized(name): version for name, version in pairs if name != "data_finops"}
 
 
-def _locked_versions(wanted: set[str]) -> dict[str, str | None]:
-    """uv.lock's version of each wanted distribution (None when the lock does not have it)."""
+def _locked_versions() -> dict[str, str | None]:
+    """uv.lock's version of each distribution, by normalized name."""
     with (REPO / "uv.lock").open("rb") as file:
-        locked = {_normalized(p["name"]): p.get("version") for p in tomllib.load(file)["package"]}
-    return {name: locked.get(name) for name in wanted}
+        return {_normalized(p["name"]): p.get("version") for p in tomllib.load(file)["package"]}
