@@ -2,19 +2,19 @@
 
 Status (2026-11-07): **M0–M6 complete.**
 - **Built:**
-  - a FOCUS billing Ledger, verified against a real AWS export;
-  - workload metadata from OpenLineage, dbt and Athena, and query correlation;
-  - a deterministic allocation engine, its Athena policies checked against the real export (#91);
-  - a local API and dashboard;
-  - read-only collection from AWS (`data-finops collect`);
-  - an optional AWS Deployment in Pulumi, with a policy pack and owner-run deploy and teardown wizards (`infra/pulumi/aws/`). It has not been deployed to a real account yet.
-- **In progress, M7 (#220):** a public demo dashboard, Cost Dimensions, and a comparison with AWS's own cost tools. Designed in spec 09, not built yet.
+  - a FOCUS billing Ledger, verified against a real AWS export
+  - workload metadata from OpenLineage, dbt and Athena, and query correlation
+  - a deterministic allocation engine, with its Athena policies checked against the real export (#91)
+  - a local API and dashboard
+  - read-only collection from AWS (`data-finops collect`)
+  - an optional AWS Deployment in Pulumi, with a policy pack and owner-run deploy and teardown wizards (`infra/pulumi/aws/`). It is not deployed to a real account yet.
+- **In progress, M7 (#220):** a public demo dashboard, Cost Dimensions, and a comparison with AWS's own cost tools. Spec 09 gives the design. It is not built yet.
 - **Not built yet:** a PyPI package.
 
 Version 0.1.
 
 ## Quick start
-Run the offline demo, which needs no cloud account. You need Python 3.12, [uv](https://docs.astral.sh/uv/) and a source checkout:
+The offline demo does not use a cloud account. To run it, install Python 3.12 and [uv](https://docs.astral.sh/uv/). Then get a source checkout and start the demo:
 
 ```sh
 git clone https://github.com/apmalong/data-finops.git
@@ -23,26 +23,38 @@ uv sync --extra api --frozen
 uv run data-finops demo        # open http://127.0.0.1:8000/
 ```
 
-The tutorial [Your first allocation](https://apmalong.github.io/data-finops/tutorials/first-allocation.html) walks through what you see, one step and one command at a time. `uv run data-finops --help` lists the commands.
+The tutorial [Your first allocation](https://apmalong.github.io/data-finops/tutorials/first-allocation.html) explains what you see, with one step and one command at a time. `uv run data-finops --help` lists the commands.
 
 ## Documentation
-The documentation for people who run data-finops is at <https://apmalong.github.io/data-finops/>: tutorials, how-to guides, reference and explanation. It is published from `site/` on every push to `main` (ADR 0025, spec 07).
+The documentation for people who run data-finops is at <https://apmalong.github.io/data-finops/>. It has tutorials, how-to guides, reference and explanation. After each push to `main`, a GitHub Actions workflow publishes it from `site/` (ADR 0025, spec 07).
 
 ## Mission
-Build a free, open-source, customer-managed, modular FinOps application for data engineering workloads. Attribute authoritative cloud charges to queries, runs, pipelines, models, datasets, data products, tenants, and downstream consumers without double counting. Deliver a small usable AWS Athena + Airflow/OpenLineage + dbt vertical slice first.
+Build a free, open-source, customer-managed, modular FinOps application for data engineering workloads. Attribute authoritative cloud charges to queries, runs, pipelines, models, datasets, data products, tenants and downstream consumers. Count each charge one time only. First, deliver a small usable vertical slice: AWS Athena, Airflow and OpenLineage, and dbt.
 
 ## Start here (contributors)
 1. Read `AGENTS.md` and `docs/specs/01-product.md`.
-2. Read every ADR under `docs/adr/` before changing architecture.
-3. Read `docs/specs/02-data-contracts.md`, `03-attribution.md`, `04-integrations.md`, and `05-security-operations.md`.
-4. Implement phases in `docs/implementation/plan.md` in order, using `docs/implementation/acceptance.md` as the definition of done.
-5. Consult `docs/research/upstream-audit.md` before reusing third-party source.
+2. Before you change the architecture, read every ADR in `docs/adr/`.
+3. Read `docs/specs/02-data-contracts.md`, `03-attribution.md`, `04-integrations.md` and `05-security-operations.md`.
+4. Implement the phases in `docs/implementation/plan.md` in their order. `docs/implementation/acceptance.md` is the definition of done.
+5. Before you reuse third-party source code, read `docs/research/upstream-audit.md`.
 
 ## Non-goals for MVP
-No production AWS account required for local demo. No automatic remediation, no LLM-based attribution, no mandatory Marquez/OpenCost/Grafana, no production secrets in fixtures, no assertion that time overlap proves ownership.
+- The local demo does not use a production AWS account.
+- No automatic remediation.
+- No attribution by an LLM.
+- Marquez, OpenCost and Grafana are not mandatory.
+- No production secrets in fixtures.
+- The product does not say that time overlap proves ownership.
 
 ## Deliverables
-Python package, local runnable API, synthetic end-to-end demo, deterministic ledger, tests, optional Pulumi AWS deployment, license/provenance records, operator documentation.
+- a Python package
+- a local API that you can run
+- a synthetic end-to-end demo
+- a deterministic ledger
+- tests
+- an optional Pulumi deployment to AWS
+- license and provenance records
+- operator documentation
 
 ## Run the checks
 Install Python 3.12 and `uv`. Then make the environment of each project from its committed lockfile:
@@ -54,7 +66,7 @@ uv sync --frozen --directory infra/pulumi/aws/policy
 uv sync --frozen --directory infra/pulumi/aws
 ```
 
-If you change the dependencies of a project, run `uv lock` in that project. Then examine and commit its `uv.lock`.
+If you change the dependencies of a project, run `uv lock` in that project. Examine the new `uv.lock`. Then commit it.
 
 Then run all the checks with one command:
 
@@ -69,4 +81,4 @@ To check the documents against the Simplified Technical English rules, run `pyth
 Some tests of the policy pack and the stack use the Pulumi CLI 3.272.0. A cloud account is not necessary.
 
 ## Standards and reuse policy
-See `docs/adr/0014-standards-first-and-build-vs-reuse.md`, `docs/research/standards-conformance-matrix.md`, and `docs/research/build-vs-reuse-register.md` before implementing integrations. The matrices distinguish intended compatibility from verified conformance.
+Before you implement an integration, read `docs/adr/0014-standards-first-and-build-vs-reuse.md`, `docs/research/standards-conformance-matrix.md` and `docs/research/build-vs-reuse-register.md`. The matrices show the difference between intended compatibility and verified conformance.

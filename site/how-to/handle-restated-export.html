@@ -37,7 +37,7 @@
 </li>
 <li><a href="../reference/index.html">Reference</a></li>
 <li><a href="../explanation/index.html">Explanation</a></li>
-<li><a href="../contributing.html">Contributing</a></li>
+<li><a href="../contributing.html">Contribute to data-finops</a></li>
 </ul>
 </nav>
 <!-- nav:end -->
@@ -68,7 +68,7 @@
 <pre class="output checked"><span class="line">focus: new aws-focus-123456789012-2026-10-v1
 </span><span class="line">calculate: 123456789012 2026-10-01 aws-data-exports:FOCUS_1_2_AWS: new calc-…
 </span><span class="line">serving finops.sqlite at http://127.0.0.1:8000/ (Ctrl+C to stop)</span></pre>
-<p><code>serve</code> keeps running, so run the rest in a second terminal.</p>
+<p><code>serve</code> does not stop, so run the other commands in a second terminal.</p>
 
 <h2 id="restated">Load the restated Export Snapshot and recalculate</h2>
 <div class="shell-tabs">
@@ -104,7 +104,7 @@
 </div>
 <pre class="output checked"><span class="line">focus: new aws-focus-123456789012-2026-10-v2
 </span><span class="line">focus: superseded aws-focus-123456789012-2026-10-v1</span></pre>
-<p>The earlier publication is stored as a Superseded Snapshot, and the latest publication stays current, whatever the order of loading (ADR 0020). Loading an Export Snapshot that is already stored prints <code>replay</code> and stores nothing.</p>
+<p>The earlier publication is stored as a Superseded Snapshot, and the latest publication stays current, in any load order (ADR 0020). If you load an Export Snapshot that is already stored, the command prints <code>replay</code> and stores nothing.</p>
 <!-- pager:start -->
 <nav class="pager" aria-label="Previous and next">
 <a rel="prev" href="calculate.html">Previous: Calculate Allocations</a>

@@ -5,7 +5,7 @@ The walkthrough is now the documentation site's tutorial, **Your first allocatio
 (source: `site/tutorials/first-allocation.html`). A test runs its commands on every change
 (`tests/integration/test_m5_exit.py`).
 
-The quick way, from a source checkout with `uv sync --extra api --frozen`:
+For a quick start, run `uv sync --extra api --frozen` in a source checkout. Then run this command:
 
 ```sh
 uv run data-finops demo        # open http://127.0.0.1:8000/

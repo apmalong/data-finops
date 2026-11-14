@@ -29,7 +29,7 @@
 </ul>
 </li>
 <li><a href="../explanation/index.html">Explanation</a></li>
-<li><a href="../contributing.html">Contributing</a></li>
+<li><a href="../contributing.html">Contribute to data-finops</a></li>
 </ul>
 </nav>
 <!-- nav:end -->
@@ -56,7 +56,7 @@
 <ul>
 <li>Amounts are Decimal strings, never floating-point numbers.</li>
 <li>Errors are Problem Details (RFC 9457, <code>application/problem+json</code>). They name the field at fault and never echo what was sent.</li>
-<li>The server listens on loopback unless told otherwise. With a token configured, every route needs <code>Authorization: Bearer &lt;token&gt;</code>.</li>
+<li>The server listens on loopback unless told otherwise. If a token is configured, each route requires <code>Authorization: Bearer &lt;token&gt;</code>.</li>
 <li>Lists are paged with <code>limit</code> (default 100, at most 1000) and <code>offset</code>.</li>
 </ul>
 <!-- reference:start -->

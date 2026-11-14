@@ -37,7 +37,7 @@
 </li>
 <li><a href="../reference/index.html">Reference</a></li>
 <li><a href="../explanation/index.html">Explanation</a></li>
-<li><a href="../contributing.html">Contributing</a></li>
+<li><a href="../contributing.html">Contribute to data-finops</a></li>
 </ul>
 </nav>
 <!-- nav:end -->
@@ -56,12 +56,21 @@
 <!-- onpage:end -->
 <p><code>pulumi destroy</code> removes a Deployment. By default it keeps the bucket, with the database and the Inbox in it, so a mistaken destroy loses no data. This guide removes a Deployment either way and lists what is left behind.</p>
 <p class="notice">Owner-run: not run on this page. Every command here reaches a real AWS account, and the deploy creates resources that cost money. Only the account owner runs <code>pulumi preview</code>, <code>pulumi up</code> and <code>pulumi destroy</code> against a real account.</p>
-<p>The owner can follow this page by hand, or run it as one wizard: <a href="https://github.com/apmalong/data-finops/blob/main/infra/pulumi/aws/wizards/teardown.sh"><code>teardown.sh</code></a>. It runs every step below, then tears down the reference workload too, and checks that each stack's state is empty, and that the main resources are gone in AWS: the functions, the producer and reader policies, the bucket if you chose to delete it, and the reference workload's bucket, Glue database, workgroup and Budget. It asks before every step that changes anything, and masks account IDs, buckets, profiles and the API's URL in everything it shows and records. From the repository root:</p>
+<p>The owner can follow this page by hand, or run it as one wizard: <a href="https://github.com/apmalong/data-finops/blob/main/infra/pulumi/aws/wizards/teardown.sh"><code>teardown.sh</code></a>. The wizard does these things:</p>
+<ul>
+<li>It runs each step below.</li>
+<li>It also tears down the reference workload.</li>
+<li>It checks that the state of each stack is empty.</li>
+<li>It checks that the main resources are gone in AWS. These are the functions, the producer and reader policies, and the bucket if you chose to delete it. They also include the bucket, Glue database, workgroup and Budget of the reference workload.</li>
+<li>It asks before each step that changes something.</li>
+<li>It masks account IDs, buckets, profiles and the URL of the API in all that it shows and records.</li>
+</ul>
+<p>From the root of the repository, run the wizard:</p>
 <div class="shell-tabs">
 <pre class="shell-posix"><code><span class="line">bash infra/pulumi/aws/wizards/teardown.sh</span></code></pre>
 <pre class="shell-windows"><code><span class="line">&amp; "C:\Program Files\Git\bin\bash.exe" infra/pulumi/aws/wizards/teardown.sh</span></code></pre>
 </div>
-<p>On Windows it needs Git Bash, not WSL's <code>bash</code>. Its masked record is written to <code>.local/</code>.</p>
+<p>On Windows, it requires Git Bash, not the <code>bash</code> of WSL. Its masked record is written to <code>.local/</code>.</p>
 
 <h2 id="before">Before you destroy</h2>
 <p>Detach the producer and reader policies from every identity they were attached to. IAM refuses to delete a managed policy that is still attached, and the destroy stops there:</p>
@@ -80,8 +89,8 @@
 <pre class="shell-posix"><code><span class="line">pulumi destroy</span></code></pre>
 <pre class="shell-windows" data-derived=""><code><span class="line">pulumi destroy</span></code></pre>
 </div>
-<p>This deletes the functions, their log groups and roles, the schedule, the Function URL, the producer and reader policies, the alarm and its topic, the Budget, and the Lambda package object. Versioning keeps the package's last version, about 66 MB, until <code>noncurrentVersionDays</code> expire it. It keeps the bucket and every setting on it: the public access blocks, encryption, versioning, the expiry rules and the TLS-only policy. The bucket leaves the stack's state, so a later <code>pulumi up</code> would try to create a new bucket with a new name, not adopt this one.</p>
-<p>While the bucket is kept, its storage is billed and its expiry rules keep running: Inbox objects expire after <code>inboxRetentionDays</code> and old object versions after <code>noncurrentVersionDays</code>. To delete it later, empty it in the S3 console, which deletes every version, then delete it.</p>
+<p>This command deletes the functions, their log groups and roles, the schedule and the Function URL. It also deletes the producer and reader policies, the alarm and its topic, the Budget, and the Lambda package object. S3 Versioning keeps the last version of the package, about 66 MB, until it expires after <code>noncurrentVersionDays</code>. The command keeps the bucket and each setting on it: the public access blocks, encryption, versioning, the expiry rules and the TLS-only policy. The bucket leaves the state of the stack. Thus a later <code>pulumi up</code> tries to create a new bucket with a new name, and does not adopt this bucket.</p>
+<p>While the bucket is kept, AWS bills its storage, and its expiry rules continue to operate. Inbox objects expire after <code>inboxRetentionDays</code>, and old object versions expire after <code>noncurrentVersionDays</code>. To delete the bucket later, empty it in the S3 console, which deletes each version. Then delete the bucket.</p>
 
 <h2 id="delete">Destroy and delete the data</h2>
 <p>To delete the bucket with everything in it, every version included, change the setting and apply it first. The stack records whether to keep the bucket when it is deployed, not when it is destroyed:</p>
@@ -93,7 +102,7 @@
 </span><span class="line">pulumi up
 </span><span class="line">pulumi destroy</span></code></pre>
 </div>
-<p>This cannot be undone. Download the database first if you may want it: see <a href="read-deployment.html#dashboard">Read a Deployment</a>.</p>
+<p>This cannot be undone. If you think that you will want the database later, download it first. See <a href="read-deployment.html#dashboard">Read a Deployment</a>.</p>
 
 <h2 id="after">What is left</h2>
 <ul>

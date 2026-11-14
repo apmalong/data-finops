@@ -37,7 +37,7 @@
 </li>
 <li><a href="../reference/index.html">Reference</a></li>
 <li><a href="../explanation/index.html">Explanation</a></li>
-<li><a href="../contributing.html">Contributing</a></li>
+<li><a href="../contributing.html">Contribute to data-finops</a></li>
 </ul>
 </nav>
 <!-- nav:end -->
@@ -76,7 +76,7 @@
 <pre class="shell-windows" data-derived=""><code><span class="line">data-finops ingest focus fixtures/focus/export-2026-10.json --db finops.sqlite</span></code></pre>
 </div>
 <pre class="output checked"><span class="line">focus: replay aws-focus-123456789012-2026-10-v1</span></pre>
-<p>A replay stores nothing, so you can rerun an ingest without making copies. Which Export Snapshot is current depends on the provider's publication time, never on the order you load them in (ADR 0020).</p>
+<p>A replay stores nothing, so you can run an ingest again and get no copies. Which Export Snapshot is current depends on the provider's publication time, never on the order you load them in (ADR 0020).</p>
 
 <h2 id="delivery">Load an AWS Data Exports Delivery</h2>
 <p>AWS Data Exports writes each Delivery as a manifest, <code>&lt;export&gt;-Manifest.json</code>, and its data files. Download both, then give <code>ingest focus</code> the manifest:</p>
@@ -84,20 +84,20 @@
 <pre class="shell-posix"><code><span class="line">data-finops ingest focus &lt;download-dir&gt;/&lt;export&gt;-Manifest.json --data-dir &lt;data-files-dir&gt; --db finops.sqlite</span></code></pre>
 <pre class="shell-windows" data-derived=""><code><span class="line">data-finops ingest focus &lt;download-dir&gt;/&lt;export&gt;-Manifest.json --data-dir &lt;data-files-dir&gt; --db finops.sqlite</span></code></pre>
 </div>
-<p class="notice">Not run on this page: it needs a Delivery downloaded from AWS.</p>
+<p class="notice">Not run on this page: it requires a Delivery downloaded from AWS.</p>
 <ul>
 <li><code>--data-dir</code> names where the data files were downloaded. Leave it out when they are beside the manifest.</li>
 <li>The publication time comes from the manifest, never from file times or the time you load it.</li>
 </ul>
 
 <h2 id="collect">Collect Deliveries on a schedule</h2>
-<p>A Collection Run finds and loads Deliveries itself. Run one from your machine with <code>data-finops collect</code>, as <a href="send-to-inbox.html#collect">Send workload metadata to the Inbox</a> shows; a Deployment runs one every day. Set the export to <strong>create new</strong> files when it updates a period, in the Data Exports console. Each Delivery then has a folder of its own, and its publication time comes from that folder. A Collection Run refuses an export that overwrites its files, and warns.</p>
-<p>For the <code>billing_lookback_periods</code> most recent Billing Periods (default 2, at most 24), a Collection Run:</p>
+<p>A Collection Run finds and loads Deliveries itself. Run one from your machine with <code>data-finops collect</code>, as <a href="send-to-inbox.html#collect">Send workload metadata to the Inbox</a> shows. A Deployment runs one every day. Set the export to <strong>create new</strong> files when it updates a period, in the Data Exports console. Each Delivery then has a folder of its own, and its publication time comes from that folder. A Collection Run refuses an export that overwrites its files, and shows a warning.</p>
+<p>For the <code>billing_lookback_periods</code> most recent Billing Periods (default 2, at most 24), a Collection Run does these steps:</p>
 <ul>
-<li>finds each Delivery whose two manifests have been written. A Delivery still being written is left for a later run, and a Delivery already taken is never downloaded again;</li>
-<li>loads every Delivery newer than the current Export Snapshot of its Snapshot Scope, oldest first, so the newest becomes current and the others are kept as Superseded Snapshots;</li>
-<li>downloads only the data files the manifest lists, and only from that Delivery's folder in the export. A manifest naming any other file is rejected unread;</li>
-<li>refuses a data file over 2 GiB, or a Delivery whose data files exceed 8 GiB together, before downloading any of them.</li>
+<li>It finds each Delivery whose two manifests are written. A Delivery that AWS still writes stays for a later run. A Delivery that a run took before is never downloaded again.</li>
+<li>It loads each Delivery that is newer than the current Export Snapshot of its Snapshot Scope, oldest first. Thus the newest becomes current, and the others are kept as Superseded Snapshots.</li>
+<li>It downloads only the data files that the manifest lists, and only from the folder of that Delivery in the export. If a manifest names a different file, data-finops rejects the manifest and does not read that file.</li>
+<li>Before it downloads a file of a Delivery, it refuses the Delivery if its data files are more than 8 GiB together. It also refuses each data file over 2 GiB.</li>
 </ul>
 <p>A refused Delivery is named by its folder and the reason, and the run exits with <code>1</code>.</p>
 

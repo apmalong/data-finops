@@ -37,7 +37,7 @@
 </li>
 <li><a href="../reference/index.html">Reference</a></li>
 <li><a href="../explanation/index.html">Explanation</a></li>
-<li><a href="../contributing.html">Contributing</a></li>
+<li><a href="../contributing.html">Contribute to data-finops</a></li>
 </ul>
 </nav>
 <!-- nav:end -->
@@ -62,17 +62,17 @@
 <h2 id="layout">What goes where</h2>
 <ul>
 <li><code>inbox/openlineage/</code>: OpenLineage event files, one event per file or JSON Lines. Each event is capped at 1 MiB, as on every other path.</li>
-<li><code>inbox/dbt/&lt;invocation&gt;/</code>: one dbt invocation's <code>manifest.json</code> and <code>run_results.json</code>. A folder is collected once both files are there. Until then, each Collection Run reports it as waiting.</li>
+<li><code>inbox/dbt/&lt;invocation&gt;/</code>: one dbt invocation's <code>manifest.json</code> and <code>run_results.json</code>. A folder is collected when both files are in it. Until then, each Collection Run shows the warning <code>&lt;folder&gt;/: waiting for &lt;files&gt;</code>.</li>
 </ul>
 <p>Every file is capped at 512 MiB. A larger file is rejected by its key and never downloaded.</p>
 
 <h2 id="grant">Give the producer access</h2>
-<p>The identity that writes needs only <code>s3:PutObject</code> on <code>inbox/*</code>. The stack outputs <code>producerPolicyArn</code>, a managed policy that grants exactly that. Attach it to the role your Airflow or dbt runs as, for example:</p>
+<p>The identity that writes requires only <code>s3:PutObject</code> on <code>inbox/*</code>. The stack outputs <code>producerPolicyArn</code>, a managed policy that grants exactly that. Attach it to the role your Airflow or dbt runs as, for example:</p>
 <div class="shell-tabs">
 <pre class="shell-posix"><code><span class="line">aws iam attach-role-policy --role-name &lt;producer role&gt; --policy-arn &lt;producerPolicyArn&gt; --profile &lt;admin profile&gt;</span></code></pre>
 <pre class="shell-windows" data-derived=""><code><span class="line">aws iam attach-role-policy --role-name &lt;producer role&gt; --policy-arn &lt;producerPolicyArn&gt; --profile &lt;admin profile&gt;</span></code></pre>
 </div>
-<p>With <code>kmsKeyArn</code> set, writing an object also needs <code>kms:GenerateDataKey</code> on that key, which the producer policy does not grant yet: grant it to the producer yourself. The producer cannot read, list or delete what is in the Inbox. The bucket is the <code>bucket</code> output. Both outputs are listed by <code>pulumi stack output</code>; see <a href="deploy-to-aws.html#deploy">Deploy to AWS</a>.</p>
+<p>If <code>kmsKeyArn</code> is set, a write of an object also requires <code>kms:GenerateDataKey</code> on that key. The producer policy does not give this permission yet, so give it to the producer yourself. The producer cannot read, list or delete what is in the Inbox. The bucket is the <code>bucket</code> output. <code>pulumi stack output</code> lists both outputs. See <a href="deploy-to-aws.html#deploy">Deploy to AWS</a>.</p>
 
 <h2 id="openlineage">Write OpenLineage events</h2>
 <p>Have the OpenLineage client write events to local files with its file transport, for example in <code>openlineage.yml</code>:</p>
@@ -84,10 +84,10 @@
 <pre class="shell-posix"><code><span class="line">aws s3 sync lineage/ s3://example-deployment-bucket/inbox/openlineage/</span></code></pre>
 <pre class="shell-windows" data-derived=""><code><span class="line">aws s3 sync lineage/ s3://example-deployment-bucket/inbox/openlineage/</span></code></pre>
 </div>
-<p>The file transport can also write to an <code>s3://</code> path directly through fsspec, which needs the <code>s3fs</code> package installed beside the client. That set-up has not been verified with data-finops.</p>
+<p>The file transport can also write to an <code>s3://</code> path directly through fsspec, which requires the <code>s3fs</code> package installed beside the client. That set-up has not been verified with data-finops.</p>
 
 <h2 id="dbt">Write dbt artifacts</h2>
-<p>After each <code>dbt run</code> or <code>dbt build</code>, copy the two artifacts into a folder named after the invocation. The folder name is your choice; data-finops reads the invocation from the files themselves:</p>
+<p>After each <code>dbt run</code> or <code>dbt build</code>, copy the two artifacts into a folder named after the invocation. You choose the folder name. data-finops reads the invocation from the files:</p>
 <div class="shell-tabs">
 <pre class="shell-posix"><code><span class="line">aws s3 cp target/manifest.json s3://example-deployment-bucket/inbox/dbt/inv-001/manifest.json
 </span><span class="line">aws s3 cp target/run_results.json s3://example-deployment-bucket/inbox/dbt/inv-001/run_results.json</span></code></pre>
@@ -109,15 +109,17 @@
 </span><span class="line">export_prefix = "focus"
 </span><span class="line">export_name = "example-focus-1-2"
 </span><span class="line">profile = "your-profile"</span></pre>
-<p><code>account_id</code> and <code>workgroups</code> name the Athena workgroups whose query history is collected too; see <a href="ingest-athena-history.html#collect">Ingest Athena query history</a>. The three <code>export_</code> settings name the FOCUS export, as configured in Data Exports; see <a href="ingest-focus-export.html#collect">Ingest a FOCUS export</a>. <code>profile</code> is optional. An unknown setting is refused, so a typo never does nothing quietly. Then collect into a database:</p>
+<p><code>account_id</code> and <code>workgroups</code> name the Athena workgroups. The run also collects the query history of these workgroups. See <a href="ingest-athena-history.html#collect">Ingest Athena query history</a>. The three <code>export_</code> settings name the FOCUS export, as it is configured in Data Exports. See <a href="ingest-focus-export.html#collect">Ingest a FOCUS export</a>.</p>
+<p><code>profile</code> is optional. data-finops refuses an unknown setting. Thus a typo never fails silently. Then collect into a database:</p>
 <div class="shell-tabs">
 <pre class="shell-posix"><code><span class="line">data-finops collect --db finops.sqlite --config collect.toml</span></code></pre>
 <pre class="shell-windows" data-derived=""><code><span class="line">data-finops collect --db finops.sqlite --config collect.toml</span></code></pre>
 </div>
-<p><code>collect</code> prints one line of JSON, the Collection Run's summary: for each source, how many items were stored, how many were duplicates and which were rejected, then any warnings and the Calculation Runs it started. Each rejected item follows on its own line, by key, and by position within the file for one event:</p>
+<p><code>collect</code> prints one line of JSON: the summary of the Collection Run. For each source, the summary gives the number of stored items, the number of duplicates and the rejected items. Then it gives the warnings and the Calculation Runs that it started. Each rejected item follows on its own line, by key. For one event, the line also gives the position of the event in the file:</p>
 <pre class="output"><span class="line">{"sources":{"dbt":{"stored":2,…},"openlineage":{"stored":4,…,"rejected":[{"item":"inbox/openlineage/run.json#2",…}]}},"warnings":[],"calculation_run_ids":["calc-…"],"exit_code":1}
 </span><span class="line">  inbox/openlineage/run.json#2: invalid RunEvent: run/runId (format)</span></pre>
-<p>An OpenLineage JobEvent or DatasetEvent, which data-finops does not read, is listed under <code>warnings</code> by key and position. It does not change the exit code. A dbt folder still missing one of its files is listed there too, until the file arrives. A file already collected is never fetched again, unless a producer overwrites it with new content. A rejected file is not retried. The exit code is <code>0</code>, <code>1</code> when something was rejected, or <code>2</code> when a source could not be read. See <a href="../reference/exit-codes-and-environment.html">Exit codes and environment</a>.</p>
+<p>An OpenLineage JobEvent or DatasetEvent, which data-finops does not read, is listed under <code>warnings</code> by key and position. It does not change the exit code. A dbt folder that does not have both of its files yet is also in that list, until the file arrives. A file that was collected is never fetched again, unless a producer overwrites it with new content. A rejected file is not retried.</p>
+<p>The exit code is <code>0</code>, <code>1</code> when something was rejected, or <code>2</code> when a source could not be read. See <a href="../reference/exit-codes-and-environment.html">Exit codes and environment</a>.</p>
 <!-- pager:start -->
 <nav class="pager" aria-label="Previous and next">
 <a rel="prev" href="receive-openlineage.html">Previous: Receive OpenLineage events</a>

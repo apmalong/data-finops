@@ -37,7 +37,7 @@
 </li>
 <li><a href="../reference/index.html">Reference</a></li>
 <li><a href="../explanation/index.html">Explanation</a></li>
-<li><a href="../contributing.html">Contributing</a></li>
+<li><a href="../contributing.html">Contribute to data-finops</a></li>
 </ul>
 </nav>
 <!-- nav:end -->
@@ -47,7 +47,7 @@
 <nav class="on-page" aria-label="On this page">
 <p>On this page</p>
 <ul>
-<li><a href="#needs">What you need</a></li>
+<li><a href="#needs">What you must have</a></li>
 <li><a href="#with-api">Install with the API and dashboard</a></li>
 <li><a href="#base">Install without the extra</a></li>
 <li><a href="#demo">Try it with the demo</a></li>
@@ -57,7 +57,7 @@
 <p>This guide installs the <code>data-finops</code> command from a source checkout. Nothing is released yet, so there is no package on PyPI to install.</p>
 <p class="notice">Not run on this page: it changes your machine.</p>
 
-<h2 id="needs">What you need</h2>
+<h2 id="needs">What you must have</h2>
 <ul>
 <li>Python 3.12 or later.</li>
 <li><a href="https://docs.astral.sh/uv/">uv</a>, which installs the pinned dependencies.</li>
@@ -75,21 +75,21 @@
 </span><span class="line">uv sync --extra api --frozen
 </span><span class="line">uv run data-finops --help</span></code></pre>
 </div>
-<p>The <code>api</code> extra adds FastAPI and uvicorn. <code>serve</code> and <code>demo</code> need them to run the API, the dashboard and the OpenLineage receiver. <code>--frozen</code> installs exactly the versions in <code>uv.lock</code>.</p>
+<p>The <code>api</code> extra adds FastAPI and uvicorn. <code>serve</code> and <code>demo</code> require them to run the API, the dashboard and the OpenLineage receiver. <code>--frozen</code> installs exactly the versions in <code>uv.lock</code>.</p>
 
 <h2 id="base">Install without the extra</h2>
 <div class="shell-tabs">
 <pre class="shell-posix"><code><span class="line">uv sync --frozen</span></code></pre>
 <pre class="shell-windows" data-derived=""><code><span class="line">uv sync --frozen</span></code></pre>
 </div>
-<p>The base package can <code>ingest</code> and <code>calculate</code>. <code>serve</code> and <code>demo</code> exit with <code>2</code> and say that the API needs the <code>api</code> extra. <code>demo</code> checks this before writing anything. Install it with <code>uv sync --extra api --frozen</code>.</p>
+<p>The base package can <code>ingest</code> and <code>calculate</code>. <code>serve</code> and <code>demo</code> exit with <code>2</code> and say that the API requires the <code>api</code> extra. <code>demo</code> checks this before it writes anything. Install it with <code>uv sync --extra api --frozen</code>.</p>
 
 <h2 id="demo">Try it with the demo</h2>
 <div class="shell-tabs">
 <pre class="shell-posix"><code><span class="line">uv run data-finops demo</span></code></pre>
 <pre class="shell-windows" data-derived=""><code><span class="line">uv run data-finops demo</span></code></pre>
 </div>
-<p><code>demo</code> loads the hand-written fixtures into a temporary database file, runs a Calculation Run and serves on loopback at <a href="http://127.0.0.1:8000/">http://127.0.0.1:8000/</a>. It reads the repository's <code>fixtures/</code> directory, so it needs a source checkout: an installed package does not include the fixtures. The database file is removed when <code>demo</code> stops.</p>
+<p><code>demo</code> loads the hand-written fixtures into a temporary database file, runs a Calculation Run and serves on loopback at <a href="http://127.0.0.1:8000/">http://127.0.0.1:8000/</a>. It reads the repository's <code>fixtures/</code> directory, so it requires a source checkout: an installed package does not include the fixtures. The database file is removed when <code>demo</code> stops.</p>
 <p>Next, follow the tutorial <a href="../tutorials/first-allocation.html">Your first allocation</a>, which runs the same steps one at a time.</p>
 <!-- pager:start -->
 <nav class="pager" aria-label="Previous and next">

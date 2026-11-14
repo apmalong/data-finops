@@ -30,7 +30,7 @@
 <li><a href="decision-records.html">Decision records</a></li>
 </ul>
 </li>
-<li><a href="../contributing.html">Contributing</a></li>
+<li><a href="../contributing.html">Contribute to data-finops</a></li>
 </ul>
 </nav>
 <!-- nav:end -->
@@ -48,34 +48,35 @@
 </ul>
 </nav>
 <!-- onpage:end -->
-<p>A Deployment runs data-finops in one AWS account, with no servers to keep running and no network to manage. This page explains its parts, where its trust boundaries are and what it costs. The decisions are in <a href="https://github.com/apmalong/data-finops/blob/main/docs/adr/0026-aws-deployment-two-lambdas-without-vpc.md">ADR 0026</a>, <a href="https://github.com/apmalong/data-finops/blob/main/docs/adr/0027-deployed-ingress-by-scheduled-pull-from-s3-inboxes.md">ADR 0027</a> and <a href="https://github.com/apmalong/data-finops/blob/main/docs/adr/0028-deployed-cost-explanation-is-minimal-by-default.md">ADR 0028</a>, with the design in <a href="https://github.com/apmalong/data-finops/blob/main/docs/specs/08-aws-deployment.md">spec 08</a>. They stay authoritative.</p>
+<p>A Deployment runs data-finops in one AWS account. It has no servers to operate and no network to manage. This page explains its parts, its trust boundaries and its cost. The decisions are in <a href="https://github.com/apmalong/data-finops/blob/main/docs/adr/0026-aws-deployment-two-lambdas-without-vpc.md">ADR 0026</a>, <a href="https://github.com/apmalong/data-finops/blob/main/docs/adr/0027-deployed-ingress-by-scheduled-pull-from-s3-inboxes.md">ADR 0027</a> and <a href="https://github.com/apmalong/data-finops/blob/main/docs/adr/0028-deployed-cost-explanation-is-minimal-by-default.md">ADR 0028</a>. The design is in <a href="https://github.com/apmalong/data-finops/blob/main/docs/specs/08-aws-deployment.md">spec 08</a>. These documents stay authoritative.</p>
 
 <h2 id="parts">Two functions and one bucket</h2>
 <img src="../assets/explanation/deployment.svg" alt="Inside one AWS account, the Deployment holds EventBridge Scheduler, the two functions and the Deployment bucket. The scheduler invokes the collector function once a day, and Lambda retries a failed run up to twice. The collector, the only writer, reads Deliveries from the FOCUS export bucket, lists and reads Athena query history, reads new keys from the Inbox, and writes the database object with If-Match. The read-only API function reads the database object, cached by ETag. The Inbox and the database are in the Deployment bucket, which is private, TLS only, encrypted and versioned. Also in the account but outside the Deployment, a producer such as Airflow or dbt writes to the Inbox with PutObject only, through the producer policy, and a reader, an IAM principal allowed to invoke the URL, calls the API's Function URL with SigV4-signed HTTPS GET requests." width="3124" height="970">
-<p>data-finops keeps everything in one SQLite file, written by one writer at a time. A Deployment keeps that design rather than adding a database server:</p>
+<p>data-finops keeps all its data in one SQLite file, and only one writer writes to it at a time. A Deployment keeps that design. It does not add a database server:</p>
 <ul>
 <li><strong>The database is one S3 object</strong>, <code>database/data-finops.sqlite</code>, in the Deployment's private bucket.</li>
-<li><strong>The collector is the only writer.</strong> Once a day it downloads the object, runs one <a href="../reference/glossary.html#collection-run">Collection Run</a> and uploads the result, only if the object is still the one it downloaded (an S3 conditional write on its ETag). A concurrent write makes the upload fail instead of being lost, and the next run starts again from the current object.</li>
+<li><strong>The collector is the only writer.</strong> One time each day, it downloads the object, runs one <a href="../reference/glossary.html#collection-run">Collection Run</a> and uploads the result. It uploads only if the object is still the object that it downloaded (an S3 conditional write on its ETag). If a different write occurs at the same time, the upload fails, so the other write is not lost. The next run starts again from the current object.</li>
 <li><strong>The API only reads.</strong> It serves the object the last run wrote, never a half-written one, and downloads it again only when its ETag changes.</li>
 </ul>
 <p>Neither function runs in a VPC, so there is no NAT gateway, subnet or endpoint to pay for or secure. Both reach S3, Athena and CloudWatch through AWS's public endpoints, signed with their own roles.</p>
 
 <h2 id="ingress">Pulled, not pushed</h2>
-<p>Locally, OpenLineage events can arrive over HTTP with a bearer token. A Deployment has no such endpoint. A long-lived shared token on a public URL is the risk the token was kept local to avoid, and stock OpenLineage clients cannot sign requests for an IAM-authorized URL. Producers write files to the <a href="../reference/glossary.html#inbox">Inbox</a> instead, with an IAM policy that allows nothing else, and the next Collection Run pulls what is new. Lineage therefore arrives once a day, which is when costs are calculated anyway. See <a href="../how-to/send-to-inbox.html">Send workload metadata to the Inbox</a>.</p>
+<p>Locally, OpenLineage events can arrive over HTTP with a bearer token. A Deployment has no such endpoint, for two reasons. The token is local to prevent one risk: a long-lived shared token on a public URL. Also, standard OpenLineage clients cannot sign requests for a URL that IAM authorizes.</p>
+<p>Thus producers write files to the <a href="../reference/glossary.html#inbox">Inbox</a>, with an IAM policy that permits nothing else. The next Collection Run pulls the new files. Thus lineage arrives one time each day. That is also when data-finops calculates costs. See <a href="../how-to/send-to-inbox.html">Send workload metadata to the Inbox</a>.</p>
 
 <h2 id="trust">Trust boundaries</h2>
 <ul>
 <li><strong>The account.</strong> The FOCUS export, the Athena workgroups and the Deployment are in one account, and so are the IAM principals of its producers and readers. Nothing crosses into another account.</li>
-<li><strong>The Function URL.</strong> It is reachable from the internet, but AWS rejects every request not signed by a principal allowed to invoke it, such as one with the reader policy, before the function runs. The API mounts only the read endpoints: there is no write route to reach.</li>
+<li><strong>The Function URL.</strong> It is reachable from the internet. But before the function runs, AWS rejects a request that is not signed. It also rejects a request if the signer does not have permission to invoke the function. A principal with the reader policy has this permission. The API mounts only the read endpoints, so there is no write route to reach.</li>
 <li><strong>Producers.</strong> A producer can put objects in the Inbox and do nothing else: not read them back, list them or touch the database. What it writes is screened like any input: each event capped at 1 MiB, each file at 512 MiB, and a rejected file reported by its key and reason, never its content.</li>
 <li><strong>The collector's reach.</strong> It reads the export, the Athena history of the configured workgroups and the Inbox, and writes only the database object. It cannot run queries or read their results, which an explicit deny enforces. Query text is dropped before anything is stored.</li>
-<li><strong>The bucket.</strong> Public access is blocked, ACLs are disabled, requests without TLS are denied, and objects are encrypted with an S3-managed key or, optionally, a customer-managed KMS key. Versioning keeps earlier databases for <code>noncurrentVersionDays</code>.</li>
-<li><strong>What readers see.</strong> A Cost Explanation shows the minimal Billing Line by default, withholding tags and free-text names, because a Deployment's readers may be a wider group than its billing administrators.</li>
+<li><strong>The bucket.</strong> The bucket blocks public access and disables ACLs. It denies requests without TLS. It encrypts objects with an S3-managed key or, as an option, with a customer-managed KMS key. S3 Versioning keeps earlier databases for <code>noncurrentVersionDays</code>.</li>
+<li><strong>What readers see.</strong> By default, a Cost Explanation shows the minimal Billing Line, without tags and free-text names. The reason is that the readers of a Deployment can be a larger group than its billing administrators.</li>
 </ul>
-<p>The policy pack checks these rules on every pull request. Each function's role is limited to the actions its job needs, and the pack fails a role granted anything more. The local rules are in <a href="security-model.html">Security model</a>.</p>
+<p>The policy pack checks these rules on every pull request. Each function's role is limited to the actions that its job requires, and the pack fails a role granted anything more. The local rules are in <a href="security-model.html">Security model</a>.</p>
 
 <h2 id="cost">What it costs</h2>
-<p>At the expected scale, a few thousand to about a million Billing Lines a month, a Deployment costs under $1 a month in <code>us-east-1</code> while Lambda's free tier covers it. These are estimates from AWS's published prices, checked on 2026-11-06, not measurements:</p>
+<p>The expected scale is a few thousand to about a million Billing Lines a month. At this scale, a Deployment costs less than $1 a month in <code>us-east-1</code> while the Lambda free tier covers it. These numbers are estimates from the published AWS prices, checked on 2026-11-06. They are not measurements:</p>
 <div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
 <table>
 <thead><tr><th>Part</th><th>Small</th><th>About 1M lines a month</th></tr></thead>
@@ -89,17 +90,24 @@
 </table>
 </div>
 <ul>
-<li>The estimates assume a daily run of 60 seconds (small) to 300 seconds at the collector's default 2 GB of memory, 10,000 API requests a month of 1 second at 1 GB, and a database of 0.1 GB to 12 GB.</li>
+<li>The estimates assume a daily collector run of 60 seconds (small) to 300 seconds, with the default 2 GB of memory of the collector. They also assume 10,000 API requests a month, each of 1 second at 1 GB, and a database of 0.1 GB to 12 GB.</li>
 <li>Without Lambda's free tier, add about $0.18 (small) or $0.37 a month, which takes the larger case to about $1.20.</li>
 <li>A customer-managed KMS key adds $1 a month.</li>
 </ul>
-<p>AWS has no hard spending cap, and a Budget cannot stop a function. A Deployment bounds its cost instead: every function has a timeout and a memory size, the schedule runs once a day and a failed run is retried at most twice, logs expire, Inbox objects and old database versions expire, and the optional Budget emails on forecast and actual spend. If something still goes wrong, the API can be switched off at once: see <a href="../how-to/read-deployment.html#kill-switch">Read a Deployment</a>.</p>
+<p>AWS has no hard limit on spend, and a Budget cannot stop a function. Thus a Deployment limits its cost in these ways:</p>
+<ul>
+<li>Each function has a timeout and a memory size.</li>
+<li>The schedule runs one time each day, and a failed run gets two retries at most.</li>
+<li>Logs expire. Inbox objects and old database versions also expire.</li>
+<li>The optional Budget sends an email about forecast spend and actual spend.</li>
+</ul>
+<p>If a problem still occurs, you can stop the API at once. See <a href="../how-to/read-deployment.html#kill-switch">Read a Deployment</a>.</p>
 
 <h2 id="limits">Limits to watch</h2>
 <ul>
 <li>Each Collection Run moves the whole database in and out of S3. As it grows, so do the run's time and the API's cold start.</li>
-<li>A function's <code>/tmp</code> is Lambda's default 512 MB, since the stack does not set a larger one yet, so today the database must stay well under that. Lambda allows up to 10,240 MB, and one upload holds at most 5 GB.</li>
-<li>Athena keeps query history for 45 days. A Deployment that stops collecting for longer loses the gap, and the summary warns when it may have.</li>
+<li>The <code>/tmp</code> of a function is the Lambda default of 512 MB, because the stack does not set a larger size yet. Thus today, the database must stay well below 512 MB. Lambda permits up to 10,240 MB, and one upload holds 5 GB at most.</li>
+<li>Athena keeps query history for 45 days. If a Deployment stops collection for a longer time, it loses the history of that gap. The summary shows a warning when this can have occurred.</li>
 <li>None of these is measured on a large account yet. Each is a revisit trigger in ADR 0026 or spec 08.</li>
 </ul>
 <!-- pager:start -->
