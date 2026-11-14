@@ -42,7 +42,7 @@ One page per document under `site/`, each one Diátaxis type. Home is `index.htm
 - Text: follow the `simplified-technical-english` skill (`.claude/skills/`). Glossary terms are capitalized as in GLOSSARY, never their avoided synonyms. Explanation pages cite their ADRs and specs, which stay authoritative. The only account ID is the placeholder `123456789012`. No real account IDs, bucket names, credentials or SQL literals appear.
 
 ## The site tool (`scripts/site/`)
-It is stdlib only, and it is dev tooling outside the wheel, under ruff and mypy. Two parts import data_finops. The page runner imports it (with FastAPI) to run commands, and only tests import the page runner. The CLI reference of `build` loads the parser of the command line only when it renders that page. So `check` stays stdlib-only for the Pages workflow. It has two commands: `python -m scripts.site build` rewrites the generated pages and nav, and `python -m scripts.site check` reports problems and exits non-zero on any.
+It is stdlib only, and it is dev tooling outside the wheel, under ruff and mypy. Two parts import data_finops. The page runner imports it (with FastAPI) to run commands, and only tests import the page runner. The CLI reference of `build` imports it to load the parser of the command line, only when it renders that page. So `check` stays stdlib-only for the Pages workflow. It has two commands: `python -m scripts.site build` rewrites the generated pages and nav, and `python -m scripts.site check` reports problems and exits non-zero on any.
 
 - **CLI reference:** from the argparse parser of `data_finops.cli`. It covers each command, argument, default and help string.
 - **HTTP API reference:** from `schemas/openapi.json`. It covers each path, method, parameter, response and Problem Details.
@@ -61,7 +61,7 @@ It is stdlib only, and it is dev tooling outside the wheel, under ruff and mypy.
 ## Runnable pages
 - A `<pre><code class="run">` block holds only `data-finops …` and `curl …` lines. `shlex` splits them, and they use repo-relative fixture paths. They run in order through `main(argv)` with a temporary directory as the current directory.
 - A `serve` line opens FastAPI's test client over that database. A `curl` line in a `run` block goes through that client. It takes `-s`, `-X GET|POST`, `-H 'Name: value'` and `--data-binary @file` (with a Content-Type header), as in curl, and nothing else. A non-2xx answer is a problem.
-- In a `run` line, `$CALCULATION_RUN_ID` is the Calculation Run that the last `calculate` printed, and `$(cat FILE)` is the text of the file. A line must not put either in single quotes, where a shell would not expand it.
+- In a `run` line, `$CALCULATION_RUN_ID` is the ID of the Calculation Run that the last `calculate` printed, and `$(cat FILE)` is the text of the file. A line must not put either in single quotes, where a shell would not expand it.
 - The token how-to sends the dummy `fixtures/docs/example.token` with `$(cat …)`. No page writes a token into a command, so the secret scan has nothing to flag.
 - A `<pre class="output checked">` right after a `run` block must match the output, where `…` matches any text in a line. Other output blocks are illustrative.
 - Commands with placeholders (`<your-export>`) are never marked `run`. Steps that require AWS are labeled as not run.
