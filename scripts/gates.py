@@ -67,14 +67,14 @@ def _gate(project: str, name: str, *args: str) -> Gate:
     return Gate(project, name, args)
 
 
-TOOLS = ("scripts/gates.py", "scripts/ste_check.py")  # dev tools under mypy and bandit
+DEV_TOOLS = ("scripts/gates.py", "scripts/ste_check.py")  # dev tools under mypy and bandit
 
 GATES: tuple[Gate, ...] = (
     _gate("root", "ruff check", "-m", "ruff", "check", "--no-cache", "."),
     _gate("root", "ruff format", "-m", "ruff", "format", "--no-cache", "--check", "."),
-    _gate("root", "mypy", "-m", "mypy", "src", "scripts/site", *TOOLS),
+    _gate("root", "mypy", "-m", "mypy", "src", "scripts/site", *DEV_TOOLS),
     _gate("root", "pytest", "-m", "pytest", "--cov=data_finops", "--cov-report=term-missing"),
-    _gate("root", "bandit", "-m", "bandit", "-q", "-r", "src", "scripts/site", *TOOLS),
+    _gate("root", "bandit", "-m", "bandit", "-q", "-r", "src", "scripts/site", *DEV_TOOLS),
     _gate("root", "site check", "-S", "-m", "scripts.site", "check"),
     _gate("root", "ste check", "-m", "scripts.ste_check", "--gate"),
     _gate("reference-workload", "mypy", "-m", "mypy"),

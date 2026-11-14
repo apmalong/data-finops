@@ -1,8 +1,18 @@
 """Check documents against the Simplified Technical English rules (#235).
 
-    python -m scripts.ste_check
+    python -m scripts.ste_check               # every document in scope (#234)
+    python -m scripts.ste_check PATH...       # only these documents
+    python -m scripts.ste_check --gate        # only the converted documents (a gate)
 
-The rules are the `simplified-technical-english` skill's (`.claude/skills/`).
+The rules are the `simplified-technical-english` skill's (`.claude/skills/`). The check reports
+sentences and numbered steps over their word limits, long paragraphs, semicolons, "should",
+"may", "-ing" verbs and British spellings, by file and line. It reads Markdown and HTML, and it
+skips code, output, quotes, comments, generated regions and an accepted ADR's Decision section.
+
+A finding in a document that `scripts/ste_converted.txt` lists fails the check (exit 1). Other
+documents only report. The check cannot find names, titles and labels, so it counts each of
+their words (8.6). It does not read Python, and it skips generated regions, so it does not
+check help text, docstrings or the generated reference pages.
 
 Stdlib only.
 """
@@ -37,7 +47,7 @@ _ISE_VERBS = (
 _OUR_NOUNS = ("behaviour", "colour", "favour", "flavour", "honour", "labour", "neighbour")
 _RE_NOUNS = ("centre", "fibre", "litre", "metre", "theatre")
 _DOUBLED_L = ("cancel", "channel", "fuel", "label", "level", "model", "signal", "total", "travel")
-_OTHERS = {
+_OTHER_BRITISH = {
     "analyse": "analyze", "analysed": "analyzed", "analyses": "analyzes", "analysing": "analyzing",
     "catalogue": "catalog", "catalogues": "catalogs", "artefact": "artifact",
     "artefacts": "artifacts", "licence": "license", "licences": "licenses", "defence": "defense",
@@ -48,7 +58,7 @@ _OTHERS = {
 
 
 def _british() -> dict[str, str]:
-    words = dict(_OTHERS)
+    words = dict(_OTHER_BRITISH)
     for stem in _ISE_VERBS:
         for british, american in (
             ("ise", "ize"), ("ised", "ized"), ("ises", "izes"), ("ising", "izing"),
@@ -97,12 +107,12 @@ class _Segment:
     step: bool = False  # a numbered procedure step
     listed: bool = False  # a list item, numbered or not
 
-    def replaced(self, pattern: re.Pattern[str], placeholder: str | None = None) -> _Segment:
-        """The segment with each match of `pattern` replaced, newlines kept. The placeholder is
-        one word, or the match's first group when `placeholder` is None."""
+    def replaced(self, pattern: re.Pattern[str], template: str) -> _Segment:
+        """The segment with each match of `pattern` replaced by `template`, newlines kept. The
+        template is a placeholder word, or a group reference as `re.Match.expand` reads it."""
 
         def replace(match: re.Match[str]) -> str:
-            kept = match.group(1) if placeholder is None else placeholder
+            kept = match.expand(template)
             return kept + "\n" * (match.group().count("\n") - kept.count("\n"))
 
         return _Segment(self.line, pattern.sub(replace, self.text), self.step, self.listed)
@@ -118,7 +128,8 @@ _QUOTED = re.compile(r'"[^"]*"|“[^”]*”')
 _UNITS = r"%|[KMGTP]i?B|bytes?|ms|seconds?|minutes?|hours?|days?|weeks?|months?|years?"
 _NUMBER_WITH_UNIT = re.compile(rf"(?<![\w.])\d[\d.,]*\s*(?:{_UNITS})(?!\w)")
 _SENTENCE_END = re.compile(r"[.!?]+(?:\s+|$)")
-_SENTENCE_END_IN_LIST = re.compile(r"[.!?]+(?:\s+|$)|:(?:\s+|$)")  # 8.4
+_SENTENCE_END_IN_LIST = re.compile(r"[.!?]+(?:\s+|$)|:(?:\s+|$)")  # for the word count (8.4)
+_ABBREVIATION = re.compile(r"(?<!\w)(?:e\.g|i\.e|vs|cf)\.", re.IGNORECASE)  # not a sentence end
 _LIST_ITEM = re.compile(r"^\s*(?:(?P<number>\d+[.)])|[-*+])\s+")
 _HEADING = re.compile(r"^ {0,3}#{1,6}\s+(?P<text>.*?)[\s#]*$")
 _BLOCK_START = re.compile(r"^\s*(?:#{1,6}\s|>|\|)")  # a heading, a quote or a table row
@@ -161,30 +172,35 @@ def _terms_pattern(glossary: frozenset[str]) -> re.Pattern[str] | None:
 
 
 def _mask_words(segment: _Segment, terms: re.Pattern[str] | None) -> _Segment:
-    """The text that the word rules read: code spans and GLOSSARY terms become one placeholder
-    word each, a link becomes its text, and emphasis marks go."""
-    segment = segment.replaced(_CODE_SPAN, "CODE").replaced(_LINK).replaced(_EMPHASIS, "")
+    """The text that the word rules read: code spans, quoted text and GLOSSARY terms become one
+    placeholder word each, a link becomes its text, and emphasis marks go. Quoted text is not
+    our wording, and 8.6 counts it as one word."""
+    segment = segment.replaced(_CODE_SPAN, "CODE").replaced(_QUOTED, "QUOTED")
+    segment = segment.replaced(_LINK, r"\1").replaced(_EMPHASIS, "")
     segment = segment.replaced(_CHARACTER_REFERENCE, "&")
     return segment if terms is None else segment.replaced(terms, "TERM")
 
 
 def _mask_counts(segment: _Segment) -> _Segment:
     """The text that the sentence rules read: what 8.5 and 8.6 count as one word becomes one
-    placeholder word."""
+    placeholder word, and a Latin abbreviation does not end a sentence."""
     while _PARENTHESES.search(segment.text):  # inner parentheses first
         segment = segment.replaced(_PARENTHESES, "PARENTHESES")
-    return segment.replaced(_QUOTED, "QUOTED").replaced(_NUMBER_WITH_UNIT, "NUMBER")
+    segment = segment.replaced(_NUMBER_WITH_UNIT, "NUMBER")
+    return segment.replaced(_ABBREVIATION, "ABBREVIATION")
 
 
 def _check_segment(segment: _Segment) -> Iterator[Finding]:
     yield from _check_words(segment)
-    sentences = list(_sentences(_mask_counts(segment)))
-    if len(sentences) > PARAGRAPH_LIMIT:
+    counted = _mask_counts(segment)
+    paragraph = sum(1 for _ in _sentences(counted, _SENTENCE_END))
+    if paragraph > PARAGRAPH_LIMIT:
         yield Finding(
             segment.line,
             "paragraph-length",
-            f"{len(sentences)} sentences in a paragraph, over {PARAGRAPH_LIMIT}",
+            f"{paragraph} sentences in a paragraph, over {PARAGRAPH_LIMIT}",
         )
+    sentences = _sentences(counted, _SENTENCE_END_IN_LIST if segment.listed else _SENTENCE_END)
     rule, limit = (
         ("step-length", STEP_LIMIT) if segment.step else ("sentence-length", DESCRIPTION_LIMIT)
     )
@@ -245,16 +261,16 @@ def _markdown_lines(text: str, skip_decision: bool) -> Iterator[tuple[int, str]]
             if not end_is_prose:
                 yield number, ""
                 continue
+        end_is_prose = False
         if number == 1 and _FRONT_MATTER.match(line):
-            end, end_is_prose = _FRONT_MATTER, False
+            end = _FRONT_MATTER
         elif fence := _FENCE.match(line):
             mark, length = fence["mark"][0], len(fence["mark"])
-            end, end_is_prose = re.compile(rf"^ {{0,3}}{re.escape(mark)}{{{length},}}\s*$"), False
+            end = re.compile(rf"^ {{0,3}}{re.escape(mark)}{{{length},}}\s*$")
         elif region := _REGION_START.search(line):
             end = re.compile(rf"<!--\s*{re.escape(region['name'])}:end\s*-->")
-            end_is_prose = False
         elif "<!--" in (line := _COMMENT.sub("", line)):
-            end, end_is_prose = _COMMENT_END, False
+            end = _COMMENT_END
         elif skip_decision and _DECISION.match(line):
             end, end_is_prose = _DECISION_END, True
         else:
@@ -297,9 +313,8 @@ def _markdown_segments(text: str, skip_decision: bool = False) -> Iterator[_Segm
     yield from flush()
 
 
-def _sentences(segment: _Segment) -> Iterator[tuple[int, str]]:
+def _sentences(segment: _Segment, ends: re.Pattern[str]) -> Iterator[tuple[int, str]]:
     text, begin = segment.text, 0
-    ends = _SENTENCE_END_IN_LIST if segment.listed else _SENTENCE_END
     for match in ends.finditer(text):
         yield _first_line(segment, begin), text[begin : match.end()]
         begin = match.end()

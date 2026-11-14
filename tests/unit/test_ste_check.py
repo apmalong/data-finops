@@ -333,3 +333,16 @@ def test_the_glossary_terms_come_from_glossary_md(
     ste_check.main([], root=repo)
 
     assert "README.md" not in capsys.readouterr().out
+
+
+def test_a_colon_in_a_list_item_does_not_add_to_the_paragraph_count() -> None:
+    assert _rules("- Note: one. Two: three. Four: five. Six: seven. Eight.") == []
+
+
+def test_quoted_text_is_not_checked_for_words() -> None:
+    assert _rules('Do not write "should" or “may” here.') == []
+    assert _html_rules("<p>Do not write “should; may” here.</p>") == []
+
+
+def test_a_latin_abbreviation_does_not_end_a_sentence() -> None:
+    assert _rules("A, e.g. b. C, i.e. d. E vs. f. G. H. I.") == []
