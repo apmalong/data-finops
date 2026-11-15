@@ -307,14 +307,13 @@ async function renderDimensions(params, current) {
   const names = Object.keys(sample).sort();
   byId("dimension-label").hidden = names.length === 0;
   if (names.length === 0) {
-    target.replaceChildren(element("p", { class: "meta", text: "No Cost Dimensions are configured for this Calculation Run. Give a configuration with --dimensions (spec 09)." }));
+    target.replaceChildren(element("p", { class: "meta", text: "No Cost Dimensions are configured for this Calculation Run. To configure them, use --dimensions on the command line, or the costDimensions setting of a Deployment." }));
     return;
   }
   if (!names.includes(state.dimension)) state.dimension = names[0];
   byId("dimension").replaceChildren(...names.map((name) => element("option", { value: name, text: name })));
   byId("dimension").value = state.dimension;
-  const page = await getJson(DIMENSIONS.replace("{name}", encodeURIComponent(state.dimension)),
-    { ...params, limit: PAGE_SIZE });
+  const page = await allPages(DIMENSIONS.replace("{name}", encodeURIComponent(state.dimension)), params);
   if (!current()) return;
   target.replaceChildren(...dimensionPanels(page));
 }

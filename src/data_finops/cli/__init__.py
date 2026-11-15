@@ -288,13 +288,11 @@ def _collect(args: argparse.Namespace) -> int:
         settings = CollectionSettings.from_toml(args.config)
     except ValueError as error:  # names the setting, never its value
         raise _Failure(f"{args.config}: {error}") from None
-    dimensions = _dimensions(args)
+    # No `--dimensions` file: the run reads the bucket key that its settings may name.
+    dimensions = None if args.dimensions is None else _dimensions(args)
     try:
         summary = run_collection(
-            args.db,
-            settings,
-            clients=args.aws_clients(settings),
-            dimensions=None if args.dimensions is None else dimensions,
+            args.db, settings, clients=args.aws_clients(settings), dimensions=dimensions
         )
     except DimensionsUnavailable as error:  # names the key, never the file's content
         raise _Failure(str(error)) from None

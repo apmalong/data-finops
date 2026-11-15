@@ -10,7 +10,7 @@ from typing import Any
 
 import pulumi
 import pytest
-from deployment.compute import Compute
+from deployment.compute import DIMENSIONS_KEY, Compute
 from deployment.settings import Budget, Settings
 from deployment.storage import Storage
 
@@ -325,7 +325,6 @@ def test_the_compute_is_one_component_with_its_outputs() -> pulumi.Output[None]:
     return pulumi.Output.all(**compute.outputs()).apply(check)
 
 
-DIMENSIONS_KEY = "config/cost-dimensions.toml"
 BUCKET_OBJECT = "aws:s3/bucketObjectv2:BucketObjectv2"
 
 

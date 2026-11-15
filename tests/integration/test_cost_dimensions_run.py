@@ -261,3 +261,14 @@ def test_each_dimensions_total_equals_the_snapshots_in_every_currency(tmp_path: 
 
     assert {currency for currency, _ in snapshot} == {"USD", "EUR"}
     assert totals == snapshot
+
+
+def test_every_allocation_of_a_snapshot_has_the_same_dimensions(database: Path) -> None:
+    # The dashboard reads the dimension names from one Allocation of the snapshot (#223).
+    with Reporting(database) as read_model:
+        names = {
+            frozenset(entry.allocation.dimensions)
+            for entry in read_model.allocations(limit=1000).items
+        }
+
+    assert names == {frozenset({"env", "team", "tenant"})}

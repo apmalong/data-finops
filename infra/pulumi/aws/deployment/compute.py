@@ -243,7 +243,7 @@ def _collector_settings(settings: Settings, bucket: str, account_id: str) -> dic
         "export_name": settings.export_name,
         "billing_lookback_periods": settings.billing_lookback_periods,
         "max_history_pages": settings.max_history_pages,
-    } | ({"cost_dimensions_key": DIMENSIONS_KEY} if settings.cost_dimensions else {})
+    } | ({"cost_dimensions_key": DIMENSIONS_KEY} if settings.cost_dimensions is not None else {})
 
 
 def _allow(grants: list[tuple[str | list[str], list[str]]]) -> dict[str, Any]:
@@ -282,15 +282,14 @@ def _collector_policy(
             ("s3:GetObject", [f"{export}/{root}/*"]),
             (["athena:ListQueryExecutions", "athena:BatchGetQueryExecution"], workgroups),
             ("s3:ListBucket", [bucket_arn]),
-            ("s3:GetObject", [f"{bucket_arn}/{INBOX}*", f"{bucket_arn}/{DATABASE_KEY}"])
-            if settings.cost_dimensions is None
-            else (
+            (
                 "s3:GetObject",
-                [
-                    f"{bucket_arn}/{INBOX}*",
-                    f"{bucket_arn}/{DATABASE_KEY}",
-                    f"{bucket_arn}/{DIMENSIONS_KEY}",
-                ],
+                [f"{bucket_arn}/{INBOX}*", f"{bucket_arn}/{DATABASE_KEY}"]
+                + (
+                    [f"{bucket_arn}/{DIMENSIONS_KEY}"]
+                    if settings.cost_dimensions is not None
+                    else []
+                ),
             ),
             ("s3:PutObject", [f"{bucket_arn}/{DATABASE_KEY}"]),
             _logs(group_arn),

@@ -46,7 +46,7 @@ The collector is the only writer.
 - Measured on 2026-11-07: 66 MB zipped, and 173 MB unzipped, which is below the 250 MB limit of Lambda.
 
 ### Bucket
-The bucket holds the database object, `inbox/openlineage/`, `inbox/dbt/<invocation>/` and the Lambda package.
+The bucket holds the database object, `inbox/openlineage/`, `inbox/dbt/<invocation>/` and the Lambda package. When `costDimensions` is set, it also holds `config/cost-dimensions.toml` (spec 09).
 - all four public access blocks
 - `BucketOwnerEnforced`
 - a bucket policy that denies requests without TLS (`aws:SecureTransport`)
@@ -56,6 +56,7 @@ The bucket holds the database object, `inbox/openlineage/`, `inbox/dbt/<invocati
 
 ## Collection Run
 1. The sources run in a fixed order: dbt artifacts from the Inbox, OpenLineage events from the Inbox, Athena history, FOCUS Deliveries.
+   - Before the sources, the run reads the Cost Dimensions (spec 09). If it cannot read or use them, it stops before it collects anything, and no Calculation Run occurs.
    - Each source is tried, even if an earlier one failed.
    - Then a Calculation Run occurs for each Snapshot Scope, on the data that was stored.
 2. **Deliveries:** list the `metadata/` prefix of the export, for the `billingLookbackPeriods` most recent Billing Periods.
@@ -118,6 +119,7 @@ The policies that `deployment/compute.py` grants supersede the research drafts i
 - `athena:ListQueryExecutions` and `BatchGetQueryExecution` on the configured workgroup ARNs only. These are the only Athena calls that the collector makes (#181).
 - `s3:GetObject` and `s3:PutObject` on `database/data-finops.sqlite` only. Each write has `If-Match` or `If-None-Match`, which the code sends. To enforce that in IAM is a revisit trigger.
 - `s3:GetObject` on `inbox/` of its own bucket, and `s3:ListBucket` on its own bucket.
+- If `costDimensions` is set, `s3:GetObject` on `config/cost-dimensions.toml` of its own bucket (spec 09). The API role does not get it.
 - its own log group
 - An explicit deny on `athena:StartQueryExecution`, `StopQueryExecution`, `GetQueryResults` and `GetQueryRuntimeStatistics`.
 - If `kmsKeyArn` is set, `kms:Decrypt` and `kms:GenerateDataKey` on that key. S3 requires these to read and write SSE-KMS objects (#187).
@@ -140,7 +142,7 @@ Required: `aws:region`, `exportBucket`, `exportName` and `workgroups`. `workgrou
 
 `exportPrefix` is optional. It is empty when the export has no S3 path prefix, as the collector reads it (#185). The collector also requires the account ID, because BatchGetQueryExecution does not give it. The stack gives its own account ID.
 
-The TOML file of `data-finops collect` names the same settings in snake case (`account_id`, `workgroups`, `max_history_pages`, …). It adds `bucket`, `region` and an optional `profile` (#181).
+The TOML file of `data-finops collect` names the same settings in snake case (`account_id`, `workgroups`, `max_history_pages`, …). It adds `bucket`, `region` and an optional `profile` (#181). It can also name `cost_dimensions_key`, the key of a Cost Dimensions file in the bucket (spec 09).
 
 | Setting | Default | Meaning |
 |---|---|---|
@@ -158,6 +160,7 @@ The TOML file of `data-finops collect` names the same settings in snake case (`a
 | `budgetMonthlyUsd`, `budgetEmail` | unset | An optional AWS Budget alert for the whole account, on forecast and actual spend. Set both or neither. |
 | `alarmEmail` | unset | An optional SNS topic and one alarm on the `Errors` metric of the collector |
 | `deleteDataOnDestroy` | false | Whether `destroy` deletes the bucket. By default, the bucket is kept. |
+| `costDimensions` | unset | An optional path to a Cost Dimensions file (spec 09). The stack uploads it to `config/cost-dimensions.toml`, and the collector applies it. |
 
 Outputs: the bucket name, the API URL, the ARNs of the producer and reader policies, and the two function names.
 

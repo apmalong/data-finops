@@ -243,7 +243,7 @@ def run_collection(
     `settings.cost_dimensions_key` names (a Deployment, #224), or else none apply.
     DimensionsUnavailable, before anything is collected, when both are given or the object
     cannot be read or used."""
-    dimensions = _dimensions(settings, clients, dimensions)
+    dimensions = _run_dimensions(settings, clients, dimensions)
     with tempfile.TemporaryDirectory(prefix="data-finops-collect-") as scratch:
         with WorkloadStore(db) as store:
             # Workload metadata first (spec 08 §1); links are derived when queried, so the
@@ -367,7 +367,7 @@ def _collect_openlineage(
     return tally.summary()
 
 
-def _dimensions(
+def _run_dimensions(
     settings: CollectionSettings, clients: AwsClients, given: CostDimensions | None
 ) -> CostDimensions:
     """The Cost Dimensions that the run applies."""
