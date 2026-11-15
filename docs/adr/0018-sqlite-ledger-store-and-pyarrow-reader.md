@@ -1,6 +1,6 @@
 # ADR 0018: SQLite ledger store, and pyarrow for Parquet
 
-Status: Accepted (2026-11-01). Narrows ADR 0009. Decides OQ-4 for the MVP. Amended 2026-11-01 (M2): the workload store shares the file.
+Status: Accepted (2026-11-01). Narrows ADR 0009. Decides OQ-4 for the MVP. Amended 2026-11-01 (M2): the workload store shares the file. Amended 2026-11-15 (#225): the demo dataset generator writes Parquet.
 
 ## Context
 M1 requires a persistent local store for the Ledger and a reader for provider Parquet exports (AWS Data Exports writes FOCUS as Parquet). ADR 0009 left the choice between DuckDB and SQLite open, and OQ-4 asked for a benchmark first.
@@ -22,6 +22,9 @@ Analytical queries run in Python or SQL over SQLite. Measurements can show that 
 ## Revisit triggers
 - Measured query latency at the target scale is too high.
 - A deployment that requires more than one concurrent writer. Then consider Postgres, which spec 01 already calls "optional later".
+
+## Amendment (2026-11-15, #225)
+The public demo's dataset generator (`data_finops.public_demo.dataset`) also uses pyarrow, to write the demo dataset as Parquet (M7 decision Q76, owner). It is the only other module that can import pyarrow, and the import-boundary test allows only these two modules. pyarrow is already in the Lambda package for the FOCUS reader, so the package does not grow.
 
 ## Amendment (2026-11-01, M2)
 Workload metadata (Workload Runs, Model Executions, dbt manifest nodes, Data Assets and Lineage Edges) is stored in the same SQLite database file as the Ledger. A separate workload store module owns its tables. Billing code and lineage code do not import each other (architecture boundaries). They share only the file, WAL mode and `BEGIN IMMEDIATE` writes.

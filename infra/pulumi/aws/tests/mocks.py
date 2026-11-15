@@ -14,10 +14,13 @@ class RecordingMocks(pulumi.runtime.Mocks):
         self.resources.append(args)
         outputs = {**args.inputs}
         if args.typ == "aws:s3/bucket:Bucket":
-            outputs |= {
-                "bucket": "mock-deployment-bucket",
-                "arn": "arn:aws:s3:::mock-deployment-bucket",
-            }
+            # The Deployment's bucket keeps its name; another bucket is named after itself.
+            bucket = (
+                "mock-deployment-bucket"
+                if args.name == "data-finops"
+                else f"mock-{args.name}-bucket"
+            )
+            outputs |= {"bucket": bucket, "arn": f"arn:aws:s3:::{bucket}"}
         if args.typ == "aws:lambda/function:Function":
             outputs["arn"] = f"arn:aws:lambda:us-east-1:123456789012:function:{args.inputs['name']}"
         if args.typ == "aws:lambda/functionUrl:FunctionUrl":

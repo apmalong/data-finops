@@ -94,6 +94,10 @@
 <dd>
 <p>How much of the Billing Line a Deployment's API shows in a Cost Explanation: <code>minimal</code> (the default) or <code>full</code> (ADR 0028). The stack sets it from its <code>explanationDetail</code> setting.</p>
 </dd>
+<dt><code>DATA_FINOPS_DEMO_BUCKET</code></dt>
+<dd>
+<p>The public demo's bucket, for the dataset generator function. The function writes the demo dataset in it, under <code>dataset/</code>. The stack sets it when <code>publicDemo</code> is <code>true</code>. If it is not set, the invocation fails, and the error names the variable.</p>
+</dd>
 <dt><code>DATA_FINOPS_ANON_SECRET</code></dt>
 <dd>
 <p>The secret for the two anonymizer scripts. They are for contributors and are not part of the <code>data-finops</code> command.</p>

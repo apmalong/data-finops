@@ -157,13 +157,22 @@ def test_attribution_reads_no_clock():
                 assert (node.value.id, node.attr) not in CLOCK_CALLS, f"{path}: clock read"
 
 
-def test_pyarrow_is_used_only_by_the_focus_reader():
+def test_pyarrow_is_used_only_by_the_focus_reader_and_the_demo_dataset():
     # ADR 0018: pyarrow stays inside the export reader so the core does not depend on it.
-    allowed = SRC / "billing" / "focus.py"
+    # Amended (#225): the public demo's dataset generator writes Parquet with it.
+    allowed = {SRC / "billing" / "focus.py", SRC / "public_demo" / "dataset.py"}
     for path in SRC.rglob("*.py"):
-        if path == allowed:
+        if path in allowed:
             continue
         assert not any(name.startswith("pyarrow") for name in _imports(path)), path
+
+
+def test_only_the_lambda_handlers_import_the_public_demo():
+    # spec 09: the public demo runs in AWS; the product's own packages never depend on it.
+    for path in SRC.rglob("*.py"):
+        if path.name == "lambda_handlers.py" or SRC / "public_demo" in path.parents:
+            continue
+        assert not any(name.startswith("data_finops.public_demo") for name in _imports(path)), path
 
 
 SQL_STATEMENT = re.compile(r"^\s*(SELECT|INSERT|UPDATE|DELETE|CREATE|ALTER|DROP|PRAGMA)\b", re.I)

@@ -47,6 +47,16 @@ The owner's brief (2026-11-07): stand data-finops up for real, then show what th
 | Q74 | Sensitive values in the full API | `/v1/allocations` and `/v1/rollups/dimensions/{name}` show them. "The public form of the dimension route" is part of the Demo Snapshot (#227) | Accepted recommendation | spec 09 §Cost Dimensions |
 | Q75 | What `dimensions_sha256` covers | The configuration only. ADR 0031 says that tag data is not in it | Accepted recommendation | ADR 0031 §Consequences |
 
+## Round 3 (2026-11-15, #225)
+
+Asked with options only. The owner chose each option, so no recommendation was given.
+
+| # | Question | Decision | Source | Recorded in |
+|---|---|---|---|---|
+| Q76 | How the dataset generator writes Parquet | **Owner:** with pyarrow. ADR 0018 lets the generator use it, and the import-boundary test allows that one module. The other option was Athena `CREATE TABLE AS SELECT` | Owner | ADR 0018 §Amendment (2026-11-15), spec 09 §The demo dataset |
+| Q77 | Where the dataset is | **Owner:** in the demo bucket, under `dataset/`. #225 makes the bucket, and #229 limits CloudFront to the prefix of the site. The other options were the bucket of the Deployment, or a third bucket | Owner | spec 09 §The demo dataset, §The site |
+| Q78 | What runs the generator | **Owner:** a Lambda function, with a role of its own, that the owner invokes one time. The other option was a CLI command with the owner's credentials | Owner | spec 09 §Layout, §The demo dataset |
+
 ## Facts the decisions rest on
 
 From the research note `docs/research/m7-aws-finops-tools.md`, checked 2026-11-07:

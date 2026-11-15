@@ -3,11 +3,13 @@
 import os
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 import pulumi
 import pulumi_aws as aws
 
 from deployment.compute import Compute
+from deployment.demo import PublicDemo
 from deployment.package import DEFAULT_PACKAGE
 from deployment.settings import Settings
 from deployment.storage import Storage
@@ -23,9 +25,14 @@ OUTPUTS: dict[str, str] = {
     "collectorFunction": "The collector function's name, for its logs or to invoke a "
     "Collection Run by hand.",
     "apiFunction": "The API function's name, for its logs.",
+    "demoBucket": "Only with publicDemo: the public demo's bucket, with the demo dataset.",
+    "demoGeneratorFunction": "Only with publicDemo: the function that writes the demo "
+    "dataset. Invoke it one time after the first deploy.",
 }
 """Each stack output and what it is for. The site's generated deployment settings reference
-reads this literal from the source, and `Deployment.outputs` gives exactly these."""
+reads this literal from the source, and `Deployment.outputs` gives exactly these, less
+`DEMO_OUTPUTS` when `publicDemo` is off."""
+DEMO_OUTPUTS = ("demoBucket", "demoGeneratorFunction")
 
 
 def require_local_state() -> None:
@@ -49,10 +56,20 @@ def require_package(package: Path) -> None:
 class Deployment:
     storage: Storage
     compute: Compute
+    demo: PublicDemo | None = None
+
+    @property
+    def ready(self) -> pulumi.Output[list[Any]]:
+        """Settles once every resource of every component is registered."""
+        components = [self.storage.ready, self.compute.ready]
+        if self.demo is not None:
+            components.append(self.demo.ready)
+        return pulumi.Output.all(*components)
 
     def outputs(self) -> dict[str, pulumi.Output[str]]:
-        """The stack's outputs (spec 08 §Settings, Outputs)."""
-        return {"bucket": self.storage.bucket.bucket, **self.compute.outputs()}
+        """The stack's outputs (spec 08 §Settings, Outputs; spec 09 §Stack)."""
+        demo = {} if self.demo is None else self.demo.outputs()
+        return {"bucket": self.storage.bucket.bucket, **self.compute.outputs(), **demo}
 
 
 def build(
@@ -67,7 +84,8 @@ def build(
         account_id = aws.get_caller_identity_output().account_id
     storage = Storage(NAME, settings)
     compute = Compute(NAME, settings, storage, package=package, account_id=account_id)
-    return Deployment(storage=storage, compute=compute)
+    demo = PublicDemo(NAME, settings, code=compute.code) if settings.public_demo else None
+    return Deployment(storage=storage, compute=compute, demo=demo)
 
 
 def main() -> None:
