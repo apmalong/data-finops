@@ -98,7 +98,7 @@
 <h2 id="ingest-athena"><code>data-finops ingest athena</code></h2>
 <p>an Athena BatchGetQueryExecution response</p>
 <pre class="usage"><code><span class="line">usage: data-finops ingest athena [-h] --account-id ACCOUNT_ID --region REGION
-</span><span class="line">                                 --db DB
+</span><span class="line">                                 [--dimensions DIMENSIONS] --db DB
 </span><span class="line">                                 path</span></code></pre>
 <div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
 <table>
@@ -107,30 +107,34 @@
 <tr><td><code>path</code></td><td>required</td><td></td><td></td></tr>
 <tr><td><code>--account-id ACCOUNT_ID</code></td><td>required</td><td></td><td></td></tr>
 <tr><td><code>--region REGION</code></td><td>required</td><td></td><td></td></tr>
+<tr><td><code>--dimensions DIMENSIONS</code></td><td>optional</td><td></td><td>the Cost Dimensions file (TOML). Without it, no dimensions apply.</td></tr>
 <tr><td><code>--db DB</code></td><td>required</td><td></td><td>the database file</td></tr>
 </tbody>
 </table>
 </div>
 <h2 id="calculate"><code>data-finops calculate</code></h2>
 <p>start a Calculation Run for every Snapshot Scope</p>
-<pre class="usage"><code><span class="line">usage: data-finops calculate [-h] --db DB</span></code></pre>
+<pre class="usage"><code><span class="line">usage: data-finops calculate [-h] --db DB [--dimensions DIMENSIONS]</span></code></pre>
 <div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
 <table>
 <thead><tr><th>Argument</th><th>Required</th><th>Default</th><th>Meaning</th></tr></thead>
 <tbody>
 <tr><td><code>--db DB</code></td><td>required</td><td></td><td>the database file</td></tr>
+<tr><td><code>--dimensions DIMENSIONS</code></td><td>optional</td><td></td><td>the Cost Dimensions file (TOML). Without it, no dimensions apply.</td></tr>
 </tbody>
 </table>
 </div>
 <h2 id="collect"><code>data-finops collect</code></h2>
 <p>run one Collection Run against AWS into a database (spec 08)</p>
-<pre class="usage"><code><span class="line">usage: data-finops collect [-h] --db DB --config CONFIG</span></code></pre>
+<pre class="usage"><code><span class="line">usage: data-finops collect [-h] --db DB --config CONFIG
+</span><span class="line">                           [--dimensions DIMENSIONS]</span></code></pre>
 <div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
 <table>
 <thead><tr><th>Argument</th><th>Required</th><th>Default</th><th>Meaning</th></tr></thead>
 <tbody>
 <tr><td><code>--db DB</code></td><td>required</td><td></td><td>the database file</td></tr>
 <tr><td><code>--config CONFIG</code></td><td>required</td><td></td><td>the collector&#x27;s settings file (TOML)</td></tr>
+<tr><td><code>--dimensions DIMENSIONS</code></td><td>optional</td><td></td><td>the Cost Dimensions file (TOML). Without it, no dimensions apply.</td></tr>
 </tbody>
 </table>
 </div>

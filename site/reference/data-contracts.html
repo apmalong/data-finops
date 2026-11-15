@@ -68,6 +68,7 @@
 <tr><td><code>calculation_run_id</code></td><td>required</td><td>string</td><td></td></tr>
 <tr><td><code>evidence_refs</code></td><td>optional</td><td>list of string, default []</td><td></td></tr>
 <tr><td><code>as_of</code></td><td>optional</td><td>string, date-time, or null</td><td></td></tr>
+<tr><td><code>dimensions</code></td><td>optional</td><td>object of DimensionValue, default {}</td><td></td></tr>
 </tbody>
 </table>
 </div>
@@ -76,6 +77,18 @@
 <p>One of <code>direct</code>, <code>shared</code>, <code>idle</code>, <code>unallocated</code>.</p>
 <h3 id="allocation-confidence">Confidence</h3>
 <p>One of <code>direct_verified</code>, <code>metered_estimate</code>, <code>heuristic_estimate</code>.</p>
+<h3 id="allocation-dimension-value">DimensionValue</h3>
+<p>The value of one Cost Dimension on an Allocation, and the source that gave it (ADR 0031). A value is a claim, never Evidence.</p>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
+<table>
+<thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>value</code></td><td>required</td><td>string, or null</td><td></td></tr>
+<tr><td><code>source</code></td><td>required</td><td>string, or null</td><td></td></tr>
+<tr><td><code>sensitive</code></td><td>optional</td><td>boolean, default false</td><td></td></tr>
+</tbody>
+</table>
+</div>
 <h3 id="allocation-target-type">TargetType</h3>
 <p>One of <code>query_execution</code>, <code>idle</code>, <code>unallocated</code>.</p>
 <h2 id="billing-line"><code>billing-line.schema.json</code>: BillingLine</h2>

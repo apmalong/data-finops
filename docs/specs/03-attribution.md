@@ -78,7 +78,7 @@
      - All other lines are Ineligible and reported. These include tax, purchases, corrections and other services.
    - A metered line without a usage account or Region has nothing in scope (Coverage 0).
    - A billed query with unknown Billable Usage is not included in the known usage, and it is reported.
-   - Allocations record one policy version. It joins with `+` the versions of the engine, the line classification and the two Athena policies.
+   - Allocations record one policy version. It joins with `+` the versions of the engine, the line classification, the two Athena policies and Cost Dimension resolution (`cost-dimensions/1`, spec 09).
    - The input digest covers the Export Snapshot ID, and the reference and pool of each line. It also covers the Billable Usage and Evidence of each Query Execution in scope. Last, it covers the queries whose usage is unknown, and that version.
 
 3. **Scope.**

@@ -26,6 +26,7 @@ from data_finops.billing.aws_data_exports import DeliveryError, is_manifest, loa
 from data_finops.billing.focus import load_export
 from data_finops.calculation import run_calculation
 from data_finops.collection import AwsClients, CollectionSettings, run_collection
+from data_finops.contracts.dimensions import NO_DIMENSIONS, CostDimensions
 from data_finops.ledger import Ledger, SnapshotConflictError
 from data_finops.reporting import BillingLineDetail
 from data_finops.workload.store import ArtifactOutcome, WorkloadStore
@@ -115,6 +116,8 @@ def build_parser() -> argparse.ArgumentParser:
         command.add_argument("path", type=Path)
         for option in required_options:
             command.add_argument(option, required=True)
+        if kind == "athena":
+            _dimensions_argument(command)
         if kind == "focus":
             command.add_argument(
                 "--data-dir",
@@ -128,6 +131,7 @@ def build_parser() -> argparse.ArgumentParser:
         "calculate", help="start a Calculation Run for every Snapshot Scope"
     )
     _database_argument(calculate)
+    _dimensions_argument(calculate)
     calculate.set_defaults(run=_calculate)
 
     collect = commands.add_parser(
@@ -137,6 +141,7 @@ def build_parser() -> argparse.ArgumentParser:
     collect.add_argument(
         "--config", type=Path, required=True, help="the collector's settings file (TOML)"
     )
+    _dimensions_argument(collect)
     collect.set_defaults(run=_collect)
 
     serve = commands.add_parser("serve", help="serve the API and dashboard over a database")
@@ -216,17 +221,39 @@ def _ingest_dbt(args: argparse.Namespace) -> int:
     return OK
 
 
+def _dimensions_argument(command: argparse.ArgumentParser) -> None:
+    command.add_argument(
+        "--dimensions",
+        type=Path,
+        help="the Cost Dimensions file (TOML). Without it, no dimensions apply.",
+    )
+
+
+def _dimensions(args: argparse.Namespace) -> CostDimensions:
+    """The Cost Dimensions of `--dimensions`. A fault names the file and the problem, never a
+    value (spec 09)."""
+    path: Path | None = args.dimensions
+    if path is None:
+        return NO_DIMENSIONS
+    try:
+        return CostDimensions.from_toml(path)
+    except ValueError as error:
+        raise _Failure(f"{path}: {error}") from None
+
+
 def _ingest_athena(args: argparse.Namespace) -> int:
+    dimensions = _dimensions(args)
     with _workload_store(args.db) as store:
         result = store.ingest_query_history(
-            args.path, account_id=args.account_id, region=args.region
+            args.path, account_id=args.account_id, region=args.region, dimensions=dimensions
         )
     if result.file_rejection is not None:
         print(f"athena: rejected: {result.file_rejection}")
         return REJECTED
+    dropped = f", {result.claims_dropped} claims dropped" if result.claims_dropped else ""
     print(
         f"athena: {result.accepted} accepted, {result.duplicates} duplicates,"
-        f" {result.changed_copies} changed copies, {len(result.rejected)} rejected"
+        f" {result.changed_copies} changed copies, {len(result.rejected)} rejected{dropped}"
     )
     _print_rejections((r.position, r.detail) for r in result.rejected)
     return REJECTED if result.rejected else OK
@@ -238,6 +265,7 @@ def _print_rejections(rejections: Iterable[tuple[int, str]]) -> None:
 
 
 def _calculate(args: argparse.Namespace) -> int:
+    dimensions = _dimensions(args)
     if not args.db.is_file():
         raise _Failure(f"no database at {args.db}")
     with Ledger(args.db) as ledger, _workload_store(args.db) as store:
@@ -245,7 +273,7 @@ def _calculate(args: argparse.Namespace) -> int:
         if not scopes:
             print("calculate: no Export Snapshot to calculate")
         for scope in scopes:
-            result = run_calculation(ledger, store, scope)
+            result = run_calculation(ledger, store, scope, dimensions=dimensions)
             print(
                 f"calculate: {scope.billing_account_id}"
                 f" {scope.billing_period_start.date().isoformat()} {scope.source}:"
@@ -259,7 +287,10 @@ def _collect(args: argparse.Namespace) -> int:
         settings = CollectionSettings.from_toml(args.config)
     except ValueError as error:  # names the setting, never its value
         raise _Failure(f"{args.config}: {error}") from None
-    summary = run_collection(args.db, settings, clients=args.aws_clients(settings))
+    dimensions = _dimensions(args)
+    summary = run_collection(
+        args.db, settings, clients=args.aws_clients(settings), dimensions=dimensions
+    )
     print(summary.model_dump_json())
     for source in summary.sources.values():
         for rejected in source.rejected:
@@ -303,8 +334,8 @@ def _demo(args: argparse.Namespace) -> int:
 
 def _run_demo(db: Path, fixtures: Path, port: int, start_server: StartServer) -> int:
     print(f"demo: database {db}")
-    athena = {"account_id": "123456789012", "region": "us-east-1"}
-    steps: list[tuple[Callable[[argparse.Namespace], int], Path, dict[str, str]]] = [
+    athena = {"account_id": "123456789012", "region": "us-east-1", "dimensions": None}
+    steps: list[tuple[Callable[[argparse.Namespace], int], Path, dict[str, str | None]]] = [
         (_ingest_focus, fixtures / "focus" / "export-2026-10.json", {}),
         *(
             (_ingest_athena, fixtures / "athena" / name, athena)
@@ -320,7 +351,7 @@ def _run_demo(db: Path, fixtures: Path, port: int, start_server: StartServer) ->
     ]
     for ingest, path, extra in steps:
         ingest(argparse.Namespace(path=path, db=db, **extra))
-    _calculate(argparse.Namespace(db=db))
+    _calculate(argparse.Namespace(db=db, dimensions=None))
     # The local demo needs no secret (ADR 0024): a configured token is not applied to it.
     return _serve_database(db, DEFAULT_HOST, port, None, start_server, environ={})
 

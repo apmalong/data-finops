@@ -20,14 +20,14 @@
   - It shares the database file of the Ledger, but it imports nothing from `billing`, `ledger` or `attribution` (ADR 0018 amendment, ADR 0022).
 - `attribution`: deterministic pure calculations over immutable records. It has no network I/O, clock or cloud SDK imports.
   - It imports nothing from `providers`, `ledger` or `workload`. The callers classify Billing Lines into pools, and they give the Billable Usage (`attribution.engine`, #81).
-  - Roll-ups (`attribution.rollups`) are pure sums too.
+  - Roll-ups (`attribution.rollups`) are pure sums too. So are Cost Dimension values and totals (`attribution.dimensions`, ADR 0031).
 - `calculation`: the Calculation Run (#88). It is a thin orchestrator over `ledger`, `workload`, `providers` and the pure `attribution` engine.
   - All four meet only here. `collection` (below) gets to them through `calculation`, and gives it what it collected.
   - It resolves the Evidence of each Allocation with `attribution.rollups`.
   - No SQL and no AWS.
 - `reporting`: the read model (M5). It is read-only.
   - It answers cost summaries, allocations, explanations, lineage, reconciliation and provenance from the `ledger` and `workload` read interfaces. It returns response models.
-  - It computes Roll-ups at read time with the pure `attribution.rollups`.
+  - It computes Roll-ups and Cost Dimension totals at read time with the pure `attribution.rollups` and `attribution.dimensions`.
   - Only `reporting`, `calculation` and `collection` import both stores. `cli` can too, with the condition in its entry below.
 - `api`: the HTTP adapter (FastAPI, optional `api` extra) and the static dashboard.
   - It reads only through `reporting`. Its one write gives OpenLineage events to `WorkloadStore` (ADR 0024).

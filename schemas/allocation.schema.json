@@ -20,6 +20,45 @@
       "title": "Confidence",
       "type": "string"
     },
+    "DimensionValue": {
+      "additionalProperties": false,
+      "description": "The value of one Cost Dimension on an Allocation, and the source that gave it (ADR 0031).\nA value is a claim, never Evidence.",
+      "properties": {
+        "value": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Value"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Source"
+        },
+        "sensitive": {
+          "default": false,
+          "title": "Sensitive",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "value",
+        "source"
+      ],
+      "title": "DimensionValue",
+      "type": "object"
+    },
     "TargetType": {
       "enum": [
         "query_execution",
@@ -193,6 +232,14 @@
       ],
       "default": null,
       "title": "As Of"
+    },
+    "dimensions": {
+      "additionalProperties": {
+        "$ref": "#/$defs/DimensionValue"
+      },
+      "default": {},
+      "title": "Dimensions",
+      "type": "object"
     }
   },
   "required": [

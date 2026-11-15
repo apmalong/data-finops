@@ -56,6 +56,14 @@ If the Evidence names a Model Execution or a Query Execution that the store does
 ### `GET /v1/rollups?level=model_execution|workload_run`
 Roll-ups for each currency and Cost Basis. This route is separate from `/v1/allocations`, because a Roll-up is a view, never an Allocation.
 
+### `GET /v1/rollups/dimensions/{name}`
+What each value of one Cost Dimension holds in one Allocation Snapshot (spec 09, ADR 0031).
+- The snapshot is selected as for `/v1/allocations`.
+- Each value has its amounts for each currency and Cost Basis, and how its sources split.
+- Unassigned cost has the value null.
+- The totals of all values equal the totals of the snapshot.
+- If no Allocation of the snapshot has the dimension, the answer is 404.
+
 ### `GET /v1/lineage`
 Without parameters, the root Workload Runs, in pages. The workload store gets a read-only list of root runs.
 

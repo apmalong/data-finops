@@ -132,6 +132,12 @@ def in_billing_scope(query: QueryExecution, line: FocusBillingLine) -> bool:
     )
 
 
+def line_workgroup(line: FocusBillingLine) -> str | None:
+    """The Athena workgroup a Billing Line names in ResourceId, or None (#91). The
+    `workgroup_map` Cost Dimension source uses it for an amount with no query (ADR 0031)."""
+    return _workgroup(line.ResourceId)
+
+
 def _workgroup(resource_id: str | None) -> str | None:
     """The workgroup named by an Athena workgroup ARN, e.g. `...:workgroup/demo`."""
     fields = (resource_id or "").split(":", 5)

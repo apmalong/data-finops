@@ -143,6 +143,22 @@ def trusted_query_comment(query: str) -> ModelExecutionKey | None:
     ignored; a comment anywhere else in the query is not Evidence, so SQL cannot forge one
     mid-statement.
     """
+    document = query_comment(query)
+    if document is None:
+        return None
+    node, invocation = document.get("node_id"), document.get("invocation_id")
+    if document.get("app") != "dbt" or not _identifier(node) or not _identifier(invocation):
+        return None
+    return ModelExecutionKey(invocation_id=invocation, node_id=node)
+
+
+def query_comment(query: str) -> dict[str, Any] | None:
+    """The JSON object of the first-line comment of a query, or None.
+
+    The syntax is the syntax of the Trusted Query Comment (see `trusted_query_comment`), but
+    no key is required. Cost Dimension claims come from it (ADR 0031). A claim is never
+    Evidence: only `trusted_query_comment` names a Model Execution.
+    """
     line = query[:MAX_COMMENT_CHARS].partition("\n")[0]
     prefix = next((p for p in _COMMENT_PREFIXES if line.startswith(p)), None)
     if prefix is None:
@@ -153,12 +169,7 @@ def trusted_query_comment(query: str) -> ModelExecutionKey | None:
         return None
     if not line.startswith(" */", end) or "*/" in line[len(prefix) : end]:
         return None
-    if not isinstance(document, dict):
-        return None
-    node, invocation = document.get("node_id"), document.get("invocation_id")
-    if document.get("app") != "dbt" or not _identifier(node) or not _identifier(invocation):
-        return None
-    return ModelExecutionKey(invocation_id=invocation, node_id=node)
+    return document if isinstance(document, dict) else None
 
 
 MAX_COMMENT_CHARS = 4096

@@ -7,8 +7,9 @@ from datetime import date
 from decimal import Decimal
 from pathlib import Path
 from types import TracebackType
-from typing import Self, get_args
+from typing import Any, Self, get_args
 
+from data_finops.attribution.dimensions import dimension_totals
 from data_finops.attribution.engine import AllocationMethod
 from data_finops.attribution.rollups import (
     RollupTotal,
@@ -46,6 +47,10 @@ from data_finops.reporting.models import (
     CostSummaries,
     CostSummary,
     CurrencySummary,
+    DimensionRollupEntry,
+    DimensionRollupPage,
+    DimensionSourceAmount,
+    DimensionTotal,
     ExplainedModelExecution,
     ExplainedRollup,
     ExplainedWorkloadRun,
@@ -221,6 +226,56 @@ class Reporting:
         return RollupPage(
             calculation_run_id=stored.snapshot.calculation_run_id,
             level=level,
+            total=len(entries),
+            limit=limit,
+            offset=offset,
+            items=entries[offset : offset + limit],
+        )
+
+    def dimension_rollups(
+        self,
+        *,
+        name: str,
+        calculation_run_id: str | None = None,
+        billing_account_id: str | None = None,
+        billing_period: date | None = None,
+        source: str | None = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> DimensionRollupPage:
+        """One page of the values of the Cost Dimension `name` in one Allocation Snapshot,
+        each with its amounts by currency and Cost Basis and how its sources split (ADR 0031).
+        Unassigned cost is the value None, after the assigned values.
+
+        The snapshot is selected as for `allocations`. NotFound when no Allocation of the
+        snapshot carries the dimension. ValueError for a page out of bounds.
+        """
+        _check_page(limit, offset)
+        stored = self._served(calculation_run_id, billing_account_id, billing_period, source)
+        totals = dimension_totals(stored.allocations, name)
+        if totals is None:
+            raise NotFound("no such Cost Dimension in this Allocation Snapshot")
+        entries = [
+            DimensionRollupEntry(
+                value=value,
+                totals=[
+                    DimensionTotal(
+                        currency=currency,
+                        cost_basis=CostBasis(basis),
+                        amount=sum(by_source.values(), Decimal(0)),
+                        sources=[
+                            DimensionSourceAmount(source=origin, amount=amount)
+                            for origin, amount in sorted(by_source.items(), key=_none_last)
+                        ],
+                    )
+                    for (currency, basis), by_source in sorted(by_basis.items())
+                ],
+            )
+            for value, by_basis in sorted(totals.items(), key=_none_last)
+        ]
+        return DimensionRollupPage(
+            calculation_run_id=stored.snapshot.calculation_run_id,
+            dimension=name,
             total=len(entries),
             limit=limit,
             offset=offset,
@@ -436,11 +491,13 @@ class Reporting:
             billing_line_ref=allocation.billing_line_ref,
             billing_line=line if detail is BillingLineDetail.FULL else _declared_columns_only(line),
             billing_line_detail=detail,
-            allocation=allocation,
+            allocation=(
+                allocation if detail is BillingLineDetail.FULL else _not_sensitive(allocation)
+            ),
             unallocated_reason=(
                 allocation.method if allocation.category is AllocationCategory.UNALLOCATED else None
             ),
-            query_execution=self._query_execution(allocation, line),
+            query_execution=self._query_execution(allocation, line, detail),
             model_execution=None if model is None else self._model_execution(model),
             workload_runs=[
                 ExplainedWorkloadRun(run_id=run, run=self._store.workload_run(run)) for run in runs
@@ -458,14 +515,18 @@ class Reporting:
         return export.lines[parsed[1]]
 
     def _query_execution(
-        self, allocation: Allocation, line: FocusBillingLine
+        self, allocation: Allocation, line: FocusBillingLine, detail: BillingLineDetail
     ) -> QueryExecution | None:
         """The Query Execution the Allocation's Evidence names, in the line's usage account
-        and region (spec 03); None if the Evidence names none or it is not stored."""
+        and region (spec 03); None if the Evidence names none or it is not stored. At the
+        minimal detail, its Cost Dimension claims are left out (ADR 0028, ADR 0031)."""
         query_execution_id = query_execution_of(allocation)
         if query_execution_id is None or line.SubAccountId is None or line.RegionId is None:
             return None
-        return self._store.query_execution(line.SubAccountId, line.RegionId, query_execution_id)
+        query = self._store.query_execution(line.SubAccountId, line.RegionId, query_execution_id)
+        if query is None or detail is BillingLineDetail.FULL:
+            return query
+        return query.model_copy(update={"claims": {}})
 
     def _model_execution(self, model: ModelExecutionKey) -> ExplainedModelExecution:
         invocation_id, node_id = model
@@ -618,6 +679,17 @@ _ROLLUPS: dict[RollupLevel, Callable[[list[Allocation]], dict[str, tuple[RollupT
 def _allocation_ref(calculation_run_id: str, position: int) -> str:
     """An Allocation's address, `<calculation_run_id>#<position>` (spec 06)."""
     return f"{calculation_run_id}#{position}"
+
+
+def _none_last(item: tuple[str | None, Any]) -> tuple[bool, str]:
+    """Sorts by key, with the None key (unassigned) last."""
+    return (item[0] is None, item[0] or "")
+
+
+def _not_sensitive(allocation: Allocation) -> Allocation:
+    """The Allocation without its sensitive Cost Dimensions (ADR 0031 point 8)."""
+    kept = {name: value for name, value in allocation.dimensions.items() if not value.sensitive}
+    return allocation.model_copy(update={"dimensions": kept})
 
 
 def _declared_columns_only(line: FocusBillingLine) -> MinimalBillingLine:

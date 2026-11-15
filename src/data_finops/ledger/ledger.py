@@ -159,6 +159,11 @@ class Ledger:
             self._connection.execute(
                 "ALTER TABLE allocation_snapshot ADD COLUMN export_snapshot_id TEXT"
             )
+        if "dimensions_sha256" not in columns:
+            # Added in M7 (#222); snapshots stored before it applied no Cost Dimensions.
+            self._connection.execute(
+                "ALTER TABLE allocation_snapshot ADD COLUMN dimensions_sha256 TEXT"
+            )
 
     def close(self) -> None:
         self._connection.close()
@@ -308,6 +313,7 @@ class Ledger:
         input_digest: str,
         allocations: Sequence[Allocation],
         export_snapshot_id: str | None = None,
+        dimensions_sha256: str | None = None,
     ) -> AllocationStoreResult:
         """Store a Calculation Run's Allocations as the current snapshot for `scope`.
 
@@ -318,6 +324,8 @@ class Ledger:
         AllocationSnapshotConflictError if the run ID is already stored, and ValueError if
         an Allocation names another Calculation Run or policy version. `export_snapshot_id`
         records the Export Snapshot the run read, the bill its Allocations partition.
+        `dimensions_sha256` records the Cost Dimensions configuration the run applied. It is
+        not part of the input digest, so it never makes a snapshot by itself (Q72).
         """
         for allocation in allocations:
             named = (allocation.calculation_run_id, allocation.policy_version)
@@ -343,8 +351,8 @@ class Ledger:
             self._connection.execute(
                 "INSERT INTO allocation_snapshot (calculation_run_id, billing_account_id,"
                 " billing_period_start, billing_period_end, source, input_digest,"
-                " policy_version, created_at_us, export_snapshot_id)"
-                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                " policy_version, created_at_us, export_snapshot_id, dimensions_sha256)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     calculation_run_id,
                     *_scope_key(scope),
@@ -352,6 +360,7 @@ class Ledger:
                     policy_version,
                     _microseconds(self._clock()),
                     export_snapshot_id,
+                    dimensions_sha256,
                 ),
             )
             self._connection.executemany(
@@ -402,7 +411,8 @@ class Ledger:
         account, start, end, source = _scope_key(scope) if scope else (None, None, None, None)
         rows = self._connection.execute(
             "SELECT s.calculation_run_id, s.input_digest, s.policy_version, s.created_at_us,"
-            " c.calculation_run_id IS NOT NULL, s.export_snapshot_id, s.billing_account_id,"
+            " c.calculation_run_id IS NOT NULL, s.export_snapshot_id, s.dimensions_sha256,"
+            " s.billing_account_id,"
             " s.billing_period_start, s.billing_period_end, s.source FROM allocation_snapshot s"
             " LEFT JOIN current_allocation_snapshot c"
             " ON c.calculation_run_id = s.calculation_run_id"
@@ -428,6 +438,7 @@ class Ledger:
                 created_at=_EPOCH + timedelta(microseconds=created_us),
                 is_current=bool(current),
                 export_snapshot_id=export_id,
+                dimensions_sha256=sha256,
                 scope=SnapshotScope(
                     billing_account_id=scope[0],
                     billing_period_start=scope[1],
@@ -435,7 +446,7 @@ class Ledger:
                     source=scope[3],
                 ),
             )
-            for run_id, digest, policy, created_us, current, export_id, *scope in rows
+            for run_id, digest, policy, created_us, current, export_id, sha256, *scope in rows
         ]
 
     def _current_allocation_run(self, scope: SnapshotScope) -> str | None:

@@ -70,6 +70,21 @@ _CATEGORY_RULES: list[JsonValue] = [
 ]
 
 
+class DimensionValue(BaseModel):
+    """The value of one Cost Dimension on an Allocation, and the source that gave it (ADR 0031).
+    A value is a claim, never Evidence."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    value: str | None
+    """None: unassigned. No source gave a value."""
+    source: str | None
+    """The source that gave the value, for example `query_comment.team`. None when
+    unassigned."""
+    sensitive: bool = False
+    """The dimension was marked sensitive: the minimal Cost Explanation leaves it out."""
+
+
 class Allocation(BaseModel):
     """The part of one Billing Line assigned to one Allocation Target."""
 
@@ -92,6 +107,8 @@ class Allocation(BaseModel):
     calculation_run_id: str
     evidence_refs: list[str] = []
     as_of: UtcDatetime | None = None
+    dimensions: dict[str, DimensionValue] = {}
+    """Each configured Cost Dimension, by name (ADR 0031). Empty without a configuration."""
 
     @model_validator(mode="after")
     def _category_rules(self) -> "Allocation":
@@ -130,5 +147,8 @@ class AllocationSnapshot(BaseModel):
     is_current: bool
     export_snapshot_id: str | None = None
     """The Export Snapshot the Calculation Run read; None for snapshots stored before M5."""
+    dimensions_sha256: str | None = None
+    """The SHA-256 of the Cost Dimensions configuration the run applied. It is not part of the
+    input digest (Q72). None without a configuration."""
     scope: SnapshotScope | None = None
     """The Snapshot Scope it was calculated for, as the Ledger records it."""

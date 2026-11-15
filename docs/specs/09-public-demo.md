@@ -34,7 +34,7 @@ The Deployment must not contain code that is not vetted. These tickets go first:
 
 - **Sources:** in the configured order. The first source with a value wins.
   - `query_comment.<key>`: a key in the first-line JSON comment of the query. It has the syntax of the Trusted Query Comment, but a dimension does not require `app`, `node_id` or `invocation_id`.
-  - `openlineage_tag.<key>`: a tag in the OpenLineage tags facets of the Workload Run linked to the query. The tags of the run itself come first, then the tags of its parents up to the root.
+  - `openlineage_tag.<key>`: a tag in the OpenLineage tags facets of the Workload Run linked to the query. That run is the run of its dbt invocation, which the Evidence of the Allocation names (Q73). The tags of that run come first, then the tags of its parents up to the root. A key with two values on one run gives no value.
   - `workgroup_map`: the workgroup of the query, or the workgroup of the line for an amount with no query.
 - **Capture:** ingest keeps only the comment keys that the configuration names, in a new `QueryExecution.claims`.
   - There are 16 keys at most, and each value is 128 characters at most.
@@ -50,7 +50,7 @@ The Deployment must not contain code that is not vetted. These tickets go first:
 - **A Deployment:** the setting `costDimensions` holds the path of the file.
   - The stack uploads the file to `config/cost-dimensions.toml` in the bucket of the Deployment. The reason is that the settings of the collector go in an environment variable, which is limited to 4 KB.
   - The roles of the collector and the publisher can read that one object.
-- **Sensitive dimensions:** they are not in the minimal Cost Explanation, the public form of the dimension route or the Demo Snapshot.
+- **Sensitive dimensions:** they are not in the minimal Cost Explanation, the public form of the dimension route or the Demo Snapshot. The public form of the route is part of the Demo Snapshot (Q74). The full API shows them.
 
 ## The simulated orchestrator (ADR 0030)
 - **Schedule:** EventBridge Scheduler, a few times a day. Each start is between :10 and :40 past the hour, so that no query finishes near the boundary of an hour (OQ-25).

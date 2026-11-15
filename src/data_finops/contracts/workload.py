@@ -41,6 +41,9 @@ class QueryExecution(BaseModel):
     `providers.athena_billing.billable_bytes`. The Calculation Run (#88) applies the
     policy without storing the result on the query; it reaches Allocations as weights."""
     correlation: QueryCorrelation | None = None
+    claims: dict[str, str] = Field(default_factory=dict)
+    """Cost Dimension claims from the first-line query comment: only the configured keys
+    (ADR 0031). A claim is never Evidence for an Identity Link."""
     provenance: str | None = None
     """The digest of the stored observation these fields come from."""
     flags: tuple[QueryExecutionFlag, ...] = ()

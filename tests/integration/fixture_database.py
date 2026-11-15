@@ -8,6 +8,7 @@ from typing import Any
 from data_finops.billing.focus import load_export
 from data_finops.calculation import run_calculation
 from data_finops.contracts.billing import CostBasis, FocusBillingLine, FocusExport
+from data_finops.contracts.dimensions import NO_DIMENSIONS, CostDimensions
 from data_finops.ledger import Ledger
 from data_finops.workload.store import WorkloadStore
 
@@ -18,18 +19,21 @@ ACCOUNT, REGION = "123456789012", "us-east-1"
 OTHER_ACCOUNT = "210987654321"
 
 
-def fill(path: Path) -> str:
-    """Ingest every fixture and run one Calculation Run; returns its ID."""
+def fill(path: Path, dimensions: CostDimensions = NO_DIMENSIONS) -> str:
+    """Ingest every fixture and run one Calculation Run, with `dimensions` applied at ingest
+    and in the run; returns its ID."""
     with Ledger(path) as ledger, WorkloadStore(path) as store:
         ledger.import_snapshot(EXPORT)
         for name in ("query-executions.json", "link-outcomes.json", "link-outcomes-restated.json"):
             store.ingest_query_history(
-                FIXTURES / "athena" / name, account_id=ACCOUNT, region=REGION
+                FIXTURES / "athena" / name, account_id=ACCOUNT, region=REGION, dimensions=dimensions
             )
         store.ingest_events(FIXTURES / "openlineage" / "events.json")
         store.ingest_dbt_artifact(FIXTURES / "dbt" / "manifest.json")
         store.ingest_dbt_artifact(FIXTURES / "dbt" / "run_results.json")
-        return run_calculation(ledger, store, EXPORT.snapshot.scope).calculation_run_id
+        return run_calculation(
+            ledger, store, EXPORT.snapshot.scope, dimensions=dimensions
+        ).calculation_run_id
 
 
 def restate(path: Path) -> str:
@@ -62,9 +66,11 @@ OTHER_EXPORT = FocusExport(
 )
 
 
-def add_other_account(path: Path) -> str:
+def add_other_account(path: Path, dimensions: CostDimensions = NO_DIMENSIONS) -> str:
     """A second Snapshot Scope with S3 lines in USD and EUR and a EUR credit, calculated (every
     line Unallocated); returns its Calculation Run's ID."""
     with Ledger(path) as ledger, WorkloadStore(path) as store:
         ledger.import_snapshot(OTHER_EXPORT)
-        return run_calculation(ledger, store, OTHER_EXPORT.snapshot.scope).calculation_run_id
+        return run_calculation(
+            ledger, store, OTHER_EXPORT.snapshot.scope, dimensions=dimensions
+        ).calculation_run_id
