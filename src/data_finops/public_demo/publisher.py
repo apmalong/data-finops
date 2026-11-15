@@ -19,6 +19,7 @@ from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from decimal import Decimal
+from functools import partial
 from pathlib import Path
 from typing import Any, get_args
 
@@ -127,32 +128,19 @@ def render(database: Path, *, published_at: datetime, lines: LineFilter) -> list
         for basis, summary in summaries.items():
             files.append(_file(KEYS["summary"].format(cost_basis=basis.value), summary))
         reached: set[str] = set()
-        for summary in summaries[CostBasis.BILLED_COST].summaries:
-            run = summary.snapshot.calculation_run_id
-            allocations = [
-                page
-                for _, page in _pages(
-                    lambda offset, run=run: read_model.allocations(
-                        calculation_run_id=run, limit=MAX_PAGE_SIZE, offset=offset
-                    )
-                )
-            ]
+        for scope in summaries[CostBasis.BILLED_COST].summaries:
+            run = scope.snapshot.calculation_run_id
+            selected: dict[str, Any] = {"calculation_run_id": run, "limit": MAX_PAGE_SIZE}
+            allocations = [page for _, page in _pages(partial(read_model.allocations, **selected))]
             files += _allocation_files(read_model, run, allocations)
             for level in get_args(RollupLevel):
-                for n, page in _pages(
-                    lambda offset, run=run, level=level: read_model.rollups(
-                        level=level, calculation_run_id=run, limit=MAX_PAGE_SIZE, offset=offset
-                    )
-                ):
+                for n, page in _pages(partial(read_model.rollups, level=level, **selected)):
                     files.append(_file(KEYS["rollups"].format(level=level, run=run, page=n), page))
                     if level == "workload_run":
                         reached |= {entry.key for entry in page.items}
             for name in _public_dimensions(allocations):
-                for n, page in _pages(
-                    lambda offset, run=run, name=name: read_model.dimension_rollups(
-                        name=name, calculation_run_id=run, limit=MAX_PAGE_SIZE, offset=offset
-                    )
-                ):
+                pages = _pages(partial(read_model.dimension_rollups, name=name, **selected))
+                for n, page in pages:
                     files.append(_file(KEYS["dimension"].format(name=name, run=run, page=n), page))
         files += _lineage(read_model, reached)
         files.append(_snapshot_file(published_at, summaries[CostBasis.BILLED_COST]))
@@ -202,13 +190,14 @@ def _summaries(
     )
 
 
-def _pages(fetch: Callable[[int], Any]) -> Iterator[tuple[int, Any]]:
-    """Each page of a paged read, by number, from its offset; page 0 even when it is empty."""
-    page, n = fetch(0), 0
+def _pages(fetch: Callable[..., Any]) -> Iterator[tuple[int, Any]]:
+    """Each page of a paged read, by number; page 0 even when it is empty. `fetch` takes the
+    page's `offset`."""
+    page, n = fetch(offset=0), 0
     yield n, page
     while (n + 1) * MAX_PAGE_SIZE < page.total:
         n += 1
-        yield n, fetch(n * MAX_PAGE_SIZE)
+        yield n, fetch(offset=n * MAX_PAGE_SIZE)
 
 
 def _allocation_files(
@@ -243,7 +232,7 @@ def _public_dimensions(pages: list[AllocationPage]) -> list[str]:
 
 def _lineage(read_model: Reporting, reached: set[str]) -> list[PublishedFile]:
     """The topmost Workload Runs that published cost reaches, and the lineage of each."""
-    pages = list(_pages(lambda offset: read_model.root_runs(limit=MAX_PAGE_SIZE, offset=offset)))
+    pages = list(_pages(partial(read_model.root_runs, limit=MAX_PAGE_SIZE)))
     roots = [run for _, page in pages for run in page.items if run.run_id in reached]
     template = pages[0][1]
     files = []
