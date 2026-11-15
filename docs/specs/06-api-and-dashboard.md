@@ -61,7 +61,7 @@ What each value of one Cost Dimension holds in one Allocation Snapshot (spec 09,
 - The snapshot is selected as for `/v1/allocations`.
 - Each value has its amounts for each currency and Cost Basis, and how its sources split.
 - Unassigned cost has the value null.
-- The totals of all values equal the totals of the snapshot.
+- The page has `totals`: the totals of all values, by currency and Cost Basis. They equal the totals of the snapshot, so a reader can check the page and does not add the amounts.
 - If no Allocation of the snapshot has the dimension, the answer is 404.
 
 ### `GET /v1/lineage`

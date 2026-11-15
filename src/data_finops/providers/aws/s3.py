@@ -101,6 +101,15 @@ def read_object(s3: S3Reader, bucket: str, obj: S3Object, max_bytes: int) -> byt
     return data
 
 
+def read_small_object(s3: S3Reader, bucket: str, key: str, max_bytes: int) -> bytes:
+    """The content of a small object at `key`, for example a configuration file. TooLarge when
+    it is over `max_bytes`; AwsSourceError (with the AWS error code) when it cannot be read."""
+    data: bytes = call(s3.get_object, Bucket=bucket, Key=key)["Body"].read(max_bytes + 1)
+    if len(data) > max_bytes:
+        raise TooLarge(key)
+    return data
+
+
 def fetch_file(s3: S3Writer, bucket: str, key: str, path: Path) -> str | None:
     """Download the object to `path` and return its ETag, or None (nothing written) when
     there is no such object yet. S3 says so only to a reader with `s3:ListBucket` on the

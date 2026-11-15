@@ -227,6 +227,9 @@ class DimensionRollupPage(_Response):
 
     calculation_run_id: str
     dimension: str
+    totals: list[RollupAmount]
+    """The totals of all values, unassigned included, by currency and Cost Basis. They equal
+    the totals of the snapshot, so a reader can check a page without adding amounts."""
     total: int
     limit: int
     offset: int

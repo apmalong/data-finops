@@ -292,3 +292,22 @@ def test_a_misconfigured_api_names_the_variable(
 ) -> None:
     with pytest.raises(ApiMisconfigured, match=names):
         make_api_handler(s3_client, environ, tmp_path / "cache")
+
+
+def test_cost_dimensions_that_cannot_be_read_fail_the_invocation_naming_the_key() -> None:
+    environ = {
+        COLLECTOR_SETTINGS: json.dumps(
+            json.loads(SETTINGS_JSON) | {"cost_dimensions_key": "config/cost-dimensions.toml"}
+        )
+    }
+    s3, athena = s3_client(), athena_client()
+    with stubbed(s3) as s3_stub, stubbed(athena):
+        _no_database(s3_stub)
+        s3_stub.add_client_error(
+            "get_object",
+            service_error_code="NoSuchKey",
+            http_status_code=404,
+            expected_params={"Bucket": BUCKET, "Key": "config/cost-dimensions.toml"},
+        )
+        with pytest.raises(CollectionFailed, match="config/cost-dimensions.toml"):
+            make_collector_handler(_clients(s3, athena), environ)({}, None)

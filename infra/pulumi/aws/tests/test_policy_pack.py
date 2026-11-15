@@ -3,6 +3,7 @@ mocks, its recorded resources are written as a state file (`pulumi stack export`
 and `pulumi policy analyze --file` runs the real pack over them, with no backend, no provider
 and no account. This is the offline form of "preview policies validated" (spec 08 §Exit)."""
 
+import dataclasses
 import json
 import os
 import shutil
@@ -94,9 +95,11 @@ def _analyze(tmp: Path, resources: list[dict[str, Any]]) -> subprocess.Completed
 
 
 def _after_build(
-    tmp_path: Path, check: Callable[[list[dict[str, Any]]], None]
+    tmp_path: Path,
+    check: Callable[[list[dict[str, Any]]], None],
+    settings: Settings = SETTINGS,
 ) -> pulumi.Output[None]:
-    deployment = build(SETTINGS, package=_stand_in(tmp_path))
+    deployment = build(settings, package=_stand_in(tmp_path))
     return pulumi.Output.all(deployment.storage.ready, deployment.compute.ready).apply(
         lambda _: check(_recorded())
     )
@@ -116,6 +119,21 @@ def test_the_program_passes_every_policy(tmp_path: Path) -> pulumi.Output[None]:
         assert result.returncode == 0, result.stdout + result.stderr
 
     return _after_build(tmp_path, check)
+
+
+@pulumi.runtime.test
+def test_the_program_with_cost_dimensions_passes_every_policy(
+    tmp_path: Path,
+) -> pulumi.Output[None]:
+    config = tmp_path / "cost-dimensions.toml"
+    config.write_text('[dimensions.team]\nsources = ["query_comment.team"]\n', encoding="utf-8")
+
+    def check(resources: list[dict[str, Any]]) -> None:
+        result = _analyze(tmp_path, resources)
+        assert result.returncode == 0, result.stdout + result.stderr
+
+    settings = dataclasses.replace(SETTINGS, cost_dimensions=str(config))
+    return _after_build(tmp_path, check, settings)
 
 
 def _without_versioning(resources: list[dict[str, Any]]) -> list[dict[str, Any]]:

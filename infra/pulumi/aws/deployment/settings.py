@@ -13,6 +13,7 @@ import json
 import re
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
+from pathlib import Path
 from typing import Any
 
 import pulumi
@@ -50,6 +51,7 @@ CONFIG_KEYS: dict[str, str] = {
     "budget.email": "budgetEmail",
     "alarm_email": "alarmEmail",
     "delete_data_on_destroy": "deleteDataOnDestroy",
+    "cost_dimensions": "costDimensions",
 }
 """Each setting's stack configuration key (`data-finops:<key>`, or `aws:region`); a Budget
 field is `budget.<field>`."""
@@ -145,6 +147,10 @@ class Settings:
     delete_data_on_destroy: bool = False
     """Whether `pulumi destroy` deletes the bucket and its data. By default the bucket is kept,
     with the database and the Inbox in it."""
+    cost_dimensions: str | None = None
+    """An optional path to a Cost Dimensions file (TOML, spec 09). The stack uploads it to
+    `config/cost-dimensions.toml` in the bucket, and the collector applies it in each
+    Collection Run. Unset, no dimensions apply."""
 
     def __post_init__(self) -> None:
         for field in ("region", "export_bucket", "export_name"):
@@ -165,6 +171,8 @@ class Settings:
             raise SettingsError("kmsKeyArn must be a KMS key ARN")
         if self.explanation_detail not in ("minimal", "full"):
             raise SettingsError("explanationDetail must be one of full, minimal")
+        if self.cost_dimensions is not None and not Path(self.cost_dimensions).is_file():
+            raise SettingsError("costDimensions must be the path of a file")
 
     @classmethod
     def from_config(cls, config: pulumi.Config, aws_config: pulumi.Config) -> "Settings":
@@ -188,6 +196,7 @@ class Settings:
             "explanation_detail": get("explanation_detail") or DEFAULT_EXPLANATION_DETAIL,
             "budget": _budget(get("budget.monthly_usd"), get("budget.email")),
             "alarm_email": get("alarm_email") or None,
+            "cost_dimensions": get("cost_dimensions") or None,
             "delete_data_on_destroy": _flag(
                 get("delete_data_on_destroy"), CONFIG_KEYS["delete_data_on_destroy"]
             ),

@@ -22,6 +22,7 @@ from data_finops.providers.aws.s3 import (
     list_objects,
     put_file,
     read_object,
+    read_small_object,
     refresh_file,
 )
 
@@ -43,5 +44,6 @@ __all__ = [
     "list_query_execution_ids",
     "put_file",
     "read_object",
+    "read_small_object",
     "refresh_file",
 ]

@@ -74,6 +74,7 @@
 <tr><td><code>budgetEmail</code></td><td>unset</td><td>The address the Budget alerts are sent to. Give it with <code>budgetMonthlyUsd</code>, or neither.</td></tr>
 <tr><td><code>alarmEmail</code></td><td>unset</td><td>An optional address to send an alarm to when the collector function reports errors, through an SNS topic.</td></tr>
 <tr><td><code>deleteDataOnDestroy</code></td><td><code>false</code></td><td>Whether <code>pulumi destroy</code> deletes the bucket and its data. By default the bucket is kept, with the database and the Inbox in it.</td></tr>
+<tr><td><code>costDimensions</code></td><td>unset</td><td>An optional path to a Cost Dimensions file (TOML, spec 09). The stack uploads it to <code>config/cost-dimensions.toml</code> in the bucket, and the collector applies it in each Collection Run. Unset, no dimensions apply.</td></tr>
 </tbody>
 </table>
 </div>

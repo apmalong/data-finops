@@ -11,7 +11,7 @@ from typing import Any, cast
 
 from data_finops.collection import AwsClients, CollectionSettings
 from data_finops.collection.remote import DATABASE_KEY, run_remote_collection
-from data_finops.collection.run import FAILED
+from data_finops.collection.run import FAILED, DimensionsUnavailable
 from data_finops.providers.aws import S3Reader, S3Writer, WriteConflict, refresh_file
 
 COLLECTOR_SETTINGS = "DATA_FINOPS_COLLECTOR_SETTINGS"
@@ -53,6 +53,8 @@ def make_collector_handler(
                 raise CollectionFailed(
                     "the database object was changed by another writer; nothing was overwritten"
                 ) from None
+            except DimensionsUnavailable as error:  # names the key, never the file's content
+                raise CollectionFailed(f"Cost Dimensions: {error}") from None
         print(summary.model_dump_json())
         for source in summary.sources.values():
             for rejected in source.rejected:

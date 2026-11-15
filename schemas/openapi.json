@@ -3385,6 +3385,13 @@
             "type": "string",
             "title": "Dimension"
           },
+          "totals": {
+            "items": {
+              "$ref": "#/components/schemas/RollupAmount"
+            },
+            "type": "array",
+            "title": "Totals"
+          },
           "total": {
             "type": "integer",
             "title": "Total"
@@ -3410,6 +3417,7 @@
         "required": [
           "calculation_run_id",
           "dimension",
+          "totals",
           "total",
           "limit",
           "offset",

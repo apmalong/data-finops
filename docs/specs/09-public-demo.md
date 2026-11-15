@@ -50,6 +50,8 @@ The Deployment must not contain code that is not vetted. These tickets go first:
 - **A Deployment:** the setting `costDimensions` holds the path of the file.
   - The stack uploads the file to `config/cost-dimensions.toml` in the bucket of the Deployment. The reason is that the settings of the collector go in an environment variable, which is limited to 4 KB.
   - The roles of the collector and the publisher can read that one object.
+  - The collector reads the object before it collects anything. If the object cannot be read or used, the run stops, and the error names the key, never the content.
+  - `data-finops collect` takes a `--dimensions` file or a bucket key in its settings (`cost_dimensions_key`), not both.
 - **Sensitive dimensions:** they are not in the minimal Cost Explanation, the public form of the dimension route or the Demo Snapshot. The public form of the route is part of the Demo Snapshot (Q74). The full API shows them.
 
 ## The simulated orchestrator (ADR 0030)

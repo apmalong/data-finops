@@ -26,6 +26,7 @@ from data_finops.billing.aws_data_exports import DeliveryError, is_manifest, loa
 from data_finops.billing.focus import load_export
 from data_finops.calculation import run_calculation
 from data_finops.collection import AwsClients, CollectionSettings, run_collection
+from data_finops.collection.run import DimensionsUnavailable
 from data_finops.contracts.dimensions import NO_DIMENSIONS, CostDimensions
 from data_finops.ledger import Ledger, SnapshotConflictError
 from data_finops.reporting import BillingLineDetail
@@ -287,10 +288,14 @@ def _collect(args: argparse.Namespace) -> int:
         settings = CollectionSettings.from_toml(args.config)
     except ValueError as error:  # names the setting, never its value
         raise _Failure(f"{args.config}: {error}") from None
-    dimensions = _dimensions(args)
-    summary = run_collection(
-        args.db, settings, clients=args.aws_clients(settings), dimensions=dimensions
-    )
+    # No `--dimensions` file: the run reads the bucket key that its settings may name.
+    dimensions = None if args.dimensions is None else _dimensions(args)
+    try:
+        summary = run_collection(
+            args.db, settings, clients=args.aws_clients(settings), dimensions=dimensions
+        )
+    except DimensionsUnavailable as error:  # names the key, never the file's content
+        raise _Failure(str(error)) from None
     print(summary.model_dump_json())
     for source in summary.sources.values():
         for rejected in source.rejected:
