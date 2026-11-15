@@ -26,11 +26,11 @@ The real AWS Data Exports deliveries (FOCUS 1.2, 2026-10 and 2026-11) show that 
 
 AWS writes each delivery under `data/` and `metadata/billing_period=YYYY-MM/<CreatedAt>-<executionId>/`. Its `<CreatedAt>` equals, to the millisecond, the `CreatedAt` that the Data Exports ListExecutions API reports for that execution.
 
-**Decision:** for an AWS Data Exports Delivery, `published_at` is that `<CreatedAt>`. It is read from the S3 folder that the `dataFiles` URIs of the manifest name, not from local paths. The reason is that the folder name holds colons, which Windows cannot store. Thus the local layout of a download is the choice of the operator. The execution ID of the URIs must equal the `executionId` of the manifest. The snapshot ID is `aws-focus-<billing account>-<YYYY-MM>-<executionId>`.
+**Decision:** for an AWS Data Exports Delivery, `published_at` is that `<CreatedAt>`. It is read from the S3 folder in the `dataFiles` URIs of the manifest, not from local paths. The reason is that the folder name holds colons, which Windows cannot store. Thus the local layout of a download is the choice of the operator. The execution ID of the URIs must equal the `executionId` of the manifest. The snapshot ID is `aws-focus-<billing account>-<YYYY-MM>-<executionId>`.
 
-If two Deliveries were created in the same millisecond, the tie-break of point 1 orders them: the higher snapshot ID, thus the execution ID. This order is deterministic but arbitrary. AWS was not seen to do this. Deliveries for a period come hours apart.
+Two Deliveries can be created in the same millisecond. Then the tie-break of point 1 orders them: the higher snapshot ID, that is, the higher execution ID. This order is deterministic but arbitrary. We did not see AWS do this. Deliveries for a period come hours apart.
 
-This keeps point 5. The time is the time of AWS, written by AWS at delivery. It is never the file modification time or the import time. It also keeps the import offline: no API call, so no credentials. The `LastUpdatedAt` of the API (delivery finished) was rejected. It orders deliveries in the same way, but it requires the network.
+This keeps point 5. AWS sets the time, and writes it at delivery. It is never the file modification time or the import time. It also keeps the import offline: no API call, so no credentials. The `LastUpdatedAt` of the API (delivery finished) was rejected. It orders deliveries in the same way, but it requires the network.
 
 ## Alternatives rejected
 - Import order: a late or replayed older export would silently become current.

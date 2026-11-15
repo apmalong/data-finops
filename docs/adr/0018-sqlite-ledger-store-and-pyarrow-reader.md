@@ -13,14 +13,14 @@ M1 requires a persistent local store for the Ledger and a reader for provider Pa
 ## Consequences
 Two components instead of one, and pyarrow is a large wheel. It is only in the reader, so the core does not depend on it. Operator tools in `scripts/` (for example the FOCUS export anonymizer, #18) can also use it. They are not part of the package.
 
-Analytical queries run in Python or SQL over SQLite. If that is too slow at the target scale, the store can change behind the Ledger interface, and the callers do not change. Decimal amounts are stored as text to keep exact values and scale (SQLite has no exact decimal type).
+Analytical queries run in Python or SQL over SQLite. Measurements can show that this is too slow at the target scale. Then the store can change behind the Ledger interface, and the callers do not change. Decimal amounts are stored as text to keep exact values and scale (SQLite has no exact decimal type).
 
 ## Alternatives rejected
 - DuckDB for both store and Parquet: one dependency, but its single-writer process model conflicts with concurrent components.
 - SQLite plus DuckDB for analytics: two stores to keep consistent.
 
 ## Revisit triggers
-- Measured query latency at the target scale.
+- Measured query latency at the target scale is too high.
 - A deployment that requires more than one concurrent writer. Then consider Postgres, which spec 01 already calls "optional later".
 
 ## Amendment (2026-11-01, M2)

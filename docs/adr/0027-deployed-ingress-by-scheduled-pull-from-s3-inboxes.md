@@ -15,7 +15,7 @@ The file transport writes one single-line JSON file per event, which M2's JSON L
 5. The how-to gives two producer set-ups: the file transport writing locally and `aws s3 sync` after the run (proven), or the file transport writing to `s3://` directly (needs fsspec and s3fs; unverified).
 
 ## Consequences
-Lineage gets to the Deployment at the next Collection Run, not in real time. Costs change only at a Calculation Run (spec 06). A received file that fails the checks is reported in the Collection Run's summary by key and reason, never by content. Inbox objects expire after a configured number of days. Thus if a Deployment stops collection for a longer time, it loses them. The summary shows a warning.
+Lineage gets to the Deployment at the next Collection Run, not in real time. Costs change only at a Calculation Run, so real-time lineage gives no gain (spec 06). A received file that fails the checks is reported in the Collection Run's summary by key and reason, never by content. Inbox objects expire after a configured number of days. Thus if a Deployment stops collection for more than that number of days, it loses them. The summary shows a warning.
 
 ## Alternatives rejected
 - **HTTP to an `AWS_IAM` Function URL:** requires a custom SigV4 transport shipped to every producer.

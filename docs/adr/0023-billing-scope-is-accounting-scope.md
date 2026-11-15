@@ -11,7 +11,7 @@ Coverage (ADR 0017) compares a Billing Line's billed usage quantity with the Bil
 3. The exact keys (which FOCUS column carries the workgroup, whether rows are split per workgroup, which query timestamp the provider bills by) are provider policy, decided from a real export (#25), not core logic.
 
 ## Consequences
-Query Executions without a link (Link Outcome `no_evidence`, `unmatched`, `ambiguous`) still count toward Coverage, and they still get Metered Shares. They only roll up to no Model Execution (ADR 0016). A wrong scope key shows as Coverage above one, which ADR 0017 already makes Unallocated, with a flag.
+Query Executions without a link (Link Outcome `no_evidence`, `unmatched`, `ambiguous`) still count toward Coverage, and they still get Metered Shares. The only difference: they roll up to no Model Execution (ADR 0016). A wrong scope key shows as Coverage above one, which ADR 0017 already makes Unallocated, with a flag.
 
 ## Alternatives rejected
 - Count only linked Query Executions: Coverage would understate known usage and push linked cost into Unallocated whenever any query lacks a comment.

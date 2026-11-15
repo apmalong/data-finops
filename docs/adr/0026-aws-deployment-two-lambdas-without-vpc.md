@@ -32,4 +32,4 @@ Each Collection Run moves the whole database file in and out of S3. At about a m
 ## Note (drift review #207, 2026-11-07)
 Point 2's "one Calculation Run": the collector runs one per Snapshot Scope (`collection.run`), as spec 08 says.
 
-The "10 GB `/tmp` ceiling" of the consequences is the maximum of Lambda. No function sets ephemeral storage yet. Thus today `/tmp` is the Lambda default of 512 MB. It holds the database copy, and each Inbox file that a run collects (each can be up to 512 MiB, ADR 0027). Thus the database must stay well below 512 MB (#206). A database over 5 GB, one `PutObject`, is a further revisit trigger (multipart upload, spec 08).
+The "10 GB `/tmp` ceiling" of the consequences is the Lambda maximum. No function sets ephemeral storage yet. Thus today `/tmp` is the Lambda default of 512 MB. It holds the database copy, and the Inbox file that the run collects at that time (each can be up to 512 MiB, ADR 0027). Thus the database must stay well below 512 MB (#206). A database over 5 GB, one `PutObject`, is a further revisit trigger (multipart upload, spec 08).

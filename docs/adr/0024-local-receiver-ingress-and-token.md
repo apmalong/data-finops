@@ -14,7 +14,7 @@ M5 adds an HTTP receiver for OpenLineage RunEvents beside the read API (spec 04)
 6. Production ingress (a private API behind cloud IAM, or scheduled pull) is decided with the deployment topology in M6 (OQ-5), not here.
 
 ## Consequences
-The local demo does not use a secret. To expose the receiver on a network, a deliberate token is necessary. Thus a bind with a wrong configuration fails closed. One shared token cannot tell senders apart, so it carries no identity and is never Evidence (ADR 0006). The read API and dashboard follow the same bind rule and token check.
+The local demo does not require a secret. To expose the receiver on a network, a deliberate token is necessary. Thus a bind with a wrong configuration fails closed. One shared token cannot tell senders apart, so it carries no identity and is never Evidence (ADR 0006). The read API and dashboard follow the same bind rule and token check.
 
 ## Alternatives rejected
 - No authentication in M5: an accidental `0.0.0.0` bind would accept forged runs from anyone on the network (spec 05 threat model).
