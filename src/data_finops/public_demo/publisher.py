@@ -26,7 +26,8 @@ from typing import Any, get_args
 from pydantic import BaseModel
 
 from data_finops.contracts.billing import CostBasis, FocusBillingLine, FocusChargeCategory
-from data_finops.providers.aws import put_bytes
+from data_finops.providers.aws import AwsSourceError, WriteConflict, put_bytes
+from data_finops.providers.aws.calls import call
 from data_finops.public_demo.workload import WORKGROUP
 from data_finops.reporting import (
     MAX_PAGE_SIZE,
@@ -45,6 +46,7 @@ ACCOUNT_ID = re.compile(r"(?<![0-9a-fA-F.])(?<![0-9a-fA-F]{4}-)\d{12}(?![0-9a-fA
 SHA-256) or of a decimal's fraction, and not the last group of a UUID (`8-4-4-4-12`)."""
 SNAPSHOTS = "snapshots/"
 CURRENT = "current.json"
+MAX_POINTER_BYTES = 4096
 JSON = "application/json"
 KEYS = {
     "summary": "v1/costs/summary/{cost_basis}.json",
@@ -157,8 +159,8 @@ def publish(
 ) -> dict[str, Any]:
     """Render the Demo Snapshot, write it under a new prefix, then point `current.json` at it.
     A failed write raises AwsSourceError, and `current.json` keeps the last whole snapshot.
-    The prefix has a random part, so two publishes never share one; that the newest publish
-    is the last to move `current.json` needs one publisher at a time (spec 09, #229)."""
+    The prefix has a random part, so two publishes never share one, and `current.json` moves
+    only forward in time (`moved` says whether this publish moved it)."""
     published_at = clock().astimezone(UTC).replace(microsecond=0)
     files = render(database, published_at=published_at, lines=lines or demo_lines())
     stamp = published_at.strftime("%Y%m%dT%H%M%SZ")
@@ -166,8 +168,37 @@ def publish(
     for file in files:
         put_bytes(s3, bucket, f"{prefix}{file.key}", file.body, content_type=JSON)
     pointer = {"prefix": prefix, "published_at": _time(published_at), "files": len(files)}
-    put_bytes(s3, bucket, CURRENT, json.dumps(pointer).encode("utf-8"), content_type=JSON)
-    return pointer
+    return pointer | {"moved": _move_current(s3, bucket, pointer)}
+
+
+def _move_current(s3: Any, bucket: str, pointer: dict[str, Any]) -> bool:
+    """Point `current.json` at the new snapshot, unless it already names a snapshot published
+    at the same time or later. The write is conditional on the version that was read, so two
+    publishers at once can never move it back (spec 09 §The publisher)."""
+    body = json.dumps(pointer).encode("utf-8")
+    while True:
+        current, etag = _read_current(s3, bucket)
+        if current is not None and str(current.get("published_at", "")) >= pointer["published_at"]:
+            return False
+        try:
+            put_bytes(
+                s3, bucket, CURRENT, body, content_type=JSON, over=etag, only_new=etag is None
+            )
+            return True
+        except WriteConflict:
+            continue  # another publisher moved it: read it again
+
+
+def _read_current(s3: Any, bucket: str) -> tuple[dict[str, Any] | None, str | None]:
+    """`current.json` and its ETag, or (None, None) when there is none yet."""
+    try:
+        response = call(s3.get_object, Bucket=bucket, Key=CURRENT)
+    except AwsSourceError as error:
+        if str(error) == "NoSuchKey":
+            return None, None
+        raise
+    document: dict[str, Any] = json.loads(response["Body"].read(MAX_POINTER_BYTES))
+    return document, str(response["ETag"])
 
 
 def _time(moment: datetime) -> str:

@@ -139,14 +139,32 @@ def put_file(s3: S3Writer, bucket: str, key: str, path: Path, *, etag: str | Non
 
 
 def put_bytes(
-    s3: Any, bucket: str, key: str, body: bytes, *, content_type: str | None = None
+    s3: Any,
+    bucket: str,
+    key: str,
+    body: bytes,
+    *,
+    content_type: str | None = None,
+    over: str | None = None,
+    only_new: bool = False,
 ) -> None:
-    """Write `body` as the object `key`, over any version. A failure raises AwsSourceError with
-    the AWS error code alone."""
+    """Write `body` as the object `key`. Over any version, unless `over` names the ETag that
+    the object must still have, or `only_new` says that there must be no object yet (S3
+    conditional writes); then WriteConflict when that is not so. Any other failure raises
+    AwsSourceError with the AWS error code alone."""
     params: dict[str, Any] = {"Bucket": bucket, "Key": key, "Body": body}
     if content_type is not None:
         params["ContentType"] = content_type
-    call(s3.put_object, **params)
+    if over is not None:
+        params["IfMatch"] = over
+    elif only_new:
+        params["IfNoneMatch"] = "*"
+    try:
+        call(s3.put_object, **params)
+    except AwsSourceError as error:
+        if str(error) in ("PreconditionFailed", "ConditionalRequestConflict"):
+            raise WriteConflict(key) from None
+        raise
 
 
 def refresh_file(s3: S3Reader, bucket: str, key: str, path: Path, etag: str | None) -> str | None:

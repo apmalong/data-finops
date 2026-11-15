@@ -190,6 +190,42 @@ def test_a_simulator_on_another_workgroup_fails_the_pack(tmp_path: Path) -> pulu
     return _after_build(tmp_path, check, settings)
 
 
+def _distribution(change: Callable[[dict[str, Any]], None]) -> Change:
+    """A fixture changing the inputs of the demo's CloudFront distribution."""
+
+    def apply(resources: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        for resource in resources:
+            if resource["type"].endswith(":Distribution"):
+                change(resource["inputs"])
+                resource["outputs"] = dict(resource["inputs"])
+        return resources
+
+    return apply
+
+
+def _no_origin_access_control(inputs: dict[str, Any]) -> None:
+    for origin in inputs["origins"]:
+        origin.pop("originAccessControlId")
+
+
+def _http_allowed(inputs: dict[str, Any]) -> None:
+    inputs["defaultCacheBehavior"]["viewerProtocolPolicy"] = "allow-all"
+
+
+@pytest.mark.parametrize("change", [_no_origin_access_control, _http_allowed])
+@pulumi.runtime.test
+def test_a_site_without_origin_access_control_or_https_fails_the_pack(
+    tmp_path: Path, change: Callable[[dict[str, Any]], None]
+) -> pulumi.Output[None]:
+    def check(resources: list[dict[str, Any]]) -> None:
+        result = _analyze(tmp_path, _distribution(change)(resources))
+        assert result.returncode == 1
+        assert "cloudfront-oac-https" in result.stdout + result.stderr
+
+    settings = dataclasses.replace(SETTINGS, public_demo=True)
+    return _after_build(tmp_path, check, settings)
+
+
 def _without_versioning(resources: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return [r for r in resources if not r["type"].endswith(":BucketVersioning")]
 

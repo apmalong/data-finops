@@ -1,19 +1,20 @@
 """The public demo (spec 09; ADR 0029, ADR 0030), made only when `publicDemo` is on: the demo
 bucket, the `data-finops-demo` Athena workgroup, the Glue tables of the demo dataset and the
 function that generates it (#225), the simulated orchestrator with its schedule (#226), and the
-expiry of the publisher's snapshots (#227). The publisher's function, trigger and role, and
-CloudFront, come with #229."""
+site: CloudFront over the bucket, the dashboard's files, and the publisher, which the database
+object starts (#227, #228, #229)."""
 
 import json
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any
 
 import pulumi
 import pulumi_aws as aws
 
-from deployment.compute import allow, key_grant, log_writing, trust_policy
+from deployment.compute import DATABASE_KEY, allow, key_grant, log_writing, trust_policy
 from deployment.settings import DEMO_WORKGROUP, Settings
-from deployment.storage import INBOX, S3_MANAGED, private_bucket
+from deployment.storage import INBOX, S3_MANAGED, bucket_policy, private_bucket
 
 WORKGROUP = DEMO_WORKGROUP
 """The Athena workgroup of the simulated workload. Only it runs the demo's queries."""
@@ -65,6 +66,24 @@ TABLES: dict[str, tuple[tuple[str, str], ...]] = {
 in the root project compares the two."""
 HIVE_PARQUET = "org.apache.hadoop.hive.ql.io.parquet"
 """The package of the Hive classes that read Parquet, as Athena expects them."""
+DASHBOARD = Path(__file__).resolve().parents[4] / "src" / "data_finops" / "api" / "dashboard"
+"""The packaged dashboard; the site serves its files (spec 09 §The site)."""
+SITE_FILES = {
+    "index.html": "text/html; charset=utf-8",
+    "dashboard.css": "text/css; charset=utf-8",
+    "dashboard.js": "text/javascript; charset=utf-8",
+    "static.js": "text/javascript; charset=utf-8",
+}
+"""Each file of the dashboard, at the root of the bucket, and its media type."""
+CURRENT = "current.json"
+"""The publisher's pointer to the current Demo Snapshot (`public_demo.publisher.CURRENT`)."""
+CACHING_OPTIMIZED = "658327ea-f89d-4fab-a63d-7e88639e58f6"
+"""CloudFront's managed cache policy `CachingOptimized`: a day by default."""
+CACHING_DISABLED = "4135ea2d-6df8-44a3-9df3-4b5a84be39ad"
+"""CloudFront's managed cache policy `CachingDisabled`: for `current.json`, which moves."""
+PUBLISHER_HANDLER = "data_finops.lambda_handlers.publisher"
+PUBLISHER_TIMEOUT_SECONDS = 900
+PUBLISHER_MEMORY_MB = 1024
 GENERATOR_TIMEOUT_SECONDS = 900
 GENERATOR_MEMORY_MB = 3008
 """The generator builds one Parquet part (a million rows) in memory at a time."""
@@ -99,6 +118,7 @@ class PublicDemo(pulumi.ComponentResource):
             noncurrent_days=1,
             expiring={RESULTS_PREFIX: 1, SNAPSHOTS_PREFIX: SNAPSHOT_DAYS},
             opts=child,
+            tls_policy=False,  # written with the site, to add CloudFront's grant
         )
         workgroup = aws.athena.Workgroup(
             f"{name}-demo",
@@ -167,6 +187,9 @@ class PublicDemo(pulumi.ComponentResource):
         resources += [group, role, policy, self.generator]
         self.simulator, made = self._simulator(name, stack, settings, code, inbox, account_id)
         resources += made
+        self.distribution, made = self._site(name, stack)
+        resources += made
+        resources += self._publisher(name, stack, settings, code, inbox, account_id)
         self.ready = pulumi.Output.all(*[r.urn for r in resources])
         self.register_outputs(self.outputs())
 
@@ -244,9 +267,145 @@ class PublicDemo(pulumi.ComponentResource):
         )
         return function, [group, role, policy, function, retries, scheduler, invoke, schedule]
 
+    def _site(
+        self, name: str, stack: str
+    ) -> tuple[aws.cloudfront.Distribution, list[pulumi.Resource]]:
+        """CloudFront over the demo bucket, through origin access control and HTTPS only, the
+        dashboard's files, and the bucket policy that lets CloudFront read the site and nothing
+        else (spec 09 §The site; #228, #229)."""
+        child = pulumi.ResourceOptions(parent=self)
+        access = aws.cloudfront.OriginAccessControl(
+            f"{name}-demo",
+            name=f"{name}-{stack}-demo",
+            origin_access_control_origin_type="s3",
+            signing_behavior="always",
+            signing_protocol="sigv4",
+            opts=child,
+        )
+        origin = "demo-bucket"
+        behavior: dict[str, Any] = {
+            "target_origin_id": origin,
+            "viewer_protocol_policy": "redirect-to-https",
+            "allowed_methods": ["GET", "HEAD"],
+            "cached_methods": ["GET", "HEAD"],
+            "compress": True,
+        }
+        distribution = aws.cloudfront.Distribution(
+            f"{name}-demo",
+            enabled=True,
+            comment=f"{name} {stack}: the public demo",
+            default_root_object="index.html",
+            price_class="PriceClass_100",
+            origins=[
+                {
+                    "origin_id": origin,
+                    "domain_name": self.bucket.bucket_regional_domain_name,
+                    "origin_access_control_id": access.id,
+                }
+            ],
+            default_cache_behavior=behavior | {"cache_policy_id": CACHING_OPTIMIZED},
+            ordered_cache_behaviors=[
+                behavior | {"path_pattern": CURRENT, "cache_policy_id": CACHING_DISABLED},
+                behavior
+                | {"path_pattern": f"{SNAPSHOTS_PREFIX}*", "cache_policy_id": CACHING_OPTIMIZED},
+            ],
+            restrictions={"geo_restriction": {"restriction_type": "none"}},
+            viewer_certificate={"cloudfront_default_certificate": True},
+            opts=child,
+        )
+        policy = aws.s3.BucketPolicy(
+            f"{name}-demo",
+            bucket=self.bucket.id,
+            policy=pulumi.Output.all(self.bucket.arn, distribution.arn).apply(
+                lambda values: bucket_policy(values[0], _site_grant(*values))
+            ),
+            opts=child,
+        )
+        files: list[pulumi.Resource] = [
+            aws.s3.BucketObjectv2(
+                f"{name}-site-{key.replace('.', '-')}",
+                bucket=self.bucket.id,
+                key=key,
+                content_type=media_type,
+                **_site_file(key),
+                opts=child,
+            )
+            for key, media_type in SITE_FILES.items()
+        ]
+        return distribution, [access, distribution, policy, *files]
+
+    def _publisher(
+        self,
+        name: str,
+        stack: str,
+        settings: Settings,
+        code: dict[str, Any],
+        inbox: aws.s3.Bucket,
+        account_id: pulumi.Input[str],
+    ) -> list[pulumi.Resource]:
+        """The publisher (#227): its function and role, and the S3 event of the database object
+        that starts it (spec 09 §The publisher)."""
+        child = pulumi.ResourceOptions(parent=self)
+        group = aws.cloudwatch.LogGroup(
+            f"{name}-publisher",
+            name=f"/aws/lambda/{name}-{stack}-publisher",
+            retention_in_days=settings.log_retention_days,
+            opts=child,
+        )
+        role = aws.iam.Role(
+            f"{name}-publisher", assume_role_policy=trust_policy("lambda.amazonaws.com"), opts=child
+        )
+        policy = aws.iam.RolePolicy(
+            f"{name}-publisher",
+            role=role.id,
+            policy=pulumi.Output.all(inbox.arn, self.bucket.arn, group.arn).apply(
+                lambda values: json.dumps(_publisher_policy(settings, *values))
+            ),
+            opts=child,
+        )
+        function = aws.lambda_.Function(
+            f"{name}-publisher",
+            name=f"{name}-{stack}-publisher",
+            role=role.arn,
+            handler=PUBLISHER_HANDLER,
+            timeout=PUBLISHER_TIMEOUT_SECONDS,
+            memory_size=PUBLISHER_MEMORY_MB,
+            environment={
+                "variables": {
+                    "DATA_FINOPS_BUCKET": inbox.bucket,
+                    "DATA_FINOPS_DEMO_BUCKET": self.bucket.bucket,
+                }
+            },
+            opts=pulumi.ResourceOptions(parent=self, depends_on=[group]),
+            **code,
+        )
+        permission = aws.lambda_.Permission(
+            f"{name}-publisher",
+            action="lambda:InvokeFunction",
+            function=function.name,
+            principal="s3.amazonaws.com",
+            source_arn=inbox.arn,
+            source_account=account_id,
+            opts=child,
+        )
+        trigger = aws.s3.BucketNotification(
+            f"{name}-publisher",
+            bucket=inbox.id,
+            lambda_functions=[
+                {
+                    "lambda_function_arn": function.arn,
+                    "events": ["s3:ObjectCreated:*"],
+                    "filter_prefix": DATABASE_KEY,
+                }
+            ],
+            opts=pulumi.ResourceOptions(parent=self, depends_on=[permission]),
+        )
+        return [group, role, policy, function, permission, trigger]
+
     def outputs(self) -> dict[str, pulumi.Output[str]]:
         """The component's stack outputs (spec 09 §Stack)."""
         return {
+            "demoUrl": self.distribution.domain_name.apply(lambda domain: f"https://{domain}/"),
             "demoBucket": self.bucket.bucket,
             "demoGeneratorFunction": self.generator.name,
             "demoSimulatorFunction": self.simulator.name,
@@ -284,6 +443,53 @@ def _simulator_policy(
             ("s3:AbortMultipartUpload", [results]),
             log_writing(group_arn),
             *key_grant(settings, ["kms:GenerateDataKey"]),  # the Inbox's bucket's key, if any
+        ]
+    )
+
+
+def _site_grant(bucket_arn: str, distribution_arn: str) -> dict[str, Any]:
+    """CloudFront, for this distribution only, may read the site: the dashboard's files, the
+    pointer and the snapshots. Never `dataset/` or `athena-results/` (Q77)."""
+    keys = [*SITE_FILES, CURRENT]
+    return {
+        "Sid": "CloudFrontReadsTheSite",
+        "Effect": "Allow",
+        "Principal": {"Service": "cloudfront.amazonaws.com"},
+        "Action": "s3:GetObject",
+        "Resource": [f"{bucket_arn}/{key}" for key in keys] + [f"{bucket_arn}/{SNAPSHOTS_PREFIX}*"],
+        "Condition": {"StringEquals": {"AWS:SourceArn": distribution_arn}},
+    }
+
+
+def _site_file(key: str) -> dict[str, Any]:
+    """A dashboard file as the site serves it: the page says it reads the static data source
+    (#228); every other file is the packaged one."""
+    path = DASHBOARD / key
+    if key != "index.html":
+        return {"source": pulumi.FileAsset(str(path))}
+    page = path.read_text(encoding="utf-8")
+    api, static = (
+        '<meta name="data-finops-source" content="api">',
+        '<meta name="data-finops-source" content="static">',
+    )
+    if api not in page:
+        raise RuntimeError("the dashboard's page has no data-finops-source meta to set")
+    return {"content": page.replace(api, static)}
+
+
+def _publisher_policy(
+    settings: Settings, inbox_arn: str, bucket_arn: str, group_arn: str
+) -> dict[str, Any]:
+    """Read the database object; read and move `current.json`, and write the snapshots
+    (spec 09 §The publisher). `s3:ListBucket` lets S3 answer a missing object `NoSuchKey`."""
+    pointer = f"{bucket_arn}/{CURRENT}"
+    return allow(
+        [
+            ("s3:GetObject", [f"{inbox_arn}/{DATABASE_KEY}", pointer]),
+            ("s3:ListBucket", [inbox_arn, bucket_arn]),
+            ("s3:PutObject", [pointer, f"{bucket_arn}/{SNAPSHOTS_PREFIX}*"]),
+            log_writing(group_arn),
+            *key_grant(settings, ["kms:Decrypt"]),  # the database object's key, if any
         ]
     )
 

@@ -312,3 +312,40 @@ def test_a_budget_must_alert_on_forecast_and_actual_spend() -> None:
     assert _violations_of(policies.BUDGET_ALERTS, BUDGET, forecast) == [
         "the Budget must alert on actual spend as well as forecast spend"
     ]
+
+
+DISTRIBUTION = policies.DISTRIBUTION
+GUARDED_SITE = {
+    "origins": [{"originId": "demo-bucket", "domainName": "b.s3", "originAccessControlId": "oac"}],
+    "defaultCacheBehavior": {"viewerProtocolPolicy": "redirect-to-https"},
+    "orderedCacheBehaviors": [
+        {"pathPattern": "current.json", "viewerProtocolPolicy": "https-only"},
+    ],
+}
+
+
+def test_a_distribution_through_origin_access_control_and_https_passes() -> None:
+    assert _violations_of(policies.CLOUDFRONT_GUARDED, DISTRIBUTION, GUARDED_SITE) == []
+
+
+@pytest.mark.parametrize(
+    ("change", "message"),
+    [
+        ({"origins": [{"originId": "demo-bucket", "domainName": "b.s3"}]}, "origin access control"),
+        (
+            {"origins": [{"originId": "o", "domainName": "b", "originAccessControlId": ""}]},
+            "origin access control",
+        ),
+        ({"defaultCacheBehavior": {"viewerProtocolPolicy": "allow-all"}}, "HTTPS"),
+        (
+            {"orderedCacheBehaviors": [{"pathPattern": "x", "viewerProtocolPolicy": "allow-all"}]},
+            "HTTPS",
+        ),
+        ({"defaultCacheBehavior": {}}, "HTTPS"),
+    ],
+)
+def test_a_distribution_without_origin_access_control_or_https_is_refused(
+    change: dict[str, Any], message: str
+) -> None:
+    (violation,) = _violations_of(policies.CLOUDFRONT_GUARDED, DISTRIBUTION, GUARDED_SITE | change)
+    assert message in violation
