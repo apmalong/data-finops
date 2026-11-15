@@ -323,3 +323,47 @@ def test_the_compute_is_one_component_with_its_outputs() -> pulumi.Output[None]:
         assert values["apiUrl"].startswith("https://")
 
     return pulumi.Output.all(**compute.outputs()).apply(check)
+
+
+DIMENSIONS_KEY = "config/cost-dimensions.toml"
+BUCKET_OBJECT = "aws:s3/bucketObjectv2:BucketObjectv2"
+
+
+def _get_object_resources() -> list[str]:
+    return [
+        resource
+        for statement in _policy_of("collector")["Statement"]
+        if statement["Effect"] == "Allow" and statement["Action"] == "s3:GetObject"
+        for resource in statement["Resource"]
+    ]
+
+
+@pulumi.runtime.test
+def test_a_cost_dimensions_file_is_uploaded_named_and_readable_by_the_collector_alone() -> (
+    pulumi.Output[None]
+):
+    config = PACKAGE.with_name("cost-dimensions.toml")
+    config.write_text('[dimensions.team]\nsources = ["query_comment.team"]\n', encoding="utf-8")
+
+    def check() -> None:
+        config.unlink()
+        uploads = [
+            o.inputs for o in MOCKS.of_type(BUCKET_OBJECT) if o.inputs["key"] == DIMENSIONS_KEY
+        ]
+        assert len(uploads) == 1
+        variables = _function("data_finops.lambda_handlers.collector")["environment"]["variables"]
+        settings = json.loads(variables["DATA_FINOPS_COLLECTOR_SETTINGS"])
+        assert settings["cost_dimensions_key"] == DIMENSIONS_KEY
+        assert f"arn:aws:s3:::mock-deployment-bucket/{DIMENSIONS_KEY}" in _get_object_resources()
+        assert f"arn:aws:s3:::mock-deployment-bucket/{DIMENSIONS_KEY}" not in str(_policy_of("api"))
+
+    return _after(dataclasses.replace(SETTINGS, cost_dimensions=str(config)), check)
+
+
+@pulumi.runtime.test
+def test_without_cost_dimensions_nothing_is_uploaded_or_granted() -> pulumi.Output[None]:
+    def check() -> None:
+        assert not [o for o in MOCKS.of_type(BUCKET_OBJECT) if o.inputs["key"] == DIMENSIONS_KEY]
+        assert not any(DIMENSIONS_KEY in resource for resource in _get_object_resources())
+
+    return _after(SETTINGS, check)

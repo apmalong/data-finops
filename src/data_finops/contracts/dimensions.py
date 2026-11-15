@@ -85,7 +85,12 @@ class CostDimensions:
     def from_toml(cls, path: Path) -> "CostDimensions":
         """The configuration file of `--dimensions FILE`, validated as `from_mapping`
         validates. ValueError names the fault, never a value."""
-        data = path.read_bytes()
+        return cls.from_bytes(path.read_bytes())
+
+    @classmethod
+    def from_bytes(cls, data: bytes) -> "CostDimensions":
+        """The configuration from the bytes of its TOML file, for example the object that a
+        Deployment keeps in its bucket. ValueError names the fault, never a value."""
         try:
             values = tomllib.loads(data.decode("utf-8"))
         except (tomllib.TOMLDecodeError, UnicodeDecodeError):

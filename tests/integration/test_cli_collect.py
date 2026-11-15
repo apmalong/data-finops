@@ -226,3 +226,21 @@ def test_collect_keeps_the_claims_that_its_dimensions_name(tmp_path: Path) -> No
     with WorkloadStore(db) as store:
         query = store.query_execution("123456789012", "us-east-1", "q-team")
     assert query is not None and dict(query.claims) == {"team": "finance"}
+
+
+def test_a_dimensions_file_and_a_bucket_key_together_are_refused(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    config = _config(tmp_path, SETTINGS + 'cost_dimensions_key = "config/cost-dimensions.toml"\n')
+    dimensions = tmp_path / "cost-dimensions.toml"
+    dimensions.write_text('[dimensions.team]\nsources = ["query_comment.team"]\n', encoding="utf-8")
+    argv = ["collect", "--db", str(tmp_path / "x.sqlite"), "--config", str(config)]
+    s3, athena = s3_client(), athena_client()
+
+    code = main(
+        [*argv, "--dimensions", str(dimensions)],
+        aws_clients=lambda settings: AwsClients(s3=s3, athena=athena),
+    )
+
+    assert code == 2
+    assert "not both" in capsys.readouterr().err

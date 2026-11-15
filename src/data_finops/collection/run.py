@@ -41,6 +41,7 @@ from data_finops.providers.aws import (
     list_objects,
     list_query_execution_ids,
     read_object,
+    read_small_object,
 )
 from data_finops.workload.store import ArtifactOutcome, InboxOutcome, WorkloadStore
 
@@ -86,6 +87,9 @@ class CollectionSettings:
     """The export's name in Data Exports, which names its folder and manifests."""
     billing_lookback_periods: int = DEFAULT_LOOKBACK_PERIODS
     """How many of the most recent Billing Periods in the export each run looks at."""
+    cost_dimensions_key: str = ""
+    """The key of the Cost Dimensions file in the Deployment's bucket (#224). Empty: no file
+    in the bucket."""
 
     def metadata_prefix(self, folder: str = "") -> str:
         """Where AWS writes manifests: `<root>metadata/`, then `folder` (a Billing Period or
@@ -133,8 +137,9 @@ class CollectionSettings:
         for key in ("bucket", "region", "account_id", "profile", "export_bucket", "export_name"):
             if key in values and (not isinstance(values[key], str) or not values[key]):
                 raise ValueError(f"{key} must be a non-empty string")
-        if not isinstance(values.get("export_prefix", ""), str):
-            raise ValueError("export_prefix must be a string")
+        for key in ("export_prefix", "cost_dimensions_key"):
+            if not isinstance(values.get(key, ""), str):
+                raise ValueError(f"{key} must be a string")
         if not (
             isinstance(values["account_id"], str) and re.fullmatch(r"\d{12}", values["account_id"])
         ):
@@ -214,16 +219,31 @@ class AwsClients:
     athena: AthenaReader
 
 
+class DimensionsUnavailable(ValueError):
+    """The Cost Dimensions cannot be used. The message names the key and the fault, never the
+    content of the file."""
+
+
+MAX_DIMENSIONS_BYTES = 64 * 1024
+"""The largest Cost Dimensions file that a Collection Run reads from its bucket."""
+
+
 def run_collection(
     db: Path,
     settings: CollectionSettings,
     *,
     clients: AwsClients,
-    dimensions: CostDimensions = NO_DIMENSIONS,
+    dimensions: CostDimensions | None = None,
 ) -> CollectionSummary:
     """Collect every source into the database at `db`, then start one Calculation Run per
-    Snapshot Scope on whatever was stored. `dimensions` applies at the Athena ingest and in
-    each Calculation Run (ADR 0031)."""
+    Snapshot Scope on whatever was stored.
+
+    The Cost Dimensions apply at the Athena ingest and in each Calculation Run (ADR 0031).
+    They come from `dimensions` (the `--dimensions` file), or from the bucket object that
+    `settings.cost_dimensions_key` names (a Deployment, #224), or else none apply.
+    DimensionsUnavailable, before anything is collected, when both are given or the object
+    cannot be read or used."""
+    dimensions = _dimensions(settings, clients, dimensions)
     with tempfile.TemporaryDirectory(prefix="data-finops-collect-") as scratch:
         with WorkloadStore(db) as store:
             # Workload metadata first (spec 08 §1); links are derived when queried, so the
@@ -345,6 +365,29 @@ def _collect_openlineage(
     except AwsSourceError as error:
         return tally.summary(failed=str(error))
     return tally.summary()
+
+
+def _dimensions(
+    settings: CollectionSettings, clients: AwsClients, given: CostDimensions | None
+) -> CostDimensions:
+    """The Cost Dimensions that the run applies."""
+    key = settings.cost_dimensions_key
+    if not key:
+        return given or NO_DIMENSIONS
+    if given is not None:
+        raise DimensionsUnavailable(
+            f"Cost Dimensions come from a file or from {key} in the bucket, not both"
+        )
+    try:
+        return CostDimensions.from_bytes(
+            read_small_object(clients.s3, settings.bucket, key, MAX_DIMENSIONS_BYTES)
+        )
+    except TooLarge:
+        raise DimensionsUnavailable(f"{key}: over {MAX_DIMENSIONS_BYTES} bytes") from None
+    except AwsSourceError as error:
+        raise DimensionsUnavailable(f"{key}: cannot be read ({error})") from None
+    except ValueError as error:
+        raise DimensionsUnavailable(f"{key}: {error}") from None
 
 
 def _collect_athena(

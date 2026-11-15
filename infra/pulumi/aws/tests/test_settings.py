@@ -2,6 +2,7 @@
 
 import dataclasses
 from decimal import Decimal
+from pathlib import Path
 from typing import Any
 
 import pulumi
@@ -147,3 +148,19 @@ def test_the_configuration_keys_are_the_ones_the_reference_lists() -> None:
     fields = {f.name for f in dataclasses.fields(Settings)} - {"budget"}
     fields |= {f"budget.{f.name}" for f in dataclasses.fields(Budget)}
     assert set(CONFIG_KEYS) == fields
+
+
+def test_a_cost_dimensions_file_is_named_by_its_path(tmp_path: Path) -> None:
+    path = tmp_path / "cost-dimensions.toml"
+    path.write_text('[dimensions.team]\nsources = ["query_comment.team"]\n', encoding="utf-8")
+
+    assert _from_config(REQUIRED).cost_dimensions is None
+    assert _from_config(
+        REQUIRED | {"data-finops:costDimensions": str(path)}
+    ).cost_dimensions == str(path)
+
+
+def test_a_cost_dimensions_path_that_is_not_a_file_is_refused(tmp_path: Path) -> None:
+    with pytest.raises(SettingsError, match="costDimensions") as raised:
+        _from_config(REQUIRED | {"data-finops:costDimensions": str(tmp_path / "secret.toml")})
+    assert "secret" not in str(raised.value)

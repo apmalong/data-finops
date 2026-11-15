@@ -17,6 +17,8 @@ from deployment.storage import INBOX, Storage
 DATABASE_KEY = "database/data-finops.sqlite"
 """The database object (spec 08; `data_finops.collection.remote.DATABASE_KEY`)."""
 PACKAGE_KEY = "lambda/data-finops-lambda.zip"
+DIMENSIONS_KEY = "config/cost-dimensions.toml"
+"""Where the Cost Dimensions file goes, when `costDimensions` is set (#224)."""
 RUNTIME = f"python{PYTHON}"
 HANDLERS = {
     "collector": "data_finops.lambda_handlers.collector",
@@ -77,6 +79,14 @@ class Compute(pulumi.ComponentResource):
             source=pulumi.FileAsset(str(package)),
             opts=child,
         )
+        if settings.cost_dimensions is not None:
+            aws.s3.BucketObjectv2(
+                f"{name}-cost-dimensions",
+                bucket=bucket.id,
+                key=DIMENSIONS_KEY,
+                source=pulumi.FileAsset(settings.cost_dimensions),
+                opts=child,
+            )
         groups = {
             role: aws.cloudwatch.LogGroup(
                 f"{name}-{role}",
@@ -233,7 +243,7 @@ def _collector_settings(settings: Settings, bucket: str, account_id: str) -> dic
         "export_name": settings.export_name,
         "billing_lookback_periods": settings.billing_lookback_periods,
         "max_history_pages": settings.max_history_pages,
-    }
+    } | ({"cost_dimensions_key": DIMENSIONS_KEY} if settings.cost_dimensions else {})
 
 
 def _allow(grants: list[tuple[str | list[str], list[str]]]) -> dict[str, Any]:
@@ -257,8 +267,9 @@ def _key(settings: Settings, actions: list[str]) -> list[tuple[str | list[str], 
 def _collector_policy(
     settings: Settings, bucket_arn: str, account_id: str, group_arn: str
 ) -> dict[str, Any]:
-    """Read the export and the named workgroups' history; read the Inbox; read and write the
-    database object alone; deny running queries or reading their results (spec 08 §IAM).
+    """Read the export and the named workgroups' history; read the Inbox, and the Cost
+    Dimensions object when there is one; read and write the database object alone; deny
+    running queries or reading their results (spec 08 §IAM).
     `s3:ListBucket` on its own bucket lets S3 answer a missing object `NoSuchKey`."""
     root = "/".join(p.strip("/") for p in (settings.export_prefix, settings.export_name) if p)
     export = f"arn:aws:s3:::{settings.export_bucket}"
@@ -271,7 +282,16 @@ def _collector_policy(
             ("s3:GetObject", [f"{export}/{root}/*"]),
             (["athena:ListQueryExecutions", "athena:BatchGetQueryExecution"], workgroups),
             ("s3:ListBucket", [bucket_arn]),
-            ("s3:GetObject", [f"{bucket_arn}/{INBOX}*", f"{bucket_arn}/{DATABASE_KEY}"]),
+            ("s3:GetObject", [f"{bucket_arn}/{INBOX}*", f"{bucket_arn}/{DATABASE_KEY}"])
+            if settings.cost_dimensions is None
+            else (
+                "s3:GetObject",
+                [
+                    f"{bucket_arn}/{INBOX}*",
+                    f"{bucket_arn}/{DATABASE_KEY}",
+                    f"{bucket_arn}/{DIMENSIONS_KEY}",
+                ],
+            ),
             ("s3:PutObject", [f"{bucket_arn}/{DATABASE_KEY}"]),
             _logs(group_arn),
             *_key(settings, ["kms:Decrypt", "kms:GenerateDataKey"]),
