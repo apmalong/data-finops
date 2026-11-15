@@ -1,9 +1,12 @@
 # ADR 0021: A reference workload for validation against real billing
 
-Status: Accepted (2026-11-01). The workload was torn down on 2026-11-07 (#26); `examples/reference-workload/` and the site's Deploy the reference workload page bring it back.
+Status: Accepted (2026-11-01). The workload was torn down on 2026-11-07 (#26). `examples/reference-workload/` and the "Deploy the reference workload" page of the site can deploy it again.
 
 ## Context
-The FOCUS export account used for M1 verification (#12) does not necessarily run the data engineering workloads this product attributes. Without real dbt-on-Athena runs and their OpenLineage events, M2–M4 (workload metadata, query correlation, Coverage-based metering) can only be validated on synthetic fixtures, and questions that only real billing can answer stay open: how Athena on-demand charges appear in FOCUS (OQ-3), the real `ConsumedUnit`, and whether Athena lines carry the workgroup as `ResourceId`.
+The FOCUS export account used for M1 verification (#12) does not necessarily run the data engineering workloads that this product attributes. M2–M4 cover workload metadata, query correlation and Metered Shares by Coverage. Without real dbt-on-Athena runs and their OpenLineage events, they can only be validated on synthetic fixtures. Also, three questions stay open, because only real billing can answer them:
+- How do Athena on-demand charges show in FOCUS (OQ-3)?
+- What is the real `ConsumedUnit`?
+- Do Athena lines carry the workgroup as `ResourceId`?
 
 ## Decision
 1. Build a small **reference workload** in the owner's AWS account, used only to generate real billing lines, query history, dbt artifacts and OpenLineage events for validation.
@@ -13,9 +16,9 @@ The FOCUS export account used for M1 verification (#12) does not necessarily run
 5. It is a test harness, not product: separate from the product's own optional AWS deployment (M6). Every `pulumi up`, workload run and `pulumi destroy` requires the owner's explicit approval (execution permissions).
 
 ## Consequences
-Small, real costs: Athena bills per data scanned with a per-query minimum, so tiny models cost a fraction of a cent per run; S3 and Glue costs are negligible at this size. Real outputs are anonymized (#18) before they are used as fixtures. New dependencies for the harness go through the build-vs-reuse register.
+Small, real costs. Athena bills for the data scanned, with a minimum for each query. Thus tiny models cost a fraction of a cent for each run. S3 and Glue costs are negligible at this size. Real outputs are anonymized (#18) before they are used as fixtures. New dependencies for the harness go through the build-vs-reuse register.
 
 ## Alternatives rejected
 - Synthetic fixtures only: cannot answer OQ-3 or validate Coverage against real Athena billing.
-- Using an existing production workload: customer data and access risks; not reproducible.
-- Full stack including Airflow from the start: more setup than M2 needs.
+- A production workload that already exists: risks to customer data and to access. It is not reproducible.
+- The full stack, with Airflow, from the start: more setup than M2 requires.

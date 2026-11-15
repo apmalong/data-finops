@@ -1,9 +1,11 @@
-# ADR 0026: The AWS deployment is two Lambda functions without a VPC, sharing one SQLite file in S3
+# ADR 0026: The AWS deployment is two Lambda functions without a VPC, which share one SQLite file in S3
 
 Status: Accepted (design, 2026-11-06). Decides OQ-5's topology for M6. Research: `docs/research/m6-aws-topology.md`, `docs/research/m6-pulumi-components-policies.md`. Amended 2026-11-07 by ADR 0029: the public demo's dashboard is hosted as a static snapshot.
 
 ## Context
-M6 deploys data-finops to one AWS account with Pulumi Python (ADR 0002): scheduled read-only ingestion, a private API, encrypted storage and cost limits. Spec 05 rules out a mandatory VPC, NAT, RDS, Marquez or Kubernetes. The store is one SQLite file in WAL mode with one writer (ADR 0018), and sqlite.org says WAL does not work over a network filesystem. EFS and S3 Files both need a VPC; Mountpoint for S3 cannot modify files. App Runner closed to new customers on 2026-04-30. Always-on Fargate costs about $11 a month before any IAM authentication, and an ALB adds at least $16. At the expected scale (a few thousand to about a million Billing Lines a month), Lambda, S3, EventBridge Scheduler and CloudWatch Logs cost under $1 a month.
+M6 deploys data-finops to one AWS account with Pulumi Python (ADR 0002): scheduled read-only ingestion, a private API, encrypted storage and cost limits. Spec 05 rules out a mandatory VPC, NAT, RDS, Marquez or Kubernetes. The store is one SQLite file in WAL mode with one writer (ADR 0018), and sqlite.org says WAL does not work over a network filesystem. EFS and S3 Files both require a VPC, and Mountpoint for S3 cannot modify files. App Runner closed to new customers on 2026-04-30.
+
+Fargate that is always on costs about $11 a month before any IAM authentication, and an ALB adds at least $16. At the expected scale (a few thousand to about a million Billing Lines a month), Lambda, S3, EventBridge Scheduler and CloudWatch Logs cost less than $1 a month.
 
 ## Decision
 1. **Two functions, no VPC.** Both run Python 3.12 on arm64 from one zip package built from the checkout (no PyPI release), uploaded as an S3 object.
@@ -13,21 +15,21 @@ M6 deploys data-finops to one AWS account with Pulumi Python (ADR 0002): schedul
 5. **Single account.** The FOCUS export bucket, the Athena workgroups and the Deployment are in one account (Q2 of the M6 design session).
 
 ## Consequences
-Each Collection Run moves the whole database file in and out of S3. At about a million lines that file, cold start time with pyarrow, and the 10 GB `/tmp` ceiling are the limits to watch; none is measured yet. The API serves the snapshot the last Collection Run wrote, never a half-written one. A browser cannot sign SigV4, so the dashboard is used locally against a downloaded copy (spec 08).
+Each Collection Run moves the whole database file in and out of S3. At about a million lines, the limits to watch are that file, the cold start time with pyarrow, and the 10 GB `/tmp` ceiling. None is measured yet. The API serves the snapshot the last Collection Run wrote, never a half-written one. A browser cannot sign SigV4, so the dashboard is used locally against a downloaded copy (spec 08).
 
 ## Alternatives rejected
 - **Fargate or Lightsail containers:** always-on cost and a VPC or public IP, with no IAM authentication of their own.
 - **App Runner:** closed to new customers.
-- **Lambda with EFS or S3 Files:** needs a VPC, and NAT for AWS API access, which spec 05 rules out.
-- **API Gateway private REST API:** needs a VPC interface endpoint (about $7.30 a month per zone) and callers inside the VPC.
-- **Postgres or RDS:** spec 05 and ADR 0009; ADR 0018's revisit trigger still applies.
+- **Lambda with EFS or S3 Files:** requires a VPC, and NAT for AWS API access, which spec 05 rules out.
+- **API Gateway private REST API:** requires a VPC interface endpoint (about $7.30 a month per zone) and callers inside the VPC.
+- **Postgres or RDS:** spec 05 and ADR 0009. The revisit trigger of ADR 0018 still applies.
 
 ## Revisit triggers
-- Cold start or Collection Run time at real scale exceeds the Lambda limits (the container-image fallback: ECR, needs Docker).
-- More than one writer is needed (ADR 0018's trigger).
+- Cold start or Collection Run time at real scale exceeds the Lambda limits (the container-image fallback: ECR, requires Docker).
+- More than one writer is necessary (the trigger of ADR 0018).
 - Cross-account export buckets or member-account Athena history.
 
 ## Note (drift review #207, 2026-11-07)
 Point 2's "one Calculation Run": the collector runs one per Snapshot Scope (`collection.run`), as spec 08 says.
 
-The consequence's "10 GB `/tmp` ceiling" is Lambda's maximum. No function sets ephemeral storage yet, so today `/tmp` is Lambda's default 512 MB, and it holds the database copy and any Inbox file being collected (each may be up to 512 MiB, ADR 0027): the database must stay well under it (#206). A database over 5 GB, one `PutObject`, is a further revisit trigger (multipart upload; spec 08).
+The "10 GB `/tmp` ceiling" of the consequences is the Lambda maximum. No function sets ephemeral storage yet. Thus today `/tmp` is the Lambda default of 512 MB. It holds the database copy, and the Inbox file that the run collects at that time (each can be up to 512 MiB, ADR 0027). Thus the database must stay well below 512 MB (#206). A database over 5 GB, one `PutObject`, is a further revisit trigger (multipart upload, spec 08).

@@ -3,7 +3,9 @@
 Status: Accepted (design, 2026-11-06). Decides OQ-5's production ingress and ADR 0024 point 6. Research: `docs/research/m6-openlineage-ingress.md`.
 
 ## Context
-ADR 0024 left production ingress to M6: "a private API behind cloud IAM, or scheduled pull". In openlineage-python 1.54.0 (and 1.55.0), the HTTP transport's auth types are `api_key`, `jwt`, `oauth2` or a custom token provider, and a token provider can only set the `Authorization` header. SigV4 signs the body and several headers, so no stock client (dbt-ol, the Airflow provider) can call an `AWS_IAM` Function URL without a custom transport. The file transport writes one single-line JSON file per event, which M2's JSON Lines ingester already reads. It can write to `s3://` through fsspec, which also needs s3fs (unverified). No OpenLineage receiver offers a pull API.
+ADR 0024 left production ingress to M6: "a private API behind cloud IAM, or scheduled pull". In openlineage-python 1.54.0 (and 1.55.0), the auth types of the HTTP transport are `api_key`, `jwt`, `oauth2` or a custom token provider. A token provider can only set the `Authorization` header. SigV4 signs the body and more than one header. Thus no standard client (dbt-ol, the Airflow provider) can call an `AWS_IAM` Function URL without a custom transport.
+
+The file transport writes one single-line JSON file per event, which M2's JSON Lines ingester already reads. It can write to `s3://` through fsspec, which also requires s3fs (not verified). No OpenLineage receiver offers a pull API.
 
 ## Decision
 1. Producers push nothing over HTTP to a Deployment. They write OpenLineage event files under `inbox/openlineage/` and dbt `manifest.json` and `run_results.json` under `inbox/dbt/<invocation>/` in the Deployment's bucket (ADR 0026).
@@ -13,12 +15,14 @@ ADR 0024 left production ingress to M6: "a private API behind cloud IAM, or sche
 5. The how-to gives two producer set-ups: the file transport writing locally and `aws s3 sync` after the run (proven), or the file transport writing to `s3://` directly (needs fsspec and s3fs; unverified).
 
 ## Consequences
-Lineage reaches the Deployment at the next Collection Run, not in real time; costs only change at a Calculation Run anyway (spec 06). A received file that fails screening is reported in the Collection Run's summary by key and reason, never by content. Inbox objects expire after a configured number of days, so a Deployment that stops collecting for longer loses them; the summary warns.
+Lineage gets to the Deployment at the next Collection Run, not in real time. Costs change only at a Calculation Run, so real-time lineage gives no gain (spec 06). A received file that fails the checks is reported in the Collection Run's summary by key and reason, never by content. Inbox objects expire after a configured number of days. Thus if a Deployment stops collection for more than that number of days, it loses them. The summary shows a warning.
 
 ## Alternatives rejected
-- **HTTP to an `AWS_IAM` Function URL:** needs a custom SigV4 transport shipped to every producer.
-- **HTTP with the static bearer token on a public URL:** a long-lived shared secret on the internet; ADR 0024 keeps it for local use.
+- **HTTP to an `AWS_IAM` Function URL:** requires a custom SigV4 transport shipped to every producer.
+- **HTTP with the static bearer token on a public URL:** a long-lived shared secret on the internet. ADR 0024 keeps the token for local use.
 - **OAuth2 client credentials against an API Gateway JWT authorizer:** works with stock clients but adds an identity provider (Cognito) and API Gateway for a feature a pull delivers without them.
 
 ## Revisit triggers
-Producers need lineage in near real time; several teams need separate credentials beyond IAM principals; a stock client gains SigV4 or an S3 transport.
+- Producers require lineage in near real time.
+- More than one team requires separate credentials, in addition to IAM principals.
+- A standard client gets SigV4 or an S3 transport.

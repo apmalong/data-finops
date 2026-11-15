@@ -1,9 +1,9 @@
 # ADR 0017: A Metered Share requires measured Coverage
 
-Status: Accepted (design, 2026-11-01). Refines ADR 0006; resolves the conflict between the demo walkthrough and the golden oracle.
+Status: Accepted (design, 2026-11-01). Refines ADR 0006. Resolves the conflict between the demo walkthrough and the golden oracle.
 
 ## Context
-Athena on-demand charges arrive as aggregated Billing Lines, not per query. Apportioning a line by each known query's billable usage is the product's core value, but it overstates known queries whenever query history is incomplete (limited API retention, workgroups shared with non-dbt users). The package contradicted itself: the demo gave a $6 Athena line to the only known query's model, while the golden oracle kept it Unallocated.
+Athena on-demand charges arrive as aggregated Billing Lines, not one line for each query. To apportion a line by the billable usage of each known query is the core value of the product. But it overstates the known queries when the query history is not complete (limited API retention, workgroups shared with users who do not use dbt). The package contradicted itself. The demo gave a $6 Athena line to the model of the only known query, but the golden oracle kept it Unallocated.
 
 ## Decision
 1. Coverage for a Billing Line = (sum of known Query Executions' Billable Usage) / (the line's billed usage quantity from FOCUS), computed in the line's own units after the provider's minimums and rounding.
@@ -15,7 +15,7 @@ Athena on-demand charges arrive as aggregated Billing Lines, not per query. Appo
 7. Adjustment lines are Unallocated in the MVP and shown as their own labelled amount. Evidence-linked credit allocation is a later opt-in policy; net-of-discount showback uses the EffectiveCost view.
 
 ## Consequences
-An operator never has to declare history complete; it is measured from standard FOCUS fields. Partial history still yields useful, honestly bounded Allocations. The golden oracle gives the $6 line to `q-001` as a Metered Share, on the stated assumption that the line's billed quantity equals `q-001`'s Billable Usage; the M0 fixture rebuild must encode that quantity in FOCUS form.
+An operator never has to declare that the history is complete. The history is measured from standard FOCUS fields. Partial history still gives useful Allocations with honest limits. The golden oracle gives the $6 line to `q-001` as a Metered Share. It states the assumption that the billed quantity of the line equals the Billable Usage of `q-001`. The M0 fixture rebuild must encode that quantity in FOCUS form.
 
 ## Alternatives rejected
 - Never meter without billing-level linkage: Athena never provides it, so nothing would ever be allocated.
@@ -23,4 +23,5 @@ An operator never has to declare history complete; it is measured from standard 
 - Operator-declared completeness: unverifiable.
 
 ## Revisit triggers
-The provider's billed quantity is unavailable or not comparable to query-level usage (checked for the AWS FOCUS export: ConsumedQuantity equals PricingQuantity, in decimal TB, and real lines reach Coverage 1; OQ-3, #91); a provider exposes per-query billing.
+- The billed quantity of the provider is not available, or it cannot be compared to query-level usage. This was checked for the AWS FOCUS export: ConsumedQuantity equals PricingQuantity, in decimal TB, and real lines get to Coverage 1 (OQ-3, #91).
+- A provider shows billing for each query.

@@ -3,7 +3,7 @@
 Status: Accepted (design, 2026-11-07). Decides M7's hosted site (Q53, Q60–Q63). Amends ADR 0026 point 3's "the dashboard is used locally" for the demo only, and applies ADR 0028 to a public audience.
 
 ## Context
-The owner wants anyone to reach the dashboard from the repository or the docs site and see it load with recent data. ADR 0026 put the API behind an `AWS_IAM` Function URL and kept the dashboard local, because a browser cannot sign SigV4. A public live API would put compute on the open internet, with throttling, WAF and cost risk to manage. It would also expose the owner's real bill: the Deployment collects the whole account's FOCUS export.
+The owner wants anyone to reach the dashboard from the repository or the docs site and see it load with recent data. ADR 0026 put the API behind an `AWS_IAM` Function URL and kept the dashboard local, because a browser cannot sign SigV4. A public live API would put compute on the open internet, with rate limits, WAF and cost risk to manage. It would also show the real bill of the owner: the Deployment collects the FOCUS export of the whole account.
 
 ## Decision
 1. **A static snapshot.** After each Collection Run writes the database object, a publisher Lambda renders the read model's answers as JSON files, in exactly the shapes the HTTP API returns. It writes them, with the dashboard's own files, to a private demo bucket served by CloudFront through origin access control. Nothing public computes anything.
@@ -21,9 +21,9 @@ The owner wants anyone to reach the dashboard from the repository or the docs si
 - **A live public API through CloudFront:** compute and the real bill on the open internet.
 - **A Cognito-gated dashboard:** not public.
 - **A React rebuild:** a second front end and a Node toolchain, for the same views.
-- **Committing snapshots to the docs site's repository:** a bot commit a day, and the bill's data in git history.
+- **Snapshots committed to the repository of the docs site:** a bot commit each day, and the data of the bill in the git history.
 
 ## Revisit triggers
 - The snapshot grows past what a static site serves comfortably.
-- Readers need filters the pre-rendered files don't cover.
-- A customer asks for a hosted dashboard of their own: that would need authentication, not this ADR.
+- Readers require filters that the pre-rendered files do not cover.
+- A customer asks for a hosted dashboard of their own: that would require authentication, not this ADR.

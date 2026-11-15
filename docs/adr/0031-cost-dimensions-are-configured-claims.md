@@ -1,9 +1,11 @@
 # ADR 0031: Cost Dimensions are organization-configured claims, recorded on Allocations
 
-Status: Accepted (design, 2026-11-09). Decides M7's attribution configuration (Q70, Q71). Applies OQ-11's "tenants … deferred as separately reconciled views"; keeps ADR 0006 and ADR 0016.
+Status: Accepted (design, 2026-11-09). Decides M7's attribution configuration (Q70, Q71). Applies OQ-11's "tenants … deferred as separately reconciled views". Keeps ADR 0006 and ADR 0016.
 
 ## Context
-Which attributes matter is different in every organization: team, tenant, cost center, DAG run. The practice is well established. Query tags on Snowflake, job labels on BigQuery and query comments on Athena carry those attributes from dbt and the orchestrator. No tool found takes them from the orchestrator through the query to the bill and reconciles the result; each covers a part (`docs/research/m7-attribution-precedents.md`). data-finops reads only `node_id` and `invocation_id` from a comment today and drops the query text before storage, so anything else in the comment is lost at ingest.
+Which attributes matter is different in every organization: team, tenant, cost center, DAG run. The practice is well established. Query tags on Snowflake, job labels on BigQuery and query comments on Athena carry those attributes from dbt and the orchestrator. No tool that we found takes them from the orchestrator, through the query, to the bill, and reconciles the result. Each tool covers a part (`docs/research/m7-attribution-precedents.md`).
+
+Today, data-finops reads only `node_id` and `invocation_id` from a comment, and removes the query text before storage. Thus all other data in the comment is lost at ingest.
 
 ## Decision
 1. **Configured dimensions.** An organization declares its Cost Dimensions in one TOML file. Each names its sources, in order; the first that gives a value wins, and the value records which source gave it.
@@ -17,16 +19,16 @@ Which attributes matter is different in every organization: team, tenant, cost c
 
 ## Consequences
 - **No retroactive updates (Q72).** Query text is not kept, so a key added later cannot be read from queries already stored. A closed period keeps the dimensions it was calculated with. A period that receives new inputs, such as a later Delivery of the bill, is calculated again with the configuration of that moment.
-- **The M7 sources are** a first-line query comment, OpenLineage tags on the linked Workload Run, and a workgroup map. Trailing comments (dbt on Snowflake, SQLCommenter) wait for a second engine.
+- **The M7 sources are** a first-line query comment, OpenLineage tags on the linked Workload Run, and a workgroup map. Comments at the end of a query (dbt on Snowflake, SQLCommenter) wait for a second engine.
 - **The Allocation contract gains a field,** and the schemas and OpenAPI document change with it.
 
 ## Alternatives rejected
 - **New Allocation Targets for teams and tenants:** a second partition of the same money, with Allocation Targets that differ per organization.
-- **Keeping every comment key:** arbitrary user data in the store, against ADR 0012.
-- **Resolving at read time:** a changed configuration would silently rewrite stored snapshots.
-- **A rules engine with percentages (virtual tags):** more than M7 needs. Splitting shared cost is a separate decision.
+- **Each comment key kept:** arbitrary user data in the store, against ADR 0012.
+- **Resolution at read time:** a changed configuration would silently change stored snapshots.
+- **A rules engine with percentages (virtual tags):** more than M7 requires. How to split shared cost is a separate decision.
 
 ## Revisit triggers
-- A second query engine needs trailing comments or job labels.
-- Organizations need to split one query's cost across several values.
+- A second query engine requires comments at the end of a query, or job labels.
+- Organizations require a split of the cost of one query across more than one value.
 - Sensitive values must be hashed rather than withheld.

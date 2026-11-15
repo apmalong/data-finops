@@ -3,7 +3,7 @@
 Status: Accepted (design, 2026-11-06). Applies ADR 0012 to the Cost Explanation in a Deployment, as #110 asked. ADR 0029 applies the minimal detail to the public demo.
 
 ## Context
-Locally, the Cost Explanation shows the Billing Line exactly as exported: every FOCUS column, the raw provider values, `Tags` and every `x_` provider column (owner decision, #110). In a Deployment the readers may be a wider group than billing administrators, and ADR 0012 asks for metadata minimization. Tags and free-text names often carry team, customer or project names.
+Locally, the Cost Explanation shows the Billing Line exactly as exported: every FOCUS column, the raw provider values, `Tags` and every `x_` provider column (owner decision, #110). In a Deployment, the readers can be a larger group than the billing administrators, and ADR 0012 asks for metadata minimization. Tags and free-text names often carry team, customer or project names.
 
 ## Decision
 1. Two detail levels:
