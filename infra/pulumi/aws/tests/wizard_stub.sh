@@ -11,14 +11,20 @@ case "$name $*" in
   "pulumi stack output apiUrl") echo https://abcdefghij.lambda-url.us-east-1.on.aws/ ;;
   "pulumi stack output collectorFunction") echo data-finops-dev-collector ;;
   "pulumi stack output apiFunction") echo data-finops-dev-api ;;
+  "pulumi stack output demoUrl") echo https://d111111abcdef8.cloudfront.net ;;
+  "pulumi stack output demoBucket") echo owner-demo-bucket-7a8b ;;
+  "pulumi stack output demoGeneratorFunction") echo data-finops-dev-demo-generator ;;
+  "pulumi stack output demoSimulatorFunction") echo data-finops-dev-demo-simulator ;;
   "pulumi stack output producerPolicyArn") echo arn:aws:iam::${ACCOUNT}:policy/data-finops-producer-1 ;;
   "pulumi stack output readerPolicyArn") echo arn:aws:iam::${ACCOUNT}:policy/data-finops-reader-1 ;;
   "pulumi stack output database") echo reference_workload ;;
   "pulumi stack output workgroup") echo data-finops-reference ;;
   "pulumi stack output") if [[ "$PWD" == *reference-workload ]]; then echo "bucket owner-reference-bucket-5e6f"
-    else echo "bucket owner-secret-bucket-1a2b"; echo "apiUrl https://abcdefghij.lambda-url.us-east-1.on.aws/"; fi ;;
+    else echo "bucket owner-secret-bucket-1a2b"; echo "apiUrl https://abcdefghij.lambda-url.us-east-1.on.aws/"
+      echo "demoBucket owner-demo-bucket-7a8b"; fi ;;
   "pulumi stack export"*) echo '{}' > "$last" ;;
   "pulumi stack select"*) echo "PULUMI_BACKEND_URL=$PULUMI_BACKEND_URL" >> "$STUB_LOG"; echo "pulumi did stack in ${ACCOUNT}" ;;
+  "pulumi config get costDimensions"*) [[ "${STUB_DIMENSIONS:-}" == 1 ]] && { echo ../owner/dimensions.toml; exit 0; }; exit 1 ;;
   "pulumi config get"*) exit 1 ;;
   "pulumi preview"*|"pulumi up"*|"pulumi destroy"*)  # Pulumi prints the outputs unless told not to
     echo "pulumi did $1 on arn:aws:s3:::data-finops-1a2b3c4"  # an auto-named bucket, before any output

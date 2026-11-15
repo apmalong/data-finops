@@ -293,10 +293,29 @@ gone() {
 }
 
 RECORD="$LOCAL/deploy-and-verify-record.txt"
+DEMO=0 # 1 when the owner adds the Public Demo in this run
+
+# hide_demo_bucket: mask the Public Demo's bucket, when the stack has one. Its demoUrl is public
+# by design (the README links it), so it is shown as it is.
+hide_demo_bucket() {
+  local demo_bucket
+  demo_bucket=$(quietly pulumi stack output demoBucket || true)
+  hide "$demo_bucket" "<demo bucket>"
+}
+
+# invoke FUNCTION: one invocation, its masked result shown and recorded, its file removed.
+invoke() {
+  local result="$LOCAL/deploy-wizard-$1-result.json"
+  TEMPORARY+=("$result")
+  run aws lambda invoke --function-name "$1" --cli-read-timeout 900 \
+    --region "$AWS_REGION_NAME" --profile "$DEPLOYER_PROFILE" "$result"
+  mask < "$result" | tee -a "$RECORD"
+  rm -f "$result"
+}
 
 run_wizard() {
 
-TOTAL_STAGES=12
+TOTAL_STAGES=15 # 13 without the Public Demo
 
 banner "Deploy data-finops to AWS and verify it"
 mkdir -p "$LOCAL/pulumi"
@@ -404,6 +423,7 @@ run pulumi up --yes --policy-pack policy --suppress-outputs
 BUCKET=$(quietly pulumi stack output bucket); hide "$BUCKET" "<bucket>"
 API_URL=$(quietly pulumi stack output apiUrl); hide "$API_URL" "<apiUrl>/"
 COLLECTOR=$(quietly pulumi stack output collectorFunction)
+hide_demo_bucket # on a re-run, the Public Demo can already be on
 run pulumi stack output
 pause
 
@@ -443,12 +463,7 @@ fi
 stage "One Collection Run"
 say "The collector runs once a day; this runs one now and shows its summary."
 confirm "Invoke the collector now?" || { warn "skipped: the schedule runs it at its next time"; finish; exit 0; }
-RESULT="$LOCAL/deploy-wizard-collector-result.json"
-TEMPORARY+=("$RESULT")
-run aws lambda invoke --function-name "$COLLECTOR" --cli-read-timeout 900 \
-  --region "$AWS_REGION_NAME" --profile "$DEPLOYER_PROFILE" "$RESULT"
-mask < "$RESULT" | tee -a "$RECORD"
-rm -f "$RESULT"
+invoke "$COLLECTOR"
 pause
 
 stage "Read it back through the API"
@@ -460,6 +475,55 @@ else
   show "skipped: reading the API back (awscurl is not installed)"
 fi
 pause
+
+stage "The Public Demo (optional)"
+say "The Public Demo publishes the dashboard of this Deployment on CloudFront, for anyone to"
+say "open. A scheduled function runs real queries in its own Athena workgroup, about \$1 to \$2"
+say "a month (\$3 or less in all). Only the demo workgroup's lines are published, never the rest"
+say "of the bill. See the site's Public Demo page."
+if confirm "Add the Public Demo to this Deployment?"; then
+  DEMO=1
+  run pulumi config set publicDemo true
+  if quietly pulumi config get costDimensions >/dev/null; then
+    show "costDimensions is already set: kept (the demo groups by the dimensions it names)"
+  else
+    run pulumi config set costDimensions ../../../examples/public-demo/cost-dimensions.toml
+  fi
+  run pulumi preview --policy-pack policy --suppress-outputs
+  confirm "Does the preview add only the Public Demo's resources, with no violation?" \
+    || { warn "stopped before the Public Demo was created"; exit 1; }
+  confirm "Run pulumi up now?" || { warn "stopped before the Public Demo was created"; exit 1; }
+  run pulumi up --yes --policy-pack policy --suppress-outputs
+  hide_demo_bucket
+  DEMO_URL=$(quietly pulumi stack output demoUrl)
+  GENERATOR=$(quietly pulumi stack output demoGeneratorFunction)
+  SIMULATOR=$(quietly pulumi stack output demoSimulatorFunction)
+  run pulumi stack output
+  pause
+else
+  show "skipped: the Public Demo"
+  TOTAL_STAGES=13
+fi
+
+if (( DEMO )); then
+  stage "The Public Demo: its dataset and a first run"
+  say "The generator writes the demo's dataset, some hundred MB of Parquet, one time. Then the"
+  say "simulated orchestrator runs the DAGs due now, so you do not wait for its schedule."
+  if confirm "Write the dataset now (some minutes)?"; then invoke "$GENERATOR"; fi
+  if confirm "Run the Simulated Orchestrator now (real Athena queries)?"; then invoke "$SIMULATOR"; fi
+  pause
+
+  stage "The Public Demo: publish and open it"
+  say "The bill of these queries arrives in the FOCUS export some hours later. The next"
+  say "Collection Run then collects it, and the publisher writes the first Demo Snapshot. The"
+  say "schedule runs the collector once a day; on the next day, you can also run it now."
+  if confirm "Invoke the collector now (the demo's bill must have arrived)?"; then invoke "$COLLECTOR"; fi
+  show "demoUrl: $DEMO_URL"
+  note "Until the first Demo Snapshot, the page shows nothing. The README and the docs link demoUrl"
+  note "once it is on the site's Public Demo page."
+  open_url "$DEMO_URL"
+  pause
+fi
 
 stage "Record"
 say "Everything shown, masked, is in $(basename "$RECORD") under .local/. Share that file to"
