@@ -20,6 +20,11 @@ DATABASE = "data_finops_demo"
 """The Glue database of the demo dataset. Athena names take letters, digits and `_` only."""
 DATASET_PREFIX = "dataset/"
 """Where the dataset is in the demo bucket (`data_finops.public_demo.dataset.PREFIX`)."""
+SNAPSHOTS_PREFIX = "snapshots/"
+"""Where the publisher writes each Demo Snapshot, under a new prefix (#227)."""
+SNAPSHOT_DAYS = 7
+"""How long S3 keeps a Demo Snapshot. The publisher writes a new one after each Collection Run,
+so only a week without one would leave `current.json` naming an expired prefix."""
 RESULTS_PREFIX = "athena-results/"
 """Where Athena writes the results of the demo's queries. S3 deletes them after a day."""
 HANDLER = "data_finops.lambda_handlers.generator"
@@ -91,7 +96,7 @@ class PublicDemo(pulumi.ComponentResource):
             force_destroy=True,
             encryption=S3_MANAGED,
             noncurrent_days=1,
-            expiring={RESULTS_PREFIX: 1},
+            expiring={RESULTS_PREFIX: 1, SNAPSHOTS_PREFIX: SNAPSHOT_DAYS},
             opts=child,
         )
         workgroup = aws.athena.Workgroup(

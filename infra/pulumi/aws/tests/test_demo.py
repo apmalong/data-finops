@@ -10,7 +10,14 @@ from typing import Any
 
 import pulumi
 import pytest
-from deployment.demo import DATABASE, DATASET_PREFIX, RESULTS_PREFIX, TABLES, WORKGROUP
+from deployment.demo import (
+    DATABASE,
+    DATASET_PREFIX,
+    RESULTS_PREFIX,
+    SNAPSHOT_DAYS,
+    TABLES,
+    WORKGROUP,
+)
 from deployment.program import DEMO_OUTPUTS, OUTPUTS, Deployment, build
 from deployment.settings import Settings
 
@@ -272,5 +279,27 @@ def test_lambda_does_not_retry_the_simulator(tmp_path: Path) -> pulumi.Output[No
         config = MOCKS.one("aws:lambda/functionEventInvokeConfig:FunctionEventInvokeConfig")
         assert config.inputs["functionName"] == "data-finops-test-simulator"
         assert config.inputs["maximumRetryAttempts"] == 0
+
+    return _after(tmp_path, check, public_demo=True)
+
+
+@pulumi.runtime.test
+def test_old_demo_snapshots_and_query_results_expire(tmp_path: Path) -> pulumi.Output[None]:
+    def check(_: Deployment) -> None:
+        (lifecycle,) = [
+            r.inputs["rules"]
+            for r in MOCKS.of_type(
+                "aws:s3/bucketLifecycleConfiguration:BucketLifecycleConfiguration"
+            )
+            if r.name == "data-finops-demo"
+        ]
+        expiring = {
+            rule["filter"]["prefix"]: rule["expiration"]["days"]
+            for rule in lifecycle
+            if "expiration" in rule
+        }
+        # The publisher writes each snapshot under a new prefix (#227); `current.json` and
+        # the dataset never expire.
+        assert expiring == {"athena-results/": 1, "snapshots/": SNAPSHOT_DAYS}
 
     return _after(tmp_path, check, public_demo=True)

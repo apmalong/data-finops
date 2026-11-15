@@ -41,10 +41,12 @@ from data_finops.reporting.reporting import (
     DatabaseUnavailable,
     NotFound,
     Reporting,
+    without_sensitive_dimensions,
 )
 
 __all__ = [
     "MAX_PAGE_SIZE",
+    "without_sensitive_dimensions",
     "AllocatedAmount",
     "AllocationEntry",
     "AllocationPage",

@@ -67,6 +67,15 @@ Asked with options only. The owner chose each option, so no recommendation was g
 | Q80 | The simulator's S3 grant | **Owner:** add what Athena needs: `s3:ListBucket` and `s3:GetBucketLocation` on the demo bucket, and `s3:AbortMultipartUpload` on the results. The other option was the grant of spec 09 as it was written | Owner | spec 09 §The simulated orchestrator |
 | Q81 | How the demo workgroup gets into the collector's workgroups | **Owner:** the stack adds it when `publicDemo` is `true`. The other option was that the owner sets it | Owner | spec 09 §The simulated orchestrator |
 
+## Round 5 (2026-11-15, #227)
+
+Asked with options only. The owner chose each option, so no recommendation was given.
+
+| # | Question | Decision | Source | Recorded in |
+|---|---|---|---|---|
+| Q82 | How the publisher keeps only the demo's lines | **Owner:** a filter of Billing Lines in the read model, which the publisher sets to the demo workgroup's usage lines. The public numbers are the owner's Calculation Run, restricted. The other option was a Calculation Run on a filtered copy of the database | Owner | spec 06 §Which snapshot a read serves, spec 09 §The publisher |
+| Q83 | Whether the publisher's role reads the Cost Dimensions file | **Owner:** no. Each Allocation records whether a dimension is sensitive. The other option was the grant that spec 09 named | Owner | spec 09 §Cost Dimensions |
+
 ## Facts the decisions rest on
 
 From the research note `docs/research/m7-aws-finops-tools.md`, checked 2026-11-07:

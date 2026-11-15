@@ -28,6 +28,7 @@ from data_finops.contracts.allocation import (
 from data_finops.contracts.billing import (
     CostBasis,
     FocusBillingLine,
+    FocusExport,
     SnapshotScope,
     parse_line_ref,
     snapshot_id_of,
@@ -91,12 +92,27 @@ class DatabaseUnavailable(Exception):
     """The file cannot be opened as a current data-finops database; never names the file."""
 
 
+LineFilter = Callable[[FocusBillingLine], bool]
+"""Which Billing Lines a read model sees."""
+
+
 class Reporting:
     """The read model over one database file."""
 
-    def __init__(self, path: Path) -> None:
+    def __init__(self, path: Path, *, lines: LineFilter | None = None) -> None:
         """Open both stores on an existing file; raises DatabaseUnavailable if there is no
-        file or either store refuses it, so a wrong path is reported rather than created."""
+        file or either store refuses it, so a wrong path is reported rather than created.
+
+        With `lines`, every read sees only the Billing Lines it keeps and the Allocations of
+        them, which keep their refs (the Demo Snapshot, spec 09, Q82): the summary, the
+        Allocations, the Roll-ups, the Cost Dimensions, the reconciliation and each Cost
+        Explanation. Provenance and lineage do not read the bill, so it does not change them."""
+        self._lines = lines
+        # Memos for one instance's life (one request, or one publish): an Export Snapshot is
+        # immutable, and so is an Allocation Snapshot.
+        self._exports: dict[str, FocusExport | None] = {}
+        self._kept_by_run: dict[str, list[tuple[int, Allocation]]] = {}
+        self._rollup_maps: dict[tuple[str, str], dict[str, Any]] = {}
         if not path.is_file():
             raise DatabaseUnavailable
         try:
@@ -175,7 +191,7 @@ class Reporting:
         run_id = stored.snapshot.calculation_run_id
         matching = [
             AllocationEntry(ref=_allocation_ref(run_id, position), allocation=allocation)
-            for position, allocation in enumerate(stored.allocations)
+            for position, allocation in self._kept(stored)
             if target_id in (None, allocation.target_id)
             and category in (None, allocation.category)
             and billing_line_ref in (None, allocation.billing_line_ref)
@@ -219,7 +235,7 @@ class Reporting:
                         for t in totals
                     ],
                 )
-                for key, totals in _ROLLUPS[level](stored.allocations).items()
+                for key, totals in self._rollup_map(stored, level).items()
             ),
             key=lambda entry: entry.key,
         )
@@ -252,7 +268,7 @@ class Reporting:
         """
         _check_page(limit, offset)
         stored = self._served(calculation_run_id, billing_account_id, billing_period, source)
-        totals = dimension_totals(stored.allocations, name)
+        totals = dimension_totals(self._kept_allocations(stored), name)
         if totals is None:
             raise NotFound("no such Cost Dimension in this Allocation Snapshot")
         entries = [
@@ -318,7 +334,7 @@ class Reporting:
         for ref, line in self._bill(stored):
             for basis in bases:
                 billed[(ref, basis, line.BillingCurrency)] += line.cost(basis)
-        for allocation in stored.allocations:
+        for allocation in self._kept_allocations(stored):
             basis = CostBasis(allocation.cost_basis)
             if basis in bases:
                 key = (allocation.billing_line_ref, basis, allocation.currency)
@@ -493,6 +509,8 @@ class Reporting:
             raise NotFound("no such Allocation")
         allocation = stored.allocations[parsed[1]]
         line = self._billing_line(allocation.billing_line_ref)
+        if self._lines is not None and not self._lines(line):
+            raise NotFound("no such Allocation")
         model = model_execution_of(allocation)
         runs = workload_runs_of(allocation)
         return CostExplanation(
@@ -501,7 +519,9 @@ class Reporting:
             billing_line=line if detail is BillingLineDetail.FULL else _declared_columns_only(line),
             billing_line_detail=detail,
             allocation=(
-                allocation if detail is BillingLineDetail.FULL else _not_sensitive(allocation)
+                allocation
+                if detail is BillingLineDetail.FULL
+                else without_sensitive_dimensions(allocation)
             ),
             unallocated_reason=(
                 allocation.method if allocation.category is AllocationCategory.UNALLOCATED else None
@@ -511,14 +531,19 @@ class Reporting:
             workload_runs=[
                 ExplainedWorkloadRun(run_id=run, run=self._store.workload_run(run)) for run in runs
             ],
-            rollups=_rollups_of(allocation, model, runs, stored.allocations),
+            rollups=_rollups_of(
+                allocation,
+                model,
+                runs,
+                {level: self._rollup_map(stored, level) for level in get_args(RollupLevel)},
+            ),
         )
 
     def _billing_line(self, line_ref: str) -> FocusBillingLine:
         """The stored Billing Line an Allocation partitions; a dangling reference is an
         integrity fault in the Ledger, not a missing resource."""
         parsed = parse_line_ref(line_ref)
-        export = self._ledger.snapshot(parsed[0]) if parsed else None
+        export = self._export(parsed[0]) if parsed else None
         if parsed is None or export is None or parsed[1] >= len(export.lines):
             raise RuntimeError("an Allocation references a Billing Line the Ledger lacks")
         return export.lines[parsed[1]]
@@ -596,7 +621,7 @@ class Reporting:
         self, scope: SnapshotScope, stored: StoredAllocations, basis: CostBasis
     ) -> CostSummary:
         snapshot = stored.snapshot
-        allocations = [a for a in stored.allocations if a.cost_basis == basis]
+        allocations = [a for _, a in self._kept(stored) if a.cost_basis == basis]
         billed = self._billed(stored, basis)
         by_currency: dict[str, list[Allocation]] = defaultdict(list)
         for allocation in allocations:
@@ -629,10 +654,44 @@ class Reporting:
         line references name it."""
         bill = []
         for snapshot_id in _export_snapshot_ids(stored):
-            export = self._ledger.snapshot(snapshot_id)
+            export = self._export(snapshot_id)
             if export is not None:
-                bill += [(export.line_ref(i), line) for i, line in enumerate(export.lines)]
+                bill += [
+                    (export.line_ref(i), line)
+                    for i, line in enumerate(export.lines)
+                    if self._lines is None or self._lines(line)
+                ]
         return bill
+
+    def _kept(self, stored: StoredAllocations) -> list[tuple[int, Allocation]]:
+        """Each Allocation of the snapshot whose Billing Line the read model sees, with its
+        position in the snapshot, which its ref names."""
+        run_id = stored.snapshot.calculation_run_id
+        if run_id not in self._kept_by_run:
+            if self._lines is None:
+                kept = list(enumerate(stored.allocations))
+            else:
+                seen = {ref for ref, _ in self._bill(stored)}
+                kept = [
+                    (i, a) for i, a in enumerate(stored.allocations) if a.billing_line_ref in seen
+                ]
+            self._kept_by_run[run_id] = kept
+        return self._kept_by_run[run_id]
+
+    def _export(self, snapshot_id: str) -> FocusExport | None:
+        if snapshot_id not in self._exports:
+            self._exports[snapshot_id] = self._ledger.snapshot(snapshot_id)
+        return self._exports[snapshot_id]
+
+    def _rollup_map(self, stored: StoredAllocations, level: RollupLevel) -> dict[str, Any]:
+        """The Roll-ups at `level` of the Allocations the read model sees, by key."""
+        key = (stored.snapshot.calculation_run_id, level)
+        if key not in self._rollup_maps:
+            self._rollup_maps[key] = dict(_ROLLUPS[level](self._kept_allocations(stored)))
+        return self._rollup_maps[key]
+
+    def _kept_allocations(self, stored: StoredAllocations) -> list[Allocation]:
+        return [allocation for _, allocation in self._kept(stored)]
 
 
 def _export_snapshot_ids(stored: StoredAllocations) -> list[str]:
@@ -695,7 +754,7 @@ def _none_last(item: tuple[str | None, Any]) -> tuple[bool, str]:
     return (item[0] is None, item[0] or "")
 
 
-def _not_sensitive(allocation: Allocation) -> Allocation:
+def without_sensitive_dimensions(allocation: Allocation) -> Allocation:
     """The Allocation without its sensitive Cost Dimensions (ADR 0031 point 8)."""
     kept = {name: value for name, value in allocation.dimensions.items() if not value.sensitive}
     return allocation.model_copy(update={"dimensions": kept})
@@ -724,17 +783,16 @@ def _rollups_of(
     allocation: Allocation,
     model: ModelExecutionKey | None,
     runs: list[str],
-    allocations: list[Allocation],
+    maps: dict[str, dict[str, Any]],
 ) -> list[ExplainedRollup]:
-    """The Roll-ups `allocation` contributes to, in its own currency and Cost Basis."""
+    """The Roll-ups `allocation` contributes to, in its own currency and Cost Basis, from the
+    snapshot's Roll-ups by level and key."""
     keys: dict[RollupLevel, list[str]] = {
         "model_execution": [] if model is None else [model.target_id()],
         "workload_run": runs,
     }
     groups = [
-        (level, key, _ROLLUPS[level](allocations)[key])
-        for level, level_keys in keys.items()
-        for key in level_keys
+        (level, key, maps[level][key]) for level, level_keys in keys.items() for key in level_keys
     ]
     return [
         ExplainedRollup(

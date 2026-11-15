@@ -11,6 +11,8 @@ Filters:
 
 The Cost Summary always reads the current snapshots. The HTTP reference lists the parameters of each route. The Ledger gets read-only listings of Snapshot Scopes and of the Allocation Snapshots of a scope.
 
+The read model can also get a filter of Billing Lines (spec 09, Q82). The API does not set it. With a filter, each read sees only the lines that the filter keeps and the Allocations of them. This applies to the Cost Summary, the Allocations, the Roll-ups, the Cost Dimensions, the reconciliation and each Cost Explanation. An Allocation keeps its ref.
+
 ## Resources
 
 ### `GET /health`

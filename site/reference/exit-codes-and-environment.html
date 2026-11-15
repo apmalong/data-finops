@@ -88,7 +88,7 @@
 </dd>
 <dt><code>DATA_FINOPS_BUCKET</code></dt>
 <dd>
-<p>The Deployment's bucket, for its API function and the public demo's simulator. The API function serves a copy of the database object in it. The simulator writes its records to the Inbox in it. The stack sets it.</p>
+<p>The Deployment's bucket, for its API function and the public demo's simulator and publisher. The API function serves a copy of the database object in it, and the publisher publishes a copy. The simulator writes its records to the Inbox in it. The stack sets it.</p>
 </dd>
 <dt><code>DATA_FINOPS_EXPLANATION_DETAIL</code></dt>
 <dd>
@@ -96,7 +96,7 @@
 </dd>
 <dt><code>DATA_FINOPS_DEMO_BUCKET</code></dt>
 <dd>
-<p>The public demo's bucket, for the dataset generator function. The function writes the demo dataset in it, under <code>dataset/</code>. The stack sets it when <code>publicDemo</code> is <code>true</code>. If it is not set, the invocation fails, and the error names the variable.</p>
+<p>The public demo's bucket, for the dataset generator and the publisher. The generator writes the demo dataset in it, under <code>dataset/</code>. The publisher writes the Demo Snapshot in it. The stack sets it when <code>publicDemo</code> is <code>true</code>. If it is not set, the invocation fails, and the error names the variable.</p>
 </dd>
 <dt><code>DATA_FINOPS_ANON_SECRET</code></dt>
 <dd>
