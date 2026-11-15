@@ -9,7 +9,7 @@ The FinOps tool must remain lightweight, auditable, portable and safe for custom
 Ingest OpenLineage events via lightweight receiver and use official SDKs. OTel is optional execution correlation. No mandatory Marquez/Tempo.
 
 ## Consequences
-Keep compatibility with the lineage and observability stacks that customers already use.
+Keep compatibility with the current lineage and observability stacks.
 
 ## Alternatives and revisit triggers
 Revisit if measured integration cost, scale, license obligations, or customer requirements make this choice unsuitable. Record a new ADR that supersedes this one.

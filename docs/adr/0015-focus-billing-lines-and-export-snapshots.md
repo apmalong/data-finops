@@ -8,7 +8,7 @@ ADR 0014 adopts FOCUS for canonical billing. But the original `BillingLine` cont
 - It shows credits and adjustments as separate rows, by charge category.
 - It defines no stable row identifier. This is confirmed for FOCUS 1.2: a line is identified by its Export Snapshot and position.
 
-Provider exports restate a billing period when they publish it again. Thus a row-level "source version" deduplication has nothing reliable to use as a key.
+Provider exports restate a billing period: they publish all of the period again. Thus a row-level "source version" deduplication has nothing reliable to use as a key.
 
 ## Decision
 1. The internal billing record is a FOCUS row for one pinned FOCUS release. Keep FOCUS column names and every cost column; keep provider extension columns under their FOCUS `x_` names; never move them into an untyped metadata object.
@@ -28,7 +28,7 @@ The data contract and `billing-line.schema.json` are replaced by the pinned FOCU
 ## Revisit triggers
 - AWS no longer emits a FOCUS release that we support.
 - A FOCUS release adds a stable row identifier.
-- A customer requires a source that is not FOCUS first.
+- A customer requires a source that is not FOCUS as the first source.
 
 ## Note (drift review #207, 2026-11-07)
 The consequence "replaced by the pinned FOCUS schema plus documented extensions" was met code-first instead (OQ-15): `billing-line.schema.json` is generated from the `FocusBillingLine` model of FOCUS 1.2's columns plus `data_finops_raw_values`. Full FOCUS 1.2 conformance is not verified yet (`docs/research/standards-conformance-matrix.md`).

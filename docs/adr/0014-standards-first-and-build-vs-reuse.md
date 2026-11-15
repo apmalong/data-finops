@@ -15,7 +15,7 @@ Cloud billing, lineage, telemetry, API schemas, and metadata already have establ
 7. Version pinning: record **verified** upstream versions, schema URLs, commits, licensing, and test results before release. Never fabricate version compatibility or source audit completion.
 
 ## Consequences
-Adapters and conformance tests are first-class deliverables. Optional dependencies stay optional. Provider-specific capabilities can lag until they are verified. Standards conformance is tested, not inferred from names.
+Adapters and conformance tests are first-class deliverables. Optional dependencies stay optional. Provider-specific capabilities can lag until they are verified. Standards conformance is tested, not inferred from the conventions for names.
 
 ## Alternatives rejected
 - Reinvent all schemas: unnecessary compatibility burden.
@@ -23,4 +23,4 @@ Adapters and conformance tests are first-class deliverables. Optional dependenci
 - Vendor source by default: avoidable provenance and update burden.
 
 ## Acceptance
-M-1/M0 must establish the conformance matrix and the reuse gate. M1/M2 must add tests based on the upstream schema for each implemented protocol. Unknown compatibility is recorded as "pending", not as "passed".
+M-1/M0 must establish the conformance matrix and the reuse gate. M1/M2 must add tests based on the upstream schema of each implemented protocol. Unknown compatibility is recorded as "pending", not as "passed".

@@ -3,7 +3,7 @@
 Status: Accepted (design, 2026-11-01). Refines ADR 0007. Narrows the mission in `README.md` for the MVP.
 
 ## Context
-The mission lists queries, runs, pipelines, models, datasets, data products, tenants and downstream consumers as attribution targets. An independent allocation at more than one of these levels counts a cost two times. Consumer attribution redistributes a producer's cost along lineage, which double-counts if shown beside direct cost. Spec 03 also left the reconciliation unit ambiguous between the Cost Pool and the Billing Line.
+The mission lists queries, runs, pipelines, models, datasets, data products, tenants and downstream consumers as attribution targets. An independent allocation at more than one of these levels counts the same cost more than one time. Consumer attribution redistributes a producer's cost along lineage, which double-counts if shown beside direct cost. Spec 03 also left the reconciliation unit ambiguous between the Cost Pool and the Billing Line.
 
 ## Decision
 1. Each Billing Line is partitioned exactly once. A Cost Pool only supplies the weights used to partition each of its lines.
@@ -18,7 +18,7 @@ Conservation is checked per Billing Line, which makes corrections line-scoped an
 ## Alternatives rejected
 - Pool-level partition: hides misallocation between lines and forces whole-pool recomputation on a single correction.
 - Independent allocation per level: double-counts.
-- Failed or retried work charged to Unallocated: hides real waste that the product is there to show.
+- Failed or retried work charged to Unallocated: hides real waste that the product must show.
 
 ## Revisit triggers
 - A deferred target type gets an Evidence source and a conservation rule.
