@@ -45,7 +45,7 @@ The Deployment must not contain code that is not vetted. These tickets go first:
   - A new version, `cost-dimensions/1`, joins the policy version.
   - The SHA-256 of the configuration is recorded on the snapshot, but it is not part of the input digest. Thus a change to the configuration never changes a stored snapshot, and does not start a new snapshot by itself. It applies from the next snapshot that new inputs make (Q72).
 - **Reads:** `GET /v1/rollups/dimensions/{name}` returns a page of values, with their amounts for each Cost Basis and how the source of each value splits.
-  - The total of each dimension, with `unassigned`, is equal to the total of the snapshot.
+  - The total of each dimension, which includes `unassigned`, is equal to the total of the snapshot.
   - The dashboard gets a dimension view, in both data sources.
 - **A Deployment:** the setting `costDimensions` holds the path of the file.
   - The stack uploads the file to `config/cost-dimensions.toml` in the bucket of the Deployment. The reason is that the settings of the collector go in an environment variable, which is limited to 4 KB.
@@ -90,14 +90,14 @@ The Deployment must not contain code that is not vetted. These tickets go first:
 
   It also writes `snapshot.json`: when it was published, the Calculation Run, the period covered and the explained share.
 - **What is public:**
-  - only the Athena usage lines whose ResourceId is the demo workgroup, and what comes from them
+  - Only the Athena usage lines whose ResourceId is the demo workgroup are public, and what comes from them.
   - Each 12-digit account ID becomes `123456789012`.
   - Credit lines are not included, and the page says that amounts are before credits.
 - **Atomic swap:** the files are written under a new prefix. Then `current.json` changes to that prefix. Thus readers never see half a snapshot. Old prefixes expire after a few days.
 - **IAM, a role of its own:** `s3:GetObject` on the database object, `s3:PutObject` and `s3:ListBucket` on the demo bucket, and its log group.
 
 ## The site
-- **Host:** a private demo bucket (all four public access blocks, encrypted) behind a CloudFront distribution with origin access control. It is HTTPS only, on the own domain of CloudFront, with a cache configuration for a daily snapshot.
+- **Host:** a private demo bucket (all four public access blocks, encrypted) behind a CloudFront distribution with origin access control. It is HTTPS only, on the CloudFront domain (no custom domain), with a cache configuration for a daily snapshot.
 - **The dashboard:** the M5 dashboard, served with a `static` data source. Each API call maps to a file in the current snapshot. A call that the snapshot does not cover shows "not in the public demo".
 - **The banner (Q67):** "Simulated workload; real Athena charges, reconciled to the bill; data trails by about a day", with the time and the Calculation Run of the snapshot.
 - **Links:** the README and the docs site (home page, navigation) link to the public URL. The stack outputs it as `demoUrl`.
@@ -144,7 +144,7 @@ Each seam is test-first, with hand-made mutation checks recorded in the PR. No t
    - the first source wins, across all three sources
    - `unassigned`
    - for each Cost Basis, the total of each dimension is equal to the total of the snapshot
-   - a changed configuration alone makes no new snapshot, and stored snapshots do not change. The next snapshot from new inputs uses it.
+   - a changed configuration alone makes no new snapshot, and stored snapshots do not change. The next snapshot from new inputs uses the changed configuration.
    - a claim never makes an Identity Link
    - sensitive dimensions are not shown
    - OpenAPI drift

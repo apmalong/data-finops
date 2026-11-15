@@ -27,7 +27,7 @@ The collector is the only writer.
 - Its handler is `data_finops.lambda_handlers.collector`.
 - Its settings come in one environment variable, `DATA_FINOPS_COLLECTOR_SETTINGS`. This variable holds JSON with the keys of the `collect` TOML file, and it is validated in the same way (#183).
 - The database object is `database/data-finops.sqlite`. The first run writes it with `If-None-Match: *`.
-- Exit codes 0 and 1 return the summary. Exit code 2, a write conflict or bad settings raise `CollectionFailed`. Then the invocation counts as an error, and the scheduler retries it.
+- Exit codes 0 and 1 return the summary. Exit code 2, a write conflict or bad settings raise `CollectionFailed`. Thus the invocation counts as an error, and the scheduler retries it.
 - One `PutObject` holds up to 5 GB. Multipart upload is a revisit trigger.
 
 ### API function
@@ -51,12 +51,12 @@ The bucket holds the database object, `inbox/openlineage/`, `inbox/dbt/<invocati
 - `BucketOwnerEnforced`
 - a bucket policy that denies requests without TLS (`aws:SecureTransport`)
 - default encryption SSE-S3, or SSE-KMS with Bucket Keys when `kmsKeyArn` is set
-- versioning on. Noncurrent versions expire after `noncurrentVersionDays`.
+- versioning on, with noncurrent versions that expire after `noncurrentVersionDays`
 - Inbox objects expire after `inboxRetentionDays`.
 
 ## Collection Run
 1. The sources run in a fixed order: dbt artifacts from the Inbox, OpenLineage events from the Inbox, Athena history, FOCUS Deliveries.
-   - Each source is tried, also if an earlier one failed.
+   - Each source is tried, even if an earlier one failed.
    - Then a Calculation Run occurs for each Snapshot Scope, on the data that was stored.
 2. **Deliveries:** list the `metadata/` prefix of the export, for the `billingLookbackPeriods` most recent Billing Periods.
    - The default is 2, and the minimum is 1.
@@ -64,7 +64,7 @@ The bucket holds the database object, `inbox/openlineage/`, `inbox/dbt/<invocati
    - Follow the real layout as it was observed (lowercase `billing_period=`, `-Manifest-FOCUS.json`), not the names in the AWS documentation.
    - Ingest each Delivery that is newer than the current Export Snapshot of its Snapshot Scope (the configured account, the period, the source of the export), oldest first. Thus the newest becomes current, and the others are kept as Superseded Snapshots (#182).
    - To ingest a Delivery, download it to `/tmp` and give it to the current FOCUS reader, unchanged.
-   - A folder without both manifests is not complete yet. It stays for a later run.
+   - If a folder does not have both manifests, Data Exports has not finished it yet. It stays for a later run.
    - A folder whose name is not `<CreatedAt>-<executionId>` gets a warning, and it is ignored.
    - A Delivery that a run took one time (stored, replayed or rejected) is recorded in the Collection Watermark. It is never downloaded again (#182).
    - Only the data files that the manifest lists are downloaded, and only from the folder of that Delivery in the export bucket. A manifest that names a different object is rejected, and that object is not read (#182).
