@@ -14,7 +14,7 @@ from data_finops.api import create_app
 
 ROOT = Path(__file__).resolve().parents[2]
 DASHBOARD = ROOT / "src" / "data_finops" / "api" / "dashboard"
-FILES = ("index.html", "dashboard.css", "dashboard.js")
+FILES = ("index.html", "dashboard.css", "dashboard.js", "static.js")
 
 
 @pytest.fixture(scope="module")
@@ -59,7 +59,10 @@ def test_the_dashboard_needs_no_library_and_no_network_beyond_its_api() -> None:
     for name in FILES:
         text = (DASHBOARD / name).read_text(encoding="utf-8")
         assert "http://" not in text and "https://" not in text, name
-        assert "<script src" not in text.replace('<script src="dashboard.js"', ""), name
+        scripts = text.replace('<script src="dashboard.js"', "").replace(
+            '<script src="static.js"', ""
+        )
+        assert "<script src" not in scripts, name
 
 
 def _spec_06_rules() -> list[str]:
