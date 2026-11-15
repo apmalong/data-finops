@@ -3,6 +3,7 @@
 import os
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 import pulumi
 import pulumi_aws as aws
@@ -56,6 +57,14 @@ class Deployment:
     storage: Storage
     compute: Compute
     demo: PublicDemo | None = None
+
+    @property
+    def ready(self) -> pulumi.Output[list[Any]]:
+        """Settles once every resource of every component is registered."""
+        components = [self.storage.ready, self.compute.ready]
+        if self.demo is not None:
+            components.append(self.demo.ready)
+        return pulumi.Output.all(*components)
 
     def outputs(self) -> dict[str, pulumi.Output[str]]:
         """The stack's outputs (spec 08 §Settings, Outputs; spec 09 §Stack)."""

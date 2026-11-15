@@ -45,10 +45,7 @@ def _after(
     package = tmp_path / "data-finops-lambda.zip"
     package.write_bytes(b"PK\x05\x06" + b"\x00" * 18)  # an empty zip
     deployment = build(_settings(**changes), package=package)
-    ready = [deployment.storage.ready, deployment.compute.ready]
-    if deployment.demo is not None:
-        ready.append(deployment.demo.ready)
-    return pulumi.Output.all(*ready).apply(lambda _: check(deployment))
+    return deployment.ready.apply(lambda _: check(deployment))
 
 
 @pulumi.runtime.test

@@ -33,7 +33,7 @@ QUERY_RUNNING = [
 """Athena calls that run a query or read its results: denied outright (spec 08 §IAM)."""
 
 
-def _trust(service: str) -> str:
+def trust_policy(service: str) -> str:
     """A role trust policy letting one AWS service assume the role."""
     return json.dumps(
         {
@@ -101,7 +101,9 @@ class Compute(pulumi.ComponentResource):
         }
         roles = {
             role: aws.iam.Role(
-                f"{name}-{role}", assume_role_policy=_trust("lambda.amazonaws.com"), opts=child
+                f"{name}-{role}",
+                assume_role_policy=trust_policy("lambda.amazonaws.com"),
+                opts=child,
             )
             for role in HANDLERS
         }
@@ -178,14 +180,16 @@ class Compute(pulumi.ComponentResource):
             opts=child,
         )
         scheduler_role = aws.iam.Role(
-            f"{name}-scheduler", assume_role_policy=_trust("scheduler.amazonaws.com"), opts=child
+            f"{name}-scheduler",
+            assume_role_policy=trust_policy("scheduler.amazonaws.com"),
+            opts=child,
         )
         resources.append(
             aws.iam.RolePolicy(
                 f"{name}-scheduler",
                 role=scheduler_role.id,
                 policy=self.collector.arn.apply(
-                    lambda arn: json.dumps(_allow([("lambda:InvokeFunction", [arn])]))
+                    lambda arn: json.dumps(allow([("lambda:InvokeFunction", [arn])]))
                 ),
                 opts=child,
             )
@@ -208,7 +212,7 @@ class Compute(pulumi.ComponentResource):
             f"{name}-producer",
             description="data-finops: write OpenLineage events and dbt artifacts to the Inbox",
             policy=bucket.arn.apply(
-                lambda arn: json.dumps(_allow([("s3:PutObject", [f"{arn}/{INBOX}*"])]))
+                lambda arn: json.dumps(allow([("s3:PutObject", [f"{arn}/{INBOX}*"])]))
             ),
             opts=child,
         )
@@ -250,7 +254,7 @@ def _collector_settings(settings: Settings, bucket: str, account_id: str) -> dic
     } | ({"cost_dimensions_key": DIMENSIONS_KEY} if settings.cost_dimensions is not None else {})
 
 
-def _allow(grants: list[tuple[str | list[str], list[str]]]) -> dict[str, Any]:
+def allow(grants: list[tuple[str | list[str], list[str]]]) -> dict[str, Any]:
     return {
         "Version": "2012-10-17",
         "Statement": [
@@ -260,7 +264,7 @@ def _allow(grants: list[tuple[str | list[str], list[str]]]) -> dict[str, Any]:
     }
 
 
-def _logs(group_arn: str) -> tuple[list[str], list[str]]:
+def log_writing(group_arn: str) -> tuple[list[str], list[str]]:
     return ["logs:CreateLogStream", "logs:PutLogEvents"], [f"{group_arn}:*"]
 
 
@@ -281,7 +285,7 @@ def _collector_policy(
         f"arn:aws:athena:{settings.region}:{account_id}:workgroup/{name}"
         for name in settings.workgroups
     ]
-    policy = _allow(
+    policy = allow(
         [
             ("s3:GetObject", [f"{export}/{root}/*"]),
             (["athena:ListQueryExecutions", "athena:BatchGetQueryExecution"], workgroups),
@@ -296,7 +300,7 @@ def _collector_policy(
                 ),
             ),
             ("s3:PutObject", [f"{bucket_arn}/{DATABASE_KEY}"]),
-            _logs(group_arn),
+            log_writing(group_arn),
             *_key(settings, ["kms:Decrypt", "kms:GenerateDataKey"]),
         ]
     )
@@ -315,11 +319,11 @@ def _collector_policy(
 
 def _api_policy(settings: Settings, bucket_arn: str, group_arn: str) -> dict[str, Any]:
     """Read the database object alone (spec 08 §IAM)."""
-    return _allow(
+    return allow(
         [
             ("s3:GetObject", [f"{bucket_arn}/{DATABASE_KEY}"]),
             ("s3:ListBucket", [bucket_arn]),
-            _logs(group_arn),
+            log_writing(group_arn),
             *_key(settings, ["kms:Decrypt"]),
         ]
     )

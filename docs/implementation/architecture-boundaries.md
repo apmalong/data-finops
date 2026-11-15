@@ -6,7 +6,7 @@
   - Through `schemas.py`, it also holds the generated JSON Schemas (code first, OQ-15).
   - It imports nothing else from `data_finops`.
 - `billing`: provider billing readers and canonical billing facts.
-  - the FOCUS reader (`billing.focus`, the only user of pyarrow)
+  - the FOCUS reader (`billing.focus`). It reads with pyarrow. The only other module that uses pyarrow is `public_demo.dataset`.
   - the AWS Data Exports Delivery reader (`billing.aws_data_exports`)
 - `normalization`: reserved and empty. Nothing imports it, and #214 proposes to remove it.
 - `ledger`: immutable versioned financial source records (Export Snapshots, Billing Lines) and Allocation Snapshots.
@@ -41,8 +41,8 @@
   - These collectors fetch files and API responses, and give them to the current readers. They never write to a store themselves.
 - `collection`: the Collection Run (M6, spec 08). It is a thin orchestrator over `providers.aws`, the `billing` Delivery reader, the public ingest functions of the stores, and `calculation`.
   - `collection.remote` fetches and writes the database object.
-  - The Lambda handlers (`lambda_handlers`) are entry points over `collection` and `api`, as `cli` is. The API handler also keeps a copy of the database object, and gets it again only when its ETag changes, through `providers.aws`.
-  - The two entry points get their AWS clients from `aws_clients`, the only module that imports boto3 (#183, #184).
+  - The Lambda handlers (`lambda_handlers`) are entry points over `collection`, `api` and `public_demo`, as `cli` is. The API handler also keeps a copy of the database object, and gets it again only when its ETag changes, through `providers.aws`.
+  - The entry points (`cli` and `lambda_handlers`) get their AWS clients from `aws_clients`, the only module that imports boto3 (#183, #184).
 - `public_demo`: the parts of the public demo that run in AWS (M7, spec 09). It is not the `data-finops demo` command.
   - `public_demo.dataset` makes the demo dataset as Parquet, and writes it through `providers.aws`. It is the second module that can import pyarrow (ADR 0018, amended).
   - The `generator` Lambda handler is its entry point. No other package imports `public_demo`.

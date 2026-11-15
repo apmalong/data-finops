@@ -28,7 +28,7 @@ PART_ROWS = 1_000_000
 """The most rows in one Parquet file."""
 PREFIX = "dataset/"
 """Where the dataset goes in the demo bucket. The Glue tables are under it."""
-PARQUET = "application/vnd.apache.parquet"
+PARQUET_MEDIA_TYPE = "application/vnd.apache.parquet"
 
 SCHEMAS: Mapping[str, pa.Schema] = {
     "customers": pa.schema(
@@ -102,7 +102,7 @@ def generate(
             count = min(part_rows, rows[name] - first)
             # Fictional data that must repeat for a seed, not a secret.
             rng = random.Random(f"{seed}:{name}:{part}")  # nosec B311
-            columns = _COLUMNS[name](rng, first, count, customers)
+            columns = _PART_MAKERS[name](rng, first, count, customers)
             yield DatasetFile(
                 key=f"{name}/part-{part:05d}.parquet",
                 data=_parquet(pa.table(columns, schema=schema)),
@@ -120,7 +120,7 @@ def upload(s3: Any, bucket: str, files: Iterable[DatasetFile]) -> dict[str, int]
             Bucket=bucket,
             Key=f"{PREFIX}{file.key}",
             Body=file.data,
-            ContentType=PARQUET,
+            ContentType=PARQUET_MEDIA_TYPE,
         )
         count, size = count + 1, size + len(file.data)
     return {"files": count, "bytes": size}
@@ -132,7 +132,7 @@ def _tenant(customer_id: int) -> str:
 
 
 def _customers(rng: random.Random, first: int, count: int, customers: int) -> Columns:
-    ids = list(range(first + 1, first + count + 1))
+    ids = _ids(first, count)
     return {
         "customer_id": ids,
         "tenant_id": [_tenant(i) for i in ids],
@@ -145,7 +145,7 @@ def _customers(rng: random.Random, first: int, count: int, customers: int) -> Co
 def _orders(rng: random.Random, first: int, count: int, customers: int) -> Columns:
     buyers = [rng.randint(1, customers) for _ in range(count)]
     return {
-        "order_id": list(range(first + 1, first + count + 1)),
+        "order_id": _ids(first, count),
         "customer_id": buyers,
         "tenant_id": [_tenant(c) for c in buyers],
         "order_ts": _times(rng, count),
@@ -157,7 +157,7 @@ def _orders(rng: random.Random, first: int, count: int, customers: int) -> Colum
 def _events(rng: random.Random, first: int, count: int, customers: int) -> Columns:
     visitors = [rng.randint(1, customers) for _ in range(count)]
     return {
-        "event_id": list(range(first + 1, first + count + 1)),
+        "event_id": _ids(first, count),
         "customer_id": visitors,
         "tenant_id": [_tenant(c) for c in visitors],
         "event_ts": _times(rng, count),
@@ -167,11 +167,16 @@ def _events(rng: random.Random, first: int, count: int, customers: int) -> Colum
     }
 
 
-_COLUMNS: Mapping[str, Callable[[random.Random, int, int, int], Columns]] = {
+_PART_MAKERS: Mapping[str, Callable[[random.Random, int, int, int], Columns]] = {
     "customers": _customers,
     "orders": _orders,
     "events": _events,
 }
+
+
+def _ids(first: int, count: int) -> list[int]:
+    """The IDs of one part: they continue from the part before, and start at 1."""
+    return list(range(first + 1, first + count + 1))
 
 
 def _times(rng: random.Random, count: int) -> list[datetime]:

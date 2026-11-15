@@ -191,24 +191,6 @@
       "Resource": "arn:aws:athena:*:${aws:PrincipalAccount}:workgroup/data-finops-demo"
     },
     {
-      "Sid": "GlueCatalog",
-      "Effect": "Allow",
-      "Action": [
-        "glue:CreateDatabase",
-        "glue:GetDatabase",
-        "glue:UpdateDatabase",
-        "glue:DeleteDatabase",
-        "glue:CreateTable",
-        "glue:GetTable",
-        "glue:UpdateTable",
-        "glue:DeleteTable",
-        "glue:GetTags",
-        "glue:TagResource",
-        "glue:UntagResource"
-      ],
-      "Resource": "arn:aws:glue:*:${aws:PrincipalAccount}:catalog"
-    },
-    {
       "Sid": "DemoGlueTables",
       "Effect": "Allow",
       "Action": [
@@ -225,6 +207,7 @@
         "glue:UntagResource"
       ],
       "Resource": [
+        "arn:aws:glue:*:${aws:PrincipalAccount}:catalog",
         "arn:aws:glue:*:${aws:PrincipalAccount}:database/data_finops_demo",
         "arn:aws:glue:*:${aws:PrincipalAccount}:table/data_finops_demo/*"
       ]

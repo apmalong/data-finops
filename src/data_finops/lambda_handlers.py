@@ -1,6 +1,7 @@
-"""The Deployment's Lambda entry points (spec 08; ADR 0026): thin wrappers over `collection` and
-`api`, like `cli`. Each `make_*_handler` takes its clients and environment, so tests hand it
-stubs; `collector`, `api` and `generator` are what the functions are configured to call."""
+"""The Deployment's Lambda entry points (spec 08; ADR 0026): thin wrappers over `collection`,
+`api` and `public_demo` (spec 09), like `cli`. Each `make_*_handler` takes its clients and
+environment, so tests hand it stubs; `collector`, `api` and `generator` are what the functions
+are configured to call."""
 
 import json
 import os

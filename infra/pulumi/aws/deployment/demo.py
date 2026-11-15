@@ -10,6 +10,7 @@ from typing import Any
 import pulumi
 import pulumi_aws as aws
 
+from deployment.compute import allow, log_writing, trust_policy
 from deployment.settings import Settings
 from deployment.storage import S3_MANAGED, private_bucket
 
@@ -50,7 +51,8 @@ TABLES: dict[str, tuple[tuple[str, str], ...]] = {
 }
 """Each Glue table and its columns. They match `data_finops.public_demo.dataset.SCHEMAS`; a test
 in the root project compares the two."""
-PARQUET = "org.apache.hadoop.hive.ql.io.parquet"
+HIVE_PARQUET = "org.apache.hadoop.hive.ql.io.parquet"
+"""The package of the Hive classes that read Parquet, as Athena expects them."""
 GENERATOR_TIMEOUT_SECONDS = 900
 GENERATOR_MEMORY_MB = 3008
 """The generator builds one Parquet part (a million rows) in memory at a time."""
@@ -80,7 +82,8 @@ class PublicDemo(pulumi.ComponentResource):
             f"{name}-demo",
             force_destroy=True,
             encryption=S3_MANAGED,
-            expiring={"": 1, RESULTS_PREFIX: 1},
+            noncurrent_days=1,
+            expiring={RESULTS_PREFIX: 1},
             opts=child,
         )
         workgroup = aws.athena.Workgroup(
@@ -91,7 +94,7 @@ class PublicDemo(pulumi.ComponentResource):
                 "enforce_workgroup_configuration": True,
                 "publish_cloudwatch_metrics_enabled": True,
                 "result_configuration": {
-                    "output_location": self.bucket.bucket.apply(_under(RESULTS_PREFIX)),
+                    "output_location": self.bucket.bucket.apply(_s3_url(RESULTS_PREFIX)),
                     "encryption_configuration": {"encryption_option": "SSE_S3"},
                 },
             },
@@ -106,11 +109,13 @@ class PublicDemo(pulumi.ComponentResource):
                 table_type="EXTERNAL_TABLE",
                 parameters={"classification": "parquet", "EXTERNAL": "TRUE"},
                 storage_descriptor={
-                    "location": self.bucket.bucket.apply(_under(f"{DATASET_PREFIX}{table}/")),
+                    "location": self.bucket.bucket.apply(_s3_url(f"{DATASET_PREFIX}{table}/")),
                     "columns": [{"name": column, "type": kind} for column, kind in columns],
-                    "input_format": f"{PARQUET}.MapredParquetInputFormat",
-                    "output_format": f"{PARQUET}.MapredParquetOutputFormat",
-                    "ser_de_info": {"serialization_library": f"{PARQUET}.serde.ParquetHiveSerDe"},
+                    "input_format": f"{HIVE_PARQUET}.MapredParquetInputFormat",
+                    "output_format": f"{HIVE_PARQUET}.MapredParquetOutputFormat",
+                    "ser_de_info": {
+                        "serialization_library": f"{HIVE_PARQUET}.serde.ParquetHiveSerDe"
+                    },
                 },
                 opts=child,
             )
@@ -123,20 +128,7 @@ class PublicDemo(pulumi.ComponentResource):
             opts=child,
         )
         role = aws.iam.Role(
-            f"{name}-generator",
-            assume_role_policy=json.dumps(
-                {
-                    "Version": "2012-10-17",
-                    "Statement": [
-                        {
-                            "Effect": "Allow",
-                            "Principal": {"Service": "lambda.amazonaws.com"},
-                            "Action": "sts:AssumeRole",
-                        }
-                    ],
-                }
-            ),
-            opts=child,
+            f"{name}-generator", assume_role_policy=trust_policy("lambda.amazonaws.com"), opts=child
         )
         policy = aws.iam.RolePolicy(
             f"{name}-generator",
@@ -157,9 +149,9 @@ class PublicDemo(pulumi.ComponentResource):
             opts=pulumi.ResourceOptions(parent=self, depends_on=[group]),
             **code,
         )
-        made: list[pulumi.Resource] = [self.bucket, *guards, workgroup, database, *tables]
-        made += [group, role, policy, self.generator]
-        self.ready = pulumi.Output.all(*[r.urn for r in made])
+        resources: list[pulumi.Resource] = [self.bucket, *guards, workgroup, database, *tables]
+        resources += [group, role, policy, self.generator]
+        self.ready = pulumi.Output.all(*[r.urn for r in resources])
         self.register_outputs(self.outputs())
 
     def outputs(self) -> dict[str, pulumi.Output[str]]:
@@ -167,25 +159,11 @@ class PublicDemo(pulumi.ComponentResource):
         return {"demoBucket": self.bucket.bucket, "demoGeneratorFunction": self.generator.name}
 
 
-def _under(prefix: str) -> Callable[[str], str]:
+def _s3_url(prefix: str) -> Callable[[str], str]:
     """The S3 URL of a prefix in a bucket, from the bucket's name."""
     return lambda bucket: f"s3://{bucket}/{prefix}"
 
 
 def _generator_policy(bucket_arn: str, group_arn: str) -> dict[str, Any]:
     """Write the dataset, and nothing else in the bucket (spec 09 §The demo dataset)."""
-    return {
-        "Version": "2012-10-17",
-        "Statement": [
-            {
-                "Effect": "Allow",
-                "Action": "s3:PutObject",
-                "Resource": [f"{bucket_arn}/{DATASET_PREFIX}*"],
-            },
-            {
-                "Effect": "Allow",
-                "Action": ["logs:CreateLogStream", "logs:PutLogEvents"],
-                "Resource": [f"{group_arn}:*"],
-            },
-        ],
-    }
+    return allow([("s3:PutObject", [f"{bucket_arn}/{DATASET_PREFIX}*"]), log_writing(group_arn)])

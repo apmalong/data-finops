@@ -9,7 +9,14 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
 
-from data_finops.public_demo.dataset import PREFIX, ROWS, SCHEMAS, DatasetFile, generate
+from data_finops.public_demo.dataset import (
+    PART_ROWS,
+    PREFIX,
+    ROWS,
+    SCHEMAS,
+    DatasetFile,
+    generate,
+)
 
 SMALL = {"customers": 300, "orders": 2_500, "events": 5_000}
 
@@ -64,9 +71,13 @@ def test_orders_and_events_name_existing_customers() -> None:
         assert set(_table(files, name)["customer_id"].to_pylist()) <= customers
 
 
-def test_the_full_dataset_is_declared_in_millions_of_rows() -> None:
-    # A few hundred MB of Parquet (spec 09): the PR records the measured size of `ROWS`.
-    assert ROWS == {"customers": 200_000, "orders": 2_000_000, "events": 10_000_000}
+def test_the_full_dataset_is_a_few_hundred_mb() -> None:
+    # spec 09: "a few hundred MB". One hundredth of each table, in parts of one hundredth, has
+    # about one hundredth of the bytes: the rows are independent draws.
+    sample = generate(rows={k: v // 100 for k, v in ROWS.items()}, part_rows=PART_ROWS // 100)
+    estimate = 100 * sum(len(f.data) for f in sample)
+
+    assert 100_000_000 <= estimate < 1_000_000_000
 
 
 def test_rows_must_name_each_table_once() -> None:

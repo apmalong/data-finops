@@ -53,11 +53,13 @@ def test_the_draft_allows_named_actions_on_named_resources_only() -> None:
             continue
         resources = statement["Resource"]
         for resource in [resources] if isinstance(resources, str) else resources:
-            # Glue's catalog has no name, and Glue names take `_`, not `-` (#225).
+            # Glue checks its catalog, which has no name, with each database and table; and
+            # Glue names take `_`, not `-` (#225).
             assert (
                 "data-finops-" in resource
                 or "data_finops_demo" in resource
-                or statement["Sid"] in ("DescribeLogGroups", "GlueCatalog")
+                or resource.endswith(":catalog")
+                or statement["Sid"] == "DescribeLogGroups"
             ), statement["Sid"]
 
 
@@ -104,7 +106,4 @@ def test_the_draft_reaches_every_service_the_program_declares(
 
     # Once the components are ready, every resource has been registered with the mocks.
     assert deployment.demo is not None
-    ready = pulumi.Output.all(
-        deployment.storage.ready, deployment.compute.ready, deployment.demo.ready
-    )
-    return ready.apply(check)
+    return deployment.ready.apply(check)

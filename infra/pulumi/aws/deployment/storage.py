@@ -29,7 +29,8 @@ class Storage(pulumi.ComponentResource):
             name,
             force_destroy=settings.delete_data_on_destroy,
             encryption=_encryption(settings),
-            expiring={"": settings.noncurrent_version_days, INBOX: settings.inbox_retention_days},
+            noncurrent_days=settings.noncurrent_version_days,
+            expiring={INBOX: settings.inbox_retention_days},
             opts=child,
         )
         self.ready = pulumi.Output.all(self.bucket.id, *[g.id for g in guards])
@@ -41,19 +42,20 @@ def private_bucket(
     *,
     force_destroy: bool,
     encryption: aws.s3.BucketServerSideEncryptionConfigurationRuleArgsDict,
+    noncurrent_days: int,
     expiring: dict[str, int],
     opts: pulumi.ResourceOptions,
 ) -> tuple[aws.s3.Bucket, list[pulumi.CustomResource]]:
     """A bucket with every guard of the policy pack (spec 08 §Policy pack, 1): all public access
-    blocked, owner-enforced, encrypted, versioned and TLS only. `expiring` gives the days that
-    S3 keeps an old version (key `""`) and the objects under each other prefix."""
+    blocked, owner-enforced, encrypted, versioned and TLS only. S3 keeps an old version for
+    `noncurrent_days`, and the objects under each prefix of `expiring` for its days."""
     bucket = aws.s3.Bucket(name, force_destroy=force_destroy, opts=opts)
     rules: list[aws.s3.BucketLifecycleConfigurationRuleArgsDict] = [
         {
             "id": "noncurrent-versions",
             "status": "Enabled",
             "filter": {},
-            "noncurrent_version_expiration": {"noncurrent_days": expiring[""]},
+            "noncurrent_version_expiration": {"noncurrent_days": noncurrent_days},
         }
     ]
     rules += [
@@ -64,7 +66,6 @@ def private_bucket(
             "expiration": {"days": days},
         }
         for prefix, days in expiring.items()
-        if prefix
     ]
     guards: list[pulumi.CustomResource] = [
         aws.s3.BucketPublicAccessBlock(
