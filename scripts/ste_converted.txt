@@ -3,7 +3,7 @@
 # One repository path in each line. A content PR adds the paths that it converts.
 
 # #236: the docs site (hand-written text; generated regions are #237's) and the READMEs.
-# site/explanation/decision-records.html waits for #239: its table repeats each ADR's title and status.
+# site/explanation/decision-records.html joined in #239 part 3 (below).
 site/contributing.html
 site/explanation/allocation-and-coverage.html
 site/explanation/bill-is-authoritative.html
@@ -80,3 +80,22 @@ docs/adr/0013-reproducible-local-bootstrap.md
 docs/adr/0014-standards-first-and-build-vs-reuse.md
 docs/adr/0015-focus-billing-lines-and-export-snapshots.md
 docs/adr/0016-allocate-to-query-executions-with-roll-ups.md
+
+# #239 part 3: ADRs 0017-0031 (outside their Decision sections), the ADR README and the decision-records page.
+docs/adr/0017-metered-share-requires-coverage.md
+docs/adr/0018-sqlite-ledger-store-and-pyarrow-reader.md
+docs/adr/0019-no-row-deduplication-within-export-snapshots.md
+docs/adr/0020-current-snapshot-is-latest-publication.md
+docs/adr/0021-reference-workload-for-real-validation.md
+docs/adr/0022-openlineage-runs-stored-as-reported.md
+docs/adr/0023-billing-scope-is-accounting-scope.md
+docs/adr/0024-local-receiver-ingress-and-token.md
+docs/adr/0025-documentation-site-diataxis-hand-written-html.md
+docs/adr/0026-aws-deployment-two-lambdas-without-vpc.md
+docs/adr/0027-deployed-ingress-by-scheduled-pull-from-s3-inboxes.md
+docs/adr/0028-deployed-cost-explanation-is-minimal-by-default.md
+docs/adr/0029-public-demo-is-a-static-snapshot.md
+docs/adr/0030-simulated-orchestrator-drives-the-demo.md
+docs/adr/0031-cost-dimensions-are-configured-claims.md
+docs/adr/README.md
+site/explanation/decision-records.html

@@ -3,7 +3,9 @@
 Status: Accepted (design, 2026-11-07). Decides M7's demo workload (Q54, Q64, Q65, Q67). Complements ADR 0021, whose reference workload ran real dbt by hand and is torn down (#26).
 
 ## Context
-The public demo (ADR 0029) needs fresh workload every day: Airflow DAG runs, dbt Model Executions and the Athena queries they issue. MWAA costs hundreds of dollars a month for one environment, and the owner ruled it out. Running real dbt-athena in a Lambda container is possible but heavy. What data-finops needs to prove is that a real bill line splits exactly among the real queries in its scope, and that those queries link to the runs that issued them. For that, the queries and their Trusted Query Comments must be real; the orchestrator around them need not be.
+The public demo (ADR 0029) requires fresh workload each day: Airflow DAG runs, dbt Model Executions and the Athena queries they issue. MWAA costs hundreds of dollars a month for one environment, and the owner ruled it out. Real dbt-athena in a Lambda container is possible, but heavy.
+
+data-finops must prove two things. A real bill line splits exactly among the real queries in its scope. Those queries link to the runs that issued them. For that, the queries and their Trusted Query Comments must be real. The orchestrator around them does not have to be real.
 
 ## Decision
 1. **A simulated orchestrator.** A scheduled Lambda acts as a small Airflow and dbt. It runs a fixed set of believable DAGs (for example `daily_orders`, `hourly_events`, `weekly_finance`). Each DAG has tasks, and each dbt task runs a few models.
@@ -17,7 +19,7 @@ The public demo (ADR 0029) needs fresh workload every day: Airflow DAG runs, dbt
 
 ## Consequences
 - **Cost:** the demo's Athena cost is real but small, about $1–2 a month at the planned scans.
-- **Coverage 1 is expected, and OQ-25 still applies:** the demo workgroup runs only the orchestrator's queries, so its lines should reach Coverage 1. A query finishing near an hour boundary can still show OQ-25.
+- **Coverage 1 is expected, and OQ-25 still applies:** the demo workgroup runs only the queries of the orchestrator, so we expect its lines to get to Coverage 1. A query that finishes near the boundary of an hour can still show OQ-25.
 - **dbt shapes drift:** the simulated events and artifacts must stay valid against the pinned schemas (OpenLineage 2-0-2, manifest v12, run results v6). Tests run them through the same readers as real input.
 - **No evidence about real-world shapes:** the demo shows how data-finops works. ADR 0021's real runs remain the evidence that real Airflow and dbt emit these shapes.
 
@@ -25,7 +27,7 @@ The public demo (ADR 0029) needs fresh workload every day: Airflow DAG runs, dbt
 - **MWAA:** too expensive for a demo.
 - **Real dbt in a container Lambda:** heavier to build and run, for no gain in what the demo shows.
 - **Entirely fake bill lines:** the point is that a real bill reconciles.
-- **Re-running the reference workload by hand:** not daily, not automatic.
+- **The reference workload, run again by hand:** not daily, not automatic.
 
 ## Revisit triggers
 - AWS changes Athena's billing so that the demo's lines no longer reconcile.
