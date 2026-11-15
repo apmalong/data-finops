@@ -24,7 +24,7 @@ const MIXED_REACH = 0.5;
 // The public demo's copy of the page says "static"; then each read is answered from the Demo
 // Snapshot's files, and a read that it does not cover is "not in the public demo".
 const STATIC_SOURCE = document.querySelector('meta[name="data-finops-source"]')?.content === "static"
-  ? DataFinopsStatic.createStaticSource(siteJson)
+  ? DataFinopsStatic.createStaticSource(DataFinopsStatic.siteFiles(fetch))
   : null;
 
 const state = { scope: 0, basis: "BilledCost", dimension: "", summaries: [], request: 0, detailRequest: 0 };
@@ -39,15 +39,6 @@ function element(tag, attributes = {}, ...children) {
   }
   for (const child of children) if (child) node.append(child);
   return node;
-}
-
-/** A file of the public demo's site as JSON, or null when there is none (S3 behind CloudFront
- *  answers 403 for a missing key). */
-async function siteJson(path) {
-  const response = await fetch(path.split("/").map(encodeURIComponent).join("/"));
-  if (response.status === 403 || response.status === 404) return null;
-  if (!response.ok) throw new Error(`${path} answered ${response.status}`);
-  return response.json();
 }
 
 async function getJson(path, params = {}) {
@@ -607,7 +598,9 @@ async function openFromHash() {
   else if (kind === "run" && value) await openLineage(value);
 }
 
-const fail = (error) => showNotice(error.notInDemo ? `${error.message}.` : `Could not load: ${error.message}`);
+const fail = (error) => showNotice(error instanceof DataFinopsStatic.NotInDemo
+  ? `${error.message}.`
+  : `Could not load: ${error.message}`);
 function change(update) {
   return (e) => {
     update(e.target.value);

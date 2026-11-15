@@ -6,7 +6,6 @@
 "use strict";
 
 (function (root) {
-  const PAGE = 1000; // the publisher's page size (`MAX_PAGE_SIZE`)
   const ALLOCATION_FILTERS = ["target_id", "category", "billing_line_ref", "cost_basis"];
   const BANNER = "Simulated workload; real Athena charges, reconciled to the bill; data trails by about a day; amounts before credits.";
 
@@ -37,29 +36,53 @@
     return { ...first, total: items.length, limit, offset, items: items.slice(offset, offset + limit) };
   }
 
-  /** The static source over `fetchJson(path)`, which gives a file of the site as JSON, or
-   *  null when there is no such file. */
+  /** A fetcher of the site's files for `createStaticSource`: a file as JSON, or null when
+   *  there is none. S3 behind CloudFront answers 403 for a missing key, so the site must not
+   *  turn a 403 or 404 into a page of its own (spec 09 §The site). */
+  function siteFiles(fetch) {
+    return async (path) => {
+      const response = await fetch(path.split("/").map(encodeURIComponent).join("/"));
+      if (response.status === 403 || response.status === 404) return null;
+      if (!response.ok) throw new Error(`${path} answered ${response.status}`);
+      return response.json();
+    };
+  }
+
+  /** The static source over `fetchJson(path)`, which gives a file of the site, relative to
+   *  the page, as JSON, or null when there is no such file. */
   function createStaticSource(fetchJson) {
     let prefix = null;
     const files = new Map();
 
-    async function file(path, what) {
-      prefix ??= fetchJson("current.json").then((pointer) => {
-        if (!pointer) throw new NotInDemo("A Demo Snapshot");
-        return pointer.prefix;
-      });
-      const key = (await prefix) + path;
-      if (!files.has(key)) files.set(key, fetchJson(key));
-      const document = await files.get(key);
-      if (document == null) throw new NotInDemo(what);
-      return document;
+    /** A fetch kept for the page's life; one that fails is forgotten, so a later read tries
+     *  again. */
+    function once(cache, key, start) {
+      if (!cache.has(key)) {
+        cache.set(key, start().catch((error) => {
+          cache.delete(key);
+          throw error;
+        }));
+      }
+      return cache.get(key);
     }
 
-    /** Every item of a paged file set, `<base>/page-<n>.json`, and its first page. */
-    async function everything(base, what) {
+    async function file(path, what) {
+      const current = await once(files, "current.json", () => fetchJson("current.json"));
+      if (!current) throw new NotInDemo("A Demo Snapshot");
+      prefix = current.prefix;
+      const found = await once(files, prefix + path, () => fetchJson(prefix + path));
+      if (found == null) throw new NotInDemo(what);
+      return found;
+    }
+
+    /** The first page of a paged file set, `<base>/page-<n>.json`, and the items of every
+     *  page. Each file holds `limit` items, the publisher's page size. */
+    async function allItems(base, what) {
       const first = await file(`${base}/page-0.json`, what);
       const items = [...first.items];
-      for (let n = 1; n * PAGE < first.total; n++) items.push(...(await file(`${base}/page-${n}.json`, what)).items);
+      for (let n = 1; n * first.limit < first.total; n++) {
+        items.push(...(await file(`${base}/page-${n}.json`, what)).items);
+      }
       return { first, items };
     }
 
@@ -79,7 +102,7 @@
       }
       if (path === "/v1/allocations") {
         const run = await runOf(params);
-        const { first, items } = await everything(`v1/allocations/${run}`, "Those Allocations");
+        const { first, items } = await allItems(`v1/allocations/${run}`, "Those Allocations");
         const kept = items.filter((entry) => ALLOCATION_FILTERS.every(
           (name) => params[name] == null || String(entry.allocation[name]) === String(params[name])));
         return page(first, kept, params);
@@ -93,14 +116,14 @@
       if (path === "/v1/rollups") {
         const run = await runOf(params);
         const level = segment(params.level, "That Roll-up level");
-        const { first, items } = await everything(`v1/rollups/${level}/${run}`, "Those Roll-ups");
+        const { first, items } = await allItems(`v1/rollups/${level}/${run}`, "Those Roll-ups");
         return page(first, items, params);
       }
       if ((match = path.match(/^\/v1\/rollups\/dimensions\/([^/]+)$/))) {
         const name = segment(decodeURIComponent(match[1]), "That Cost Dimension");
         const run = await runOf(params);
         const what = `The Cost Dimension ${name}`;
-        const { first, items } = await everything(`v1/rollups/dimensions/${name}/${run}`, what);
+        const { first, items } = await allItems(`v1/rollups/dimensions/${name}/${run}`, what);
         return page(first, items, params);
       }
       if (path === "/v1/lineage") {
@@ -108,7 +131,7 @@
           const what = `The lineage of Workload Run ${params.run_id}`;
           return file(`v1/lineage/runs/${segment(params.run_id, what)}.json`, what);
         }
-        const { first, items } = await everything("v1/lineage", "The Workload Runs");
+        const { first, items } = await allItems("v1/lineage", "The Workload Runs");
         return page(first, items, params);
       }
       throw new NotInDemo(`The read ${path}`);
@@ -125,7 +148,7 @@
     return { get, banner };
   }
 
-  const exported = { createStaticSource, NotInDemo, BANNER };
+  const exported = { createStaticSource, siteFiles, NotInDemo, BANNER };
   if (typeof module !== "undefined" && module.exports) module.exports = exported;
   else root.DataFinopsStatic = exported;
 })(typeof window !== "undefined" ? window : globalThis);

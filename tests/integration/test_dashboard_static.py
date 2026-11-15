@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from test_demo_publisher import DEMO, PUBLISHED, _fill
+from test_demo_publisher import DEMO, PUBLISHED, UNREACHED, _fill
 
 from data_finops.public_demo.publisher import masked, render
 from data_finops.reporting import BillingLineDetail, CostSummaries, Reporting
@@ -120,9 +120,12 @@ def test_every_read_the_dashboard_makes_resolves_as_the_api_answers(
         assert answer == {"ok": _expected(expected)}, call["path"]
     published_roots = [r.run_id for r in roots.items]
     (lineage,) = _run(root, [{"path": "/v1/lineage", "params": {"limit": 100}}])
-    assert [r["run_id"] for r in lineage["ok"]["items"]] == [
-        r for r in published_roots if r != "01a19dd8-4a8c-72ec-873a-a3bb810cbae6"
-    ]
+    shown = [r["run_id"] for r in lineage["ok"]["items"]]
+    assert shown == [r for r in published_roots if r != UNREACHED]
+    with Reporting(database, lines=DEMO) as api:
+        expected = [api.lineage(run_id) for run_id in shown]
+    answers = _run(root, [{"path": "/v1/lineage", "params": {"run_id": r}} for r in shown])
+    assert answers == [{"ok": _expected(e)} for e in expected]
 
 
 def test_allocation_reads_are_filtered_and_paged_as_the_api_does(site: tuple[Path, Path]) -> None:

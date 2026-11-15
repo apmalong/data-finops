@@ -121,7 +121,9 @@ The Deployment must not contain code that is not vetted. These tickets go first:
 - **The dashboard:** the M5 dashboard, served with a `static` data source. Each API call maps to a file in the current snapshot. A call that the snapshot does not cover shows "not in the public demo".
   - `static.js` is the static data source (#228). It reads `current.json`, then the files of that prefix. It answers each read as the API does, with the same pages, filters and Snapshot Scope selection.
   - The page selects the data source with `<meta name="data-finops-source">`. It is `api` in the package, so the local dashboard does not change. The copy that the stack serves says `static` (#229).
-- **The banner (Q67):** "Simulated workload; real Athena charges, reconciled to the bill; data trails by about a day; amounts before credits", with the time and the Calculation Run of the snapshot. Only the static data source shows it.
+  - The static data source reads `current.json` and `snapshots/` relative to the page. Thus the site serves the page from the same root as those files, where the publisher writes them (#229).
+  - When a file is not there, the site must answer 403 or 404. If a custom error response answers with a page, the dashboard shows "Could not load" instead of "not in the public demo".
+- **The banner (Q67):** "Simulated workload; real Athena charges, reconciled to the bill; data trails by about a day; amounts before credits", with the time of the snapshot and the Calculation Run of the Billing Period shown. Only the static data source shows it.
 - **Links:** the README and the docs site (home page, navigation) link to the public URL. The stack outputs it as `demoUrl`.
 
 ## Stack, settings and policy pack
