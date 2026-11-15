@@ -73,10 +73,27 @@ POLICY_ACTIONS: dict[str, frozenset[str]] = {
     "producer": frozenset({"s3:PutObject"}),
     "reader": frozenset({"lambda:InvokeFunctionUrl", "lambda:InvokeFunction"}),
     "generator": frozenset({"s3:PutObject"}) | LOGS,
+    "simulator": frozenset(
+        {
+            "athena:StartQueryExecution",
+            "athena:GetQueryExecution",
+            "glue:GetDatabase",
+            "glue:GetTable",
+            "glue:GetPartitions",
+            "s3:ListBucket",
+            "s3:GetBucketLocation",
+            "s3:GetObject",
+            "s3:PutObject",
+            "s3:AbortMultipartUpload",
+        }
+    )
+    | LOGS,
 }
 """Each Deployment policy, by the suffix of its name (`deployment.compute`, `deployment.demo`),
 and every action spec 08 §IAM and spec 09 grant it. A policy named otherwise is a
 violation, so a rename fails closed."""
+DEMO_WORKGROUP = "data-finops-demo"
+"""The only workgroup the simulator may run queries in (spec 09; `deployment.settings`)."""
 RULED_OUT = (
     "aws:ec2/vpc:",
     "aws:ec2/subnet:",
@@ -205,6 +222,14 @@ def _least_privilege(args: ResourceValidationArgs, report: Report) -> None:
                 report(f"{action} is not an action the {kind} policy is granted (spec 08 §IAM)")
             elif any(_wildcard(resource) for resource in _strings(statement.get("Resource"))):
                 report(f"{action} is allowed on a wildcard resource")
+            elif action.startswith("athena:") and kind == "simulator":
+                outside = [
+                    r
+                    for r in _strings(statement.get("Resource"))
+                    if not r.endswith(f":workgroup/{DEMO_WORKGROUP}")
+                ]
+                if outside:
+                    report(f"{action} is allowed only on the demo workgroup (spec 09)")
 
 
 def _strings(value: Any) -> list[str]:

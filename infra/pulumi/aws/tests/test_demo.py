@@ -17,6 +17,10 @@ from deployment.settings import Settings
 from tests.mocks import MOCKS
 
 DEMO_BUCKET = "mock-data-finops-demo-bucket"
+DEPLOYMENT_BUCKET = "mock-deployment-bucket"
+ACCOUNT = "123456789012"
+ANY_LOG_GROUP = "arn:mock:aws:cloudwatch/logGroup:LogGroup:data-finops-simulator:*"
+SCHEDULE = "aws:scheduler/schedule:Schedule"
 WORKGROUP_TYPE = "aws:athena/workgroup:Workgroup"
 TABLE_TYPE = "aws:glue/catalogTable:CatalogTable"
 DATABASE_TYPE = "aws:glue/catalogDatabase:CatalogDatabase"
@@ -118,6 +122,100 @@ def test_the_generator_may_only_write_the_dataset(tmp_path: Path) -> pulumi.Outp
         assert allowed.pop("s3:PutObject") == [f"arn:aws:s3:::{DEMO_BUCKET}/{DATASET_PREFIX}*"]
         assert set(allowed) == {"logs:CreateLogStream", "logs:PutLogEvents"}
         assert list(deployment.outputs()) == list(OUTPUTS)
+
+    return _after(tmp_path, check, public_demo=True)
+
+
+def _role_policy(suffix: str) -> dict[str, list[str]]:
+    """Each action a role policy allows, with its resources."""
+    (policy,) = [
+        json.loads(p.inputs["policy"])
+        for p in MOCKS.of_type("aws:iam/rolePolicy:RolePolicy")
+        if p.name.endswith(suffix)
+    ]
+    allowed: dict[str, list[str]] = {}
+    for statement in policy["Statement"]:
+        actions = statement["Action"]
+        for action in [actions] if isinstance(actions, str) else actions:
+            allowed.setdefault(action, []).extend(statement["Resource"])
+    return allowed
+
+
+@pulumi.runtime.test
+def test_the_simulator_may_only_query_the_demo_workgroup(tmp_path: Path) -> pulumi.Output[None]:
+    def check(deployment: Deployment) -> None:
+        (function,) = [f.inputs for f in MOCKS.of_type(FUNCTION) if f.name.endswith("simulator")]
+        assert function["handler"] == "data_finops.lambda_handlers.simulator"
+        assert function["environment"]["variables"] == {"DATA_FINOPS_BUCKET": DEPLOYMENT_BUCKET}
+        assert (function["timeout"], function["memorySize"]) == (900, 512)
+        workgroup = f"arn:aws:athena:us-east-1:{ACCOUNT}:workgroup/data-finops-demo"
+        glue = f"arn:aws:glue:us-east-1:{ACCOUNT}"
+        demo = f"arn:aws:s3:::{DEMO_BUCKET}"
+        assert _role_policy("-simulator") == {
+            "athena:StartQueryExecution": [workgroup],
+            "athena:GetQueryExecution": [workgroup],
+            "glue:GetDatabase": [
+                f"{glue}:catalog",
+                f"{glue}:database/data_finops_demo",
+                f"{glue}:table/data_finops_demo/*",
+            ],
+            "glue:GetTable": [
+                f"{glue}:catalog",
+                f"{glue}:database/data_finops_demo",
+                f"{glue}:table/data_finops_demo/*",
+            ],
+            "glue:GetPartitions": [
+                f"{glue}:catalog",
+                f"{glue}:database/data_finops_demo",
+                f"{glue}:table/data_finops_demo/*",
+            ],
+            "s3:ListBucket": [demo],
+            "s3:GetBucketLocation": [demo],
+            "s3:GetObject": [f"{demo}/dataset/*"],
+            "s3:PutObject": [
+                f"{demo}/athena-results/*",
+                f"arn:aws:s3:::{DEPLOYMENT_BUCKET}/inbox/*",
+            ],
+            "s3:AbortMultipartUpload": [f"{demo}/athena-results/*"],
+            "logs:CreateLogStream": [ANY_LOG_GROUP],
+            "logs:PutLogEvents": [ANY_LOG_GROUP],
+        }
+        assert list(deployment.outputs()) == list(OUTPUTS)
+
+    return _after(tmp_path, check, public_demo=True)
+
+
+@pulumi.runtime.test
+def test_the_schedule_starts_the_simulator_with_its_scheduled_time(
+    tmp_path: Path,
+) -> pulumi.Output[None]:
+    def check(_: Deployment) -> None:
+        (schedule,) = [s.inputs for s in MOCKS.of_type(SCHEDULE) if s.name == "data-finops-demo"]
+        assert schedule["scheduleExpression"] == "cron(30 1/6 * * ? *)"
+        assert schedule["flexibleTimeWindow"] == {"mode": "OFF"}
+        target = schedule["target"]
+        assert target["arn"].endswith(":function:data-finops-test-simulator")
+        assert json.loads(target["input"]) == {"scheduled_time": "<aws.scheduler.scheduled-time>"}
+        # A retry would run the queries again: their cost twice, for the same records.
+        assert target["retryPolicy"] == {"maximumRetryAttempts": 0}
+        assert _role_policy("-demo-scheduler") == {
+            "lambda:InvokeFunction": [target["arn"]],
+        }
+
+    return _after(tmp_path, check, public_demo=True, demo_schedule="cron(30 1/6 * * ? *)")
+
+
+@pulumi.runtime.test
+def test_the_collector_also_reads_the_demo_workgroup(tmp_path: Path) -> pulumi.Output[None]:
+    def check(_: Deployment) -> None:
+        (collector,) = [f.inputs for f in MOCKS.of_type(FUNCTION) if f.name.endswith("collector")]
+        given = json.loads(collector["environment"]["variables"]["DATA_FINOPS_COLLECTOR_SETTINGS"])
+        assert given["workgroups"] == ["demo", "data-finops-demo"]
+        history = _role_policy("-collector")["athena:ListQueryExecutions"]
+        assert history == [
+            f"arn:aws:athena:us-east-1:{ACCOUNT}:workgroup/demo",
+            f"arn:aws:athena:us-east-1:{ACCOUNT}:workgroup/data-finops-demo",
+        ]
 
     return _after(tmp_path, check, public_demo=True)
 

@@ -1,12 +1,13 @@
 """The Deployment's Lambda entry points (spec 08; ADR 0026): thin wrappers over `collection`,
 `api` and `public_demo` (spec 09), like `cli`. Each `make_*_handler` takes its clients and
-environment, so tests hand it stubs; `collector`, `api` and `generator` are what the functions
-are configured to call."""
+environment, so tests hand it stubs; `collector`, `api`, `generator` and `simulator` are what
+the functions are configured to call."""
 
 import json
 import os
 import tempfile
 from collections.abc import Callable, Iterable, Mapping
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
@@ -22,7 +23,8 @@ COLLECTOR_SETTINGS = "DATA_FINOPS_COLLECTOR_SETTINGS"
 """The environment variable holding the collector's settings as JSON, with the keys of the
 `collect` settings file (spec 08)."""
 API_BUCKET = "DATA_FINOPS_BUCKET"
-"""The environment variable naming the Deployment's bucket, for the API function."""
+"""The environment variable naming the Deployment's bucket, for the API function and the
+simulator, which writes to its Inbox."""
 API_EXPLANATION_DETAIL = "DATA_FINOPS_EXPLANATION_DETAIL"
 """How much of the Billing Line the API's Cost Explanations show; `minimal` unless set."""
 DEMO_BUCKET = "DATA_FINOPS_DEMO_BUCKET"
@@ -41,6 +43,11 @@ class ApiMisconfigured(RuntimeError):
 
 class GeneratorMisconfigured(RuntimeError):
     """The dataset generator's environment is wrong; the message names the variable."""
+
+
+class SimulatorMisconfigured(RuntimeError):
+    """The simulator's environment or event is wrong; the message names the variable or field,
+    never its value."""
 
 
 def make_collector_handler(
@@ -160,6 +167,45 @@ def make_generator_handler(
     return handler
 
 
+def make_simulator_handler(
+    clients: Callable[[], tuple[Any, Any]],
+    environ: Mapping[str, str],
+    *,
+    clock: Callable[[], datetime],
+    sleep: Callable[[float], None],
+) -> Handler:
+    """The public demo's simulated orchestrator (spec 09): one invocation runs the DAGs due at
+    its scheduled time and writes their records to the Inbox of the Deployment's bucket. The
+    schedule gives `scheduled_time`, so a retried invocation plans the same runs; without it,
+    the time is now. `clients` gives the Athena and S3 clients."""
+    from data_finops.public_demo.simulator import simulate
+
+    def handler(event: Mapping[str, Any], context: Any) -> Any:
+        bucket = environ.get(API_BUCKET)
+        if not bucket:
+            raise SimulatorMisconfigured(f"{API_BUCKET} is not set")
+        start = _scheduled_time(event, clock)
+        athena, s3 = clients()
+        summary = simulate(start, athena=athena, s3=s3, bucket=bucket, clock=clock, sleep=sleep)
+        print(json.dumps(summary))
+        return summary
+
+    return handler
+
+
+def _scheduled_time(event: Mapping[str, Any], clock: Callable[[], datetime]) -> datetime:
+    given = event.get("scheduled_time")
+    if given is None:
+        return clock().replace(microsecond=0)
+    try:
+        moment = datetime.fromisoformat(str(given))
+    except ValueError:
+        raise SimulatorMisconfigured("scheduled_time is not an ISO 8601 time") from None
+    if moment.tzinfo is None:
+        raise SimulatorMisconfigured("scheduled_time has no time zone")
+    return moment.astimezone(UTC)
+
+
 def collector(event: Mapping[str, Any], context: Any) -> Any:
     """The collector function's handler: `data_finops.lambda_handlers.collector`."""
     from data_finops.aws_clients import make_aws_clients
@@ -173,6 +219,21 @@ def generator(event: Mapping[str, Any], context: Any) -> Any:
 
     region = os.environ.get("AWS_REGION", "")
     return make_generator_handler(lambda: make_s3_client(region), os.environ)(event, context)
+
+
+def simulator(event: Mapping[str, Any], context: Any) -> Any:
+    """The simulator's handler: `data_finops.lambda_handlers.simulator`."""
+    import time
+
+    from data_finops.aws_clients import make_athena_client, make_s3_client
+
+    region = os.environ.get("AWS_REGION", "")
+    return make_simulator_handler(
+        lambda: (make_athena_client(region), make_s3_client(region)),
+        os.environ,
+        clock=lambda: datetime.now(UTC),
+        sleep=time.sleep,
+    )(event, context)
 
 
 _api_handler: Handler | None = None

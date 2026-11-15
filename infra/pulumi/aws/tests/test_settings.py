@@ -40,6 +40,8 @@ def test_the_defaults_are_spec_08s() -> None:
     assert (settings.kms_key_arn, settings.budget, settings.alarm_email) == (None, None, None)
     assert (settings.explanation_detail, settings.delete_data_on_destroy) == ("minimal", False)
     assert (settings.public_demo, settings.demo_scan_cutoff_bytes) == (False, 1_000_000_000)
+    assert settings.demo_schedule == "cron(25 0/6 * * ? *)"
+    assert settings.collected_workgroups == ("demo",)
 
 
 def test_every_setting_can_be_given() -> None:
@@ -66,9 +68,12 @@ def test_every_setting_can_be_given() -> None:
             "data-finops:deleteDataOnDestroy": "true",
             "data-finops:publicDemo": "true",
             "data-finops:demoScanCutoffBytes": "500000000",
+            "data-finops:demoSchedule": "cron(15 */4 * * ? *)",
         }
     )
     assert (settings.public_demo, settings.demo_scan_cutoff_bytes) == (True, 500_000_000)
+    assert settings.demo_schedule == "cron(15 */4 * * ? *)"
+    assert settings.collected_workgroups == ("demo", "data-finops-demo")
     assert settings.export_prefix == "focus"
     assert settings.budget == Budget(monthly_usd=Decimal("25"), email="owner@example.com")
     assert (settings.api_reserved_concurrency, settings.delete_data_on_destroy) == (2, True)
@@ -96,6 +101,10 @@ def test_every_setting_can_be_given() -> None:
         ({"data-finops:explanationDetail": "everything"}, "explanationDetail"),
         ({"data-finops:publicDemo": "yes"}, "publicDemo"),
         ({"data-finops:demoScanCutoffBytes": "9999999"}, "demoScanCutoffBytes"),
+        ({"data-finops:demoSchedule": "cron(55 */6 * * ? *)"}, "demoSchedule"),
+        ({"data-finops:demoSchedule": "cron(5 */6 * * ? *)"}, "demoSchedule"),
+        ({"data-finops:demoSchedule": "cron(*/20 * * * ? *)"}, "demoSchedule"),
+        ({"data-finops:demoSchedule": "rate(6 hours)"}, "demoSchedule"),
         ({"data-finops:budgetMonthlyUsd": "25"}, "budgetEmail"),
         ({"data-finops:budgetEmail": "owner@example.com"}, "budgetMonthlyUsd"),
         (
@@ -126,6 +135,17 @@ def test_settings_made_directly_are_validated_too() -> None:
             workgroups=("demo",),
             max_history_pages=0,
         )
+
+
+def test_the_demo_workgroup_is_collected_once() -> None:
+    settings = _from_config(
+        REQUIRED
+        | {
+            "data-finops:publicDemo": "true",
+            "data-finops:workgroups": '["data-finops-demo", "etl"]',
+        }
+    )
+    assert settings.collected_workgroups == ("data-finops-demo", "etl")
 
 
 def test_a_kms_key_in_another_partition_is_accepted() -> None:

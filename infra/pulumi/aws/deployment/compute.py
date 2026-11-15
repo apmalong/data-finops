@@ -245,7 +245,7 @@ def _collector_settings(settings: Settings, bucket: str, account_id: str) -> dic
         "bucket": bucket,
         "region": settings.region,
         "account_id": account_id,
-        "workgroups": list(settings.workgroups),
+        "workgroups": list(settings.collected_workgroups),
         "export_bucket": settings.export_bucket,
         "export_prefix": settings.export_prefix,
         "export_name": settings.export_name,
@@ -283,7 +283,7 @@ def _collector_policy(
     export = f"arn:aws:s3:::{settings.export_bucket}"
     workgroups = [
         f"arn:aws:athena:{settings.region}:{account_id}:workgroup/{name}"
-        for name in settings.workgroups
+        for name in settings.collected_workgroups
     ]
     policy = allow(
         [

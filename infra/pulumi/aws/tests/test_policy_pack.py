@@ -169,6 +169,27 @@ def test_a_generator_that_can_start_queries_fails_the_pack(
     return _after_build(tmp_path, check, settings)
 
 
+@pulumi.runtime.test
+def test_a_simulator_on_another_workgroup_fails_the_pack(tmp_path: Path) -> pulumi.Output[None]:
+    # spec 09: only the simulator can start queries, and only on the demo workgroup.
+    change = _granting(
+        "simulator",
+        {
+            "Effect": "Allow",
+            "Action": "athena:StartQueryExecution",
+            "Resource": "arn:aws:athena:us-east-1:123456789012:workgroup/primary",
+        },
+    )
+
+    def check(resources: list[dict[str, Any]]) -> None:
+        result = _analyze(tmp_path, change(resources))
+        assert result.returncode == 1
+        assert "only on the demo workgroup" in result.stdout + result.stderr
+
+    settings = dataclasses.replace(SETTINGS, public_demo=True)
+    return _after_build(tmp_path, check, settings)
+
+
 def _without_versioning(resources: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return [r for r in resources if not r["type"].endswith(":BucketVersioning")]
 
