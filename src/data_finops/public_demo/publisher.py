@@ -26,8 +26,7 @@ from typing import Any, get_args
 from pydantic import BaseModel
 
 from data_finops.contracts.billing import CostBasis, FocusBillingLine, FocusChargeCategory
-from data_finops.providers.aws import AwsSourceError, WriteConflict, put_bytes
-from data_finops.providers.aws.calls import call
+from data_finops.providers.aws import WriteConflict, put_bytes, read_versioned_object
 from data_finops.public_demo.workload import WORKGROUP
 from data_finops.reporting import (
     MAX_PAGE_SIZE,
@@ -47,6 +46,8 @@ SHA-256) or of a decimal's fraction, and not the last group of a UUID (`8-4-4-4-
 SNAPSHOTS = "snapshots/"
 CURRENT = "current.json"
 MAX_POINTER_BYTES = 4096
+MAX_MOVES = 5
+"""How many times the publisher tries to move `current.json` while other publishers move it."""
 JSON = "application/json"
 KEYS = {
     "summary": "v1/costs/summary/{cost_basis}.json",
@@ -63,6 +64,10 @@ page 0 is always written. `{run}` is the Calculation Run of a Billing Period's s
 the summary names with its scope."""
 
 Clock = Callable[[], datetime]
+
+
+class PointerContended(RuntimeError):
+    """`current.json` kept changing while the publisher tried to move it."""
 
 
 @dataclass(frozen=True)
@@ -176,29 +181,26 @@ def _move_current(s3: Any, bucket: str, pointer: dict[str, Any]) -> bool:
     at the same time or later. The write is conditional on the version that was read, so two
     publishers at once can never move it back (spec 09 §The publisher)."""
     body = json.dumps(pointer).encode("utf-8")
-    while True:
+    for _ in range(MAX_MOVES):
         current, etag = _read_current(s3, bucket)
         if current is not None and str(current.get("published_at", "")) >= pointer["published_at"]:
             return False
         try:
-            put_bytes(
-                s3, bucket, CURRENT, body, content_type=JSON, over=etag, only_new=etag is None
-            )
+            put_bytes(s3, bucket, CURRENT, body, content_type=JSON, etag=etag)
             return True
         except WriteConflict:
             continue  # another publisher moved it: read it again
+    raise PointerContended(f"{CURRENT} changed {MAX_MOVES} times while it was being moved")
 
 
 def _read_current(s3: Any, bucket: str) -> tuple[dict[str, Any] | None, str | None]:
     """`current.json` and its ETag, or (None, None) when there is none yet."""
-    try:
-        response = call(s3.get_object, Bucket=bucket, Key=CURRENT)
-    except AwsSourceError as error:
-        if str(error) == "NoSuchKey":
-            return None, None
-        raise
-    document: dict[str, Any] = json.loads(response["Body"].read(MAX_POINTER_BYTES))
-    return document, str(response["ETag"])
+    found = read_versioned_object(s3, bucket, CURRENT, MAX_POINTER_BYTES)
+    if found is None:
+        return None, None
+    data, etag = found
+    document: dict[str, Any] = json.loads(data)
+    return document, etag
 
 
 def _time(moment: datetime) -> str:

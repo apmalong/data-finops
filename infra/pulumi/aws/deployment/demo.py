@@ -118,7 +118,7 @@ class PublicDemo(pulumi.ComponentResource):
             noncurrent_days=1,
             expiring={RESULTS_PREFIX: 1, SNAPSHOTS_PREFIX: SNAPSHOT_DAYS},
             opts=child,
-            tls_policy=False,  # written with the site, to add CloudFront's grant
+            caller_writes_policy=True,  # with the site, to add CloudFront's grant
         )
         workgroup = aws.athena.Workgroup(
             f"{name}-demo",
@@ -405,6 +405,8 @@ class PublicDemo(pulumi.ComponentResource):
             source_account=account_id,
             opts=child,
         )
+        # A BucketNotification is the whole notification configuration of its bucket: a later
+        # trigger on the Deployment's bucket must be added to this resource, not beside it.
         trigger = aws.s3.BucketNotification(
             f"{name}-publisher",
             bucket=inbox.id,
@@ -413,6 +415,7 @@ class PublicDemo(pulumi.ComponentResource):
                     "lambda_function_arn": function.arn,
                     "events": ["s3:ObjectCreated:*"],
                     "filter_prefix": DATABASE_KEY,
+                    "filter_suffix": ".sqlite",
                 }
             ],
             opts=pulumi.ResourceOptions(parent=self, depends_on=[permission]),

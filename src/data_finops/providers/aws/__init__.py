@@ -24,6 +24,7 @@ from data_finops.providers.aws.s3 import (
     put_file,
     read_object,
     read_small_object,
+    read_versioned_object,
     refresh_file,
 )
 
@@ -47,5 +48,6 @@ __all__ = [
     "put_file",
     "read_object",
     "read_small_object",
+    "read_versioned_object",
     "refresh_file",
 ]

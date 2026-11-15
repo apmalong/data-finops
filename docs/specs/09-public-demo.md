@@ -111,7 +111,8 @@ The Deployment must not contain code that is not vetted. These tickets go first:
   - Each 12-digit account ID becomes `123456789012`.
   - Credit lines are not included, and the page says that amounts are before credits.
 - **Atomic swap:** the files are written under a new prefix, `snapshots/<published at>-<random>/`. Then `current.json` changes to that prefix. Thus readers never see half a snapshot. If a write fails, `current.json` does not change.
-  - `current.json` moves only forward in time. The publisher reads it, and writes it again only if it names an older snapshot. The write is an S3 conditional write on the version that it read. If another publisher wrote it first, the publisher reads it again. Thus two publishers at the same time cannot move it back. No reserved concurrency is necessary, which a new account often cannot give (#229).
+  - `current.json` moves only forward in time. The publisher reads it, and writes it again only if it names an older snapshot. The write is an S3 conditional write on the version that it read. If another publisher wrote it first, the publisher reads it again, at most 5 times. Thus two publishers at the same time cannot move it back.
+  - Thus no reserved concurrency is necessary. A new account often cannot give it (#229).
   - S3 deletes a prefix after 30 days. If no snapshot is published for 30 days, `current.json` names a prefix that is gone, and the demo shows nothing.
 - **IAM, a role of its own:**
   - `s3:GetObject` on the database object, and `kms:Decrypt` on the key of the bucket when `kmsKeyArn` is set
@@ -138,7 +139,7 @@ The Deployment must not contain code that is not vetted. These tickets go first:
 - **New outputs:** `demoUrl`, `demoBucket`, `demoGeneratorFunction` and `demoSimulatorFunction`. They exist only when `publicDemo` is `true`.
 - **Policy pack:**
   - The demo bucket gets the same S3 policies as the bucket of the Deployment.
-  - A new policy: each CloudFront distribution uses origin access control, and redirects HTTP to HTTPS.
+  - A new policy: each CloudFront distribution uses origin access control, and redirects HTTP to HTTPS or allows HTTPS only.
   - The allowlists of policy 4 get the generator, simulator and publisher policies. Only the simulator can start queries, and only on the demo workgroup.
 - **The deployer draft policy:** it gets CloudFront, Glue, EventBridge and the new roles.
 

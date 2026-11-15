@@ -212,7 +212,13 @@ def _http_allowed(inputs: dict[str, Any]) -> None:
     inputs["defaultCacheBehavior"]["viewerProtocolPolicy"] = "allow-all"
 
 
-@pytest.mark.parametrize("change", [_no_origin_access_control, _http_allowed])
+def _http_allowed_for_snapshots(inputs: dict[str, Any]) -> None:
+    inputs["orderedCacheBehaviors"][-1]["viewerProtocolPolicy"] = "allow-all"
+
+
+@pytest.mark.parametrize(
+    "change", [_no_origin_access_control, _http_allowed, _http_allowed_for_snapshots]
+)
 @pulumi.runtime.test
 def test_a_site_without_origin_access_control_or_https_fails_the_pack(
     tmp_path: Path, change: Callable[[dict[str, Any]], None]

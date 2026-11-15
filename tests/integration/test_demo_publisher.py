@@ -412,3 +412,20 @@ def test_a_missing_bucket_variable_is_named(missing: str, tmp_path: Path) -> Non
     handler = make_publisher_handler(s3_client, environ, clock=lambda: PUBLISHED, scratch=tmp_path)
     with pytest.raises(PublisherMisconfigured, match=missing):
         handler({}, None)
+
+
+def test_a_pointer_that_keeps_changing_stops_the_publisher_after_five_tries(
+    database: Path,
+) -> None:
+    from data_finops.public_demo.publisher import MAX_MOVES, PointerContended
+
+    count = len(render(database, published_at=PUBLISHED, lines=DEMO))
+    s3 = s3_client()
+    with stubbed(s3) as stub, pytest.raises(PointerContended):
+        _expect_files(stub, count)
+        for n in range(MAX_MOVES):
+            _expect_current(stub, "2026-11-04T07:00:00Z", etag=f'"e{n}"')
+            stub.add_client_error("put_object", "PreconditionFailed", http_status_code=412)
+        publish(database, s3=s3, bucket=BUCKET, clock=lambda: PUBLISHED, lines=DEMO)
+
+    assert MAX_MOVES == 5

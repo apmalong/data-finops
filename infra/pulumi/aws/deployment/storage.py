@@ -46,12 +46,13 @@ def private_bucket(
     noncurrent_days: int,
     expiring: dict[str, int],
     opts: pulumi.ResourceOptions,
-    tls_policy: bool = True,
+    caller_writes_policy: bool = False,
 ) -> tuple[aws.s3.Bucket, list[pulumi.CustomResource]]:
     """A bucket with every guard of the policy pack (spec 08 §Policy pack, 1): all public access
     blocked, owner-enforced, encrypted, versioned and TLS only. S3 keeps an old version for
-    `noncurrent_days`, and the objects under each prefix of `expiring` for its days. Without
-    `tls_policy`, the caller writes the bucket policy with `bucket_policy`, to add grants."""
+    `noncurrent_days`, and the objects under each prefix of `expiring` for its days. With
+    `caller_writes_policy`, the caller writes the bucket policy with `bucket_policy`, to add
+    grants after the TLS deny."""
     bucket = aws.s3.Bucket(name, force_destroy=force_destroy, opts=opts)
     rules: list[aws.s3.BucketLifecycleConfigurationRuleArgsDict] = [
         {
@@ -91,7 +92,7 @@ def private_bucket(
         ),
         aws.s3.BucketLifecycleConfiguration(name, bucket=bucket.id, rules=rules, opts=opts),
     ]
-    if tls_policy:
+    if not caller_writes_policy:
         policy = bucket.arn.apply(bucket_policy)
         guards.append(aws.s3.BucketPolicy(name, bucket=bucket.id, policy=policy, opts=opts))
     return bucket, guards

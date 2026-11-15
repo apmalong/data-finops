@@ -184,6 +184,7 @@ A small custom Python pack. The open-source AWS packs of Pulumi are TypeScript o
    - The API role is read-only on the bucket.
 5. Stack level: no VPC, subnet, NAT gateway, EIP, RDS, EKS, ECS or EFS resource (spec 05).
 6. A configured Budget sends alerts on both forecast and actual spend.
+7. The public demo's CloudFront distribution: each origin uses origin access control, and each cache behavior redirects HTTP to HTTPS or allows HTTPS only (spec 09).
 
 The policies are in a plain module. Only `__main__.py` builds the `PolicyPack`, because the construction blocks. `pulumi policy analyze` gives resource policies the inputs of each resource, and stack policies the outputs of the stack. Thus a state written for it has both (#189).
 

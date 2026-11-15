@@ -332,6 +332,9 @@ def test_cloudfront_serves_the_site_over_https_through_origin_access_control(
             "snapshots/*": CACHING_OPTIMIZED,
         }
         assert distribution["defaultRootObject"] == "index.html"
+        # A missing file stays a 403, which the static mode shows as "not in the public
+        # demo" (#228): no custom error response turns it into a page.
+        assert "customErrorResponses" not in distribution
         assert distribution["viewerCertificate"] == {"cloudfrontDefaultCertificate": True}
 
     return _after(tmp_path, check, public_demo=True)
@@ -398,6 +401,7 @@ def test_the_database_object_starts_the_publisher(tmp_path: Path) -> pulumi.Outp
         (target,) = notification["lambdaFunctions"]
         assert target["events"] == ["s3:ObjectCreated:*"]
         assert target["filterPrefix"] == "database/data-finops.sqlite"
+        assert target["filterSuffix"] == ".sqlite"
         permission = MOCKS.one("aws:lambda/permission:Permission").inputs
         assert (permission["principal"], permission["sourceArn"]) == (
             "s3.amazonaws.com",
