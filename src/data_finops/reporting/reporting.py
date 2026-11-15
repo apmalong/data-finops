@@ -7,7 +7,7 @@ from datetime import date
 from decimal import Decimal
 from pathlib import Path
 from types import TracebackType
-from typing import Self, get_args
+from typing import Any, Self, get_args
 
 from data_finops.attribution.dimensions import dimension_totals
 from data_finops.attribution.engine import AllocationMethod
@@ -265,17 +265,13 @@ class Reporting:
                         amount=sum(by_source.values(), Decimal(0)),
                         sources=[
                             DimensionSourceAmount(source=origin, amount=amount)
-                            for origin, amount in sorted(
-                                by_source.items(), key=lambda item: (item[0] is None, item[0] or "")
-                            )
+                            for origin, amount in sorted(by_source.items(), key=_none_last)
                         ],
                     )
                     for (currency, basis), by_source in sorted(by_basis.items())
                 ],
             )
-            for value, by_basis in sorted(
-                totals.items(), key=lambda item: (item[0] is None, item[0] or "")
-            )
+            for value, by_basis in sorted(totals.items(), key=_none_last)
         ]
         return DimensionRollupPage(
             calculation_run_id=stored.snapshot.calculation_run_id,
@@ -683,6 +679,11 @@ _ROLLUPS: dict[RollupLevel, Callable[[list[Allocation]], dict[str, tuple[RollupT
 def _allocation_ref(calculation_run_id: str, position: int) -> str:
     """An Allocation's address, `<calculation_run_id>#<position>` (spec 06)."""
     return f"{calculation_run_id}#{position}"
+
+
+def _none_last(item: tuple[str | None, Any]) -> tuple[bool, str]:
+    """Sorts by key, with the None key (unassigned) last."""
+    return (item[0] is None, item[0] or "")
 
 
 def _not_sensitive(allocation: Allocation) -> Allocation:

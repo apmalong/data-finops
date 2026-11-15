@@ -10,10 +10,10 @@ from decimal import Decimal
 from pathlib import Path
 
 import pytest
-from fixture_database import ACCOUNT, EXPORT, FIXTURES, REGION, RESTATED
+from fixture_database import ACCOUNT, EXPORT, FIXTURES, REGION, RESTATED, add_other_account
 
 from data_finops.calculation import run_calculation
-from data_finops.contracts.dimensions import CostDimensions
+from data_finops.contracts.dimensions import NO_DIMENSIONS, CostDimensions
 from data_finops.ledger import AllocationStoreOutcome, Ledger
 from data_finops.reporting import BillingLineDetail, NotFound, Reporting
 from data_finops.workload.store import WorkloadStore
@@ -182,7 +182,7 @@ def test_cost_dimensions_join_the_policy_version_with_or_without_a_configuration
     tmp_path: Path,
 ) -> None:
     with_config = _fill(tmp_path / "with.sqlite", CONFIG)
-    without = _fill(tmp_path / "without.sqlite", CostDimensions.none())
+    without = _fill(tmp_path / "without.sqlite", NO_DIMENSIONS)
     with Ledger(tmp_path / "with.sqlite") as one, Ledger(tmp_path / "without.sqlite") as two:
         a, b = one.allocation_snapshot(with_config), two.allocation_snapshot(without)
         assert a is not None and b is not None
@@ -239,3 +239,23 @@ def test_a_tag_with_two_values_on_one_run_is_ambiguous_and_gives_no_value(tmp_pa
     _fill(database, CONFIG, events=path)
 
     assert _by_target(database)["q-001"]["team"] == ("analytics", "workgroup_map")
+
+
+def test_each_dimensions_total_equals_the_snapshots_in_every_currency(tmp_path: Path) -> None:
+    database = tmp_path / "two-currencies.sqlite"
+    _fill(database, CONFIG)
+    run = add_other_account(database, dimensions=CONFIG)  # S3 lines in USD and EUR, a EUR credit
+    with Reporting(database) as read_model:
+        page = read_model.allocations(calculation_run_id=run, limit=1000)
+        allocations = [entry.allocation for entry in page.items]
+        rollups = read_model.dimension_rollups(name="team", calculation_run_id=run, limit=1000)
+    snapshot: dict[tuple[str, str], Decimal] = defaultdict(Decimal)
+    for allocation in allocations:
+        snapshot[(allocation.currency, allocation.cost_basis)] += Decimal(allocation.amount)
+    totals: dict[tuple[str, str], Decimal] = defaultdict(Decimal)
+    for entry in rollups.items:
+        for total in entry.totals:
+            totals[(total.currency, total.cost_basis)] += Decimal(total.amount)
+
+    assert {currency for currency, _ in snapshot} == {"USD", "EUR"}
+    assert totals == snapshot

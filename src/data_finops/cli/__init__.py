@@ -232,7 +232,7 @@ def _dimensions_argument(command: argparse.ArgumentParser) -> None:
 def _dimensions(args: argparse.Namespace) -> CostDimensions:
     """The Cost Dimensions of `--dimensions`. A fault names the file and the problem, never a
     value (spec 09)."""
-    path = getattr(args, "dimensions", None)  # the demo's own steps name no file
+    path: Path | None = args.dimensions
     if path is None:
         return NO_DIMENSIONS
     try:
@@ -334,8 +334,8 @@ def _demo(args: argparse.Namespace) -> int:
 
 def _run_demo(db: Path, fixtures: Path, port: int, start_server: StartServer) -> int:
     print(f"demo: database {db}")
-    athena = {"account_id": "123456789012", "region": "us-east-1"}
-    steps: list[tuple[Callable[[argparse.Namespace], int], Path, dict[str, str]]] = [
+    athena = {"account_id": "123456789012", "region": "us-east-1", "dimensions": None}
+    steps: list[tuple[Callable[[argparse.Namespace], int], Path, dict[str, str | None]]] = [
         (_ingest_focus, fixtures / "focus" / "export-2026-10.json", {}),
         *(
             (_ingest_athena, fixtures / "athena" / name, athena)
@@ -351,7 +351,7 @@ def _run_demo(db: Path, fixtures: Path, port: int, start_server: StartServer) ->
     ]
     for ingest, path, extra in steps:
         ingest(argparse.Namespace(path=path, db=db, **extra))
-    _calculate(argparse.Namespace(db=db))
+    _calculate(argparse.Namespace(db=db, dimensions=None))
     # The local demo needs no secret (ADR 0024): a configured token is not applied to it.
     return _serve_database(db, DEFAULT_HOST, port, None, start_server, environ={})
 

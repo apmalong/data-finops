@@ -207,4 +207,5 @@ def test_an_invalid_dimensions_file_is_refused_naming_the_fault(
 
     assert main([*command, "--dimensions", str(config), "--db", str(db)]) == 2
     err = capsys.readouterr().err
-    assert "unknown source" in err and "cost-dimensions.toml" in err
+    assert "is not a known source" in err and "cost-dimensions.toml" in err
+    assert "secret" not in err

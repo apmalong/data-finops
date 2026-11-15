@@ -36,7 +36,7 @@ Typed Pydantic models in `src/data_finops` are the source of truth for contracts
   - category: direct, shared, idle or unallocated.
   - confidence: direct_verified, metered_estimate or heuristic_estimate. It is absent when the category is unallocated.
   - coverage: for metered shares.
-  - dimensions: the value and source of each configured Cost Dimension, by name (spec 09, ADR 0031). A value of null is unassigned.
+  - dimensions: the value and source of each configured Cost Dimension, by name (spec 09, ADR 0031). A value of null is unassigned. Each value also records whether its dimension is sensitive, so that the minimal Cost Explanation can leave it out.
 - `AllocationSnapshot`: calculation_run_id, policy_version, input digest (Export Snapshots and telemetry), created_at, is_current and dimensions_sha256. dimensions_sha256 is the SHA-256 of the Cost Dimensions configuration. It is not part of the input digest (Q72).
 
 ## Identity and time

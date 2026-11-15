@@ -11,7 +11,6 @@ from decimal import Decimal
 
 from data_finops.contracts.allocation import Allocation, DimensionValue
 from data_finops.contracts.dimensions import (
-    MAX_CLAIM_CHARS,
     CostDimensions,
     Dimension,
     SourceKind,
@@ -61,7 +60,7 @@ def _resolve_one(
             value = next((run[source.key] for run in tags if source.key in run), None)
         elif source.kind is SourceKind.WORKGROUP_MAP and workgroup is not None:
             value = dimension.workgroup_map.get(workgroup)
-        if value and len(value) <= MAX_CLAIM_CHARS:
+        if value:
             return DimensionValue(value=value, source=str(source), sensitive=dimension.sensitive)
     return DimensionValue(value=None, source=None, sensitive=dimension.sensitive)
 

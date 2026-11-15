@@ -2,6 +2,7 @@
 the workload store's public interface."""
 
 import json
+import sqlite3
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
@@ -133,3 +134,33 @@ def test_a_key_added_later_applies_only_to_queries_ingested_after_it(
     assert (again.accepted, again.duplicates) == (0, 1)
     assert dict(query.claims) == {"team": "finance"}
     assert QueryExecutionFlag.CONFLICTING_OBSERVATIONS not in query.flags
+
+
+def test_an_ingest_again_counts_no_dropped_claims(store: WorkloadStore, tmp_path: Path) -> None:
+    history = _history(tmp_path, {"team": "x" * 129})
+    first = store.ingest_query_history(
+        history, account_id=ACCOUNT, region=REGION, dimensions=CONFIG
+    )
+    again = store.ingest_query_history(
+        history, account_id=ACCOUNT, region=REGION, dimensions=CONFIG
+    )
+
+    assert (first.claims_dropped, again.claims_dropped) == (1, 0)
+
+
+def test_a_database_from_before_claims_opens_and_keeps_its_query_executions(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "older.sqlite"
+    with WorkloadStore(path) as store:
+        store.ingest_query_history(
+            _history(tmp_path, {"team": "finance"}), account_id=ACCOUNT, region=REGION
+        )
+    connection = sqlite3.connect(path)
+    connection.execute("ALTER TABLE workload_query_execution DROP COLUMN claims_json")
+    connection.commit()
+    connection.close()
+
+    with WorkloadStore(path) as store:
+        query = store.query_execution(ACCOUNT, REGION, "q-0")
+    assert query is not None and dict(query.claims) == {}

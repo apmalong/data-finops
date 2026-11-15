@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from data_finops.contracts.dimensions import (
+    NO_DIMENSIONS,
     CostDimensions,
     Source,
     SourceKind,
@@ -59,8 +60,8 @@ def test_eight_dimensions_are_accepted_and_nine_are_refused(tmp_path: Path) -> N
 @pytest.mark.parametrize(
     ("text", "fault"),
     [
-        ('[dimensions.team]\nsources = ["query_tag.team"]\n', "unknown source query_tag.team"),
-        ('[dimensions.team]\nsources = ["query_comment"]\n', "unknown source query_comment"),
+        ('[dimensions.team]\nsources = ["query_tag.team"]\n', "source 1 is not a known source"),
+        ('[dimensions.team]\nsources = ["workgroup_map", "query_comment"]\n', "source 2 is not"),
         ('[dimensions.team]\nsources = ["query_comment.team"]\ncolour = 1\n', "unknown key colour"),
         ('[teams]\nsources = ["query_comment.team"]\n', "unknown key teams"),
         ('[dimensions.team]\nsources = ["workgroup_map"]\n', "workgroup_map is not given"),
@@ -85,5 +86,15 @@ def test_at_most_16_comment_keys_are_configured(tmp_path: Path) -> None:
 
 
 def test_no_file_means_no_dimensions() -> None:
-    assert CostDimensions.none().dimensions == ()
-    assert CostDimensions.none().comment_keys == frozenset()
+    assert NO_DIMENSIONS.dimensions == ()
+    assert NO_DIMENSIONS.comment_keys == frozenset()
+
+
+def test_an_error_names_the_fault_and_never_a_configured_value(tmp_path: Path) -> None:
+    for text in (
+        '[dimensions.team]\nsources = ["secret_value"]\n',
+        '[dimensions."secret name"]\nsources = ["workgroup_map"]\nworkgroup_map = {}\n',
+    ):
+        with pytest.raises(ValueError) as error:
+            _config(tmp_path, text)
+        assert "secret" not in str(error.value)

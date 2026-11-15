@@ -153,10 +153,9 @@ CREATE TABLE IF NOT EXISTS workload_inbox_object (
 
 _REQUIRED_COLUMNS = {
     "workload_lineage_event": {"dbt_invocation_id", "dbt_node_id"},
-    "workload_query_execution": {"invocation_id", "node_id", "claims_json"},
+    "workload_query_execution": {"invocation_id", "node_id"},
 }
-"""Columns added after a table was first released (M3, M7); checked when a store is
-opened."""
+"""Columns added after a table was first released (M3); checked when a store is opened."""
 
 _START = "START"
 _TERMINAL = {
@@ -316,6 +315,16 @@ class WorkloadStore:
         self._connection.execute("PRAGMA journal_mode=WAL")
         self._require_current_schema()
         self._connection.executescript(_SCHEMA)
+        columns = {
+            row[1]
+            for row in self._connection.execute("PRAGMA table_info(workload_query_execution)")
+        }
+        if "claims_json" not in columns:
+            # Added in M7 (#221). An older file keeps its Query Executions, with no claims.
+            self._connection.execute(
+                "ALTER TABLE workload_query_execution"
+                " ADD COLUMN claims_json TEXT NOT NULL DEFAULT '{}'"
+            )
 
     def _require_current_schema(self) -> None:
         """Refuse a database file whose workload tables predate columns this code reads.
@@ -644,7 +653,6 @@ class WorkloadStore:
                 claims, dropped = select_claims(
                     query_comment(screened.parsed.Query), dimensions.comment_keys
                 )
-                claims_dropped += dropped
                 # The comment's identifiers are part of the observation, so reports of one
                 # query naming different Model Executions are kept apart (spec 03 step D).
                 stored_json = _canonical(
@@ -681,6 +689,7 @@ class WorkloadStore:
                 ).rowcount
                 accepted += stored
                 changed_copies += stored and others is not None
+                claims_dropped += dropped * stored  # an ingest again keeps nothing new
         return QueryHistoryIngestResult(
             accepted=accepted,
             duplicates=len(screening.entries) - accepted,

@@ -66,9 +66,11 @@ OTHER_EXPORT = FocusExport(
 )
 
 
-def add_other_account(path: Path) -> str:
+def add_other_account(path: Path, dimensions: CostDimensions = NO_DIMENSIONS) -> str:
     """A second Snapshot Scope with S3 lines in USD and EUR and a EUR credit, calculated (every
     line Unallocated); returns its Calculation Run's ID."""
     with Ledger(path) as ledger, WorkloadStore(path) as store:
         ledger.import_snapshot(OTHER_EXPORT)
-        return run_calculation(ledger, store, OTHER_EXPORT.snapshot.scope).calculation_run_id
+        return run_calculation(
+            ledger, store, OTHER_EXPORT.snapshot.scope, dimensions=dimensions
+        ).calculation_run_id

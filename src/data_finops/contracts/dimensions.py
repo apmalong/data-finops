@@ -82,11 +82,6 @@ class CostDimensions:
         )
 
     @classmethod
-    def none(cls) -> "CostDimensions":
-        """No dimensions: ingest keeps no claims, and Allocations carry none."""
-        return cls(())
-
-    @classmethod
     def from_toml(cls, path: Path) -> "CostDimensions":
         """The configuration file of `--dimensions FILE`, validated as `from_mapping`
         validates. ValueError names the fault, never a value."""
@@ -125,7 +120,7 @@ NO_DIMENSIONS = CostDimensions(())
 
 def _dimension(name: str, table: Any) -> Dimension:
     if not _NAME.fullmatch(name):
-        raise ValueError(f"the dimension name {name!r} is not a plain name")
+        raise ValueError("a dimension name is not a plain name (letters, digits, _ . -)")
     if not isinstance(table, Mapping):
         raise ValueError(f"dimensions.{name} must be a table")
     unknown = sorted(set(table) - _DIMENSION_KEYS)
@@ -134,7 +129,7 @@ def _dimension(name: str, table: Any) -> Dimension:
     sources = table.get("sources")
     if not isinstance(sources, list) or not sources:
         raise ValueError(f"dimensions.{name}: sources must be a non-empty list")
-    parsed = tuple(_source(name, source) for source in sources)
+    parsed = tuple(_source(name, index, source) for index, source in enumerate(sources, 1))
     workgroup_map = table.get("workgroup_map")
     if any(source.kind is SourceKind.WORKGROUP_MAP for source in parsed) and workgroup_map is None:
         raise ValueError(
@@ -151,14 +146,14 @@ def _dimension(name: str, table: Any) -> Dimension:
     return Dimension(name, parsed, MappingProxyType(dict(workgroup_map or {})), sensitive)
 
 
-def _source(dimension: str, text: Any) -> Source:
+def _source(dimension: str, index: int, text: Any) -> Source:
     if isinstance(text, str):
         if text == SourceKind.WORKGROUP_MAP.value:
             return Source(SourceKind.WORKGROUP_MAP)
         kind, _, key = text.partition(".")
         if kind in (SourceKind.QUERY_COMMENT, SourceKind.OPENLINEAGE_TAG) and _NAME.fullmatch(key):
             return Source(SourceKind(kind), key)
-    raise ValueError(f"dimensions.{dimension}: unknown source {text}")
+    raise ValueError(f"dimensions.{dimension}: source {index} is not a known source")
 
 
 def select_claims(
