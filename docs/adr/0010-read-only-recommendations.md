@@ -9,7 +9,7 @@ The FinOps tool must remain lightweight, auditable, portable and safe for custom
 Optimization advice is advisory, with evidence and estimated savings; no automatic remediation.
 
 ## Consequences
-Avoid introducing operational risk to production workloads.
+Avoid the introduction of operational risk to production workloads.
 
 ## Alternatives and revisit triggers
-Revisit if measured integration cost, scale, license obligations, or customer requirements make this choice unsuitable. Record a superseding ADR.
+Revisit if measured integration cost, scale, license obligations, or customer requirements make this choice unsuitable. Record a new ADR that supersedes this one.

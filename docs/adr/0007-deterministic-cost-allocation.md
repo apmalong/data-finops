@@ -9,7 +9,7 @@ The FinOps tool must remain lightweight, auditable, portable and safe for custom
 Use Decimal, stable rounding, versioned policies, and distinct direct/shared/idle/unallocated buckets.
 
 ## Consequences
-More complexity but auditability and no double counting.
+More complexity, but auditability and no double counts.
 
 ## Alternatives and revisit triggers
-Revisit if measured integration cost, scale, license obligations, or customer requirements make this choice unsuitable. Record a superseding ADR.
+Revisit if measured integration cost, scale, license obligations, or customer requirements make this choice unsuitable. Record a new ADR that supersedes this one.

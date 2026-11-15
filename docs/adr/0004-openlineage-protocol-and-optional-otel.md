@@ -9,10 +9,10 @@ The FinOps tool must remain lightweight, auditable, portable and safe for custom
 Ingest OpenLineage events via lightweight receiver and use official SDKs. OTel is optional execution correlation. No mandatory Marquez/Tempo.
 
 ## Consequences
-Maintain compatibility with existing lineage/observability stacks.
+Keep compatibility with the current lineage and observability stacks.
 
 ## Alternatives and revisit triggers
-Revisit if measured integration cost, scale, license obligations, or customer requirements make this choice unsuitable. Record a superseding ADR.
+Revisit if measured integration cost, scale, license obligations, or customer requirements make this choice unsuitable. Record a new ADR that supersedes this one.
 
 ## Note (drift review #207, 2026-11-07)
 A Deployment does not mount the receiver: it pulls OpenLineage event files from an S3 Inbox (ADR 0027). The receiver stays a local and self-hosted feature (ADR 0024).
