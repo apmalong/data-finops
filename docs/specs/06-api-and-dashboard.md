@@ -110,7 +110,7 @@ One Calculation Run:
 - The OpenAPI 3.1 document that FastAPI generates is checked in as `schemas/openapi.json`. A drift test fails when it is stale, and contract tests validate responses against it.
 
 ## Dashboard
-Static HTML, CSS and JavaScript that the API serves from the package. It has no build step, no JavaScript or chart libraries and no CDN, and it works offline. It reads only the JSON API.
+Static HTML, CSS and JavaScript that the API serves from the package. It has no build step, no JavaScript or chart libraries and no CDN, and it works offline. It reads only the JSON API. The public demo is the one exception: there, the same page reads the files of a Demo Snapshot, in the shapes of the API (spec 09 §The site).
 
 The design follows Edward Tufte (*The Visual Display of Quantitative Information*) and Stephen Few (*Information Dashboard Design*, *Show Me the Numbers*):
 - One screen answers the first question at a glance: where did the bill of this period go? The Cost Summary is the overview. Details come on demand, through the Cost Explanation.

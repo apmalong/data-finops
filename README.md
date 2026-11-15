@@ -66,6 +66,8 @@ uv sync --frozen --directory infra/pulumi/aws/policy
 uv sync --frozen --directory infra/pulumi/aws
 ```
 
+The tests of the dashboard's static mode also need Node, which runs its script as a browser does (#228). A GitHub runner has it.
+
 If you change the dependencies of a project, run `uv lock` in that project. Examine the new `uv.lock`. Then commit it.
 
 Then run all the checks with one command:

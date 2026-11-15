@@ -60,6 +60,7 @@ h3 { font-size: 0.95rem; margin: 0 0 8px; font-weight: 600; }
 }
 .provenance, .hint, .meta { color: var(--ink-3); font-size: 0.8rem; margin: 0; }
 .notice { color: var(--ink-2); border-left: 3px solid var(--attention); padding: 4px 10px; }
+.banner { color: var(--ink-2); font-size: 0.85rem; margin: 0 0 12px; padding-bottom: 8px; border-bottom: 1px solid var(--rule); }
 
 .multiples { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; }
 .panel { background: var(--surface); border-radius: 8px; padding: 16px; min-width: 0; }

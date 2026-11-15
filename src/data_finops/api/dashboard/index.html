@@ -3,11 +3,14 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- "api" reads the JSON API; the public demo's copy says "static" (spec 09 §The site). -->
+  <meta name="data-finops-source" content="api">
   <title>data-finops</title>
   <link rel="stylesheet" href="dashboard.css">
 </head>
 <body>
   <main class="viz-root">
+    <p class="banner" id="banner" hidden></p>
     <header class="masthead">
       <h1>Where the bill went</h1>
       <form class="filters" aria-label="What to show">
@@ -52,6 +55,7 @@
     <section id="detail" class="panel detail" aria-live="polite" hidden></section>
   </main>
   <div class="tooltip" id="tooltip" aria-hidden="true" hidden></div>
+  <script src="static.js"></script>
   <script src="dashboard.js"></script>
 </body>
 </html>

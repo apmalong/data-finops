@@ -1,5 +1,6 @@
 // data-finops dashboard: the Cost Summary and Roll-ups, with details on demand (spec 06;
-// design rules in DESIGN.md). Reads only the JSON API. Amounts arrive as exact decimal
+// design rules in DESIGN.md). Reads only the JSON API, or in the public demo the files of its
+// Demo Snapshot through static.js (spec 09). Amounts arrive as exact decimal
 // strings and are shown exactly as sent; numbers are used only to size bars, never to
 // display, add or divide money. API strings reach the page only as text, never as HTML.
 "use strict";
@@ -20,6 +21,12 @@ const ATTENTION_STATUSES = new Set(["failed", "aborted", "conflicting"]);
 const BAR_REACH = 0.75;
 const MIXED_REACH = 0.5;
 
+// The public demo's copy of the page says "static"; then each read is answered from the Demo
+// Snapshot's files, and a read that it does not cover is "not in the public demo".
+const STATIC_SOURCE = document.querySelector('meta[name="data-finops-source"]')?.content === "static"
+  ? DataFinopsStatic.createStaticSource(DataFinopsStatic.siteFiles(fetch))
+  : null;
+
 const state = { scope: 0, basis: "BilledCost", dimension: "", summaries: [], request: 0, detailRequest: 0 };
 const byId = (id) => document.getElementById(id);
 
@@ -35,6 +42,7 @@ function element(tag, attributes = {}, ...children) {
 }
 
 async function getJson(path, params = {}) {
+  if (STATIC_SOURCE) return STATIC_SOURCE.get(path, params);
   const query = new URLSearchParams(params).toString();
   const response = await fetch(query ? `${path}?${query}` : path);
   if (!response.ok) {
@@ -348,6 +356,12 @@ async function render() {
   const run = summary.snapshot;
   byId("provenance").textContent =
     `Calculation Run ${run.calculation_run_id} · ${run.created_at.replace("T", " ").replace("Z", " UTC")} · policy ${run.policy_version}${run.is_current ? "" : " · superseded"}`;
+  if (STATIC_SOURCE) {
+    const banner = byId("banner");
+    banner.textContent = await STATIC_SOURCE.banner(run.calculation_run_id);
+    banner.hidden = false;
+    if (!current()) return;
+  }
   byId("currencies").replaceChildren(...summary.currencies.map(currencyPanel));
   const params = { ...scopeParams(summary.scope), limit: 50 };
   const [models, runs, roots] = await Promise.all([
@@ -584,7 +598,9 @@ async function openFromHash() {
   else if (kind === "run" && value) await openLineage(value);
 }
 
-const fail = (error) => showNotice(`Could not load: ${error.message}`);
+const fail = (error) => showNotice(error instanceof DataFinopsStatic.NotInDemo
+  ? `${error.message}.`
+  : `Could not load: ${error.message}`);
 function change(update) {
   return (e) => {
     update(e.target.value);
