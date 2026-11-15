@@ -1,15 +1,15 @@
 # Data FinOps
 
-Attributes authoritative cloud charges to the data workloads that caused them, without creating, losing or double-counting money. Terms here are settled; contested terms are tracked in `docs/implementation/open-questions.md` until resolved.
+Attributes authoritative cloud charges to the data workloads that caused them. It never creates money, loses money or counts money two times. The terms here are settled. Contested terms are in `docs/implementation/open-questions.md` until they are resolved.
 
 ## Billing
 
 **Billing Line**:
-One FOCUS row from a provider's billing export: an authoritative charge in one billing currency for one charge period, carrying each FOCUS cost column. It is the unit that Reconciliation partitions exactly once.
+One FOCUS row from a provider's billing export: an authoritative charge in one billing currency for one charge period, with each FOCUS cost column. It is the unit that Reconciliation partitions exactly once.
 _Avoid_: bill row, invoice line, cost record
 
 **Export Snapshot**:
-The complete set of Billing Lines a provider published for one billing account, Billing Period and source at one point in time. A restatement replaces the whole snapshot; earlier snapshots are retained.
+The complete set of Billing Lines a provider published for one billing account, Billing Period and source at one point in time. A restatement replaces the whole snapshot. Earlier snapshots are kept.
 _Avoid_: file, batch, version (alone)
 
 **Delivery**:
@@ -25,7 +25,7 @@ The billing account, Billing Period and source an Export Snapshot covers, and so
 _Avoid_: partition, key (alone)
 
 **Billing Period**:
-The provider's invoicing period that a Billing Line belongs to. It may differ from the line's charge period.
+The invoice period of the provider that a Billing Line belongs to. It can be different from the charge period of the line.
 _Avoid_: month (alone)
 
 **Cost Basis**:
@@ -33,15 +33,15 @@ Which FOCUS cost column a figure is taken from (for example BilledCost or Effect
 _Avoid_: cost type, price
 
 **Adjustment**:
-A Billing Line that corrects or reduces charges: a credit, refund or discount (FOCUS ChargeCategory `Credit` or `Adjustment`). Adjustments are their own lines, signed, and may be negative. Tax and purchase lines are not Adjustments.
+A Billing Line that corrects or reduces charges: a credit, refund or discount (FOCUS ChargeCategory `Credit` or `Adjustment`). Adjustments are their own lines, signed, and can be negative. Tax and purchase lines are not Adjustments.
 _Avoid_: rebate (unless the provider uses that term), negative cost
 
 **Cost Pool**:
-A set of eligible Billing Lines sharing one currency, cost basis, time window and pricing category, whose workloads supply the weights. Each Billing Line in the pool is partitioned by those weights; the pool itself is not the partitioned amount.
+A set of eligible Billing Lines with one currency, cost basis, time window and pricing category, whose workloads give the weights. Each Billing Line in the pool is partitioned by those weights. The pool itself is not the partitioned amount.
 _Avoid_: bucket, cost group
 
 **Eligibility**:
-Whether a Billing Line may be allocated to workloads by an existing allocator. Ineligible lines remain Unallocated.
+Whether an allocator that exists can allocate a Billing Line to workloads. Ineligible lines remain Unallocated.
 
 ## Workload identity
 
@@ -54,11 +54,11 @@ One run of a dbt node within one dbt invocation. A dbt node ID alone never ident
 _Avoid_: model run, dbt job
 
 **dbt Node**:
-A model, seed, test or other resource declared in a dbt project's manifest, identified by its node ID within one invocation's manifest. A dbt Node is a declaration; its execution in an invocation is a Model Execution.
+A model, seed, test or other resource declared in a dbt project's manifest, identified by its node ID within one invocation's manifest. A dbt Node is a declaration. Its execution in an invocation is a Model Execution.
 _Avoid_: model (alone), dbt object
 
 **Workload Run**:
-One orchestrated execution reported by an orchestrator or lineage producer, such as an Airflow task run, possibly with a parent run (the run that directly contains it) and a root run (the top of its chain, such as the DAG run).
+One orchestrated execution that an orchestrator or lineage producer reports, for example an Airflow task run. It can have a parent run (the run that directly contains it) and a root run (the top of its chain, for example the DAG run).
 _Avoid_: job, task (alone), pipeline run
 
 **Identity Link**:
@@ -98,19 +98,19 @@ What an Allocation is assigned to: a Query Execution, or one of the synthetic ta
 _Avoid_: owner, cost center, tenant, data product, consumer (not targets in the MVP)
 
 **Cost Dimension**:
-A business attribute an organization configures to group its cost by, such as team or tenant. Its value is a claim with a recorded source, never Evidence, and a dimension is a view: it does not change how a Billing Line is partitioned (ADR 0031).
+A business attribute an organization configures to group its cost by, such as team or tenant. Its value is a claim with a recorded source, never Evidence. A dimension is a view: it does not change how a Billing Line is partitioned (ADR 0031).
 _Avoid_: attribution plane, tag (alone), label, Allocation Target
 
 **Roll-up**:
-The sum of Allocations over the Query Executions linked to a Model Execution, Workload Run or higher grouping. A Roll-up is a view, never a further Allocation.
+The sum of Allocations over the Query Executions linked to a Model Execution, a Workload Run or a higher group. A Roll-up is a view, never a further Allocation.
 _Avoid_: re-allocation, inherited cost
 
 **Cost Summary**:
-Where one Allocation Snapshot put the bill, per currency and for one Cost Basis: the billed total, the allocated amounts by Allocation Category and Confidence, Unallocated amounts by reason, Adjustments, and the Reconciliation Delta.
+Where one Allocation Snapshot put the bill, for each currency and for one Cost Basis. It gives the billed total, the allocated amounts by Allocation Category and Confidence, the Unallocated amounts by reason, the Adjustments, and the Reconciliation Delta.
 _Avoid_: overview, total cost, spend report
 
 **Cost Explanation**:
-The chain behind one Allocation: its Billing Line, the Allocation's method, Confidence and Coverage, its Evidence resolved to Query Execution, Model Execution and Workload Runs, and the Roll-ups it contributes to.
+The chain behind one Allocation. It gives the Billing Line, and the method, Confidence and Coverage of the Allocation. It also gives its Evidence resolved to Query Execution, Model Execution and Workload Runs, and the Roll-ups that it contributes to.
 _Avoid_: drilldown, trace, breakdown, query cost
 
 **Allocation Category**:
@@ -142,11 +142,11 @@ A synthetic Allocation Target for cost of capacity that was paid for but had no 
 _Avoid_: waste, unused (alone)
 
 **Unallocated**:
-A synthetic Allocation Target for cost whose Evidence is missing, ambiguous or ineligible. It is shown, never hidden or guessed.
+A synthetic Allocation Target for cost whose Evidence is not there, is ambiguous or is ineligible. It is shown, never hidden or guessed.
 _Avoid_: unknown, other, misc
 
 **Allocation Policy**:
-A versioned, documented set of rules that decides Eligibility, weights and remainder handling. Every Allocation records the policy version that produced it.
+A versioned, documented set of rules that decides Eligibility, weights and how remainders are handled. Every Allocation records the policy version that produced it.
 _Avoid_: rules engine, config
 
 **Calculation Run**:
@@ -156,18 +156,18 @@ _Avoid_: job, batch
 ## Reconciliation
 
 **Reconciliation**:
-The check that what the product holds equals its authoritative source exactly, per Billing Line, currency and Cost Basis: the Ledger against the imported Export Snapshot, and Allocations against the Billing Lines they partition.
+The check that what the product holds equals its authoritative source exactly, for each Billing Line, currency and Cost Basis. It checks the Ledger against the imported Export Snapshot, and Allocations against the Billing Lines that they partition.
 _Avoid_: balancing, matching
 
 **Reconciliation Delta**:
 The signed difference between the authoritative amount and what is held against it (the Ledger's amount, or the sum of Allocations), in one currency. It is zero when Reconciliation holds.
 
 **Ledger**:
-The immutable, versioned record of Export Snapshots and the Allocation Snapshots computed from them. One of each is current; all are retained.
+The immutable, versioned record of Export Snapshots and the Allocation Snapshots computed from them. One of each is current, and all are kept.
 _Avoid_: database, warehouse
 
 **Allocation Snapshot**:
-The complete set of Allocations produced by one Calculation Run. Any period may be recalculated; doing so creates a new snapshot and moves the current pointer.
+The complete set of Allocations produced by one Calculation Run. Any period can be calculated again. Each new calculation creates a new snapshot and moves the current pointer.
 _Avoid_: result, rerun output
 
 ## Deployment
@@ -185,7 +185,7 @@ The bucket prefix producers write OpenLineage events and dbt artifacts to, for t
 _Avoid_: drop zone, landing area
 
 **Collection Watermark**:
-What a Deployment has already collected, per source: the Delivery folders ingested, the Athena query IDs stored and the Inbox objects processed, by key and ETag, so an overwritten object is collected again. It is never a clock time alone.
+What a Deployment has already collected, for each source: the Delivery folders ingested, the Athena query IDs stored, and the Inbox objects processed. Inbox objects are keyed by key and ETag, so an overwritten object is collected again. It is never a clock time alone.
 _Avoid_: checkpoint, cursor
 
 **Public Demo**:
@@ -197,12 +197,12 @@ One published set of the read model's answers for the Public Demo, written after
 _Avoid_: cache, export
 
 **Simulated Orchestrator**:
-The scheduled function that plays Airflow and dbt for the Public Demo: it runs believable DAGs whose models issue real Athena queries with real Trusted Query Comments, and writes their OpenLineage events and dbt artifacts to the Inbox (ADR 0030).
+The scheduled function that plays Airflow and dbt for the Public Demo. It runs believable DAGs whose models issue real Athena queries with real Trusted Query Comments. It writes their OpenLineage events and dbt artifacts to the Inbox (ADR 0030).
 _Avoid_: fake Airflow, mock workload
 
 ## Flagged ambiguities
 
 - "Query cost" implies an exact per-query price that providers do not bill. Say "Allocation to a Query Execution" and state its Confidence.
-- "Unknown" is used in fixtures as a target name; the domain term is Unallocated.
+- "Unknown" is used in fixtures as a target name. The domain term is Unallocated.
 - `no_evidence` names two things: a Link Outcome (a Query Execution without a Trusted Query Comment) and an Unallocated reason (a shared pool with no positive weight, #86). They never meet: Link Outcomes describe Identity Links, Unallocated reasons describe money. Say which one you mean.
-- **Lineage Edge** was defined as a Workload Run's read or write of a Data Asset "or between two Data Assets". Only run-to-asset edges are stored (`contracts.workload.LineageEdge`), so the definition was narrowed to them (#207). Column-level lineage is the eventual goal (owner, 2026-11-07); it will need its own design and terms.
+- **Lineage Edge** was defined as a Workload Run's read or write of a Data Asset "or between two Data Assets". Only run-to-asset edges are stored (`contracts.workload.LineageEdge`), so the definition was narrowed to them (#207). Column-level lineage is the eventual goal (owner, 2026-11-07). It will require its own design and terms.

@@ -102,12 +102,12 @@ class Settings:
     """The name of the FOCUS export, as AWS Data Exports names it."""
     workgroups: tuple[str, ...]
     """The Athena workgroups whose query history is collected, as a JSON list of names, for
-    example `["primary"]`. It may not be empty."""
+    example `["primary"]`. It must not be empty."""
     export_prefix: str = ""
-    """The S3 path prefix the export is delivered under; empty when it has none."""
+    """The S3 path prefix that the export is delivered under. It is empty when the export has
+    no prefix."""
     billing_lookback_periods: int = 2
-    """How many Billing Periods, counting back from the current one, each Collection Run
-    lists."""
+    """How many Billing Periods each Collection Run lists, back from the current one."""
     max_history_pages: int = 200
     """How many `ListQueryExecutions` pages each Collection Run reads, per workgroup."""
     schedule: str = DEFAULT_SCHEDULE
@@ -121,8 +121,9 @@ class Settings:
     api_memory_mb: int = 1024
     """The API function's memory, in MB."""
     api_reserved_concurrency: int | None = None
-    """An optional cap on the API function's concurrent requests, a whole number of at least
-    0; 0 switches the API off. New accounts may lack the concurrency quota to reserve any."""
+    """An optional limit on the concurrent requests of the API function, a whole number of at
+    least 0. 0 switches the API off. New accounts can lack the concurrency quota to reserve
+    any."""
     log_retention_days: int = 30
     """How long both functions' logs are kept, in days: a period CloudWatch Logs accepts,
     such as 1, 7, 14, 30, 90 or 365."""

@@ -57,7 +57,8 @@ class UnallocatedAmount(_Response):
 
 
 class CurrencySummary(_Response):
-    """One currency's part of a Cost Summary; never added to another currency's."""
+    """The part of a Cost Summary for one currency. It is never added to a different
+    currency."""
 
     currency: CurrencyCode
     billed: DecimalString
@@ -87,8 +88,8 @@ class AllocationEntry(_Response):
 
 
 class AllocationPage(_Response):
-    """One page of a single Allocation Snapshot's Allocations; offsets are stable because
-    the snapshot never changes."""
+    """One page of the Allocations of a single Allocation Snapshot. Offsets are stable,
+    because the snapshot never changes."""
 
     calculation_run_id: str
     total: int
@@ -112,7 +113,7 @@ class AllocationLineReconciliation(_Response):
 
 
 class AllocationCurrencyReconciliation(_Response):
-    """Every line of one currency and Cost Basis; never added to another currency's."""
+    """Each line of one currency and Cost Basis. It is never added to a different currency."""
 
     currency: CurrencyCode
     cost_basis: CostBasis
@@ -195,8 +196,8 @@ class RollupPage(_Response):
 
 
 class ExplainedModelExecution(_Response):
-    """The Model Execution an Allocation's Evidence links, as the workload store holds it;
-    `execution` or `dbt_node` is None when that part was never ingested."""
+    """The Model Execution that the Evidence of an Allocation links, as the workload store
+    holds it. `execution` or `dbt_node` is None when that part was never ingested."""
 
     invocation_id: str
     node_id: str
@@ -205,7 +206,8 @@ class ExplainedModelExecution(_Response):
 
 
 class ExplainedWorkloadRun(_Response):
-    """A Workload Run an Allocation's Evidence names; `run` is None if never reported."""
+    """A Workload Run that the Evidence of an Allocation names. `run` is None if no event
+    reported it."""
 
     run_id: str
     run: WorkloadRun | None
@@ -274,9 +276,9 @@ class RootRunPage(_Response):
 
 
 class QueryClaim(_Response):
-    """A Query Execution whose Trusted Query Comment names a Model Execution, and what became
-    of that claim (its Link Outcome): only `linked` makes an Identity Link; `ambiguous` and
-    `unmatched` claims are shown so a missing link is explained, not hidden."""
+    """A Query Execution whose Trusted Query Comment names a Model Execution, and the Link
+    Outcome of that claim. Only `linked` makes an Identity Link. `ambiguous` and `unmatched`
+    claims are shown, so that the reason for no link is explained, not hidden."""
 
     query_execution: QueryExecution
     outcome: LinkOutcome
@@ -292,8 +294,9 @@ class LineageModelExecution(_Response):
 
 
 class InvocationLink(_Response):
-    """The dbt invocation a run reports, and its Link Outcome to a Workload Run: `linked` to
-    this run, or for example `ambiguous` when several runs report it."""
+    """The dbt invocation that a run reports, and its Link Outcome to a Workload Run. The
+    outcome is `linked` to this run, or for example `ambiguous` when more than one run reports
+    it."""
 
     invocation_id: str
     outcome: LinkOutcome
@@ -325,7 +328,8 @@ class RunLineage(_Response):
 
 
 class CostSummaries(_Response):
-    """The Cost Summary of each matching Snapshot Scope's current Allocation Snapshot."""
+    """The Cost Summary of the current Allocation Snapshot of each Snapshot Scope that
+    matches."""
 
     summaries: list[CostSummary]
     uncalculated_scopes: list[SnapshotScope]

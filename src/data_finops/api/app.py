@@ -54,7 +54,7 @@ class Problem(BaseModel):
 
 
 class LineageReceipt(BaseModel):
-    """What storing one RunEvent changed, as the workload store's ingest result counts it."""
+    """What one stored RunEvent changed, as the ingest result of the workload store counts it."""
 
     accepted: int
     duplicates: int
@@ -79,7 +79,8 @@ _EVENT_CAP = f"{MAX_EVENT_BYTES // 2**20} MiB"
 
 
 class Health(BaseModel):
-    """Whether the database opens as a current data-finops database; a status, not an error."""
+    """Whether the database opens as a current data-finops database. This is a status, not an
+    error."""
 
     status: Literal["ok", "unavailable"]
 
@@ -95,15 +96,15 @@ def _problem_doc(description: str) -> dict[str, Any]:
 _READ_PROBLEMS: dict[int | str, dict[str, Any]] = {
     400: _problem_doc("Invalid request: the detail names the fields, never their values."),
     401: _problem_doc("When a token is configured: no valid bearer token (ADR 0024)."),
-    500: _problem_doc("An unexpected failure; the detail reveals nothing about it."),
+    500: _problem_doc("An unexpected failure. The detail tells nothing about it."),
     503: _problem_doc("The database cannot be opened as a current data-finops database."),
 }
 
 _SELECTION_PROBLEMS: dict[int | str, dict[str, Any]] = {
     **_READ_PROBLEMS,
     400: _problem_doc(
-        "Invalid request, or filters matching several Snapshot Scopes: the detail names the"
-        " fields to give, never their values."
+        "Invalid request, or filters that match more than one Snapshot Scope: the detail names"
+        " the fields to give, never their values."
     ),
     404: _problem_doc("No such Calculation Run, or no calculated Snapshot Scope matches."),
 }
@@ -125,10 +126,12 @@ _LINEAGE_PROBLEMS: dict[int | str, dict[str, Any]] = {
 _RECEIVER_RESPONSES: dict[int | str, dict[str, Any]] = {
     201: {"model": LineageReceipt, "description": "Stored, or already stored (a duplicate)."},
     202: {"model": LineageUnsupported, "description": "A JobEvent or DatasetEvent: not stored."},
-    400: _problem_doc("Rejected: the detail gives the kind and failing field, never content."),
+    400: _problem_doc(
+        "Rejected: the detail gives the kind and the field that failed, never content."
+    ),
     401: _READ_PROBLEMS[401],
-    413: _problem_doc(f"The body is larger than one event may be ({_EVENT_CAP})."),
-    415: _problem_doc("The body has a Content-Encoding; send the event uncompressed."),
+    413: _problem_doc(f"The body is larger than the limit for one event ({_EVENT_CAP})."),
+    415: _problem_doc("The body has a Content-Encoding. Send the event uncompressed."),
     500: _READ_PROBLEMS[500],
     503: _READ_PROBLEMS[503],
 }
@@ -211,9 +214,9 @@ def create_app(
         limit: Annotated[int, Query(ge=1, le=MAX_PAGE_SIZE)] = 100,
         offset: Annotated[int, Query(ge=0)] = 0,
     ) -> AllocationPage:
-        """One page of one Allocation Snapshot: a named Calculation Run's, or else the current
-        one of the single Snapshot Scope that `billing_account_id`, `billing_period` and `source`
-        select."""
+        """One page of one Allocation Snapshot. It is the snapshot of a named Calculation Run.
+        If no run is named, it is the current snapshot of the single Snapshot Scope that
+        `billing_account_id`, `billing_period` and `source` select."""
         with Reporting(db) as read_model:
             return read_model.allocations(
                 calculation_run_id=calculation_run_id,
@@ -238,8 +241,9 @@ def create_app(
         limit: Annotated[int, Query(ge=1, le=MAX_PAGE_SIZE)] = 100,
         offset: Annotated[int, Query(ge=0)] = 0,
     ) -> RollupPage:
-        """What each Model Execution or Workload Run cost in one Allocation Snapshot, chosen as
-        for `/v1/allocations`; kept apart because a Roll-up is a view, never an Allocation."""
+        """What each Model Execution or Workload Run cost in one Allocation Snapshot, selected
+        as for `/v1/allocations`. This route is separate, because a Roll-up is a view, never an
+        Allocation."""
         with Reporting(db) as read_model:
             return read_model.rollups(
                 level=level,
@@ -297,9 +301,10 @@ def create_app(
         limit: Annotated[int, Query(ge=1, le=MAX_PAGE_SIZE)] = 100,
         offset: Annotated[int, Query(ge=0)] = 0,
     ) -> RootRunPage | RunLineage:
-        """Without `run_id`, the topmost Workload Runs (paged); with it, that run's lineage:
-        its family, Data Assets, Lineage Edges and the Identity Links that reach its Model
-        Executions and their Query Executions, each with its Link Outcome."""
+        """Without `run_id`, the topmost Workload Runs, in pages. With `run_id`, the lineage of
+        that run: its family, Data Assets and Lineage Edges. It also gives the Identity Links
+        that reach its Model Executions and their Query Executions, each with its Link
+        Outcome."""
         with Reporting(db) as read_model:
             if run_id is None:
                 return read_model.root_runs(limit=limit, offset=offset)
@@ -354,11 +359,12 @@ def create_app(
             openapi_extra={"requestBody": _ONE_EVENT},
         )
         async def receive_lineage(request: Request) -> Any:
-            """Store one OpenLineage RunEvent, the default endpoint of OpenLineage's HTTP transport
-            (spec 04). Screened exactly as one item of an event file.
+            """Store one OpenLineage RunEvent. This is the default endpoint of the OpenLineage
+            HTTP transport (spec 04). The event is screened exactly as one item of an event file.
 
-            The one async endpoint (spec 06): it streams the body so an oversized one is refused
-            at the cap instead of buffered (ADR 0024), then ingests in the thread pool."""
+            This is the one async endpoint (spec 06). It reads the body as a stream, so a body
+            over the limit is refused at the limit and not buffered (ADR 0024). Then it ingests
+            the event in the thread pool."""
             body = await _body_within_cap(request)
             result = await run_in_threadpool(_ingest_event, db, body)
             if result.rejected:

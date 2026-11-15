@@ -29,7 +29,7 @@ class FocusChargeClass(StrEnum):
 
 
 class CostBasis(StrEnum):
-    """The FOCUS cost column a figure is taken from; bases are never added together."""
+    """The FOCUS cost column that a figure comes from. Bases are never added together."""
 
     BILLED_COST = "BilledCost"
     EFFECTIVE_COST = "EffectiveCost"
@@ -95,7 +95,7 @@ class SnapshotFile(BaseModel):
 
 
 class SnapshotScope(BaseModel):
-    """What an Export Snapshot covers; a restatement replaces the snapshot for its scope."""
+    """What an Export Snapshot covers. A restatement replaces the snapshot for its scope."""
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 

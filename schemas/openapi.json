@@ -205,7 +205,7 @@
             }
           },
           "500": {
-            "description": "An unexpected failure; the detail reveals nothing about it.",
+            "description": "An unexpected failure. The detail tells nothing about it.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -282,7 +282,7 @@
     "/v1/allocations": {
       "get": {
         "summary": "Allocations",
-        "description": "One page of one Allocation Snapshot: a named Calculation Run's, or else the current\none of the single Snapshot Scope that `billing_account_id`, `billing_period` and `source`\nselect.",
+        "description": "One page of one Allocation Snapshot. It is the snapshot of a named Calculation Run.\nIf no run is named, it is the current snapshot of the single Snapshot Scope that\n`billing_account_id`, `billing_period` and `source` select.",
         "operationId": "allocations_v1_allocations_get",
         "parameters": [
           {
@@ -455,7 +455,7 @@
             }
           },
           "400": {
-            "description": "Invalid request, or filters matching several Snapshot Scopes: the detail names the fields to give, never their values.",
+            "description": "Invalid request, or filters that match more than one Snapshot Scope: the detail names the fields to give, never their values.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -527,7 +527,7 @@
             }
           },
           "500": {
-            "description": "An unexpected failure; the detail reveals nothing about it.",
+            "description": "An unexpected failure. The detail tells nothing about it.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -640,7 +640,7 @@
     "/v1/rollups": {
       "get": {
         "summary": "Rollups",
-        "description": "What each Model Execution or Workload Run cost in one Allocation Snapshot, chosen as\nfor `/v1/allocations`; kept apart because a Roll-up is a view, never an Allocation.",
+        "description": "What each Model Execution or Workload Run cost in one Allocation Snapshot, selected\nas for `/v1/allocations`. This route is separate, because a Roll-up is a view, never an\nAllocation.",
         "operationId": "rollups_v1_rollups_get",
         "parameters": [
           {
@@ -760,7 +760,7 @@
             }
           },
           "400": {
-            "description": "Invalid request, or filters matching several Snapshot Scopes: the detail names the fields to give, never their values.",
+            "description": "Invalid request, or filters that match more than one Snapshot Scope: the detail names the fields to give, never their values.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -832,7 +832,7 @@
             }
           },
           "500": {
-            "description": "An unexpected failure; the detail reveals nothing about it.",
+            "description": "An unexpected failure. The detail tells nothing about it.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -1068,7 +1068,7 @@
             }
           },
           "400": {
-            "description": "Invalid request, or filters matching several Snapshot Scopes: the detail names the fields to give, never their values.",
+            "description": "Invalid request, or filters that match more than one Snapshot Scope: the detail names the fields to give, never their values.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -1140,7 +1140,7 @@
             }
           },
           "500": {
-            "description": "An unexpected failure; the detail reveals nothing about it.",
+            "description": "An unexpected failure. The detail tells nothing about it.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -1337,7 +1337,7 @@
             }
           },
           "400": {
-            "description": "Invalid request, or filters matching several Snapshot Scopes: the detail names the fields to give, never their values.",
+            "description": "Invalid request, or filters that match more than one Snapshot Scope: the detail names the fields to give, never their values.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -1409,7 +1409,7 @@
             }
           },
           "500": {
-            "description": "An unexpected failure; the detail reveals nothing about it.",
+            "description": "An unexpected failure. The detail tells nothing about it.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -1522,7 +1522,7 @@
     "/v1/lineage": {
       "get": {
         "summary": "Lineage",
-        "description": "Without `run_id`, the topmost Workload Runs (paged); with it, that run's lineage:\nits family, Data Assets, Lineage Edges and the Identity Links that reach its Model\nExecutions and their Query Executions, each with its Link Outcome.",
+        "description": "Without `run_id`, the topmost Workload Runs, in pages. With `run_id`, the lineage of\nthat run: its family, Data Assets and Lineage Edges. It also gives the Identity Links\nthat reach its Model Executions and their Query Executions, each with its Link\nOutcome.",
         "operationId": "lineage_v1_lineage_get",
         "parameters": [
           {
@@ -1658,7 +1658,7 @@
             }
           },
           "500": {
-            "description": "An unexpected failure; the detail reveals nothing about it.",
+            "description": "An unexpected failure. The detail tells nothing about it.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -1869,7 +1869,7 @@
             }
           },
           "500": {
-            "description": "An unexpected failure; the detail reveals nothing about it.",
+            "description": "An unexpected failure. The detail tells nothing about it.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -1982,7 +1982,7 @@
     "/api/v1/lineage": {
       "post": {
         "summary": "Receive Lineage",
-        "description": "Store one OpenLineage RunEvent, the default endpoint of OpenLineage's HTTP transport\n(spec 04). Screened exactly as one item of an event file.\n\nThe one async endpoint (spec 06): it streams the body so an oversized one is refused\nat the cap instead of buffered (ADR 0024), then ingests in the thread pool.",
+        "description": "Store one OpenLineage RunEvent. This is the default endpoint of the OpenLineage\nHTTP transport (spec 04). The event is screened exactly as one item of an event file.\n\nThis is the one async endpoint (spec 06). It reads the body as a stream, so a body\nover the limit is refused at the limit and not buffered (ADR 0024). Then it ingests\nthe event in the thread pool.",
         "operationId": "receive_lineage_api_v1_lineage_post",
         "requestBody": {
           "content": {
@@ -2016,7 +2016,7 @@
             }
           },
           "400": {
-            "description": "Rejected: the detail gives the kind and failing field, never content.",
+            "description": "Rejected: the detail gives the kind and the field that failed, never content.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -2088,7 +2088,7 @@
             }
           },
           "413": {
-            "description": "The body is larger than one event may be (1 MiB).",
+            "description": "The body is larger than the limit for one event (1 MiB).",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -2124,7 +2124,7 @@
             }
           },
           "415": {
-            "description": "The body has a Content-Encoding; send the event uncompressed.",
+            "description": "The body has a Content-Encoding. Send the event uncompressed.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -2160,7 +2160,7 @@
             }
           },
           "500": {
-            "description": "An unexpected failure; the detail reveals nothing about it.",
+            "description": "An unexpected failure. The detail tells nothing about it.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -2517,7 +2517,7 @@
           "reconciliation_delta"
         ],
         "title": "AllocationCurrencyReconciliation",
-        "description": "Every line of one currency and Cost Basis; never added to another currency's."
+        "description": "Each line of one currency and Cost Basis. It is never added to a different currency."
       },
       "AllocationEntry": {
         "properties": {
@@ -2595,7 +2595,7 @@
           "no_evidence"
         ],
         "title": "AllocationMethod",
-        "description": "How an amount was allocated; for Unallocated amounts, why (spec 03, M4 structure 10)."
+        "description": "How an amount was allocated. For Unallocated amounts, why (spec 03, M4 structure 10)."
       },
       "AllocationPage": {
         "properties": {
@@ -2633,7 +2633,7 @@
           "items"
         ],
         "title": "AllocationPage",
-        "description": "One page of a single Allocation Snapshot's Allocations; offsets are stable because\nthe snapshot never changes."
+        "description": "One page of the Allocations of a single Allocation Snapshot. Offsets are stable,\nbecause the snapshot never changes."
       },
       "AllocationReconciliation": {
         "properties": {
@@ -2720,7 +2720,7 @@
           "ContractedCost"
         ],
         "title": "CostBasis",
-        "description": "The FOCUS cost column a figure is taken from; bases are never added together."
+        "description": "The FOCUS cost column that a figure comes from. Bases are never added together."
       },
       "CostExplanation": {
         "properties": {
@@ -2836,7 +2836,7 @@
           "uncalculated_scopes"
         ],
         "title": "CostSummaries",
-        "description": "The Cost Summary of each matching Snapshot Scope's current Allocation Snapshot."
+        "description": "The Cost Summary of the current Allocation Snapshot of each Snapshot Scope that\nmatches."
       },
       "CostSummary": {
         "properties": {
@@ -2916,7 +2916,7 @@
           "reconciliation_delta"
         ],
         "title": "CurrencySummary",
-        "description": "One currency's part of a Cost Summary; never added to another currency's."
+        "description": "The part of a Cost Summary for one currency. It is never added to a different\ncurrency."
       },
       "DataAsset": {
         "properties": {
@@ -2936,7 +2936,7 @@
           "name"
         ],
         "title": "DataAsset",
-        "description": "Identified by the OpenLineage dataset naming convention."
+        "description": "Identified as the OpenLineage \"Naming Conventions\" give it for datasets."
       },
       "DbtNode": {
         "properties": {
@@ -3075,7 +3075,7 @@
           "dbt_node"
         ],
         "title": "ExplainedModelExecution",
-        "description": "The Model Execution an Allocation's Evidence links, as the workload store holds it;\n`execution` or `dbt_node` is None when that part was never ingested."
+        "description": "The Model Execution that the Evidence of an Allocation links, as the workload store\nholds it. `execution` or `dbt_node` is None when that part was never ingested."
       },
       "ExplainedRollup": {
         "properties": {
@@ -3141,7 +3141,7 @@
           "run"
         ],
         "title": "ExplainedWorkloadRun",
-        "description": "A Workload Run an Allocation's Evidence names; `run` is None if never reported."
+        "description": "A Workload Run that the Evidence of an Allocation names. `run` is None if no event\nreported it."
       },
       "ExportSnapshotRead": {
         "properties": {
@@ -3424,7 +3424,7 @@
           "status"
         ],
         "title": "Health",
-        "description": "Whether the database opens as a current data-finops database; a status, not an error."
+        "description": "Whether the database opens as a current data-finops database. This is a status, not an\nerror."
       },
       "IdentityLink": {
         "properties": {
@@ -3499,7 +3499,7 @@
           "linked_run_id"
         ],
         "title": "InvocationLink",
-        "description": "The dbt invocation a run reports, and its Link Outcome to a Workload Run: `linked` to\nthis run, or for example `ambiguous` when several runs report it."
+        "description": "The dbt invocation that a run reports, and its Link Outcome to a Workload Run. The\noutcome is `linked` to this run, or for example `ambiguous` when more than one run reports\nit."
       },
       "LineageDirection": {
         "type": "string",
@@ -3609,7 +3609,7 @@
           "changed_copies"
         ],
         "title": "LineageReceipt",
-        "description": "What storing one RunEvent changed, as the workload store's ingest result counts it."
+        "description": "What one stored RunEvent changed, as the ingest result of the workload store counts it."
       },
       "LineageUnsupported": {
         "properties": {
@@ -4023,7 +4023,7 @@
           "outcome"
         ],
         "title": "QueryClaim",
-        "description": "A Query Execution whose Trusted Query Comment names a Model Execution, and what became\nof that claim (its Link Outcome): only `linked` makes an Identity Link; `ambiguous` and\n`unmatched` claims are shown so a missing link is explained, not hidden."
+        "description": "A Query Execution whose Trusted Query Comment names a Model Execution, and the Link\nOutcome of that claim. Only `linked` makes an Identity Link. `ambiguous` and `unmatched`\nclaims are shown, so that the reason for no link is explained, not hidden."
       },
       "QueryCorrelation": {
         "properties": {
@@ -4043,7 +4043,7 @@
           "invocation_id"
         ],
         "title": "QueryCorrelation",
-        "description": "Identifiers extracted from a trusted query comment; the query text is not kept."
+        "description": "Identifiers extracted from a trusted query comment. The query text is not kept."
       },
       "QueryExecution": {
         "properties": {
@@ -4477,7 +4477,7 @@
           "source"
         ],
         "title": "SnapshotScope",
-        "description": "What an Export Snapshot covers; a restatement replaces the snapshot for its scope."
+        "description": "What an Export Snapshot covers. A restatement replaces the snapshot for its scope."
       },
       "TargetType": {
         "type": "string",
@@ -4638,7 +4638,7 @@
           "status"
         ],
         "title": "WorkloadRun",
-        "description": "One OpenLineage run as reported, including dbt-ol's per-model runs (ADR 0022)."
+        "description": "One OpenLineage run as reported, also the per-model runs of dbt-ol (ADR 0022)."
       },
       "WorkloadRunFlag": {
         "type": "string",
@@ -4648,7 +4648,7 @@
           "conflicting_parents"
         ],
         "title": "WorkloadRunFlag",
-        "description": "Disagreements among a run's stored observations, shown rather than resolved."
+        "description": "Disagreements among the stored observations of a run. They are shown, not resolved."
       },
       "WorkloadRunStatus": {
         "type": "string",
@@ -4660,7 +4660,7 @@
           "conflicting"
         ],
         "title": "WorkloadRunStatus",
-        "description": "Derived from a run's terminal event, whatever the arrival order (spec 02)."
+        "description": "Derived from the terminal event of a run, in any arrival order (spec 02)."
       }
     }
   }

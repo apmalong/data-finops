@@ -99,3 +99,6 @@ docs/adr/0030-simulated-orchestrator-drives-the-demo.md
 docs/adr/0031-cost-dimensions-are-configured-claims.md
 docs/adr/README.md
 site/explanation/decision-records.html
+
+# #237: GLOSSARY.md, the source of the glossary page. The generated reference regions are now checked in the five reference pages above.
+GLOSSARY.md

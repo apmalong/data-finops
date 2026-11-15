@@ -55,16 +55,16 @@
 <tr><td><code>aws:region</code></td><td>required</td><td>The AWS Region to deploy to. The collector reads the Athena workgroups in this Region.</td></tr>
 <tr><td><code>exportBucket</code></td><td>required</td><td>The S3 bucket the AWS Data Exports FOCUS export is delivered to. The collector only reads it.</td></tr>
 <tr><td><code>exportName</code></td><td>required</td><td>The name of the FOCUS export, as AWS Data Exports names it.</td></tr>
-<tr><td><code>workgroups</code></td><td>required</td><td>The Athena workgroups whose query history is collected, as a JSON list of names, for example <code>[&quot;primary&quot;]</code>. It may not be empty.</td></tr>
-<tr><td><code>exportPrefix</code></td><td>empty</td><td>The S3 path prefix the export is delivered under; empty when it has none.</td></tr>
-<tr><td><code>billingLookbackPeriods</code></td><td><code>2</code></td><td>How many Billing Periods, counting back from the current one, each Collection Run lists. A whole number from 1 to 24.</td></tr>
+<tr><td><code>workgroups</code></td><td>required</td><td>The Athena workgroups whose query history is collected, as a JSON list of names, for example <code>[&quot;primary&quot;]</code>. It must not be empty.</td></tr>
+<tr><td><code>exportPrefix</code></td><td>empty</td><td>The S3 path prefix that the export is delivered under. It is empty when the export has no prefix.</td></tr>
+<tr><td><code>billingLookbackPeriods</code></td><td><code>2</code></td><td>How many Billing Periods each Collection Run lists, back from the current one. A whole number from 1 to 24.</td></tr>
 <tr><td><code>maxHistoryPages</code></td><td><code>200</code></td><td>How many <code>ListQueryExecutions</code> pages each Collection Run reads, per workgroup. A whole number from 1 to 1000.</td></tr>
 <tr><td><code>schedule</code></td><td><code>cron(0 6 * * ? *)</code></td><td>When the Collection Run starts, as an EventBridge Scheduler expression, in UTC.</td></tr>
 <tr><td><code>collectorTimeoutSeconds</code></td><td><code>900</code></td><td>The collector function&#x27;s timeout, in seconds. A whole number from 1 to 900.</td></tr>
 <tr><td><code>collectorMemoryMb</code></td><td><code>2048</code></td><td>The collector function&#x27;s memory, in MB. A whole number from 128 to 10240.</td></tr>
 <tr><td><code>apiTimeoutSeconds</code></td><td><code>30</code></td><td>The API function&#x27;s timeout, in seconds. A whole number from 1 to 900.</td></tr>
 <tr><td><code>apiMemoryMb</code></td><td><code>1024</code></td><td>The API function&#x27;s memory, in MB. A whole number from 128 to 10240.</td></tr>
-<tr><td><code>apiReservedConcurrency</code></td><td>unset</td><td>An optional cap on the API function&#x27;s concurrent requests, a whole number of at least 0; 0 switches the API off. New accounts may lack the concurrency quota to reserve any.</td></tr>
+<tr><td><code>apiReservedConcurrency</code></td><td>unset</td><td>An optional limit on the concurrent requests of the API function, a whole number of at least 0. 0 switches the API off. New accounts can lack the concurrency quota to reserve any.</td></tr>
 <tr><td><code>logRetentionDays</code></td><td><code>30</code></td><td>How long both functions&#x27; logs are kept, in days: a period CloudWatch Logs accepts, such as 1, 7, 14, 30, 90 or 365.</td></tr>
 <tr><td><code>noncurrentVersionDays</code></td><td><code>30</code></td><td>How long an old version of the database object is kept, in days, before S3 expires it. A whole number from 1 to 3650.</td></tr>
 <tr><td><code>inboxRetentionDays</code></td><td><code>30</code></td><td>How long an object stays in the Inbox, in days, before S3 expires it. A whole number from 1 to 3650.</td></tr>

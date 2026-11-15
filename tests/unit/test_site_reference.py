@@ -157,7 +157,7 @@ def test_the_contracts_reference_lists_each_schema_its_fields_and_definitions() 
     assert "<p>One &lt;thing&gt;, exactly.</p>" in html
     assert (
         "<tr><td><code>amount</code></td><td>required</td>"
-        "<td>string, matching ^-?[0-9]+$</td><td>A Decimal string</td></tr>"
+        "<td>string, pattern <code>^-?[0-9]+$</code></td><td>A Decimal string</td></tr>"
     ) in html
     assert "<td><code>kind</code></td><td>required</td><td>Kind: one of" in html
     assert (
@@ -165,7 +165,7 @@ def test_the_contracts_reference_lists_each_schema_its_fields_and_definitions() 
         in html
     )
     assert '<h3 id="thing-kind">Kind</h3>' in html
-    assert "<p>Which kind. One of a, b.</p>" in html
+    assert "<p>Which kind. One of <code>a</code>, <code>b</code>.</p>" in html
 
 
 GLOSSARY = """# Data FinOps
@@ -245,7 +245,7 @@ def test_the_cli_reference_gives_groups_their_own_section_and_misses_no_command(
     assert '<h2 id="ingest"><code>tool ingest</code></h2>\n<p>load one input</p>' in html
     assert '<a href="#ingest-focus"><code>tool ingest focus</code></a>' in html
     assert '<h2 id="calculate"><code>tool calculate</code></h2>' in html
-    assert "<td>the Cost Basis One of BilledCost, ListCost.</td>" in html
+    assert "<td>the Cost Basis One of <code>BilledCost</code>, <code>ListCost</code>.</td>" in html
 
 
 COMPONENTS = {
@@ -306,7 +306,8 @@ def test_the_http_reference_explains_its_schemas_and_spells_out_enums() -> None:
     }
     html = render_http(document)
     assert (
-        "<td>CostBasis: one of &quot;BilledCost&quot;, &quot;ListCost&quot;, "
+        "<td>CostBasis: one of <code>&quot;BilledCost&quot;</code>, "
+        "<code>&quot;ListCost&quot;</code>, "
         "default &quot;BilledCost&quot;</td>" in html
     )
     assert '<td><code>application/json</code>: <a href="#schema-page">Page</a></td>' in html
@@ -324,7 +325,7 @@ def test_an_unknown_key_under_a_path_fails_rather_than_being_dropped() -> None:
 
 def test_describe_reads_json_values_as_json_and_combines_schemas() -> None:
     assert describe({"const": None}) == "always null"
-    assert describe({"enum": [True, "a"]}) == 'one of true, "a"'
+    assert describe({"enum": [True, "a"]}) == 'one of `true`, `"a"`'
     assert describe({"type": "boolean", "default": False}) == "boolean, default false"
     assert (
         describe({"allOf": [{"type": "string"}, {"maxLength": 3}]})
@@ -341,7 +342,8 @@ def test_a_contract_field_naming_an_enum_definition_spells_out_its_values() -> N
     html = render_contracts({"thing.schema.json": THING})
     assert (
         "<tr><td><code>kind</code></td><td>required</td>"
-        "<td>Kind: one of &quot;a&quot;, &quot;b&quot;</td><td></td></tr>" in html
+        "<td>Kind: one of <code>&quot;a&quot;</code>, <code>&quot;b&quot;</code></td><td></td></tr>"
+        in html
     )
 
 

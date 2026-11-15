@@ -51,7 +51,7 @@ def _query(query_execution_id: str) -> _Target:
 
 
 class AllocationMethod(StrEnum):
-    """How an amount was allocated; for Unallocated amounts, why (spec 03, M4 structure 10)."""
+    """How an amount was allocated. For Unallocated amounts, why (spec 03, M4 structure 10)."""
 
     ESTIMATED_METERED_SHARE = "estimated_metered_share"
     PROVIDER_LINE_MATCH = "provider_line_match"
