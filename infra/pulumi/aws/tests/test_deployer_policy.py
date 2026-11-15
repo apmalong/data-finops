@@ -26,6 +26,7 @@ SERVICE = {
     "budgets": "budgets",
     "athena": "athena",
     "glue": "glue",
+    "cloudfront": "cloudfront",
 }
 NEEDS_EVERY_RESOURCE = {"sts:GetCallerIdentity", "access-analyzer:ValidatePolicy"}
 
@@ -53,13 +54,14 @@ def test_the_draft_allows_named_actions_on_named_resources_only() -> None:
             continue
         resources = statement["Resource"]
         for resource in [resources] if isinstance(resources, str) else resources:
-            # Glue checks its catalog, which has no name, with each database and table; and
-            # Glue names take `_`, not `-` (#225).
+            # Glue checks its catalog, which has no name, with each database and table; Glue
+            # names take `_`, not `-` (#225); CloudFront names a resource by an ID it makes, so
+            # only the account narrows it (#229).
             assert (
                 "data-finops-" in resource
                 or "data_finops_demo" in resource
                 or resource.endswith(":catalog")
-                or statement["Sid"] == "DescribeLogGroups"
+                or statement["Sid"] in ("DescribeLogGroups", "DemoSite")
             ), statement["Sid"]
 
 
@@ -102,6 +104,8 @@ def test_the_draft_reaches_every_service_the_program_declares(
             "aws:budgets/budget:Budget",
             "aws:sns/topic:Topic",
             "aws:glue/catalogTable:CatalogTable",
+            "aws:cloudfront/distribution:Distribution",
+            "aws:s3/bucketNotification:BucketNotification",
         }
 
     # Once the components are ready, every resource has been registered with the mocks.

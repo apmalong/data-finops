@@ -111,13 +111,21 @@ The Deployment must not contain code that is not vetted. These tickets go first:
   - Each 12-digit account ID becomes `123456789012`.
   - Credit lines are not included, and the page says that amounts are before credits.
 - **Atomic swap:** the files are written under a new prefix, `snapshots/<published at>-<random>/`. Then `current.json` changes to that prefix. Thus readers never see half a snapshot. If a write fails, `current.json` does not change.
-  - Only one publisher runs at a time (reserved concurrency 1, #229). Thus an older publish cannot move `current.json` back.
+  - `current.json` moves only forward in time. The publisher reads it, and writes it again only if it names an older snapshot. The write is an S3 conditional write on the version that it read. If another publisher wrote it first, the publisher reads it again, at most 5 times. Thus two publishers at the same time cannot move it back.
+  - Thus no reserved concurrency is necessary. A new account often cannot give it (#229).
   - S3 deletes a prefix after 30 days. If no snapshot is published for 30 days, `current.json` names a prefix that is gone, and the demo shows nothing.
-- **IAM, a role of its own:** `s3:GetObject` on the database object, `s3:PutObject` and `s3:ListBucket` on the demo bucket, and its log group.
+- **IAM, a role of its own:**
+  - `s3:GetObject` on the database object, and `kms:Decrypt` on the key of the bucket when `kmsKeyArn` is set
+  - `s3:GetObject` and `s3:PutObject` on `current.json`, and `s3:PutObject` on `snapshots/*` of the demo bucket
+  - `s3:ListBucket` on the two buckets, so that S3 answers `NoSuchKey` for an object that is not there
+  - its log group
+- **Trigger:** an S3 notification of the bucket of the Deployment, for each object created under the key of the database object. A Lambda permission lets S3 in that account invoke the publisher.
 
 ## The site
 - **Host:** a private demo bucket (all four public access blocks, encrypted) behind a CloudFront distribution with origin access control. It is HTTPS only, on the CloudFront domain (no custom domain), with a cache configuration for a daily snapshot.
-  - CloudFront serves only the prefix of the site. It never serves `dataset/` or `athena-results/` (Q77).
+  - CloudFront can read only the site: the files of the dashboard, `current.json` and `snapshots/*`, at the root of the bucket. The bucket policy gives that grant to the distribution only. CloudFront never reads `dataset/` or `athena-results/` (Q77).
+  - The cache: `current.json` is not cached, so a new snapshot shows at once. The snapshots and the dashboard's files use the managed `CachingOptimized` policy, so a new version of the dashboard can take a day to show.
+  - The stack uploads the dashboard's files from the package, and sets the page's data source to `static` (#228).
 - **The dashboard:** the M5 dashboard, served with a `static` data source. Each API call maps to a file in the current snapshot. A call that the snapshot does not cover shows "not in the public demo".
   - `static.js` is the static data source (#228). It reads `current.json`, then the files of that prefix. It answers each read as the API does, with the same pages, filters and Snapshot Scope selection.
   - The page selects the data source with `<meta name="data-finops-source">`. It is `api` in the package, so the local dashboard does not change. The copy that the stack serves says `static` (#229).
@@ -131,7 +139,7 @@ The Deployment must not contain code that is not vetted. These tickets go first:
 - **New outputs:** `demoUrl`, `demoBucket`, `demoGeneratorFunction` and `demoSimulatorFunction`. They exist only when `publicDemo` is `true`.
 - **Policy pack:**
   - The demo bucket gets the same S3 policies as the bucket of the Deployment.
-  - A new policy: each CloudFront distribution uses origin access control, and redirects HTTP to HTTPS.
+  - A new policy: each CloudFront distribution uses origin access control, and redirects HTTP to HTTPS or allows HTTPS only.
   - The allowlists of policy 4 get the generator, simulator and publisher policies. Only the simulator can start queries, and only on the demo workgroup.
 - **The deployer draft policy:** it gets CloudFront, Glue, EventBridge and the new roles.
 

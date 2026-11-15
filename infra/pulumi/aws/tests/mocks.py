@@ -23,6 +23,10 @@ class RecordingMocks(pulumi.runtime.Mocks):
             outputs |= {"bucket": bucket, "arn": f"arn:aws:s3:::{bucket}"}
         if args.typ == "aws:lambda/function:Function":
             outputs["arn"] = f"arn:aws:lambda:us-east-1:123456789012:function:{args.inputs['name']}"
+        if args.typ == "aws:s3/bucket:Bucket":
+            outputs["bucketRegionalDomainName"] = f"{outputs['bucket']}.s3.us-east-1.amazonaws.com"
+        if args.typ == "aws:cloudfront/distribution:Distribution":
+            outputs["domainName"] = "d111111abcdef8.cloudfront.net"
         if args.typ == "aws:lambda/functionUrl:FunctionUrl":
             outputs["functionUrl"] = "https://mock.lambda-url.us-east-1.on.aws/"
         outputs.setdefault("arn", f"arn:mock:{args.typ}:{args.name}")

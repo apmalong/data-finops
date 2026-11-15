@@ -25,6 +25,7 @@ OUTPUTS: dict[str, str] = {
     "collectorFunction": "The collector function's name, for its logs or to invoke a "
     "Collection Run by hand.",
     "apiFunction": "The API function's name, for its logs.",
+    "demoUrl": "Only with publicDemo: the public demo's address, on CloudFront.",
     "demoBucket": "Only with publicDemo: the public demo's bucket, with the demo dataset.",
     "demoGeneratorFunction": "Only with publicDemo: the function that writes the demo "
     "dataset. Invoke it one time after the first deploy.",
@@ -34,7 +35,7 @@ OUTPUTS: dict[str, str] = {
 """Each stack output and what it is for. The site's generated deployment settings reference
 reads this literal from the source, and `Deployment.outputs` gives exactly these, less
 `DEMO_OUTPUTS` when `publicDemo` is off."""
-DEMO_OUTPUTS = ("demoBucket", "demoGeneratorFunction", "demoSimulatorFunction")
+DEMO_OUTPUTS = ("demoUrl", "demoBucket", "demoGeneratorFunction", "demoSimulatorFunction")
 
 
 def require_local_state() -> None:

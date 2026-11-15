@@ -3,6 +3,7 @@ and the Lambda package, private, encrypted, versioned and kept on destroy unless
 opts in to deleting it."""
 
 import json
+from typing import Any
 
 import pulumi
 import pulumi_aws as aws
@@ -45,10 +46,13 @@ def private_bucket(
     noncurrent_days: int,
     expiring: dict[str, int],
     opts: pulumi.ResourceOptions,
+    caller_writes_policy: bool = False,
 ) -> tuple[aws.s3.Bucket, list[pulumi.CustomResource]]:
     """A bucket with every guard of the policy pack (spec 08 §Policy pack, 1): all public access
     blocked, owner-enforced, encrypted, versioned and TLS only. S3 keeps an old version for
-    `noncurrent_days`, and the objects under each prefix of `expiring` for its days."""
+    `noncurrent_days`, and the objects under each prefix of `expiring` for its days. With
+    `caller_writes_policy`, the caller writes the bucket policy with `bucket_policy`, to add
+    grants after the TLS deny."""
     bucket = aws.s3.Bucket(name, force_destroy=force_destroy, opts=opts)
     rules: list[aws.s3.BucketLifecycleConfigurationRuleArgsDict] = [
         {
@@ -87,8 +91,10 @@ def private_bucket(
             name, bucket=bucket.id, versioning_configuration={"status": "Enabled"}, opts=opts
         ),
         aws.s3.BucketLifecycleConfiguration(name, bucket=bucket.id, rules=rules, opts=opts),
-        aws.s3.BucketPolicy(name, bucket=bucket.id, policy=bucket.arn.apply(_tls_only), opts=opts),
     ]
+    if not caller_writes_policy:
+        policy = bucket.arn.apply(bucket_policy)
+        guards.append(aws.s3.BucketPolicy(name, bucket=bucket.id, policy=policy, opts=opts))
     return bucket, guards
 
 
@@ -119,8 +125,8 @@ def _encryption(
     }
 
 
-def _tls_only(bucket_arn: str) -> str:
-    """A bucket policy refusing every request not made over TLS."""
+def bucket_policy(bucket_arn: str, *grants: dict[str, Any]) -> str:
+    """A bucket policy refusing every request not made over TLS, then `grants`."""
     return json.dumps(
         {
             "Version": "2012-10-17",
@@ -132,7 +138,8 @@ def _tls_only(bucket_arn: str) -> str:
                     "Action": "s3:*",
                     "Resource": [bucket_arn, f"{bucket_arn}/*"],
                     "Condition": {"Bool": {"aws:SecureTransport": "false"}},
-                }
+                },
+                *grants,
             ],
         }
     )

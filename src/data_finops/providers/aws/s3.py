@@ -110,6 +110,24 @@ def read_small_object(s3: S3Reader, bucket: str, key: str, max_bytes: int) -> by
     return data
 
 
+def read_versioned_object(
+    s3: S3Reader, bucket: str, key: str, max_bytes: int
+) -> tuple[bytes, str] | None:
+    """The content and ETag of a small object at `key`, or None when there is no such object
+    (a reader with `s3:ListBucket`). TooLarge when it is over `max_bytes`; AwsSourceError (with
+    the AWS error code) when it cannot be read."""
+    try:
+        response = call(s3.get_object, Bucket=bucket, Key=key)
+    except AwsSourceError as error:
+        if str(error) == "NoSuchKey":
+            return None
+        raise
+    data: bytes = response["Body"].read(max_bytes + 1)
+    if len(data) > max_bytes:
+        raise TooLarge(key)
+    return data, str(response["ETag"])
+
+
 def fetch_file(s3: S3Writer, bucket: str, key: str, path: Path) -> str | None:
     """Download the object to `path` and return its ETag, or None (nothing written) when
     there is no such object yet. S3 says so only to a reader with `s3:ListBucket` on the
@@ -128,25 +146,45 @@ def fetch_file(s3: S3Writer, bucket: str, key: str, path: Path) -> str | None:
 def put_file(s3: S3Writer, bucket: str, key: str, path: Path, *, etag: str | None) -> None:
     """Upload `path` over the version `etag` names, or as a new object when `etag` is None;
     WriteConflict when another writer got there first (S3 conditional writes)."""
-    condition = {"IfMatch": etag} if etag is not None else {"IfNoneMatch": "*"}
     with path.open("rb") as body:
-        try:
-            call(s3.put_object, Bucket=bucket, Key=key, Body=body, **condition)
-        except AwsSourceError as error:
-            if str(error) in ("PreconditionFailed", "ConditionalRequestConflict"):
-                raise WriteConflict(key) from None
-            raise
+        _put_conditionally(s3, {"Bucket": bucket, "Key": key, "Body": body}, etag)
+
+
+ANY_VERSION = object()
+"""For `put_bytes`: write over whatever version the object has, or none."""
 
 
 def put_bytes(
-    s3: Any, bucket: str, key: str, body: bytes, *, content_type: str | None = None
+    s3: Any,
+    bucket: str,
+    key: str,
+    body: bytes,
+    *,
+    content_type: str | None = None,
+    etag: str | None | object = ANY_VERSION,
 ) -> None:
-    """Write `body` as the object `key`, over any version. A failure raises AwsSourceError with
-    the AWS error code alone."""
+    """Write `body` as the object `key`. By default over any version; with `etag`, only over
+    the version that it names, or only as a new object when it is None, as `put_file` does
+    (S3 conditional writes): WriteConflict when another writer got there first. Any other
+    failure raises AwsSourceError with the AWS error code alone."""
     params: dict[str, Any] = {"Bucket": bucket, "Key": key, "Body": body}
     if content_type is not None:
         params["ContentType"] = content_type
-    call(s3.put_object, **params)
+    if etag is ANY_VERSION:
+        call(s3.put_object, **params)
+    else:
+        _put_conditionally(s3, params, etag if isinstance(etag, str) else None)
+
+
+def _put_conditionally(s3: Any, params: dict[str, Any], etag: str | None) -> None:
+    """A PutObject over the version `etag` names, or as a new object when it is None."""
+    condition = {"IfMatch": etag} if etag is not None else {"IfNoneMatch": "*"}
+    try:
+        call(s3.put_object, **params, **condition)
+    except AwsSourceError as error:
+        if str(error) in ("PreconditionFailed", "ConditionalRequestConflict"):
+            raise WriteConflict(params["Key"]) from None
+        raise
 
 
 def refresh_file(s3: S3Reader, bucket: str, key: str, path: Path, etag: str | None) -> str | None:

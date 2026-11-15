@@ -27,7 +27,9 @@
         "s3:PutEncryptionConfiguration",
         "s3:GetLifecycleConfiguration",
         "s3:PutLifecycleConfiguration",
-        "s3:GetReplicationConfiguration"
+        "s3:GetReplicationConfiguration",
+        "s3:PutBucketNotification",
+        "s3:GetBucketNotification"
       ],
       "Resource": "arn:aws:s3:::data-finops-*"
     },
@@ -109,6 +111,9 @@
         "lambda:GetFunctionEventInvokeConfig",
         "lambda:UpdateFunctionEventInvokeConfig",
         "lambda:DeleteFunctionEventInvokeConfig",
+        "lambda:AddPermission",
+        "lambda:RemovePermission",
+        "lambda:GetPolicy",
         "lambda:TagResource",
         "lambda:ListTags",
         "lambda:InvokeFunction",
@@ -214,6 +219,28 @@
         "arn:aws:glue:*:${aws:PrincipalAccount}:catalog",
         "arn:aws:glue:*:${aws:PrincipalAccount}:database/data_finops_demo",
         "arn:aws:glue:*:${aws:PrincipalAccount}:table/data_finops_demo/*"
+      ]
+    },
+    {
+      "Sid": "DemoSite",
+      "Effect": "Allow",
+      "Action": [
+        "cloudfront:CreateDistribution",
+        "cloudfront:GetDistribution",
+        "cloudfront:GetDistributionConfig",
+        "cloudfront:UpdateDistribution",
+        "cloudfront:DeleteDistribution",
+        "cloudfront:TagResource",
+        "cloudfront:UntagResource",
+        "cloudfront:ListTagsForResource",
+        "cloudfront:CreateOriginAccessControl",
+        "cloudfront:GetOriginAccessControl",
+        "cloudfront:UpdateOriginAccessControl",
+        "cloudfront:DeleteOriginAccessControl"
+      ],
+      "Resource": [
+        "arn:aws:cloudfront::${aws:PrincipalAccount}:distribution/*",
+        "arn:aws:cloudfront::${aws:PrincipalAccount}:origin-access-control/*"
       ]
     }
   ]

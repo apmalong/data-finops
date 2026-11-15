@@ -15,6 +15,7 @@ from typing import Any
 
 import pytest
 from aws_stubs import s3_client, stubbed
+from botocore.response import StreamingBody
 from botocore.stub import ANY
 from fixture_database import EXPORT, FIXTURES, OTHER_EXPORT
 from jsonschema import Draft202012Validator
@@ -255,23 +256,84 @@ def _captured(s3: Any) -> list[str]:
     return keys
 
 
+def _expect_files(stub: Any, count: int) -> None:
+    for _ in range(count):
+        stub.add_response(
+            "put_object",
+            {},
+            {"Bucket": BUCKET, "Key": ANY, "Body": ANY, "ContentType": "application/json"},
+        )
+
+
+def _expect_current(stub: Any, published_at: str | None, etag: str = '"e1"') -> None:
+    """One read of `current.json`: none yet, or one published at `published_at`."""
+    if published_at is None:
+        stub.add_client_error(
+            "get_object", "NoSuchKey", expected_params={"Bucket": BUCKET, "Key": CURRENT}
+        )
+        return
+    body = json.dumps({"prefix": "snapshots/old/", "published_at": published_at}).encode()
+    stub.add_response(
+        "get_object",
+        {"Body": StreamingBody(io.BytesIO(body), len(body)), "ETag": etag},
+        {"Bucket": BUCKET, "Key": CURRENT},
+    )
+
+
+def _expect_move(stub: Any, condition: dict[str, str]) -> None:
+    stub.add_response(
+        "put_object",
+        {},
+        {"Bucket": BUCKET, "Key": CURRENT, "Body": ANY, "ContentType": "application/json"}
+        | condition,
+    )
+
+
 def test_current_json_moves_only_after_every_file_is_written(database: Path) -> None:
     count = len(render(database, published_at=PUBLISHED, lines=DEMO))
     s3 = s3_client()
     keys = _captured(s3)
     with stubbed(s3) as stub:
-        for _ in range(count + 1):
-            stub.add_response(
-                "put_object",
-                {},
-                {"Bucket": BUCKET, "Key": ANY, "Body": ANY, "ContentType": "application/json"},
-            )
+        _expect_files(stub, count)
+        _expect_current(stub, None)
+        _expect_move(stub, {"IfNoneMatch": "*"})  # the first snapshot: only if there is none
         pointer = publish(database, s3=s3, bucket=BUCKET, clock=lambda: PUBLISHED, lines=DEMO)
 
+    assert pointer["moved"] is True
     assert keys[-1] == CURRENT and CURRENT not in keys[:-1]
     assert re.fullmatch(r"snapshots/20261105T070000Z-[0-9a-f]{8}/", pointer["prefix"])
     assert all(key.startswith(pointer["prefix"]) for key in keys[:-1])
     assert len(keys) - 1 == pointer["files"] == count
+
+
+def test_current_json_moves_from_an_older_snapshot_only_if_it_is_unchanged(
+    database: Path,
+) -> None:
+    count = len(render(database, published_at=PUBLISHED, lines=DEMO))
+    s3 = s3_client()
+    with stubbed(s3) as stub:
+        _expect_files(stub, count)
+        _expect_current(stub, "2026-11-04T07:00:00Z")
+        _expect_move(stub, {"IfMatch": '"e1"'})
+        pointer = publish(database, s3=s3, bucket=BUCKET, clock=lambda: PUBLISHED, lines=DEMO)
+
+    assert pointer["moved"] is True
+
+
+def test_current_json_never_moves_back_to_an_older_snapshot(database: Path) -> None:
+    # Another publisher, started later, moved current.json while this one wrote its files.
+    count = len(render(database, published_at=PUBLISHED, lines=DEMO))
+    s3 = s3_client()
+    keys = _captured(s3)
+    with stubbed(s3) as stub:
+        _expect_files(stub, count)
+        _expect_current(stub, "2026-11-04T07:00:00Z")
+        stub.add_client_error("put_object", "PreconditionFailed", http_status_code=412)
+        _expect_current(stub, "2026-11-05T08:00:00Z", etag='"e2"')
+        pointer = publish(database, s3=s3, bucket=BUCKET, clock=lambda: PUBLISHED, lines=DEMO)
+
+    assert pointer["moved"] is False
+    assert keys.count(CURRENT) == 1  # the one refused write
 
 
 def test_a_failed_write_leaves_current_json_as_it_was(database: Path) -> None:
@@ -295,8 +357,6 @@ def test_rendering_the_same_database_twice_gives_the_same_files(
 def test_the_handler_publishes_the_database_object_of_the_deployment(
     database: Path, tmp_path: Path
 ) -> None:
-    from botocore.response import StreamingBody
-
     from data_finops.collection.remote import DATABASE_KEY
     from data_finops.lambda_handlers import DEMO_BUCKET, DEPLOYMENT_BUCKET, make_publisher_handler
 
@@ -310,8 +370,10 @@ def test_the_handler_publishes_the_database_object_of_the_deployment(
             {"Body": StreamingBody(io.BytesIO(data), len(data)), "ETag": '"db"'},
             {"Bucket": "example-deployment-bucket", "Key": DATABASE_KEY},
         )
-        for _ in range(count + 1):
+        for _ in range(count):
             stub.add_response("put_object", {})
+        _expect_current(stub, None)
+        stub.add_response("put_object", {})
         handler = make_publisher_handler(
             lambda: s3,
             {DEPLOYMENT_BUCKET: "example-deployment-bucket", DEMO_BUCKET: BUCKET},
@@ -350,3 +412,20 @@ def test_a_missing_bucket_variable_is_named(missing: str, tmp_path: Path) -> Non
     handler = make_publisher_handler(s3_client, environ, clock=lambda: PUBLISHED, scratch=tmp_path)
     with pytest.raises(PublisherMisconfigured, match=missing):
         handler({}, None)
+
+
+def test_a_pointer_that_keeps_changing_stops_the_publisher_after_five_tries(
+    database: Path,
+) -> None:
+    from data_finops.public_demo.publisher import MAX_MOVES, PointerContended
+
+    count = len(render(database, published_at=PUBLISHED, lines=DEMO))
+    s3 = s3_client()
+    with stubbed(s3) as stub, pytest.raises(PointerContended):
+        _expect_files(stub, count)
+        for n in range(MAX_MOVES):
+            _expect_current(stub, "2026-11-04T07:00:00Z", etag=f'"e{n}"')
+            stub.add_client_error("put_object", "PreconditionFailed", http_status_code=412)
+        publish(database, s3=s3, bucket=BUCKET, clock=lambda: PUBLISHED, lines=DEMO)
+
+    assert MAX_MOVES == 5

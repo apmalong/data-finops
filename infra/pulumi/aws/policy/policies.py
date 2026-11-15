@@ -1,7 +1,7 @@
 """The Deployment's mandatory policies (spec 08 §Policy pack): 1 S3, 2 Function URLs, 3 functions
-bounded and logged, 4 IAM least privilege, 5 nothing spec 05 rules out, 6 the Budget. A plain
-module: only `__main__.py` builds the pack, because constructing `PolicyPack` starts its
-server and blocks.
+bounded and logged, 4 IAM least privilege, 5 nothing spec 05 rules out, 6 the Budget, 7 the
+public demo's CloudFront (spec 09). A plain module: only `__main__.py` builds the pack, because
+constructing `PolicyPack` starts its server and blocks.
 
 Each policy reads inputs a program sets as literals. A value unknown at preview (computed from
 another resource's outputs) only yields Pulumi's advisory "can't run policy during preview".
@@ -50,6 +50,8 @@ LOG_GROUP = "aws:cloudwatch/logGroup:LogGroup"
 FUNCTION_URL = "aws:lambda/functionUrl:FunctionUrl"
 IAM_DOCUMENTS = ("aws:iam/rolePolicy:RolePolicy", "aws:iam/policy:Policy")
 BUDGET = "aws:budgets/budget:Budget"
+DISTRIBUTION = "aws:cloudfront/distribution:Distribution"
+HTTPS_ONLY = ("redirect-to-https", "https-only")
 TIMEOUT_SECONDS = (1, 900)
 """Spec 08's bounds on a function's timeout, seconds (as `deployment.settings` enforces)."""
 MEMORY_MB = (128, 10240)
@@ -90,6 +92,7 @@ POLICY_ACTIONS: dict[str, frozenset[str]] = {
         }
     )
     | LOGS,
+    "publisher": frozenset({"s3:GetObject", "s3:PutObject", "s3:ListBucket", "kms:Decrypt"}) | LOGS,
 }
 """Each Deployment policy, by the suffix of its name (`deployment.compute`, `deployment.demo`),
 and every action spec 08 §IAM and spec 09 grant it. A policy named otherwise is a
@@ -256,6 +259,21 @@ def _budget_alerts(props: dict[str, Any], report: Report) -> None:
         report("the Budget must alert on actual spend as well as forecast spend")
 
 
+def _cloudfront_guarded(props: dict[str, Any], report: Report) -> None:
+    """The site (spec 09): each origin through origin access control, so its bucket stays
+    private, and each cache behavior HTTPS only."""
+    for origin in props.get("origins") or []:
+        if not origin.get("originAccessControlId"):
+            report("every origin must use origin access control")
+    behaviors = [
+        props.get("defaultCacheBehavior") or {},
+        *(props.get("orderedCacheBehaviors") or []),
+    ]
+    for behavior in behaviors:
+        if behavior.get("viewerProtocolPolicy") not in HTTPS_ONLY:
+            report("every cache behavior must redirect HTTP to HTTPS, or allow HTTPS only")
+
+
 def _not_ruled_out(args: ResourceValidationArgs, report: Report) -> None:
     if args.resource_type.startswith(RULED_OUT):
         report(f"{args.resource_type} is ruled out by spec 05 (no VPC, NAT, RDS, EKS, ECS or EFS)")
@@ -330,6 +348,12 @@ BUDGET_ALERTS = ResourceValidationPolicy(
     enforcement_level=MANDATORY,
 )
 
+CLOUDFRONT_GUARDED = ResourceValidationPolicy(
+    "cloudfront-oac-https",
+    "Every CloudFront origin uses origin access control, and every behavior is HTTPS only.",
+    _for(DISTRIBUTION, _cloudfront_guarded),
+    enforcement_level=MANDATORY,
+)
 POLICIES = [
     S3_PUBLIC_ACCESS_BLOCKED,
     S3_ENCRYPTED,
@@ -342,4 +366,5 @@ POLICIES = [
     IAM_LEAST_PRIVILEGE,
     NO_RULED_OUT_RESOURCES,
     BUDGET_ALERTS,
+    CLOUDFRONT_GUARDED,
 ]

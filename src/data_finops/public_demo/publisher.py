@@ -26,7 +26,7 @@ from typing import Any, get_args
 from pydantic import BaseModel
 
 from data_finops.contracts.billing import CostBasis, FocusBillingLine, FocusChargeCategory
-from data_finops.providers.aws import put_bytes
+from data_finops.providers.aws import WriteConflict, put_bytes, read_versioned_object
 from data_finops.public_demo.workload import WORKGROUP
 from data_finops.reporting import (
     MAX_PAGE_SIZE,
@@ -45,6 +45,9 @@ ACCOUNT_ID = re.compile(r"(?<![0-9a-fA-F.])(?<![0-9a-fA-F]{4}-)\d{12}(?![0-9a-fA
 SHA-256) or of a decimal's fraction, and not the last group of a UUID (`8-4-4-4-12`)."""
 SNAPSHOTS = "snapshots/"
 CURRENT = "current.json"
+MAX_POINTER_BYTES = 4096
+MAX_MOVES = 5
+"""How many times the publisher tries to move `current.json` while other publishers move it."""
 JSON = "application/json"
 KEYS = {
     "summary": "v1/costs/summary/{cost_basis}.json",
@@ -61,6 +64,10 @@ page 0 is always written. `{run}` is the Calculation Run of a Billing Period's s
 the summary names with its scope."""
 
 Clock = Callable[[], datetime]
+
+
+class PointerContended(RuntimeError):
+    """`current.json` kept changing while the publisher tried to move it."""
 
 
 @dataclass(frozen=True)
@@ -157,8 +164,8 @@ def publish(
 ) -> dict[str, Any]:
     """Render the Demo Snapshot, write it under a new prefix, then point `current.json` at it.
     A failed write raises AwsSourceError, and `current.json` keeps the last whole snapshot.
-    The prefix has a random part, so two publishes never share one; that the newest publish
-    is the last to move `current.json` needs one publisher at a time (spec 09, #229)."""
+    The prefix has a random part, so two publishes never share one, and `current.json` moves
+    only forward in time (`moved` says whether this publish moved it)."""
     published_at = clock().astimezone(UTC).replace(microsecond=0)
     files = render(database, published_at=published_at, lines=lines or demo_lines())
     stamp = published_at.strftime("%Y%m%dT%H%M%SZ")
@@ -166,8 +173,34 @@ def publish(
     for file in files:
         put_bytes(s3, bucket, f"{prefix}{file.key}", file.body, content_type=JSON)
     pointer = {"prefix": prefix, "published_at": _time(published_at), "files": len(files)}
-    put_bytes(s3, bucket, CURRENT, json.dumps(pointer).encode("utf-8"), content_type=JSON)
-    return pointer
+    return pointer | {"moved": _move_current(s3, bucket, pointer)}
+
+
+def _move_current(s3: Any, bucket: str, pointer: dict[str, Any]) -> bool:
+    """Point `current.json` at the new snapshot, unless it already names a snapshot published
+    at the same time or later. The write is conditional on the version that was read, so two
+    publishers at once can never move it back (spec 09 §The publisher)."""
+    body = json.dumps(pointer).encode("utf-8")
+    for _ in range(MAX_MOVES):
+        current, etag = _read_current(s3, bucket)
+        if current is not None and str(current.get("published_at", "")) >= pointer["published_at"]:
+            return False
+        try:
+            put_bytes(s3, bucket, CURRENT, body, content_type=JSON, etag=etag)
+            return True
+        except WriteConflict:
+            continue  # another publisher moved it: read it again
+    raise PointerContended(f"{CURRENT} changed {MAX_MOVES} times while it was being moved")
+
+
+def _read_current(s3: Any, bucket: str) -> tuple[dict[str, Any] | None, str | None]:
+    """`current.json` and its ETag, or (None, None) when there is none yet."""
+    found = read_versioned_object(s3, bucket, CURRENT, MAX_POINTER_BYTES)
+    if found is None:
+        return None, None
+    data, etag = found
+    document: dict[str, Any] = json.loads(data)
+    return document, etag
 
 
 def _time(moment: datetime) -> str:

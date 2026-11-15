@@ -11,6 +11,8 @@ from typing import Any
 import pulumi
 import pytest
 from deployment.demo import (
+    CACHING_DISABLED,
+    CACHING_OPTIMIZED,
     DATABASE,
     DATASET_PREFIX,
     RESULTS_PREFIX,
@@ -64,7 +66,8 @@ def test_without_public_demo_there_is_no_demo_resource(tmp_path: Path) -> pulumi
     def check(deployment: Deployment) -> None:
         assert deployment.demo is None
         types = {r.typ for r in MOCKS.resources}
-        assert not types & {WORKGROUP_TYPE, TABLE_TYPE, DATABASE_TYPE}
+        assert not types & {WORKGROUP_TYPE, TABLE_TYPE, DATABASE_TYPE, DISTRIBUTION}
+        assert not types & {"aws:s3/bucketNotification:BucketNotification"}
         assert len(MOCKS.of_type(BUCKET)) == 1
         assert not [f for f in MOCKS.of_type(FUNCTION) if f.name.endswith("generator")]
         assert list(deployment.outputs()) == [k for k in OUTPUTS if k not in DEMO_OUTPUTS]
@@ -303,3 +306,137 @@ def test_old_demo_snapshots_and_query_results_expire(tmp_path: Path) -> pulumi.O
         assert expiring == {"athena-results/": 1, "snapshots/": SNAPSHOT_DAYS}
 
     return _after(tmp_path, check, public_demo=True)
+
+
+DISTRIBUTION = "aws:cloudfront/distribution:Distribution"
+SITE_KEYS = ["index.html", "dashboard.css", "dashboard.js", "static.js", "current.json"]
+
+
+@pulumi.runtime.test
+def test_cloudfront_serves_the_site_over_https_through_origin_access_control(
+    tmp_path: Path,
+) -> pulumi.Output[None]:
+    def check(deployment: Deployment) -> None:
+        distribution = MOCKS.one(DISTRIBUTION).inputs
+        (origin,) = distribution["origins"]
+        oac = MOCKS.one("aws:cloudfront/originAccessControl:OriginAccessControl").inputs
+        assert (oac["originAccessControlOriginType"], oac["signingBehavior"]) == ("s3", "always")
+        assert origin["originAccessControlId"] == "data-finops-demo-id"
+        assert origin["domainName"] == f"{DEMO_BUCKET}.s3.us-east-1.amazonaws.com"
+        behaviors = [distribution["defaultCacheBehavior"], *distribution["orderedCacheBehaviors"]]
+        assert {b["viewerProtocolPolicy"] for b in behaviors} == {"redirect-to-https"}
+        assert {
+            b["pathPattern"]: b["cachePolicyId"] for b in distribution["orderedCacheBehaviors"]
+        } == {
+            "current.json": CACHING_DISABLED,
+            "snapshots/*": CACHING_OPTIMIZED,
+        }
+        assert distribution["defaultRootObject"] == "index.html"
+        # A missing file stays a 403, which the static mode shows as "not in the public
+        # demo" (#228): no custom error response turns it into a page.
+        assert "customErrorResponses" not in distribution
+        assert distribution["viewerCertificate"] == {"cloudfrontDefaultCertificate": True}
+
+    return _after(tmp_path, check, public_demo=True)
+
+
+@pulumi.runtime.test
+def test_cloudfront_may_read_only_the_site_never_the_dataset(tmp_path: Path) -> pulumi.Output[None]:
+    def check(_: Deployment) -> None:
+        (policy,) = [
+            json.loads(p.inputs["policy"])
+            for p in MOCKS.of_type("aws:s3/bucketPolicy:BucketPolicy")
+            if p.name == "data-finops-demo"
+        ]
+        deny, grant = policy["Statement"]
+        assert deny["Effect"] == "Deny" and deny["Condition"] == {
+            "Bool": {"aws:SecureTransport": "false"}
+        }
+        bucket = f"arn:aws:s3:::{DEMO_BUCKET}"
+        assert grant == {
+            "Sid": "CloudFrontReadsTheSite",
+            "Effect": "Allow",
+            "Principal": {"Service": "cloudfront.amazonaws.com"},
+            "Action": "s3:GetObject",
+            "Resource": [f"{bucket}/{key}" for key in SITE_KEYS] + [f"{bucket}/snapshots/*"],
+            "Condition": {
+                "StringEquals": {"AWS:SourceArn": f"arn:mock:{DISTRIBUTION}:data-finops-demo"}
+            },
+        }
+
+    return _after(tmp_path, check, public_demo=True)
+
+
+@pulumi.runtime.test
+def test_the_site_is_the_packaged_dashboard_reading_the_snapshot(
+    tmp_path: Path,
+) -> pulumi.Output[None]:
+    def check(_: Deployment) -> None:
+        objects = {
+            o.inputs["key"]: o.inputs
+            for o in MOCKS.of_type("aws:s3/bucketObjectv2:BucketObjectv2")
+            if o.name.startswith("data-finops-site-")
+        }
+        assert set(objects) == {"index.html", "dashboard.css", "dashboard.js", "static.js"}
+        page = objects["index.html"]
+        assert '<meta name="data-finops-source" content="static">' in page["content"]
+        assert 'content="api"' not in page["content"]
+        assert page["contentType"] == "text/html; charset=utf-8"
+        assert objects["static.js"]["contentType"] == "text/javascript; charset=utf-8"
+
+    return _after(tmp_path, check, public_demo=True)
+
+
+@pulumi.runtime.test
+def test_the_database_object_starts_the_publisher(tmp_path: Path) -> pulumi.Output[None]:
+    def check(deployment: Deployment) -> None:
+        (function,) = [f.inputs for f in MOCKS.of_type(FUNCTION) if f.name.endswith("publisher")]
+        assert function["handler"] == "data_finops.lambda_handlers.publisher"
+        assert function["environment"]["variables"] == {
+            "DATA_FINOPS_BUCKET": DEPLOYMENT_BUCKET,
+            "DATA_FINOPS_DEMO_BUCKET": DEMO_BUCKET,
+        }
+        notification = MOCKS.one("aws:s3/bucketNotification:BucketNotification").inputs
+        assert notification["bucket"] == "data-finops-id"
+        (target,) = notification["lambdaFunctions"]
+        assert target["events"] == ["s3:ObjectCreated:*"]
+        assert target["filterPrefix"] == "database/data-finops.sqlite"
+        assert target["filterSuffix"] == ".sqlite"
+        permission = MOCKS.one("aws:lambda/permission:Permission").inputs
+        assert (permission["principal"], permission["sourceArn"]) == (
+            "s3.amazonaws.com",
+            f"arn:aws:s3:::{DEPLOYMENT_BUCKET}",
+        )
+        assert permission["sourceAccount"] == ACCOUNT
+        demo = f"arn:aws:s3:::{DEMO_BUCKET}"
+        deployment_bucket = f"arn:aws:s3:::{DEPLOYMENT_BUCKET}"
+        assert _role_policy("-publisher") == {
+            "s3:GetObject": [
+                f"{deployment_bucket}/database/data-finops.sqlite",
+                f"{demo}/current.json",
+            ],
+            "s3:ListBucket": [deployment_bucket, demo],
+            "s3:PutObject": [f"{demo}/current.json", f"{demo}/snapshots/*"],
+            "logs:CreateLogStream": [ANY_LOG_GROUP.replace("simulator", "publisher")],
+            "logs:PutLogEvents": [ANY_LOG_GROUP.replace("simulator", "publisher")],
+        }
+        assert list(deployment.outputs()) == list(OUTPUTS)
+
+    return _after(tmp_path, check, public_demo=True)
+
+
+@pulumi.runtime.test
+def test_the_demo_url_is_the_distributions_domain(tmp_path: Path) -> pulumi.Output[None]:
+    def check(deployment: Deployment) -> pulumi.Output[None]:
+        return deployment.outputs()["demoUrl"].apply(
+            lambda url: _equal(url, "https://d111111abcdef8.cloudfront.net/")
+        )
+
+    package = tmp_path / "data-finops-lambda.zip"
+    package.write_bytes(b"PK\x05\x06" + b"\x00" * 18)
+    deployment = build(_settings(public_demo=True), package=package)
+    return deployment.ready.apply(lambda _: check(deployment))
+
+
+def _equal(actual: object, expected: object) -> None:
+    assert actual == expected
