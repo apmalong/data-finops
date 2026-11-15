@@ -75,6 +75,7 @@ Asked with options only. The owner chose each option, so no recommendation was g
 |---|---|---|---|---|
 | Q82 | How the publisher keeps only the demo's lines | **Owner:** a filter of Billing Lines in the read model, which the publisher sets to the demo workgroup's usage lines. The public numbers are the owner's Calculation Run, restricted. The other option was a Calculation Run on a filtered copy of the database | Owner | spec 06 §Which snapshot a read serves, spec 09 §The publisher |
 | Q83 | Whether the publisher's role reads the Cost Dimensions file | **Owner:** no. Each Allocation records whether a dimension is sensitive. The other option was the grant that spec 09 named | Owner | spec 09 §Cost Dimensions |
+| Q84 | Whether the publisher writes the lineage of runs that are not root runs | **Owner:** yes, for each run that published cost reaches (#271). Before, a task or model run opened from a Roll-up or a Cost Explanation showed "not in the public demo" | Owner | spec 09 §The publisher |
 
 ## Facts the decisions rest on
 

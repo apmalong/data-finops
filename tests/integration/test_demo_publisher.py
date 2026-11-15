@@ -52,7 +52,7 @@ DIMENSIONS = CostDimensions.from_mapping(
 BUCKET = "example-demo-bucket"
 
 
-def _fill(path: Path) -> None:
+def _fill(path: Path, events: Path = FIXTURES / "openlineage" / "events.json") -> None:
     """The hand-written fixtures, as `fixture_database.fill` ingests them, in OWNER's account."""
     export = FocusExport.model_validate_json(
         EXPORT.model_dump_json().replace(EXAMPLE_ACCOUNT, OWNER)
@@ -69,7 +69,7 @@ def _fill(path: Path) -> None:
                 region="us-east-1",
                 dimensions=DIMENSIONS,
             )
-        store.ingest_events(FIXTURES / "openlineage" / "events.json")
+        store.ingest_events(events)
         # A DAG run that no published cost reaches: its lineage is not published.
         store.ingest_events(FIXTURES / "reference-workload" / "airflow" / "airflow-events.jsonl")
         store.ingest_dbt_artifact(FIXTURES / "dbt" / "manifest.json")
@@ -120,6 +120,46 @@ def test_only_the_runs_that_published_cost_reaches_are_published(files: dict[str
     assert roots["items"] and UNREACHED not in {run["run_id"] for run in roots["items"]}
     assert roots["total"] == len(roots["items"])
     assert all(UNREACHED not in text for text in files.values())
+
+
+REACHED = {f"00000000-0000-4000-8000-00000000000{n}" for n in range(3)}
+"""The fixture's DAG run, its dbt task run and the dbt-ol model run: q-001's cost reaches each."""
+
+
+def test_each_run_that_published_cost_reaches_has_its_lineage(files: dict[str, str]) -> None:
+    published = {
+        match.group(1)
+        for key in files
+        if (match := re.fullmatch(r"v1/lineage/runs/([^/]+)\.json", key))
+    }
+    assert published == REACHED
+    for run_id in REACHED:
+        assert json.loads(files[f"v1/lineage/runs/{run_id}.json"])["run_id"] == run_id
+    roots = json.loads(files["v1/lineage/page-0.json"])
+    assert [run["run_id"] for run in roots["items"]] == ["00000000-0000-4000-8000-000000000000"]
+
+
+def test_a_run_known_only_as_a_root_is_left_out_not_a_failure(tmp_path: Path) -> None:
+    """The task run's own events never arrived: the DAG run is then named only as the root of
+    the dbt run, and it has no lineage of its own to publish."""
+    task = "00000000-0000-4000-8000-000000000001"
+    kept = [
+        event
+        for event in json.loads((FIXTURES / "openlineage" / "events.json").read_text("utf-8"))
+        if event["run"]["runId"] != task
+    ]
+    events = tmp_path / "events.json"
+    events.write_text(json.dumps(kept), encoding="utf-8")
+    database = tmp_path / "data-finops.sqlite"
+    _fill(database, events)
+
+    files = render(database, published_at=PUBLISHED, lines=DEMO)
+
+    published = {f.key for f in files if f.key.startswith("v1/lineage/runs/")}
+    assert published == {
+        f"v1/lineage/runs/{run_id}.json"
+        for run_id in (task, "00000000-0000-4000-8000-000000000002")
+    }
 
 
 def test_the_demo_lines_are_its_workgroups_usage_only() -> None:
