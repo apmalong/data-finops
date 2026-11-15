@@ -21,6 +21,7 @@ Today, data-finops reads only `node_id` and `invocation_id` from a comment, and 
 - **No retroactive updates (Q72).** Query text is not kept, so a key added later cannot be read from queries already stored. A closed period keeps the dimensions it was calculated with. A period that receives new inputs, such as a later Delivery of the bill, is calculated again with the configuration of that moment.
 - **The M7 sources are** a first-line query comment, OpenLineage tags on the linked Workload Run, and a workgroup map. Comments at the end of a query (dbt on Snowflake, SQLCommenter) wait for a second engine.
 - **The Allocation contract gains a field,** and the schemas and OpenAPI document change with it.
+- **The configuration digest does not cover tag data (Q75).** `dimensions_sha256` records only the configuration. A Calculation Run reads the tags when it runs, and they are not in the input digest. Thus two snapshots with the same digest can group differently if the tags changed between them.
 
 ## Alternatives rejected
 - **New Allocation Targets for teams and tenants:** a second partition of the same money, with Allocation Targets that differ per organization.

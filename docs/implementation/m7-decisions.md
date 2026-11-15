@@ -39,6 +39,14 @@ The owner's brief (2026-11-07): stand data-finops up for real, then show what th
 | Q71 | Its name | **Owner:** not "attribution plane". Named Cost Dimensions | Owner | GLOSSARY, ADR 0031 |
 | Q72 | When a configuration change takes effect | **Owner:** "dimension changes should be applied going forward. no need for retroactive updates" | Owner | ADR 0031, spec 09 §Cost Dimensions |
 
+## Round 2 (2026-11-15, PR #262)
+
+| # | Question | Decision | Source | Recorded in |
+|---|---|---|---|---|
+| Q73 | Which run's tags count for a query (asked with options only) | **Owner:** A. The run of the dbt invocation, which the Evidence of the Allocation names, then its parents up to the root. The per-model run of dbt-ol is not read | Owner | spec 09 §Cost Dimensions |
+| Q74 | Sensitive values in the full API | `/v1/allocations` and `/v1/rollups/dimensions/{name}` show them. "The public form of the dimension route" is part of the Demo Snapshot (#227) | Accepted recommendation | spec 09 §Cost Dimensions |
+| Q75 | What `dimensions_sha256` covers | The configuration only. ADR 0031 says that tag data is not in it | Accepted recommendation | ADR 0031 §Consequences |
+
 ## Facts the decisions rest on
 
 From the research note `docs/research/m7-aws-finops-tools.md`, checked 2026-11-07:
