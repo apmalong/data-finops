@@ -84,7 +84,7 @@ BRITISH = _british()
 TECHNICAL_ING = frozenset({
     "accounting", "billing", "caching", "docstring", "encoding", "engineering", "floating",
     "hashing", "heading", "logging", "mapping", "padding", "pricing", "rounding", "routing",
-    "setting", "staging", "tagging", "versioning", "warning",
+    "setting", "staging", "tagging", "tooling", "versioning", "warning",
 })  # fmt: skip
 """Technical nouns that end in "-ing" (3.5). GLOSSARY terms pass too. Add a word only when it
 is a noun in every use in our documents."""
@@ -263,19 +263,20 @@ def _markdown_lines(text: str, skip_decision: bool) -> Iterator[tuple[int, str]]
                 yield number, ""
                 continue
         end_is_prose = False
+        prose = _CODE_SPAN.sub("CODE", line)  # a marker in a code span is text, not markup
         if number == 1 and _FRONT_MATTER.match(line):
             end = _FRONT_MATTER
         elif fence := _FENCE.match(line):
             mark, length = fence["mark"][0], len(fence["mark"])
             end = re.compile(rf"^ {{0,3}}{re.escape(mark)}{{{length},}}\s*$")
-        elif region := _REGION_START.search(line):
+        elif region := _REGION_START.search(prose):
             end = re.compile(rf"<!--\s*{re.escape(region['name'])}:end\s*-->")
-        elif "<!--" in (line := _COMMENT.sub("", line)):
+        elif "<!--" in (prose := _COMMENT.sub("", prose)):
             end = _COMMENT_END
         elif skip_decision and _DECISION.match(line):
             end, end_is_prose = _DECISION_END, True
         else:
-            yield number, line
+            yield number, prose
             continue
         yield number, ""
 

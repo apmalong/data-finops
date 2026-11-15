@@ -49,3 +49,7 @@ docs/specs/02-data-contracts.md
 docs/specs/03-attribution.md
 docs/specs/04-integrations.md
 docs/specs/05-security-operations.md
+
+# #238 part 2: specs 06-07.
+docs/specs/06-api-and-dashboard.md
+docs/specs/07-documentation-site.md
