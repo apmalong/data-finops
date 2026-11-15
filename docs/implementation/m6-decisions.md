@@ -27,10 +27,10 @@ Code, specs, PRs and the register cite these as "Q<n>". Each was asked with a re
 | Q19 | One bucket: private, owner-enforced, TLS-only, encrypted, versioned, expiring, kept on destroy unless opted in | spec 08 §Topology |
 | Q20 | Cost limits are bounded resources, an optional Budget alert and a kill switch | spec 08 §Cost limits |
 | Q21 | Six mandatory policies, checking literal inputs | spec 08 §Policy pack |
-| Q22 | The pack is validated by unit tests and by `pulumi policy analyze` on mock-generated state, in a new `infra` CI job | spec 08 §Testing |
+| Q22 | The pack is validated by unit tests and by `pulumi policy analyze` on mock-generated state, in a new `infra` CI job | spec 08 §Tests |
 | Q23 | Own uv projects for the stack and the pack; Pulumi SDK and CLI at one release, the newest at least two weeks old; pulumi-aws 7.52.1, as the reference workload; pulumi-policy 1.21.0 | spec 08 §Layout; register |
 | Q24 | One arm64 zip from the checkout, uploaded as an S3 object | spec 08 §Topology |
-| Q25 | The deployed API serves JSON only; the dashboard runs locally on a copy | spec 08 §Reading a Deployment |
+| Q25 | The deployed API serves JSON only; the dashboard runs locally on a copy | spec 08 §Read a Deployment |
 | Q26 | The documentation pages M6 adds | spec 07, spec 08 §Documentation |
 | Q27 | Glossary terms: Deployment, Collection Run, Inbox, Collection Watermark | GLOSSARY.md |
 | Q28 | One summary log line per run; an optional errors alarm; no custom metrics | spec 08 §Collection Run |
@@ -38,7 +38,7 @@ Code, specs, PRs and the register cite these as "Q<n>". Each was asked with a re
 | Q30 | The stack reads an existing FOCUS export | spec 08 §Settings |
 | Q31 | A run attempts every source, calculates, then reports failure | spec 08 §Collection Run |
 | Q32 | `data-finops collect` runs a Collection Run from a laptop | spec 08 §Collection Run |
-| Q33 | The eight test seams | spec 08 §Testing |
+| Q33 | The eight test seams | spec 08 §Tests |
 
 ## Tickets and implementation
 

@@ -1,107 +1,227 @@
 # AWS deployment (M6)
 
-Decided in the M6 design session (2026-11-06); each owner decision is logged in `docs/implementation/m6-decisions.md`. Topology in ADR 0026, ingress in ADR 0027, the deployed Cost Explanation in ADR 0028. Research notes: `docs/research/m6-aws-topology.md`, `m6-openlineage-ingress.md`, `m6-collector-iam.md`, `m6-pulumi-components-policies.md`. Terms (Deployment, Collection Run, Inbox, Collection Watermark) are in GLOSSARY.md.
+Decided in the M6 design session (2026-11-06). Each owner decision is logged in `docs/implementation/m6-decisions.md`. The topology is in ADR 0026, the ingress is in ADR 0027, and the deployed Cost Explanation is in ADR 0028. Research notes: `docs/research/m6-aws-topology.md`, `m6-openlineage-ingress.md`, `m6-collector-iam.md`, `m6-pulumi-components-policies.md`. The terms (Deployment, Collection Run, Inbox, Collection Watermark) are in GLOSSARY.md.
 
 ## Scope
-Reusable, customer-managed Pulumi Python components that deploy data-finops into **one** AWS account holding the FOCUS export bucket, the Athena workgroups and the Deployment. One example stack. Cross-account reads, multi-account aggregation, a hosted dashboard and enterprise auth are out of scope.
+Reusable, customer-managed Pulumi Python components that deploy data-finops into **one** AWS account. That account holds the FOCUS export bucket, the Athena workgroups and the Deployment. There is one example stack. Cross-account reads, multi-account aggregation, a hosted dashboard and enterprise authentication are out of scope.
 
 ## Layout
-- `infra/pulumi/aws/`: its own uv project (Pulumi never enters the `data_finops` wheel, ADR 0009): the components, one example stack, the package build script and their tests. State is a local `file://` backend under `.local/`; the program refuses any other backend (ADR 0001), as the reference workload does.
-- `infra/pulumi/aws/policy/`: the policy pack, its own uv project and environment, because `pulumi-policy` 1.21.0 pins protobuf 5.
-- Pins: the Pulumi SDK and CLI at 3.272.0, the newest release at least two weeks old (build-vs-reuse register), checked by a test against the installed CLI; pulumi-aws 7.52.1 (the reference workload's release, owner Q23, `docs/implementation/m6-decisions.md`); pulumi-policy 1.21.0 (#185, #188).
-- `src/data_finops/providers/aws/`: the AWS collectors, behind a new optional `aws` extra (boto3, pinned). They hand the existing readers what they read today: Delivery files and a BatchGetQueryExecution response.
-- `src/data_finops/collection/`: the Collection Run, a thin orchestrator over `providers.aws`, the ingest functions and `calculation` (architecture-boundaries.md).
-- Lambda handlers are thin entry points over `collection` and `api`, like `cli`.
+- `infra/pulumi/aws/`: its own uv project, with the components, one example stack, the package build script and their tests. Pulumi never goes into the `data_finops` wheel (ADR 0009).
+  - The state is a local `file://` backend in `.local/`. The program refuses all other backends (ADR 0001), as the reference workload does.
+- `infra/pulumi/aws/policy/`: the policy pack. It is its own uv project with its own environment, because `pulumi-policy` 1.21.0 pins protobuf 5.
+- Pins:
+  - the Pulumi SDK and CLI at 3.272.0, the newest release that is at least two weeks old (build-vs-reuse register). A test checks it against the installed CLI.
+  - pulumi-aws 7.52.1, the release of the reference workload (owner Q23, `docs/implementation/m6-decisions.md`)
+  - pulumi-policy 1.21.0 (#185, #188)
+- `src/data_finops/providers/aws/`: the AWS collectors, behind a new optional `aws` extra (boto3, pinned). They give the current readers what these readers read today: Delivery files and a BatchGetQueryExecution response.
+- `src/data_finops/collection/`: the Collection Run. It is a thin orchestrator over `providers.aws`, the ingest functions and `calculation` (architecture-boundaries.md).
+- The Lambda handlers are thin entry points over `collection` and `api`, as `cli` is.
 
 ## Topology (ADR 0026)
-- **Collector function:** the only writer. EventBridge Scheduler starts it (`schedule`, default `cron(0 6 * * ? *)` UTC; at most 2 retries; no flexible window). It downloads the database object to `/tmp`, runs one Collection Run, and uploads with `If-Match` on the downloaded ETag. A 412 fails the run before anything else is written; the next run starts again from the current object. Its handler is `data_finops.lambda_handlers.collector`; its settings come as one environment variable, `DATA_FINOPS_COLLECTOR_SETTINGS`, holding JSON with the `collect` TOML file's keys and validated the same way (#183). The database object is `database/data-finops.sqlite`; the first run writes it with `If-None-Match: *`. Exit codes 0 and 1 return the summary; exit code 2, a write conflict or bad settings raise `CollectionFailed`, so the invocation counts as an error and the scheduler retries it. One `PutObject` holds up to 5 GB; multipart upload is a revisit trigger.
-- **API function:** a Function URL with `AWS_IAM` authorization; read-only. It serves the `/health` and `/v1/*` read endpoints from the current database object, cached in `/tmp` by ETag. The OpenLineage receiver and the static dashboard are not mounted. Cost Explanations use `explanationDetail` (ADR 0028). Its handler is `data_finops.lambda_handlers.api`, serving the app through Mangum 0.22.0 (#184). Each request asks S3 for the object with `If-None-Match` on the cached ETag, so an unchanged database is never downloaded again. Environment: `DATA_FINOPS_BUCKET` and `DATA_FINOPS_EXPLANATION_DETAIL` (default `minimal`).
-- Both functions: Python 3.12, arm64, one zip built from the checkout, each with its own handler. `python -m deployment.package` (in `infra/pulumi/aws`) builds it into `build/data-finops-lambda.zip` before `pulumi up`. It installs the versions in `uv.lock` with their hashes, then the wheel without dependencies (#209). `pulumi up` refuses to run without the zip and uploads it as `lambda/data-finops-lambda.zip`; the zip's SHA-256 redeploys the functions when it changes (#186, #187). Measured 2026-11-07: 66 MB zipped, 173 MB unzipped, under Lambda's 250 MB.
-- **Bucket:** the database object, `inbox/openlineage/`, `inbox/dbt/<invocation>/`, and the Lambda package. All four public access blocks; `BucketOwnerEnforced`; a bucket policy denying requests without TLS (`aws:SecureTransport`); default encryption SSE-S3, or SSE-KMS with Bucket Keys when `kmsKeyArn` is set; versioning on, noncurrent versions expire after `noncurrentVersionDays`; Inbox objects expire after `inboxRetentionDays`.
+
+### Collector function
+The collector is the only writer.
+- EventBridge Scheduler starts it (`schedule`, default `cron(0 6 * * ? *)` UTC). It gets 2 retries at most, and the schedule has no flexible window.
+- It downloads the database object to `/tmp`, runs one Collection Run, and uploads with `If-Match` on the downloaded ETag.
+- A 412 fails the run before anything else is written. The next run starts again from the current object.
+- Its handler is `data_finops.lambda_handlers.collector`.
+- Its settings come in one environment variable, `DATA_FINOPS_COLLECTOR_SETTINGS`. This variable holds JSON with the keys of the `collect` TOML file, and it is validated in the same way (#183).
+- The database object is `database/data-finops.sqlite`. The first run writes it with `If-None-Match: *`.
+- Exit codes 0 and 1 return the summary. Exit code 2, a write conflict or bad settings raise `CollectionFailed`. Thus the invocation counts as an error, and the scheduler retries it.
+- One `PutObject` holds up to 5 GB. Multipart upload is a revisit trigger.
+
+### API function
+- A Function URL with `AWS_IAM` authorization. It is read-only.
+- It serves the `/health` and `/v1/*` read endpoints from the current database object. It keeps the object in `/tmp` by ETag.
+- The OpenLineage receiver and the static dashboard are not mounted.
+- Cost Explanations use `explanationDetail` (ADR 0028).
+- Its handler is `data_finops.lambda_handlers.api`, which serves the app through Mangum 0.22.0 (#184).
+- Each request asks S3 for the object with `If-None-Match` on the cached ETag. Thus an unchanged database is never downloaded again.
+- Environment: `DATA_FINOPS_BUCKET` and `DATA_FINOPS_EXPLANATION_DETAIL` (default `minimal`).
+
+### Both functions
+- Python 3.12, arm64, and one zip built from the checkout. Each function has its own handler.
+- `python -m deployment.package` (in `infra/pulumi/aws`) builds the zip into `build/data-finops-lambda.zip` before `pulumi up`. It installs the versions in `uv.lock` with their hashes, then the wheel without dependencies (#209).
+- `pulumi up` refuses to run without the zip. It uploads the zip as `lambda/data-finops-lambda.zip`. When the SHA-256 of the zip changes, the functions are deployed again (#186, #187).
+- Measured on 2026-11-07: 66 MB zipped, and 173 MB unzipped, which is below the 250 MB limit of Lambda.
+
+### Bucket
+The bucket holds the database object, `inbox/openlineage/`, `inbox/dbt/<invocation>/` and the Lambda package.
+- all four public access blocks
+- `BucketOwnerEnforced`
+- a bucket policy that denies requests without TLS (`aws:SecureTransport`)
+- default encryption SSE-S3, or SSE-KMS with Bucket Keys when `kmsKeyArn` is set
+- versioning on, with noncurrent versions that expire after `noncurrentVersionDays`
+- Inbox objects expire after `inboxRetentionDays`.
 
 ## Collection Run
-1. Sources run in a fixed order: dbt artifacts from the Inbox, OpenLineage events from the Inbox, Athena history, FOCUS Deliveries. Every source is attempted even if an earlier one failed. Then a Calculation Run for each Snapshot Scope, on whatever was stored.
-2. **Deliveries:** list the export's `metadata/` prefix for the `billingLookbackPeriods` most recent Billing Periods (default 2, at least 1). An execution folder with a manifest is a complete Delivery. Follow the observed real layout (lowercase `billing_period=`, `-Manifest-FOCUS.json`), not the AWS docs' spelling. Ingest every Delivery newer than the current Export Snapshot of its Snapshot Scope (the configured account, the period, the export's source), oldest first, so the newest becomes current and the others are kept as Superseded Snapshots (#182), by downloading it to `/tmp` and passing it to the existing FOCUS reader unchanged. A folder without both manifests is still being written and is left for a later run; a folder whose name is not `<CreatedAt>-<executionId>` is warned about and ignored; a Delivery once taken (stored, replayed or rejected) is recorded in the Collection Watermark and never downloaded again (#182). Only the data files the manifest lists are downloaded, and only from that Delivery's folder in the export bucket; a manifest naming any other object is rejected unread (#182). A data file over 2 GiB, or a Delivery over 8 GiB, is rejected before any data is downloaded (#182; unmeasured on a large account, a revisit trigger). The export must use "create new" delivery (ADR 0020 takes `published_at` from the execution folder); an overwrite-mode layout is refused with a reason. No Data Exports API permission.
-3. **Athena history:** for each configured workgroup, page `ListQueryExecutions` up to `maxHistoryPages` (default 200 pages of 50), call `BatchGetQueryExecution` only for IDs not yet stored, and store only finished queries (a `QUEUED` or `RUNNING` one stays unstored, so the next run fetches it again; storing it would make its finished report a flagged changed copy, #181) through the existing #61 allowlist, so `Query`, `ExecutionParameters`, the results location and free text are dropped before storage.
-4. **Inboxes:** process Inbox objects not yet in the Collection Watermark, which keys them by S3 key and ETag, so an overwritten key is collected again (Q40); with the existing caps (1 MiB per event, 512 MiB per file); record each processed object.
-5. **Collection Watermark:** stored in the database: Delivery folders ingested, Athena query IDs stored, Inbox objects processed (by key and ETag). Never a clock time alone.
-6. **Outcome:** rejected items are logged by position or key and reason, never content, and the run still calculates (the CLI's exit code 1 semantics). If any source failed (unreadable, access denied: exit code 2 semantics), the run calculates on what was stored and then ends as failed, so the scheduler retries; replay is idempotent.
-7. **Warnings:** the history page cap was hit; a workgroup's complete, non-empty listing overlaps none of its stored Query Executions, so history may have expired unread (Athena keeps 45 days; detected from the data, not a stored clock, #181); an overwrite-mode layout; a dbt Inbox folder still waiting for one of its files; an unsupported OpenLineage event; Athena IDs BatchGetQueryExecution did not return. Planned but not built: an Inbox key older than `inboxRetentionDays` (the collector is not given the setting; #211).
-8. **Summary:** one structured JSON log line per run: per source, counts stored, duplicate and rejected; the rejections by position or key and reason; the warnings; the Calculation Run IDs, one per Snapshot Scope. No custom metrics.
-9. **`data-finops collect --db PATH --config FILE`** runs the same Collection Run from a laptop with the operator's own AWS profile. The settings file is TOML with the collector's keys. Its exit codes follow the CLI's (0, 1, 2).
+1. The sources run in a fixed order: dbt artifacts from the Inbox, OpenLineage events from the Inbox, Athena history, FOCUS Deliveries.
+   - Each source is tried, even if an earlier one failed.
+   - Then a Calculation Run occurs for each Snapshot Scope, on the data that was stored.
+2. **Deliveries:** list the `metadata/` prefix of the export, for the `billingLookbackPeriods` most recent Billing Periods.
+   - The default is 2, and the minimum is 1.
+   - An execution folder with a manifest is a complete Delivery.
+   - Follow the real layout as it was observed (lowercase `billing_period=`, `-Manifest-FOCUS.json`), not the names in the AWS documentation.
+   - Ingest each Delivery that is newer than the current Export Snapshot of its Snapshot Scope (the configured account, the period, the source of the export), oldest first. Thus the newest becomes current, and the others are kept as Superseded Snapshots (#182).
+   - To ingest a Delivery, download it to `/tmp` and give it to the current FOCUS reader, unchanged.
+   - If a folder does not have both manifests, Data Exports has not finished it yet. It stays for a later run.
+   - A folder whose name is not `<CreatedAt>-<executionId>` gets a warning, and it is ignored.
+   - A Delivery that a run took one time (stored, replayed or rejected) is recorded in the Collection Watermark. It is never downloaded again (#182).
+   - Only the data files that the manifest lists are downloaded, and only from the folder of that Delivery in the export bucket. A manifest that names a different object is rejected, and that object is not read (#182).
+   - A data file over 2 GiB, or a Delivery over 8 GiB, is rejected before any data is downloaded (#182). This is not measured on a large account, and it is a revisit trigger.
+   - The export must use "create new" delivery, because ADR 0020 takes `published_at` from the execution folder. A layout in overwrite mode is refused, with a reason.
+   - There is no Data Exports API permission.
+3. **Athena history:** for each configured workgroup, do these steps:
+   - Page `ListQueryExecutions` up to `maxHistoryPages` (default 200 pages of 50).
+   - Call `BatchGetQueryExecution` only for IDs that are not stored yet.
+   - Store only finished queries, through the current #61 allowlist. Thus `Query`, `ExecutionParameters`, the results location and free text are removed before storage.
+   - A `QUEUED` or `RUNNING` query is not stored, so the next run fetches it again. If it were stored, its finished report would be a changed copy with a flag (#181).
+4. **Inboxes:** process the Inbox objects that are not yet in the Collection Watermark.
+   - The watermark keys them by S3 key and ETag, so an overwritten key is collected again (Q40).
+   - The current limits apply: 1 MiB for each event, and 512 MiB for each file.
+   - Record each processed object.
+5. **Collection Watermark:** it is stored in the database.
+   - It holds the Delivery folders ingested, the Athena query IDs stored, and the Inbox objects processed (by key and ETag).
+   - It is never a clock time alone.
+6. **Outcome:** rejected items are logged by position or key and reason, never by content. The run still calculates.
+   - This is the meaning of exit code 1 of the CLI.
+   - If a source failed (it could not be read, or access was denied: the meaning of exit code 2), the run calculates on the stored data. Then it ends as failed, so the scheduler retries it. Replay is idempotent.
+7. **Warnings:** a run shows a warning in these cases:
+   - The history page limit was reached.
+   - The complete list of a workgroup is not empty, but it overlaps none of its stored Query Executions. Thus history can have expired before a run read it. Athena keeps 45 days. This is detected from the data, not from a stored clock (#181).
+   - The layout is in overwrite mode.
+   - A dbt Inbox folder still waits for one of its files.
+   - An OpenLineage event is not supported.
+   - BatchGetQueryExecution did not return some Athena IDs.
+   - Planned but not built: an Inbox key older than `inboxRetentionDays`. The collector does not get this setting (#211).
+8. **Summary:** one structured JSON log line for each run. It has these items:
+   - for each source, the counts of stored, duplicate and rejected items
+   - the rejections, by position or key and reason
+   - the warnings
+   - the Calculation Run IDs, one for each Snapshot Scope
 
-## Reading a Deployment
-- JSON only, signed with SigV4 by an IAM principal granted `lambda:InvokeFunctionUrl` (for example `curl --aws-sigv4` from curl 7.75, or awscurl). The stack outputs a reader policy for that grant.
-- The dashboard: download the current database object and run `data-finops serve --db` locally.
-- Kill switch: set the API function's reserved concurrency to 0, which deactivates the Function URL.
+   There are no custom metrics.
+9. **`data-finops collect --db PATH --config FILE`** runs the same Collection Run from a laptop, with the AWS profile of the operator.
+   - The settings file is TOML, with the keys of the collector.
+   - Its exit codes follow the CLI (0, 1, 2).
+
+## Read a Deployment
+- JSON only. Each request is signed with SigV4 by an IAM principal that has `lambda:InvokeFunctionUrl`. Examples: `curl --aws-sigv4` from curl 7.75, or awscurl. The stack outputs a reader policy that gives this permission.
+- The dashboard: download the current database object, and run `data-finops serve --db` locally.
+- Kill switch: set the reserved concurrency of the API function to 0. This deactivates the Function URL.
 
 ## IAM
-The research drafts in `docs/research/m6-collector-iam.md` are superseded by the policies `deployment/compute.py` grants. The deploy wizard (#192) validates those, and the bucket policy, with IAM Access Analyzer after `pulumi up`, reading them from the real state; until the owner runs it they stay unvalidated.
-- **Collector role:** `s3:ListBucket` on the export bucket limited by `s3:prefix`; `s3:GetObject` on the export prefix; `athena:ListQueryExecutions` and `BatchGetQueryExecution` on the configured workgroup ARNs only, the only Athena calls the collector makes (#181); `s3:GetObject` and `s3:PutObject` on `database/data-finops.sqlite` only (every write carries `If-Match` or `If-None-Match`, which the code sends; enforcing that in IAM is a revisit trigger), `s3:GetObject` on its own bucket's `inbox/`, and `s3:ListBucket` on its own bucket; its own log group. An explicit deny on `athena:StartQueryExecution`, `StopQueryExecution`, `GetQueryResults` and `GetQueryRuntimeStatistics`. With `kmsKeyArn` set, `kms:Decrypt` and `kms:GenerateDataKey` on that key, which S3 needs to read and write SSE-KMS objects (#187). An SSE-KMS export is not supported yet: whether Data Exports delivers into one is unverified (`docs/research/m6-collector-iam.md`), a revisit trigger.
-- **API role:** `s3:GetObject` on the database object and `s3:ListBucket` on its own bucket; its own log group. Without `s3:ListBucket`, S3 answers a missing object with `AccessDenied`, not `NoSuchKey`, so both roles need it on the Deployment's own bucket for the first run and for an API serving before it (#183, #184). With `kmsKeyArn` set, `kms:Decrypt` on that key (#187).
+The policies that `deployment/compute.py` grants supersede the research drafts in `docs/research/m6-collector-iam.md`. After `pulumi up`, the deploy wizard (#192) validates these policies and the bucket policy with IAM Access Analyzer. It reads them from the real state. Until the owner runs the wizard, they are not validated.
+
+### Collector role
+- `s3:ListBucket` on the export bucket, limited by `s3:prefix`, and `s3:GetObject` on the export prefix.
+- `athena:ListQueryExecutions` and `BatchGetQueryExecution` on the configured workgroup ARNs only. These are the only Athena calls that the collector makes (#181).
+- `s3:GetObject` and `s3:PutObject` on `database/data-finops.sqlite` only. Each write has `If-Match` or `If-None-Match`, which the code sends. To enforce that in IAM is a revisit trigger.
+- `s3:GetObject` on `inbox/` of its own bucket, and `s3:ListBucket` on its own bucket.
+- its own log group
+- An explicit deny on `athena:StartQueryExecution`, `StopQueryExecution`, `GetQueryResults` and `GetQueryRuntimeStatistics`.
+- If `kmsKeyArn` is set, `kms:Decrypt` and `kms:GenerateDataKey` on that key. S3 requires these to read and write SSE-KMS objects (#187).
+- An SSE-KMS export is not supported yet. It is not verified that Data Exports delivers into one (`docs/research/m6-collector-iam.md`). This is a revisit trigger.
+
+### API role
+- `s3:GetObject` on the database object, and `s3:ListBucket` on its own bucket.
+- its own log group
+- Without `s3:ListBucket`, S3 answers a request for an object that does not exist with `AccessDenied`, not `NoSuchKey`. Thus both roles require it on the bucket of the Deployment. The first run requires it, and so does an API that serves before the first run (#183, #184).
+- If `kmsKeyArn` is set, `kms:Decrypt` on that key (#187).
+
+### Other policies
 - **Producer policy** (output): `s3:PutObject` on `inbox/*` only.
-- **Reader policy** (output): `lambda:InvokeFunctionUrl` on the API function (condition `lambda:FunctionUrlAuthType` `AWS_IAM`), and `lambda:InvokeFunction` on it only through the URL (condition `lambda:InvokedViaFunctionUrl`): function URLs created since October 2025 need both (AWS, "Control access to Lambda function URLs", checked 2026-11-07; #187).
-- **Scheduler role:** `lambda:InvokeFunction` on the collector function alone, assumed by EventBridge Scheduler to start the Collection Run (#187).
-- **Deployer:** created by the owner, never by the stack; a draft least-privilege deployer policy is `infra/pulumi/aws/iam/deployer-policy.draft.json`, unvalidated until the deploy wizard's IAM Access Analyzer step (#192).
+- **Reader policy** (output): `lambda:InvokeFunctionUrl` on the API function (condition `lambda:FunctionUrlAuthType` `AWS_IAM`). It also gives `lambda:InvokeFunction` on the API function, but only through the URL (condition `lambda:InvokedViaFunctionUrl`). Function URLs created since October 2025 require both (AWS, "Control access to Lambda function URLs", checked 2026-11-07, #187).
+- **Scheduler role:** `lambda:InvokeFunction` on the collector function only. EventBridge Scheduler assumes this role to start the Collection Run (#187).
+- **Deployer:** the owner creates it, never the stack. A draft deployer policy with least privilege is `infra/pulumi/aws/iam/deployer-policy.draft.json`. It is not validated until the IAM Access Analyzer step of the deploy wizard (#192).
 
 ## Settings
-Required: `aws:region`, `exportBucket`, `exportName`, `workgroups` (a non-empty list; the stack refuses an empty one). `exportPrefix` is optional: empty when the export has no S3 path prefix, as the collector reads it (#185). The collector also needs the account ID (BatchGetQueryExecution does not carry it); the stack passes its own. `data-finops collect`'s TOML file names the same settings in snake case (`account_id`, `workgroups`, `max_history_pages`, …) and adds `bucket`, `region` and an optional `profile` (#181).
+Required: `aws:region`, `exportBucket`, `exportName` and `workgroups`. `workgroups` is a list that must not be empty, and the stack refuses an empty list.
+
+`exportPrefix` is optional. It is empty when the export has no S3 path prefix, as the collector reads it (#185). The collector also requires the account ID, because BatchGetQueryExecution does not give it. The stack gives its own account ID.
+
+The TOML file of `data-finops collect` names the same settings in snake case (`account_id`, `workgroups`, `max_history_pages`, …). It adds `bucket`, `region` and an optional `profile` (#181).
 
 | Setting | Default | Meaning |
 |---|---|---|
-| `billingLookbackPeriods` | 2 | Billing Periods listed each run (1 to 24) |
-| `maxHistoryPages` | 200 | `ListQueryExecutions` pages per workgroup per run (1 to 1000) |
+| `billingLookbackPeriods` | 2 | Billing Periods listed in each run (1 to 24) |
+| `maxHistoryPages` | 200 | `ListQueryExecutions` pages for each workgroup in each run (1 to 1000) |
 | `schedule` | `cron(0 6 * * ? *)` | Collection Run schedule, UTC |
-| `collectorTimeoutSeconds`, `collectorMemoryMb` | 900, 2048 | Collector bounds |
-| `apiTimeoutSeconds`, `apiMemoryMb` | 30, 1024 | API bounds |
-| `apiReservedConcurrency` | unset | Optional cap on the API (new accounts may lack the quota) |
-| `logRetentionDays` | 30 | Both log groups, created by the stack |
+| `collectorTimeoutSeconds`, `collectorMemoryMb` | 900, 2048 | Collector limits |
+| `apiTimeoutSeconds`, `apiMemoryMb` | 30, 1024 | API limits |
+| `apiReservedConcurrency` | unset | An optional limit on the API. New accounts can lack the quota. |
+| `logRetentionDays` | 30 | Both log groups, which the stack creates |
 | `noncurrentVersionDays` | 30 | Expiry of old database object versions |
 | `inboxRetentionDays` | 30 | Expiry of Inbox objects |
-| `kmsKeyArn` | unset | Customer-managed key for the bucket (about $1 a month) |
+| `kmsKeyArn` | unset | A customer-managed key for the bucket (about $1 a month) |
 | `explanationDetail` | `minimal` | Cost Explanation detail (ADR 0028) |
-| `budgetMonthlyUsd`, `budgetEmail` | unset | Optional account-wide AWS Budget alert on forecast and actual spend; both or neither |
-| `alarmEmail` | unset | Optional SNS topic and one alarm on the collector's `Errors` metric |
-| `deleteDataOnDestroy` | false | Whether `destroy` deletes the bucket; by default it is retained |
+| `budgetMonthlyUsd`, `budgetEmail` | unset | An optional AWS Budget alert for the whole account, on forecast and actual spend. Set both or neither. |
+| `alarmEmail` | unset | An optional SNS topic and one alarm on the `Errors` metric of the collector |
+| `deleteDataOnDestroy` | false | Whether `destroy` deletes the bucket. By default, the bucket is kept. |
 
-Outputs: the bucket name, the API URL, the producer and reader policy ARNs, the two function names.
+Outputs: the bucket name, the API URL, the ARNs of the producer and reader policies, and the two function names.
 
 ## Cost limits
-AWS has no hard spending cap, and Budget actions cannot stop Lambda. Cost limits are therefore bounded resources (the timeouts, memory, one daily schedule with bounded retries, log retention, S3 expiries), the optional Budget alert, and the kill switch. The deployment explanation page gives the researched monthly estimates: under $1 at either scale while Lambda's free tier covers it (about $1.20 at the larger scale without it), plus $1 with a customer-managed key.
+AWS has no hard limit on spend, and Budget actions cannot stop Lambda. Thus the cost limits are these:
+- limited resources: the timeouts, the memory, one daily schedule with a limited number of retries, the log retention and the S3 expiries
+- the optional Budget alert
+- the kill switch
+
+The deployment explanation page gives the researched monthly estimates. The cost is less than $1 at the two scales while the Lambda free tier covers it. Without the free tier, it is about $1.20 at the larger scale. A customer-managed key adds $1.
 
 ## Policy pack
-A small custom Python pack (Pulumi's open-source AWS packs are TypeScript only and stale). All mandatory, each checking literal inputs only (an unknown value at preview only yields an advisory):
-1. S3: all four public access blocks; default encryption; a TLS-only bucket policy; versioning on.
-2. Every Function URL is `AWS_IAM`.
-3. Every Lambda function has its log group, `/aws/lambda/<name>`, with retention set, and sets its timeout and memory explicitly within spec 08's bounds (1–900 s, 128–10,240 MB). The pack cannot read the stack's settings, so it checks those bounds, not the configured values (#189).
-4. The collector's and API's IAM policies use only allowlisted actions: no `*` action, nothing that runs queries or reads results; the API role is read-only on the bucket.
+A small custom Python pack. The open-source AWS packs of Pulumi are TypeScript only, and they are stale. All policies are mandatory. Each policy checks only literal inputs. A value that is unknown at preview gives only an advisory.
+1. S3: all four public access blocks, default encryption, a TLS-only bucket policy, and versioning on.
+2. Each Function URL is `AWS_IAM`.
+3. Each Lambda function has its log group, `/aws/lambda/<name>`, with retention set. It sets its timeout and memory explicitly.
+   - The timeout and memory must be in the limits of spec 08 (1–900 s, 128–10,240 MB).
+   - The pack cannot read the settings of the stack. Thus it checks these limits, not the configured values (#189).
+4. The IAM policies of the collector and the API use only allowlisted actions.
+   - No `*` action, and nothing that runs queries or reads results.
+   - The API role is read-only on the bucket.
 5. Stack level: no VPC, subnet, NAT gateway, EIP, RDS, EKS, ECS or EFS resource (spec 05).
-6. A configured Budget alerts on both forecast and actual spend.
+6. A configured Budget sends alerts on both forecast and actual spend.
 
-The policies live in a plain module; only `__main__.py` builds the `PolicyPack`, because constructing it blocks. `pulumi policy analyze` hands resource policies each resource's inputs and stack policies its outputs, so a state written for it carries both (#189).
+The policies are in a plain module. Only `__main__.py` builds the `PolicyPack`, because the construction blocks. `pulumi policy analyze` gives resource policies the inputs of each resource, and stack policies the outputs of the stack. Thus a state written for it has both (#189).
 
-## Testing
-Each seam test-first, with hand-made mutation checks recorded in the PR. No test touches a real account.
-1. **`providers.aws` collectors** through their public functions with botocore's `Stubber`: Delivery discovery on committed fixtures shaped like the real anonymized layout with fake IDs; Athena paging, the cap and unseen-only fetches; `Query` dropped; Inbox listing and caps.
-2. **The Collection Run** on a temporary database with stubbed clients, asserted only through `reporting` and the summary: idempotent replay, partial rejection, one source failing, the conditional upload and the 412 path.
-3. **The Lambda handlers:** `handler(event, context)` with stubs; wiring and exit semantics only.
+## Tests
+Each seam is test-first, with hand-made mutation checks recorded in the PR. No test touches a real account.
+1. **The `providers.aws` collectors**, through their public functions with the `Stubber` of botocore.
+   - Delivery discovery on committed fixtures. These have the shape of the real anonymized layout, with fake IDs.
+   - Athena pages, the page limit, and fetches of only the IDs not seen before
+   - `Query` removed.
+   - the Inbox list and its limits
+2. **The Collection Run** on a temporary database with stubbed clients, asserted only through `reporting` and the summary.
+   - It covers idempotent replay, partial rejection, a failure of one source, the conditional upload and the 412 path.
+3. **The Lambda handlers:** `handler(event, context)` with stubs. Only how they connect the parts, and the exit semantics.
 4. **`data-finops collect`** through `main(argv)`.
-5. **The minimal Cost Explanation** on the existing `reporting` and HTTP seams, with the OpenAPI drift test.
+5. **The minimal Cost Explanation** on the current `reporting` and HTTP seams, with the OpenAPI drift test.
 6. **The Pulumi components under mocks:** resources, settings validation, outputs.
-7. **The policy pack:** (a) unit cases, a passing and a violating one per policy; (b) the stack run under mocks, its recorded resources written as a state file and checked with `pulumi policy analyze --file`: zero violations, and a deliberately non-compliant fixture exits 1.
-8. **The package build:** handler at the zip root, no `__pycache__` or test data, unzipped under 250 MB, and every distribution at its `uv.lock` version.
+7. **The policy pack:**
+   - (a) unit cases: one that passes and one that violates, for each policy.
+   - (b) the stack, run under mocks. Its recorded resources are written as a state file and checked with `pulumi policy analyze --file`. It must have zero violations, and a fixture that is not compliant on purpose must exit with 1.
+8. **The package build:** the handler is at the root of the zip, and there is no `__pycache__` or test data.
+   - The zip is below 250 MB unzipped.
+   - Each distribution is at its `uv.lock` version.
 
-A new CI job, `infra`, installs the pinned Pulumi CLI and runs 6–8; the owner makes it a required check after its first green run.
+A new CI job, `infra`, installs the pinned Pulumi CLI and runs 6–8. The owner makes it a required check after its first green run.
 
 ## Documentation (spec 07)
-- How-to: deploy to AWS; send OpenLineage events and dbt artifacts to the Inbox; read the deployed API and open the dashboard on a local copy; tear down, with the retention choices. Deploy and teardown commands are marked owner-run and are not executed by the page runner.
-- Reference: the stack's settings and outputs, generated from the settings dataclass by `scripts/site`, with a drift test.
+- How-to: deploy to AWS. Send OpenLineage events and dbt artifacts to the Inbox. Read the deployed API, and open the dashboard on a local copy. Tear down, with the retention choices. The deploy and teardown commands are marked owner-run, and the page runner does not run them.
+- Reference: the settings and outputs of the stack. `scripts/site` generates them from the settings dataclass, with a drift test.
 - Explanation: the deployment architecture, with a D2 diagram, the trust boundaries and the cost estimates.
 
 ## Owner-only steps
-Each is a `wizard` script the owner runs; agents never run them.
-- **Deploy and verify** (optional for the exit): dedicated deployer profile; optionally validate the draft policies with IAM Access Analyzer; `pulumi preview --policy-pack`; `pulumi up`; one Collection Run; read it back through the API; record the output in progress.md.
-- **Teardown** (#26 joins M6): `pulumi destroy` of the Deployment and of the reference workload, and a check that nothing from either stack remains.
+Each step is a `wizard` script that the owner runs. Agents never run them.
+- **Deploy and verify** (optional for the exit):
+  - a dedicated deployer profile
+  - as an option, validate the draft policies with IAM Access Analyzer
+  - `pulumi preview --policy-pack`
+  - `pulumi up`
+  - one Collection Run
+  - read the result back through the API
+  - record the output in progress.md
+- **Teardown** (#26 joins M6): `pulumi destroy` of the Deployment and of the reference workload. Then a check that nothing from the two stacks remains.
 
 ## Exit
-Required: tests 6–8 pass offline in CI, and the policy pack rejects the non-compliant fixtures. Optional: the owner's deploy-and-verify wizard, recorded in progress.md only if run. Deployment only with the owner's explicit authorization and credentials.
+Required: tests 6–8 pass offline in CI, and the policy pack rejects the fixtures that are not compliant. Optional: the deploy-and-verify wizard of the owner, recorded in progress.md only if it was run. A deployment occurs only with the explicit authorization and the credentials of the owner.
