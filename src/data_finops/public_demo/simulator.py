@@ -147,7 +147,9 @@ def _plan_attempt(
         status = (
             "success" if position < error_at else "error" if position == error_at else "skipped"
         )
-        sqls = MODELS[name] if status != "error" else (f"select {name}_status from orders",)
+        # The failing statement names a column that does not exist; `name` is one of MODELS.
+        missing = f"select {name}_status from orders"  # nosec B608 (no outside value)
+        sqls = MODELS[name] if status != "error" else (missing,)
         statements = tuple(
             f"-- /* {json.dumps(comment)} */\n{sql.format(tenant=tenant)}" for sql in sqls
         )
