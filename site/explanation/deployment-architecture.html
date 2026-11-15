@@ -27,6 +27,8 @@
 <li><a href="export-snapshots-and-restatements.html">Export Snapshots and restatements</a></li>
 <li><a href="security-model.html">Security model</a></li>
 <li><a href="deployment-architecture.html" aria-current="page">Deployment architecture</a></li>
+<li><a href="public-demo.html">The Public Demo</a></li>
+<li><a href="compared-with-aws-tools.html">Compared with AWS&#x27;s cost tools</a></li>
 <li><a href="decision-records.html">Decision records</a></li>
 </ul>
 </li>
@@ -51,7 +53,8 @@
 <p>A Deployment runs data-finops in one AWS account. It has no servers to operate and no network to manage. This page explains its parts, its trust boundaries and its cost. The decisions are in <a href="https://github.com/apmalong/data-finops/blob/main/docs/adr/0026-aws-deployment-two-lambdas-without-vpc.md">ADR 0026</a>, <a href="https://github.com/apmalong/data-finops/blob/main/docs/adr/0027-deployed-ingress-by-scheduled-pull-from-s3-inboxes.md">ADR 0027</a> and <a href="https://github.com/apmalong/data-finops/blob/main/docs/adr/0028-deployed-cost-explanation-is-minimal-by-default.md">ADR 0028</a>. The design is in <a href="https://github.com/apmalong/data-finops/blob/main/docs/specs/08-aws-deployment.md">spec 08</a>. These documents stay authoritative.</p>
 
 <h2 id="parts">Two functions and one bucket</h2>
-<img src="../assets/explanation/deployment.svg" alt="Inside one AWS account, the Deployment holds EventBridge Scheduler, the two functions and the Deployment bucket. The scheduler invokes the collector function once a day, and Lambda retries a failed run up to twice. The collector, the only writer, reads Deliveries from the FOCUS export bucket, lists and reads Athena query history, reads new keys from the Inbox, and writes the database object with If-Match. The read-only API function reads the database object, cached by ETag. The Inbox and the database are in the Deployment bucket, which is private, TLS only, encrypted and versioned. Also in the account but outside the Deployment, a producer such as Airflow or dbt writes to the Inbox with PutObject only, through the producer policy, and a reader, an IAM principal allowed to invoke the URL, calls the API's Function URL with SigV4-signed HTTPS GET requests." width="3124" height="970">
+<img src="../assets/explanation/deployment.svg" alt="Inside one AWS account, the Deployment holds EventBridge Scheduler, the two functions and the Deployment bucket. The scheduler invokes the collector function once a day, and Lambda retries a failed run up to twice. The collector, the only writer, reads Deliveries from the FOCUS export bucket, lists and reads Athena query history, reads new keys from the Inbox, and writes the database object with If-Match. The read-only API function reads the database object, cached by ETag. The Inbox and the database are in the Deployment bucket, which is private, TLS only, encrypted and versioned. Also in the account but outside the Deployment, a producer such as Airflow or dbt writes to the Inbox with PutObject only, through the producer policy, and a reader, an IAM principal allowed to invoke the URL, calls the API's Function URL with SigV4-signed HTTPS GET requests. With publicDemo, the account also holds the Public Demo: EventBridge Scheduler invokes the simulator function four times a day, with no retries. The simulator runs real queries, with query comments, in the data-finops-demo Athena workgroup, which scans the Parquet dataset under dataset/ in the private demo bucket, and it writes OpenLineage events and dbt artifacts to the Inbox. The generator function, invoked one time, writes the dataset. The collector also lists and reads the history of the demo workgroup. After each Collection Run, an S3 event starts the publisher function, which reads the database object, keeps only the demo's lines, writes a snapshot to the site in the demo bucket and then moves current.json. CloudFront, HTTPS only with origin access control, reads only the site. A visitor outside the account, with no AWS account, sends HTTPS GET requests to CloudFront." width="5558" height="1365">
+<p>The right side of the diagram is the optional Public Demo, which the stack adds when <code>publicDemo</code> is <code>true</code>. <a href="public-demo.html">The Public Demo</a> explains it. This page is about the Deployment itself.</p>
 <p>data-finops keeps all its data in one SQLite file, and only one writer writes to it at a time. A Deployment keeps that design. It does not add a database server:</p>
 <ul>
 <li><strong>The database is one S3 object</strong>, <code>database/data-finops.sqlite</code>, in the Deployment's private bucket.</li>
@@ -113,7 +116,7 @@
 <!-- pager:start -->
 <nav class="pager" aria-label="Previous and next">
 <a rel="prev" href="security-model.html">Previous: Security model</a>
-<a rel="next" href="decision-records.html">Next: Decision records</a>
+<a rel="next" href="public-demo.html">Next: The Public Demo</a>
 </nav>
 <!-- pager:end -->
 </main>

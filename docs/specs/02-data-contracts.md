@@ -38,6 +38,7 @@ Typed Pydantic models in `src/data_finops` are the source of truth for contracts
   - coverage: for metered shares.
   - dimensions: the value and source of each configured Cost Dimension, by name (spec 09, ADR 0031). A value of null is unassigned. Each value also records whether its dimension is sensitive, so that the minimal Cost Explanation can leave it out.
 - `AllocationSnapshot`: calculation_run_id, policy_version, input digest (Export Snapshots and telemetry), created_at, is_current and dimensions_sha256. dimensions_sha256 is the SHA-256 of the Cost Dimensions configuration. It is not part of the input digest (Q72).
+- `DemoSnapshot` (spec 09): the `snapshot.json` of a Demo Snapshot. It has published_at, the Cost Basis (BilledCost), before_credits (always true) and its periods. Each period has its Billing Period, Calculation Run, currency, billed amount and explained share: the share that is not Unallocated, to 4 places, or null when nothing is billed. The other files of a Demo Snapshot have the shapes of the API responses (spec 06).
 
 ## Identity and time
 All timestamps are ISO-8601 UTC. Keep the provider region for API queries. Never equate a dbt `unique_id` with a specific run. Join `invocation_id` and the execution or run context. Give identifiers a namespace across accounts and providers.

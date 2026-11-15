@@ -13,6 +13,7 @@ HOW_TOS = [
     "ingest-dbt-artifacts",
     "receive-openlineage",
     "calculate",
+    "configure-cost-dimensions",
     "handle-restated-export",
     "read-cost-explanation",
     "serve-with-token",

@@ -26,6 +26,7 @@
 <li><a href="receive-openlineage.html">Receive OpenLineage events</a></li>
 <li><a href="send-to-inbox.html">Send workload metadata to the Inbox</a></li>
 <li><a href="calculate.html">Calculate Allocations</a></li>
+<li><a href="configure-cost-dimensions.html">Configure Cost Dimensions</a></li>
 <li><a href="handle-restated-export.html">Handle a restated export</a></li>
 <li><a href="read-cost-explanation.html">Read a Cost Explanation</a></li>
 <li><a href="serve-with-token.html">Serve with a token</a></li>
@@ -53,6 +54,7 @@
 <li><a href="#preview">Check it with the policy pack</a></li>
 <li><a href="#deploy">Deploy</a></li>
 <li><a href="#first-run">Run a first Collection Run</a></li>
+<li><a href="#public-demo">Add the Public Demo (optional)</a></li>
 </ul>
 </nav>
 <!-- onpage:end -->
@@ -93,7 +95,7 @@
 </span><span class="line">uv sync --frozen
 </span><span class="line">uv run python -m deployment.package</span></code></pre>
 </div>
-<p>This command downloads the arm64 wheels from PyPI. Then it writes <code>build/data-finops-lambda.zip</code>, about 66 MB. The versions are the versions in <code>uv.lock</code>. <code>pulumi up</code> refuses to run without the zip. After each change to the checkout, build the zip again. A changed zip deploys both functions again.</p>
+<p>This command downloads the arm64 wheels from PyPI. Then it writes <code>build/data-finops-lambda.zip</code>, about 66 MB. The versions are the versions in <code>uv.lock</code>. <code>pulumi up</code> refuses to run without the zip. After each change to the checkout, build the zip again. A changed zip deploys each function again.</p>
 
 <h2 id="configure">Configure the stack</h2>
 <p>Still in <code>infra/pulumi/aws</code>:</p>
@@ -183,6 +185,31 @@
 <pre class="shell-windows" data-derived=""><code><span class="line">aws logs tail /aws/lambda/&lt;collectorFunction&gt; --since 1h --region &lt;region&gt; --profile &lt;your profile&gt;</span></code></pre>
 </div>
 <p>A run that could not read a source, or that lost a write to a concurrent run, ends as an error. The schedule invokes the collector asynchronously, so Lambda retries a failed run up to twice. Each run starts again from the current database. If a run reads data that is already stored, nothing changes. To read what it collected, see <a href="read-deployment.html">Read a Deployment</a>. To send it OpenLineage events and dbt artifacts, see <a href="send-to-inbox.html">Send workload metadata to the Inbox</a>.</p>
+
+<h2 id="public-demo">Add the Public Demo (optional)</h2>
+<p>The owner of data-finops runs the <a href="../explanation/public-demo.html">Public Demo</a> in a Deployment. You do not need it to use data-finops. It adds a public site on CloudFront and an Athena workgroup with a generated dataset. It also adds a scheduled function that runs real queries in that workgroup. Those queries cost about $1 to $2 a month. The site publishes only the demo workgroup's lines, never the rest of the bill.</p>
+<p>In <code>infra/pulumi/aws</code>, turn the demo on and give it the demo's Cost Dimensions, then deploy again:</p>
+<div class="shell-tabs">
+<pre class="shell-posix"><code><span class="line">pulumi config set publicDemo true
+</span><span class="line">pulumi config set costDimensions ../../../examples/public-demo/cost-dimensions.toml
+</span><span class="line">pulumi up --policy-pack policy</span></code></pre>
+<pre class="shell-windows" data-derived=""><code><span class="line">pulumi config set publicDemo true
+</span><span class="line">pulumi config set costDimensions ../../../examples/public-demo/cost-dimensions.toml
+</span><span class="line">pulumi up --policy-pack policy</span></code></pre>
+</div>
+<p><code>examples/public-demo/cost-dimensions.toml</code> groups cost by the team, the tenant and the Airflow run ID that the Simulated Orchestrator writes in each query comment. As in Airflow, the run ID is the scheduled time, so all the DAGs of one start have the same value. See <a href="configure-cost-dimensions.html">Configure Cost Dimensions</a>. The settings <code>demoSchedule</code> and <code>demoScanCutoffBytes</code> have defaults, which <a href="../reference/deployment-settings.html">Deployment settings</a> gives. The stack adds the demo workgroup to the workgroups whose history the collector reads.</p>
+<p>Write the demo dataset one time. The generator writes some hundred MB of Parquet, and takes some minutes:</p>
+<div class="shell-tabs">
+<pre class="shell-posix"><code><span class="line">aws lambda invoke --function-name &lt;demoGeneratorFunction&gt; --cli-read-timeout 900 --region &lt;region&gt; --profile &lt;your profile&gt; generator-result.json</span></code></pre>
+<pre class="shell-windows" data-derived=""><code><span class="line">aws lambda invoke --function-name &lt;demoGeneratorFunction&gt; --cli-read-timeout 900 --region &lt;region&gt; --profile &lt;your profile&gt; generator-result.json</span></code></pre>
+</div>
+<p>If you invoke it again, it writes the same files. Then run the Simulated Orchestrator one time, so that you do not wait for its schedule. It runs the DAGs that are due now:</p>
+<div class="shell-tabs">
+<pre class="shell-posix"><code><span class="line">aws lambda invoke --function-name &lt;demoSimulatorFunction&gt; --cli-read-timeout 900 --region &lt;region&gt; --profile &lt;your profile&gt; simulator-result.json</span></code></pre>
+<pre class="shell-windows" data-derived=""><code><span class="line">aws lambda invoke --function-name &lt;demoSimulatorFunction&gt; --cli-read-timeout 900 --region &lt;region&gt; --profile &lt;your profile&gt; simulator-result.json</span></code></pre>
+</div>
+<p>The bill of these queries arrives in the FOCUS export some hours later. After the next Collection Run, the publisher writes the first Demo Snapshot. Then open <code>demoUrl</code>. Until the first snapshot, the demo shows nothing.</p>
+<p>To stop the demo, set <code>publicDemo</code> to <code>false</code> and run <code>pulumi up</code>. This deletes the demo's bucket and everything in it, because all of it can be made again. To stop only the queries, disable the simulator's schedule in EventBridge Scheduler.</p>
 <!-- pager:start -->
 <nav class="pager" aria-label="Previous and next">
 <a rel="prev" href="deploy-reference-workload.html">Previous: Deploy the reference workload</a>

@@ -1,0 +1,14 @@
+# The Cost Dimensions of the Public Demo (spec 09). Set the stack's `costDimensions` to this file.
+# The Simulated Orchestrator writes each key in the query comment of each model's queries.
+# No dimension is sensitive: the demo's teams and tenants are fictional, and the Demo Snapshot
+# shows them.
+[dimensions.team]
+sources = ["query_comment.team"]
+
+[dimensions.tenant]
+sources = ["query_comment.tenant_id"]
+
+# Airflow's run ID, `scheduled__<time>`, as Airflow gives it: each DAG that one start runs has
+# the same value, so a value is one scheduled start, not one DAG run.
+[dimensions.airflow_run_id]
+sources = ["query_comment.dag_run_id"]

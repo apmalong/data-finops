@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+<!-- head:start -->
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="../assets/site.css">
+<script src="../assets/site.js" defer></script>
+<!-- head:end -->
+<title>Compared with AWS's cost tools - data-finops</title>
+<meta name="description" content="What data-finops answers that AWS's own cost tools do not, where AWS is better, and how the comparison is made.">
+</head>
+<body>
+<!-- nav:start -->
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="site-header"><a href="../index.html">data-finops</a></header>
+<nav class="site-nav" aria-label="Site">
+<ul>
+<li><a href="../tutorials/index.html">Tutorials</a></li>
+<li><a href="../how-to/index.html">How-to guides</a></li>
+<li><a href="../reference/index.html">Reference</a></li>
+<li><a href="index.html">Explanation</a>
+<ul>
+<li><a href="bill-is-authoritative.html">The bill is authoritative</a></li>
+<li><a href="allocation-and-coverage.html">Allocation and Coverage</a></li>
+<li><a href="identity-links-and-evidence.html">Identity Links and Evidence</a></li>
+<li><a href="export-snapshots-and-restatements.html">Export Snapshots and restatements</a></li>
+<li><a href="security-model.html">Security model</a></li>
+<li><a href="deployment-architecture.html">Deployment architecture</a></li>
+<li><a href="public-demo.html">The Public Demo</a></li>
+<li><a href="compared-with-aws-tools.html" aria-current="page">Compared with AWS&#x27;s cost tools</a></li>
+<li><a href="decision-records.html">Decision records</a></li>
+</ul>
+</li>
+<li><a href="../contributing.html">Contribute to data-finops</a></li>
+</ul>
+</nav>
+<!-- nav:end -->
+<main id="main">
+<h1>Compared with AWS's cost tools</h1>
+<!-- onpage:start -->
+<nav class="on-page" aria-label="On this page">
+<p>On this page</p>
+<ul>
+<li><a href="#questions">The questions</a></li>
+<li><a href="#tools">The tools</a></li>
+<li><a href="#expected">What the documentation says</a></li>
+<li><a href="#aws-better">Where AWS is better</a></li>
+<li><a href="#results">Results</a></li>
+</ul>
+</nav>
+<!-- onpage:end -->
+<p>AWS has its own cost tools. This page compares data-finops with them, for the one question that data-finops answers. What did each query, dbt model and Airflow DAG run cost, reconciled to the bill? It also says where AWS is better. The method is in <a href="https://github.com/apmalong/data-finops/blob/main/docs/specs/09-public-demo.md">spec 09</a>, and the facts about each AWS tool, with their sources, are in the <a href="https://github.com/apmalong/data-finops/blob/main/docs/research/m7-aws-finops-tools.md">research note</a> (checked on 2026-11-07).</p>
+<p class="notice" id="evaluation">The evaluation is not done yet. It starts when the <a href="public-demo.html">Public Demo</a> has run for 7 days (#232). Until then, this page gives the method and what the AWS documentation says. It does not give results.</p>
+
+<h2 id="questions">The questions</h2>
+<p>Each tool gets the same questions, on the same 7 days of the Public Demo:</p>
+<ol>
+<li>What did a dbt model cost last week?</li>
+<li>What did an Airflow DAG run cost?</li>
+<li>Which queries drove the bill of a workgroup?</li>
+<li>How much of the Athena bill is explained, and with what Confidence?</li>
+<li>Does every allocated cent reconcile to the invoice?</li>
+<li>What did each team and each tenant cost, reconciled?</li>
+</ol>
+
+<h2 id="tools">The tools</h2>
+<ul>
+<li><strong>Cost Explorer</strong>, with Cost Categories and tags.</li>
+<li><strong>The query history in the Athena console.</strong></li>
+<li><strong>The FOCUS export, queried with Athena SQL.</strong></li>
+<li><strong>Cloud Intelligence Dashboards</strong>, from their documentation only. They require QuickSight, which costs money each month.</li>
+<li><strong>data-finops</strong>, through the Public Demo and its API.</li>
+</ul>
+<p>For each tool and question, the evaluation records what the tool can answer and at what granularity. It also records how the answer reconciles to the bill, and what the tool costs.</p>
+
+<h2 id="expected">What the documentation says</h2>
+<p>From the AWS documentation, before the evaluation:</p>
+<ul>
+<li><strong>The finest unit is the workgroup.</strong> Athena can tag workgroups, but not queries. Cost Explorer and the FOCUS export thus stop at the workgroup. A cost below the workgroup, for example for a dbt model, must be built from the bill and the query metadata.</li>
+<li><strong>No AWS tool links cost to dbt or Airflow.</strong> The Athena console shows the bytes that each query scanned, but not its cost, and not a reconciliation to the bill. Athena keeps the query history for 45 days.</li>
+</ul>
+<p>data-finops goes further. It splits each Billing Line among the Query Executions in its scope, and rolls them up to Model Executions and Workload Runs through explicit Evidence. Each Allocation states its Confidence and Coverage. Each Billing Line reconciles exactly.</p>
+<p>The evaluation checks each of these statements on the demo.</p>
+
+<h2 id="aws-better">Where AWS is better</h2>
+<ul>
+<li><strong>Breadth.</strong> The AWS tools cover each service: S3, Glue, compute and more. data-finops covers only the cost of Athena queries that are charged by the data that they scan.</li>
+<li><strong>Maturity.</strong> AWS has commitments and discounts (Savings Plans, Reserved Instances), forecasts, anomaly detection, budgets and multi-account views. data-finops has none of these.</li>
+<li><strong>No build.</strong> The AWS tools are already in the account. If one workgroup for each team answers your question, Cost Explorer with workgroup tags can be sufficient.</li>
+</ul>
+<p>Neither data-finops nor AWS splits the cost of Athena provisioned capacity or Athena for Spark among queries.</p>
+
+<h2 id="results">Results</h2>
+<p>The table of results comes here after the 7-day evaluation. The owner reviews it before it is published.</p>
+<!-- pager:start -->
+<nav class="pager" aria-label="Previous and next">
+<a rel="prev" href="public-demo.html">Previous: The Public Demo</a>
+<a rel="next" href="decision-records.html">Next: Decision records</a>
+</nav>
+<!-- pager:end -->
+</main>
+<!-- footer:start -->
+<footer>
+<p>This site describes the <code>main</code> branch. Nothing is released yet. No license has been chosen yet. Source on <a href="https://github.com/apmalong/data-finops">GitHub</a>.</p>
+</footer>
+<!-- footer:end -->
+</body>
+</html>

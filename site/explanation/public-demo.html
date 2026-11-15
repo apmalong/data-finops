@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+<!-- head:start -->
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="../assets/site.css">
+<script src="../assets/site.js" defer></script>
+<!-- head:end -->
+<title>The Public Demo - data-finops</title>
+<meta name="description" content="The Public Demo: a real Deployment with a simulated workload, whose real Athena charges are reconciled to the bill and published as a static snapshot. What is simulated, what is real, and what is public.">
+</head>
+<body>
+<!-- nav:start -->
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="site-header"><a href="../index.html">data-finops</a></header>
+<nav class="site-nav" aria-label="Site">
+<ul>
+<li><a href="../tutorials/index.html">Tutorials</a></li>
+<li><a href="../how-to/index.html">How-to guides</a></li>
+<li><a href="../reference/index.html">Reference</a></li>
+<li><a href="index.html">Explanation</a>
+<ul>
+<li><a href="bill-is-authoritative.html">The bill is authoritative</a></li>
+<li><a href="allocation-and-coverage.html">Allocation and Coverage</a></li>
+<li><a href="identity-links-and-evidence.html">Identity Links and Evidence</a></li>
+<li><a href="export-snapshots-and-restatements.html">Export Snapshots and restatements</a></li>
+<li><a href="security-model.html">Security model</a></li>
+<li><a href="deployment-architecture.html">Deployment architecture</a></li>
+<li><a href="public-demo.html" aria-current="page">The Public Demo</a></li>
+<li><a href="compared-with-aws-tools.html">Compared with AWS&#x27;s cost tools</a></li>
+<li><a href="decision-records.html">Decision records</a></li>
+</ul>
+</li>
+<li><a href="../contributing.html">Contribute to data-finops</a></li>
+</ul>
+</nav>
+<!-- nav:end -->
+<main id="main">
+<h1>The Public Demo</h1>
+<!-- onpage:start -->
+<nav class="on-page" aria-label="On this page">
+<p>On this page</p>
+<ul>
+<li><a href="#real">What is simulated and what is real</a></li>
+<li><a href="#public">What is public</a></li>
+<li><a href="#static">A static snapshot, not a live API</a></li>
+<li><a href="#fresh">How fresh it is</a></li>
+<li><a href="#cost">What it costs</a></li>
+</ul>
+</nav>
+<!-- onpage:end -->
+<p>The Public Demo shows the dashboard of a real Deployment, with data that is about one day old. Anyone can open it, without an account. This page explains what is simulated, what is real, what is public and how it stays fresh. The decisions are in <a href="https://github.com/apmalong/data-finops/blob/main/docs/adr/0029-public-demo-is-a-static-snapshot.md">ADR 0029</a> (the site), <a href="https://github.com/apmalong/data-finops/blob/main/docs/adr/0030-simulated-orchestrator-drives-the-demo.md">ADR 0030</a> (the workload) and <a href="https://github.com/apmalong/data-finops/blob/main/docs/adr/0031-cost-dimensions-are-configured-claims.md">ADR 0031</a> (Cost Dimensions). The design is in <a href="https://github.com/apmalong/data-finops/blob/main/docs/specs/09-public-demo.md">spec 09</a>. These documents stay authoritative.</p>
+<p class="notice" id="open">The Public Demo is not deployed yet. Its address will be on this page when the owner deploys it (#231).</p>
+
+<h2 id="real">What is simulated and what is real</h2>
+<p>Each banner of the demo says the same thing: "Simulated workload; real Athena charges, reconciled to the bill; data trails by about a day; amounts before credits".</p>
+<ul>
+<li><strong>Simulated: the orchestrator.</strong> There is no Airflow and no dbt. A scheduled Lambda function, the <a href="../reference/glossary.html#simulated-orchestrator">Simulated Orchestrator</a>, plays both. Four times each day, it runs the DAGs that are due: <code>daily_orders</code> one time each day, <code>hourly_events</code> at each start and <code>weekly_finance</code> on Mondays. Each DAG has tasks, and each dbt task runs two to five models. Some tasks fail one time and succeed on the second try, and sometimes a run fails completely.</li>
+<li><strong>Simulated: the records.</strong> It writes OpenLineage events and dbt artifacts in the shapes that the Airflow OpenLineage provider, dbt-ol and dbt write. They are made from the real, anonymized records of the reference workload, and they go into the Inbox as a real producer puts them. Tests run them through the same readers as real input.</li>
+<li><strong>Simulated: the data and the people.</strong> The dataset of orders, customers and events is generated. The teams and tenants are fictional.</li>
+<li><strong>Real: the queries.</strong> Each model runs real SQL in a dedicated Athena workgroup, <code>data-finops-demo</code>. The first line of each query is the dbt-athena query comment, with the model's <code>node_id</code>, the run's <code>invocation_id</code>, and the team, tenant and DAG run. A failed model fails as in dbt: Athena fails its query.</li>
+<li><strong>Real: the bill.</strong> Athena charges for the scans. The charges arrive in the account's FOCUS export. A Collection Run then splits each Billing Line exactly among the queries in its scope, as for any other workgroup. The Identity Links to the Model Executions and DAG runs come from the same Evidence as for real dbt.</li>
+</ul>
+<p>The demo thus shows how data-finops works on a real bill. It is not evidence that real Airflow and dbt write these shapes. That evidence is the reference workload (<a href="https://github.com/apmalong/data-finops/blob/main/docs/adr/0021-reference-workload-for-real-validation.md">ADR 0021</a>).</p>
+
+<h2 id="public">What is public</h2>
+<p>The Deployment collects the FOCUS export of the whole account. Only the demo's part of it is published:</p>
+<ul>
+<li>Only the Athena usage lines of the <code>data-finops-demo</code> workgroup, and what comes from them: their Allocations, Roll-ups, Cost Dimensions, lineage and Cost Explanations. A Snapshot Scope with none of these lines is not published.</li>
+<li>Credit lines have no workgroup, so they are not published. The amounts are before credits.</li>
+<li>Each 12-digit account ID becomes the example account, <code>123456789012</code>.</li>
+<li>Each Cost Explanation is the minimal one (<a href="https://github.com/apmalong/data-finops/blob/main/docs/adr/0028-deployed-cost-explanation-is-minimal-by-default.md">ADR 0028</a>). A Cost Dimension marked <code>sensitive</code> is not published.</li>
+<li>Only the current and the previous Billing Periods are published.</li>
+</ul>
+<p>The rest of the owner's bill is never published.</p>
+
+<h2 id="static">A static snapshot, not a live API</h2>
+<p>A Deployment's API is private: IAM authorizes each request, and a browser cannot sign one. A public live API would put compute and the whole bill on the open internet. Thus the demo publishes files, and nothing public computes anything:</p>
+<ol>
+<li>The collector writes the database object after each Collection Run.</li>
+<li>S3 starts the publisher. It reads the database with the same read model as the API. It writes each answer that the dashboard can ask for as a JSON file, in the shape of the API. This set of files is a <a href="../reference/glossary.html#demo-snapshot">Demo Snapshot</a>.</li>
+<li>The publisher writes each snapshot under a new prefix, then moves <code>current.json</code> to it. Thus a reader never sees half a snapshot. <code>current.json</code> moves only forward in time, so an older snapshot never replaces a newer one.</li>
+<li>CloudFront serves the dashboard's files and the snapshots from a private bucket. It redirects HTTP to HTTPS.</li>
+</ol>
+<img src="../assets/explanation/deployment.svg" alt="Inside one AWS account, the Deployment holds EventBridge Scheduler, the two functions and the Deployment bucket. The scheduler invokes the collector function once a day, and Lambda retries a failed run up to twice. The collector, the only writer, reads Deliveries from the FOCUS export bucket, lists and reads Athena query history, reads new keys from the Inbox, and writes the database object with If-Match. The read-only API function reads the database object, cached by ETag. The Inbox and the database are in the Deployment bucket, which is private, TLS only, encrypted and versioned. Also in the account but outside the Deployment, a producer such as Airflow or dbt writes to the Inbox with PutObject only, through the producer policy, and a reader, an IAM principal allowed to invoke the URL, calls the API's Function URL with SigV4-signed HTTPS GET requests. With publicDemo, the account also holds the Public Demo: EventBridge Scheduler invokes the simulator function four times a day, with no retries. The simulator runs real queries, with query comments, in the data-finops-demo Athena workgroup, which scans the Parquet dataset under dataset/ in the private demo bucket, and it writes OpenLineage events and dbt artifacts to the Inbox. The generator function, invoked one time, writes the dataset. The collector also lists and reads the history of the demo workgroup. After each Collection Run, an S3 event starts the publisher function, which reads the database object, keeps only the demo's lines, writes a snapshot to the site in the demo bucket and then moves current.json. CloudFront, HTTPS only with origin access control, reads only the site. A visitor outside the account, with no AWS account, sends HTTPS GET requests to CloudFront." width="5558" height="1365">
+<p>The dashboard is the same dashboard that <code>data-finops serve</code> shows. On the demo, it reads the snapshot's files instead of the API. A view that the snapshot does not cover shows "not in the public demo". For example, the lineage of a Workload Run that is not a root run is not published.</p>
+
+<h2 id="fresh">How fresh it is</h2>
+<ul>
+<li>The collector runs one time each day. The demo is as fresh as its last run.</li>
+<li>AWS delivers the bill some hours after the usage. The newest queries are not published until their Billing Line arrives. Thus the demo trails by about a day.</li>
+<li>The banner shows when the snapshot was published, and the Calculation Run of the Billing Period that the dashboard shows.</li>
+<li>S3 deletes each snapshot after 30 days. If no snapshot is published for 30 days, the demo shows nothing.</li>
+</ul>
+
+<h2 id="cost">What it costs</h2>
+<p>The target is about $3 a month or less. Athena costs about $1 to $2, because each query scans from less than 10 MB to some hundred MB. CloudFront, S3, Lambda, EventBridge and Glue stay in their free tiers at the traffic of a demo. A $10 Budget alert stays on. The real cost of one month is recorded when the demo has run for a month.</p>
+<p>To stop the demo, set <code>publicDemo</code> to <code>false</code> and run <code>pulumi up</code>. This removes the demo and its bucket. To stop only the queries, disable the schedule of the simulator. See <a href="../how-to/deploy-to-aws.html#public-demo">Deploy to AWS</a>.</p>
+<!-- pager:start -->
+<nav class="pager" aria-label="Previous and next">
+<a rel="prev" href="deployment-architecture.html">Previous: Deployment architecture</a>
+<a rel="next" href="compared-with-aws-tools.html">Next: Compared with AWS&#x27;s cost tools</a>
+</nav>
+<!-- pager:end -->
+</main>
+<!-- footer:start -->
+<footer>
+<p>This site describes the <code>main</code> branch. Nothing is released yet. No license has been chosen yet. Source on <a href="https://github.com/apmalong/data-finops">GitHub</a>.</p>
+</footer>
+<!-- footer:end -->
+</body>
+</html>

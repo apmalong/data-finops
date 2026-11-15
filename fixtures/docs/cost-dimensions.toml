@@ -1,0 +1,7 @@
+# The Cost Dimensions of the how-to "Configure Cost Dimensions" (site/how-to/).
+[dimensions.team]
+sources = ["query_comment.team", "workgroup_map"]
+workgroup_map = { "demo" = "analytics" }
+
+[dimensions.environment]
+sources = ["query_comment.target_name"]

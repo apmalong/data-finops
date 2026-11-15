@@ -1,4 +1,5 @@
-# The AWS Deployment: who reaches what, and across which boundary (spec 08, ADRs 0026-0028).
+# The AWS Deployment: who reaches what, and across which boundary (spec 08, ADRs 0026-0028),
+# with the optional public demo (spec 09, ADRs 0029-0030).
 # Render: d2 --layout elk docs/architecture/deployment.d2 site/assets/explanation/deployment.svg
 direction: right
 
@@ -34,6 +35,34 @@ account: "One AWS account" {
     collector <- bucket.inbox: "reads new keys"
   }
 
+  demo: "Public demo (publicDemo)" {
+    class: boundary
+
+    demo_scheduler: "EventBridge Scheduler\nfour times a day, UTC" {class: part}
+    simulator: "Simulator function\nthe simulated orchestrator\nno retries" {class: part}
+    generator: "Generator function\ninvoked one time" {class: part}
+    publisher: "Publisher function\nafter each Collection Run" {class: part}
+    workgroup: "Athena workgroup\ndata-finops-demo\nscan cutoff per query" {class: part}
+    cdn: "CloudFront\nHTTPS only\norigin access control" {class: part}
+
+    demo_bucket: "Demo bucket\nprivate, TLS only, encrypted" {
+      class: boundary
+      dataset: "dataset/\nParquet, Glue tables" {class: store}
+      site: "the site\ndashboard files\ncurrent.json, snapshots/" {class: store}
+    }
+
+    demo_scheduler -> simulator: "invokes"
+    simulator -> workgroup: "real queries,\nwith query comments"
+    workgroup <- demo_bucket.dataset: "scans"
+    generator -> demo_bucket.dataset: "writes"
+    publisher -> demo_bucket.site: "writes a snapshot,\nthen moves current.json"
+    cdn <- demo_bucket.site: "reads only the site"
+  }
+
+  demo.simulator -> deployment.bucket.inbox: "OpenLineage events,\ndbt artifacts"
+  deployment.bucket.database -> demo.publisher: "S3 event; reads\nonly the demo's lines"
+  deployment.collector <- demo.workgroup: "lists and reads history"
+
   export: "FOCUS export bucket" {class: store}
   athena: "Athena workgroups\nquery history" {class: part}
 
@@ -42,3 +71,7 @@ account: "One AWS account" {
   producer -> deployment.bucket.inbox: "PutObject only"
   reader -> deployment.api: "HTTPS, SigV4-signed GET"
 }
+
+visitor: "Visitor\nanyone, no account" {class: outside}
+
+visitor -> account.demo.cdn: "HTTPS GET"

@@ -31,13 +31,20 @@ Spec 08 decided these points for M6:
 - a read-only API behind IAM
 - the dashboard used locally
 
+Spec 09 adds the Public Demo (ADR 0029), an optional part of a Deployment (`publicDemo`). It is the only public surface of data-finops:
+- CloudFront serves static files from a private bucket, and redirects HTTP to HTTPS, through origin access control. Nothing public computes anything, and there is no public API.
+- The files are a Demo Snapshot: only the Athena usage lines of the demo workgroup and what comes from them. Each 12-digit account ID becomes `123456789012`. Each Cost Explanation is the minimal one (ADR 0028). Sensitive Cost Dimensions and credit lines are left out.
+- CloudFront can read only the site's files in the bucket, never the dataset or the Athena results.
+- The Simulated Orchestrator is the only data-finops identity that can start queries. It can start them only in the demo workgroup, which has a scan cutoff for each query.
+- The cost limits are the Budget alert ($10 in the owner's Deployment) and two kill switches: `publicDemo` set to `false`, or the simulator's schedule disabled.
+
 ## IAM
 Keep the deployer identity separate from the collector identity.
 - Billing export bucket: read only, scoped to the path.
 - Athena query history: read and list only, where the APIs permit it.
 - CloudWatch: read only, optional.
 
-No data-finops identity has permission to run arbitrary customer queries, to change data or to remediate automatically. Document the AWS API actions after validation. Do not invent ARNs or permissions.
+No data-finops identity has permission to run arbitrary customer queries (the demo's simulator runs only its own queries, in its own workgroup), to change data or to remediate automatically. Document the AWS API actions after validation. Do not invent ARNs or permissions.
 
 ## Threat model
 Risks:

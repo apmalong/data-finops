@@ -8,7 +8,9 @@ Status (2026-11-07): **M0–M6 complete.**
   - a local API and dashboard
   - read-only collection from AWS (`data-finops collect`)
   - an optional AWS Deployment in Pulumi, with a policy pack and owner-run deploy and teardown wizards (`infra/pulumi/aws/`). It is not deployed to a real account yet.
-- **In progress, M7 (#220):** a public demo dashboard, Cost Dimensions, and a comparison with AWS's own cost tools. Spec 09 gives the design. It is not built yet.
+- **In progress, M7 (#220):** a Public Demo dashboard, Cost Dimensions, and a comparison with AWS's own cost tools. Spec 09 gives the design.
+  - Built: Cost Dimensions, and the parts of the Public Demo: the dataset generator, the Simulated Orchestrator, the publisher, the dashboard's static mode and the CloudFront site.
+  - Not done yet: the deploy of the Public Demo, and the 7-day comparison.
 - **Not built yet:** a PyPI package.
 
 Version 0.1.
@@ -24,6 +26,9 @@ uv run data-finops demo        # open http://127.0.0.1:8000/
 ```
 
 The tutorial [Your first allocation](https://apmalong.github.io/data-finops/tutorials/first-allocation.html) explains what you see, with one step and one command at a time. `uv run data-finops --help` lists the commands.
+
+## Public Demo
+[The Public Demo](https://apmalong.github.io/data-finops/explanation/public-demo.html) shows the dashboard of a real Deployment. Its workload is simulated, but its Athena charges are real and reconciled to the bill. The page gives the address of the demo when it is deployed, and explains what is simulated, what is real and what is public. [Compared with AWS's cost tools](https://apmalong.github.io/data-finops/explanation/compared-with-aws-tools.html) says what data-finops answers that the AWS tools do not, and where AWS is better.
 
 ## Documentation
 The documentation for people who run data-finops is at <https://apmalong.github.io/data-finops/>. It has tutorials, how-to guides, reference and explanation. After each push to `main`, a GitHub Actions workflow publishes it from `site/` (ADR 0025, spec 07).

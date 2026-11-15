@@ -102,3 +102,8 @@ site/explanation/decision-records.html
 
 # #237: GLOSSARY.md, the source of the glossary page. The generated reference regions are now checked in the five reference pages above.
 GLOSSARY.md
+
+# #230: the M7 pages.
+site/how-to/configure-cost-dimensions.html
+site/explanation/public-demo.html
+site/explanation/compared-with-aws-tools.html
