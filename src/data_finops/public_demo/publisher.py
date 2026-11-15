@@ -34,6 +34,7 @@ from data_finops.reporting import (
     BillingLineDetail,
     CostSummaries,
     LineFilter,
+    NotFound,
     Reporting,
     RollupLevel,
     without_sensitive_dimensions,
@@ -264,9 +265,25 @@ def _public_dimensions(pages: list[AllocationPage]) -> list[str]:
 
 
 def _lineage(read_model: Reporting, reached: set[str]) -> list[PublishedFile]:
-    """The topmost Workload Runs that published cost reaches, and the lineage of each."""
+    """The lineage of each Workload Run that published cost reaches, at any depth, so that a
+    task run or a model run opens from a Roll-up or a Cost Explanation; then the root runs
+    among them. A run known only as the root of a different run has no lineage: it is in
+    neither, and the dashboard says that it is not in the public demo."""
+    files, published = [], set()
+    for run_id in sorted(reached):
+        try:
+            lineage = read_model.lineage(run_id)
+        except NotFound:
+            continue
+        files.append(_file(KEYS["lineage"].format(run_id=run_id), lineage))
+        published.add(run_id)
+    return _root_pages(read_model, published) + files
+
+
+def _root_pages(read_model: Reporting, published: set[str]) -> list[PublishedFile]:
+    """The pages of the root runs whose lineage is published."""
     pages = list(_pages(partial(read_model.root_runs, limit=MAX_PAGE_SIZE)))
-    roots = [run for _, page in pages for run in page.items if run.run_id in reached]
+    roots = [run for _, page in pages for run in page.items if run.run_id in published]
     template = pages[0][1]
     files = []
     for n in range(max(1, -(-len(roots) // MAX_PAGE_SIZE))):
@@ -279,9 +296,6 @@ def _lineage(read_model: Reporting, reached: set[str]) -> list[PublishedFile]:
             }
         )
         files.append(_file(KEYS["roots"].format(page=n), shown))
-    for run in roots:
-        lineage = read_model.lineage(run.run_id)
-        files.append(_file(KEYS["lineage"].format(run_id=run.run_id), lineage))
     return files
 
 

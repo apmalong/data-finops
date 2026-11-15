@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from test_demo_publisher import DEMO, PUBLISHED, UNREACHED, _fill
+from test_demo_publisher import DEMO, PUBLISHED, TASK_RUN, UNREACHED, _fill
 
 from data_finops.public_demo.publisher import masked, render
 from data_finops.reporting import BillingLineDetail, CostSummaries, Reporting
@@ -128,6 +128,26 @@ def test_every_read_the_dashboard_makes_resolves_as_the_api_answers(
     assert answers == [{"ok": _expected(e)} for e in expected]
 
 
+def test_each_run_that_cost_reaches_opens_as_the_api_answers(site: tuple[Path, Path]) -> None:
+    """A task or model run opens from a Roll-up and from a Cost Explanation (#271)."""
+    database, root = site
+    _, run = _scope_and_run(database)
+    with Reporting(database, lines=DEMO) as api:
+        rollups = api.rollups(level="workload_run", calculation_run_id=run, limit=1000).items
+        direct = next(
+            e
+            for e in api.allocations(calculation_run_id=run, limit=1000).items
+            if e.allocation.category == "direct"
+        )
+        explained = api.explanation(direct.ref, detail=BillingLineDetail.MINIMAL)
+        evidence = [r.run_id for r in explained.workload_runs if r is not None]
+        runs = sorted({entry.key for entry in rollups} | set(evidence))
+        expected = [api.lineage(run_id) for run_id in runs]
+    assert TASK_RUN in runs  # not a root run
+    answers = _run(root, [{"path": "/v1/lineage", "params": {"run_id": r}} for r in runs])
+    assert answers == [{"ok": _expected(e)} for e in expected]
+
+
 def test_allocation_reads_are_filtered_and_paged_as_the_api_does(site: tuple[Path, Path]) -> None:
     database, root = site
     scope, run = _scope_and_run(database)
@@ -171,11 +191,12 @@ def test_what_the_snapshot_does_not_cover_is_not_in_the_public_demo(
     with Reporting(database, lines=DEMO) as api:
         published = {e.ref for e in api.allocations(calculation_run_id=run, limit=1000).items}
     left_out = next(e.ref for e in everything if e.ref not in published)
-    task_run = "00000000-0000-4000-8000-000000000001"  # reached by cost, but not a root run
+    unreached_task = "01a19dd8-4a8c-7abf-9e93-25adbcb5d081"  # the reference DAG run's task
     calls = [
         {"path": "/v1/rollups/dimensions/profile", "params": scope},  # a sensitive dimension
         {"path": f"/v1/allocations/{left_out.replace('#', '%23')}/explanation"},
-        {"path": "/v1/lineage", "params": {"run_id": task_run}},
+        {"path": "/v1/lineage", "params": {"run_id": UNREACHED}},  # no published cost reaches it
+        {"path": "/v1/lineage", "params": {"run_id": unreached_task}},
         {"path": "/v1/allocations", "params": {**scope, "billing_period": "2026-09-01"}},
         {"path": "/v1/reconciliation", "params": scope},
         # A path out of the snapshot, to the site's own current.json, is never followed.
