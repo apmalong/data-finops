@@ -122,8 +122,12 @@ def test_only_the_runs_that_published_cost_reaches_are_published(files: dict[str
     assert all(UNREACHED not in text for text in files.values())
 
 
-REACHED = {f"00000000-0000-4000-8000-00000000000{n}" for n in range(3)}
-"""The fixture's DAG run, its dbt task run and the dbt-ol model run: q-001's cost reaches each."""
+DAG_RUN = "00000000-0000-4000-8000-000000000000"
+TASK_RUN = "00000000-0000-4000-8000-000000000001"
+"""The fixture's dbt task run: q-001's cost reaches it, and it is not a root run."""
+DBT_RUN = "00000000-0000-4000-8000-000000000002"
+REACHED = {DAG_RUN, TASK_RUN, DBT_RUN}
+"""The fixture's DAG run, its dbt task run and the dbt run under it: q-001's cost reaches each."""
 
 
 def test_each_run_that_published_cost_reaches_has_its_lineage(files: dict[str, str]) -> None:
@@ -136,30 +140,28 @@ def test_each_run_that_published_cost_reaches_has_its_lineage(files: dict[str, s
     for run_id in REACHED:
         assert json.loads(files[f"v1/lineage/runs/{run_id}.json"])["run_id"] == run_id
     roots = json.loads(files["v1/lineage/page-0.json"])
-    assert [run["run_id"] for run in roots["items"]] == ["00000000-0000-4000-8000-000000000000"]
+    assert [run["run_id"] for run in roots["items"]] == [DAG_RUN]
 
 
 def test_a_run_known_only_as_a_root_is_left_out_not_a_failure(tmp_path: Path) -> None:
     """The task run's own events never arrived: the DAG run is then named only as the root of
-    the dbt run, and it has no lineage of its own to publish."""
-    task = "00000000-0000-4000-8000-000000000001"
+    the dbt run, and it has no lineage of its own to publish, so it is not listed either."""
     kept = [
         event
         for event in json.loads((FIXTURES / "openlineage" / "events.json").read_text("utf-8"))
-        if event["run"]["runId"] != task
+        if event["run"]["runId"] != TASK_RUN
     ]
     events = tmp_path / "events.json"
     events.write_text(json.dumps(kept), encoding="utf-8")
     database = tmp_path / "data-finops.sqlite"
     _fill(database, events)
 
-    files = render(database, published_at=PUBLISHED, lines=DEMO)
+    files = {f.key: f.body for f in render(database, published_at=PUBLISHED, lines=DEMO)}
 
-    published = {f.key for f in files if f.key.startswith("v1/lineage/runs/")}
-    assert published == {
-        f"v1/lineage/runs/{run_id}.json"
-        for run_id in (task, "00000000-0000-4000-8000-000000000002")
-    }
+    published = {key for key in files if key.startswith("v1/lineage/runs/")}
+    assert published == {f"v1/lineage/runs/{run_id}.json" for run_id in (TASK_RUN, DBT_RUN)}
+    roots = json.loads(files["v1/lineage/page-0.json"])
+    assert (roots["total"], roots["items"]) == (0, [])
 
 
 def test_the_demo_lines_are_its_workgroups_usage_only() -> None:

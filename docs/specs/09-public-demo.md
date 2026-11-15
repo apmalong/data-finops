@@ -99,8 +99,8 @@ The Deployment must not contain code that is not vetted. These tickets go first:
   - the Cost Summary, one file for each Cost Basis
   - the Allocation pages, without sensitive Cost Dimensions
   - the Roll-ups by kind
-  - the Workload Run list: the root runs that published cost reaches
-  - the lineage of each run that published cost reaches, at any depth: a task run or a model run too (#271, Q84). A run known only as the root of a different run has no lineage, and is not published.
+  - the lineage of each run that published cost reaches, at any depth: a task run or a model run too (#271, Q84). A run known only as the root of a different run has no lineage, so it is not published.
+  - the Workload Run list: the root runs whose lineage is published
   - the Roll-ups by each Cost Dimension that is not sensitive
   - the minimal Cost Explanation of each published Allocation
 

@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from test_demo_publisher import DEMO, PUBLISHED, UNREACHED, _fill
+from test_demo_publisher import DEMO, PUBLISHED, TASK_RUN, UNREACHED, _fill
 
 from data_finops.public_demo.publisher import masked, render
 from data_finops.reporting import BillingLineDetail, CostSummaries, Reporting
@@ -143,7 +143,7 @@ def test_each_run_that_cost_reaches_opens_as_the_api_answers(site: tuple[Path, P
         evidence = [r.run_id for r in explained.workload_runs if r is not None]
         runs = sorted({entry.key for entry in rollups} | set(evidence))
         expected = [api.lineage(run_id) for run_id in runs]
-    assert "00000000-0000-4000-8000-000000000001" in runs  # the dbt task run, not a root
+    assert TASK_RUN in runs  # not a root run
     answers = _run(root, [{"path": "/v1/lineage", "params": {"run_id": r}} for r in runs])
     assert answers == [{"ok": _expected(e)} for e in expected]
 
