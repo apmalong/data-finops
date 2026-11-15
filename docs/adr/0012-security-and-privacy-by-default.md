@@ -9,7 +9,7 @@ The FinOps tool must remain lightweight, auditable, portable and safe for custom
 Private ingestion, least privilege, metadata minimization, bounded payloads, no exported SQL literals or credentials.
 
 ## Consequences
-May reduce observability granularity unless opt-in.
+This can reduce observability granularity, unless the operator opts in.
 
 ## Alternatives and revisit triggers
-Revisit if measured integration cost, scale, license obligations, or customer requirements make this choice unsuitable. Record a superseding ADR.
+Revisit if measured integration cost, scale, license obligations, or customer requirements make this choice unsuitable. Record a new ADR that supersedes this one.

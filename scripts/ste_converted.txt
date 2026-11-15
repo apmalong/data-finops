@@ -62,3 +62,21 @@ docs/specs/09-public-demo.md
 AGENTS.md
 docs/architecture/README.md
 docs/implementation/architecture-boundaries.md
+
+# #239 part 2: ADRs 0001-0016, outside their Decision sections (the checker skips those).
+docs/adr/0001-customer-managed-and-open-source.md
+docs/adr/0002-python-core-and-pulumi-python.md
+docs/adr/0003-authoritative-billing-ledger.md
+docs/adr/0004-openlineage-protocol-and-optional-otel.md
+docs/adr/0005-no-default-elementary-dependency.md
+docs/adr/0006-explicit-identity-evidence.md
+docs/adr/0007-deterministic-cost-allocation.md
+docs/adr/0008-selective-third-party-reuse.md
+docs/adr/0009-small-default-runtime.md
+docs/adr/0010-read-only-recommendations.md
+docs/adr/0011-extensible-adapter-contracts.md
+docs/adr/0012-security-and-privacy-by-default.md
+docs/adr/0013-reproducible-local-bootstrap.md
+docs/adr/0014-standards-first-and-build-vs-reuse.md
+docs/adr/0015-focus-billing-lines-and-export-snapshots.md
+docs/adr/0016-allocate-to-query-executions-with-roll-ups.md

@@ -12,4 +12,4 @@ Use local DuckDB/SQLite and FastAPI/static HTML for MVP. (Narrowed by ADR 0018: 
 Avoid mandatory Kubernetes, Postgres, Marquez, OpenCost.
 
 ## Alternatives and revisit triggers
-Revisit if measured integration cost, scale, license obligations, or customer requirements make this choice unsuitable. Record a superseding ADR.
+Revisit if measured integration cost, scale, license obligations, or customer requirements make this choice unsuitable. Record a new ADR that supersedes this one.

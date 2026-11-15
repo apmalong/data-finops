@@ -9,7 +9,7 @@ The FinOps tool must remain lightweight, auditable, portable and safe for custom
 Require exact provider query IDs or trusted correlation metadata for direct linkage. Time overlap alone cannot establish attribution.
 
 ## Consequences
-Ambiguous spending stays unallocated.
+Ambiguous spend stays unallocated.
 
 ## Alternatives and revisit triggers
-Revisit if measured integration cost, scale, license obligations, or customer requirements make this choice unsuitable. Record a superseding ADR.
+Revisit if measured integration cost, scale, license obligations, or customer requirements make this choice unsuitable. Record a new ADR that supersedes this one.
