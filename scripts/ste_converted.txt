@@ -57,3 +57,8 @@ docs/specs/07-documentation-site.md
 # #238 part 3: specs 08-09.
 docs/specs/08-aws-deployment.md
 docs/specs/09-public-demo.md
+
+# #239 part 1: the agent instructions and the architecture documents.
+AGENTS.md
+docs/architecture/README.md
+docs/implementation/architecture-boundaries.md

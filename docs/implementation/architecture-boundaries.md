@@ -1,19 +1,47 @@
 # Architecture boundaries
 
-`tests/unit/test_import_boundaries.py` enforces these with a static import scan, and checks that this list names every package under `src/data_finops/` (#207).
+`tests/unit/test_import_boundaries.py` enforces these rules with a static import scan. It also checks that this list names each package in `src/data_finops/` (#207).
 
-- `contracts`: the Pydantic models every other package exchanges (Billing Line, Export Snapshot, Allocation, workload records) and, through `schemas.py`, the generated JSON Schemas (code first, OQ-15). It imports nothing else from `data_finops`.
-- `billing`: provider billing readers and canonical billing facts: the FOCUS reader (`billing.focus`, the only user of pyarrow) and the AWS Data Exports Delivery reader (`billing.aws_data_exports`).
-- `normalization`: reserved, empty. Nothing imports it; #214 proposes removing it.
-- `ledger`: immutable versioned financial source records (Export Snapshots, Billing Lines), Allocation Snapshots, reconciliation against a provider export (`ledger.reconciliation`) and the Delivery part of the Collection Watermark. It knows no workload evidence and no layer above it.
-- `identity`, `lineage`, `dbt`: workload and data asset evidence, no financial authority. `identity` holds pure link rules.
-- `workload`: the workload store (Workload Runs, Model Executions, Data Assets, Lineage Edges, Query Executions, and the Inbox part of the Collection Watermark) over `lineage` and `dbt` readers and the Athena query history reader in `providers.athena` (file reading only, no AWS calls), resolving Identity Links with the pure rules in `identity`; shares the Ledger's database file but imports nothing from `billing`, `ledger` or `attribution` (ADR 0018 amendment, ADR 0022).
-- `attribution`: deterministic pure calculations over immutable records, no network I/O, clock or cloud SDK imports. It imports nothing from `providers`, `ledger` or `workload`: callers classify Billing Lines into pools and supply Billable Usage (`attribution.engine`, #81). Roll-ups (`attribution.rollups`) are pure sums too.
-- `calculation`: the Calculation Run (#88), a thin orchestrator over `ledger`, `workload`, `providers` and the pure `attribution` engine; with `collection` (below), which hands it what it collected, the only place they meet. It resolves each Allocation's Evidence with `attribution.rollups`. No SQL and no AWS.
-- `reporting`: the read model (M5). Answers cost summaries, allocations, explanations, lineage, reconciliation and provenance from the `ledger` and `workload` read interfaces, returning response models; read-only. It computes Roll-ups at read time with the pure `attribution.rollups`. With `calculation` and `collection`, the only modules that import both stores.
-- `api`: HTTP adapter (FastAPI, optional `api` extra) and static dashboard. Reads only through `reporting`; its one write is passing OpenLineage events to `WorkloadStore` (ADR 0024). No SQL.
-- `cli`: the `data-finops` command line (stdlib `argparse`): `demo`, `serve`, `ingest`, `calculate`, `collect`. An entry point: it opens the stores and calls their public functions, joining nothing itself; it may import both only alongside `calculation`, to hand them to the Calculation Run (#115, enforced by the import-boundary test). For a FOCUS file it calls the `billing` readers itself, because `Ledger.import_snapshot` takes a parsed export while the workload store's ingest functions take paths.
-- `providers`: optional cloud-specific collectors and provider pricing policies (`providers.athena_billing`, #82); must not be imported by attribution core. `providers.aws` (M6, spec 08) holds the AWS collectors behind the optional `aws` extra (boto3); they fetch files and API responses and hand them to the existing readers, never writing a store themselves.
-- `collection`: the Collection Run (M6, spec 08), a thin orchestrator over `providers.aws`, the `billing` Delivery reader, the stores' public ingest functions and `calculation`; `collection.remote` fetches and writes the database object. Lambda handlers (`lambda_handlers`) are entry points over `collection` and `api`, like `cli`; the API handler also caches the database object by ETag through `providers.aws`. Both entry points get their AWS clients from `aws_clients`, the only module that imports boto3 (#183, #184).
+- `contracts`: the Pydantic models that all other packages exchange (Billing Line, Export Snapshot, Allocation, workload records).
+  - Through `schemas.py`, it also holds the generated JSON Schemas (code first, OQ-15).
+  - It imports nothing else from `data_finops`.
+- `billing`: provider billing readers and canonical billing facts.
+  - the FOCUS reader (`billing.focus`, the only user of pyarrow)
+  - the AWS Data Exports Delivery reader (`billing.aws_data_exports`)
+- `normalization`: reserved and empty. Nothing imports it, and #214 proposes to remove it.
+- `ledger`: immutable versioned financial source records (Export Snapshots, Billing Lines) and Allocation Snapshots.
+  - It also holds the reconciliation against a provider export (`ledger.reconciliation`), and the Delivery part of the Collection Watermark.
+  - It knows no workload Evidence and no layer above it.
+- `identity`, `lineage`, `dbt`: workload and data asset Evidence, with no financial authority. `identity` holds pure link rules.
+- `workload`: the workload store.
+  - It stores Workload Runs, Model Executions, Data Assets, Lineage Edges, Query Executions, and the Inbox part of the Collection Watermark.
+  - It is over the `lineage` and `dbt` readers, and the Athena query history reader in `providers.athena`. That reader only reads files, and makes no AWS calls.
+  - It resolves Identity Links with the pure rules in `identity`.
+  - It shares the database file of the Ledger, but it imports nothing from `billing`, `ledger` or `attribution` (ADR 0018 amendment, ADR 0022).
+- `attribution`: deterministic pure calculations over immutable records. It has no network I/O, clock or cloud SDK imports.
+  - It imports nothing from `providers`, `ledger` or `workload`. The callers classify Billing Lines into pools, and they give the Billable Usage (`attribution.engine`, #81).
+  - Roll-ups (`attribution.rollups`) are pure sums too.
+- `calculation`: the Calculation Run (#88). It is a thin orchestrator over `ledger`, `workload`, `providers` and the pure `attribution` engine.
+  - These packages meet only here, and in `collection` (below), which gives the Calculation Run what it collected.
+  - It resolves the Evidence of each Allocation with `attribution.rollups`.
+  - No SQL and no AWS.
+- `reporting`: the read model (M5). It is read-only.
+  - It answers cost summaries, allocations, explanations, lineage, reconciliation and provenance from the `ledger` and `workload` read interfaces. It returns response models.
+  - It computes Roll-ups at read time with the pure `attribution.rollups`.
+  - It is one of the only modules that import both stores. The others are `calculation` and `collection`.
+- `api`: the HTTP adapter (FastAPI, optional `api` extra) and the static dashboard.
+  - It reads only through `reporting`. Its one write gives OpenLineage events to `WorkloadStore` (ADR 0024).
+  - No SQL.
+- `cli`: the `data-finops` command line (stdlib `argparse`): `demo`, `serve`, `ingest`, `calculate`, `collect`.
+  - It is an entry point. It opens the stores and calls their public functions, and it joins nothing itself.
+  - It can import both stores only together with `calculation`, to give them to the Calculation Run (#115). The import-boundary test enforces this.
+  - For a FOCUS file, it calls the `billing` readers itself. The reason is that `Ledger.import_snapshot` takes a parsed export, but the ingest functions of the workload store take paths.
+- `providers`: optional cloud-specific collectors and provider pricing policies (`providers.athena_billing`, #82). The attribution core must not import it.
+  - `providers.aws` (M6, spec 08) holds the AWS collectors, behind the optional `aws` extra (boto3).
+  - These collectors fetch files and API responses, and give them to the current readers. They never write to a store themselves.
+- `collection`: the Collection Run (M6, spec 08). It is a thin orchestrator over `providers.aws`, the `billing` Delivery reader, the public ingest functions of the stores, and `calculation`.
+  - `collection.remote` fetches and writes the database object.
+  - The Lambda handlers (`lambda_handlers`) are entry points over `collection` and `api`, as `cli` is. The API handler also keeps the database object by ETag, through `providers.aws`.
+  - The two entry points get their AWS clients from `aws_clients`, the only module that imports boto3 (#183, #184).
 
-Do not enforce a simplistic linear import graph: identity and lineage are independent inputs to attribution, not submodules of billing.
+Do not enforce a simplistic linear import graph. Identity and lineage are independent inputs to attribution, not submodules of billing.
