@@ -299,9 +299,9 @@ def _markdown_segments(text: str, skip_decision: bool = False) -> Iterator[_Segm
             yield from flush()
         if not line.strip() or line.lstrip().startswith(">"):  # a blank line or a quote
             continue
-        if heading := _HEADING.match(line) or _TERM_LINE.match(line):
+        if title := _HEADING.match(line) or _TERM_LINE.match(line):
             yield from flush()
-            yield _Segment(number, heading["text"])
+            yield _Segment(number, title["text"])
             in_list = False
             continue
         if _AVOID_LINE.match(line):
@@ -376,14 +376,16 @@ class _HtmlSegments(HTMLParser):
         self._code = 0  # the open inline code elements
         self._region: str | None = None  # the generated region that the parser is in
         self._avoid: str | None = None  # the open element that lists words to avoid
+        self._avoid_depth = 0  # its open elements of the same tag, itself included
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         if self._region or self._skipped or self._avoid:
             self._skipped += tag in _HTML_SKIPPED and not (self._region or self._avoid)
+            self._avoid_depth += tag == self._avoid
             return
         if "avoid" in (dict(attrs).get("class") or "").split():  # the glossary's Avoid lists
             self._flush()
-            self._avoid = tag
+            self._avoid, self._avoid_depth = tag, 1
         elif tag in _HTML_SKIPPED:
             self._flush()
             self._skipped = 1
@@ -401,7 +403,8 @@ class _HtmlSegments(HTMLParser):
         if self._region:
             return
         if self._avoid:
-            self._avoid = None if tag == self._avoid else self._avoid
+            self._avoid_depth -= tag == self._avoid
+            self._avoid = self._avoid if self._avoid_depth else None
         elif self._skipped:
             self._skipped -= tag in _HTML_SKIPPED
         elif tag in _HTML_CODE:

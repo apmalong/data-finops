@@ -1,6 +1,6 @@
 # Data FinOps
 
-Attributes authoritative cloud charges to the data workloads that caused them. It never creates money, loses money or counts money two times. The terms here are settled. Contested terms are in `docs/implementation/open-questions.md` until they are resolved.
+Attributes authoritative cloud charges to the data workloads that caused them. It never creates money, loses money or counts money more than one time. The terms here are settled. Contested terms are in `docs/implementation/open-questions.md` until they are resolved.
 
 ## Billing
 
@@ -167,7 +167,7 @@ The immutable, versioned record of Export Snapshots and the Allocation Snapshots
 _Avoid_: database, warehouse
 
 **Allocation Snapshot**:
-The complete set of Allocations produced by one Calculation Run. Any period can be calculated again. Each new calculation creates a new snapshot and moves the current pointer.
+The complete set of Allocations produced by one Calculation Run. Any period can be calculated again. A new calculation with different inputs creates a new snapshot and moves the current pointer. A replay of the current snapshot stores nothing.
 _Avoid_: result, rerun output
 
 ## Deployment

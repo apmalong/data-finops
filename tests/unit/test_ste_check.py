@@ -376,3 +376,9 @@ def test_an_html_avoid_list_is_not_checked() -> None:
     page = f"<dl><dt>Reconciliation</dt><dd>It checks.</dd>{avoid}</dl>"
 
     assert _html_rules(page) == []
+
+
+def test_an_avoid_list_with_a_nested_element_of_the_same_tag_stays_skipped() -> None:
+    page = '<p><span class="avoid">Avoid: <span>tag</span>, matching</span> It checks.</p>'
+
+    assert _html_rules(page) == []

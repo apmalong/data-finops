@@ -51,7 +51,7 @@
 <!-- onpage:end -->
 <p>The terms data-finops uses, in its pages, its API and its code. Most terms also give the words to avoid. This page is generated from <a href="https://github.com/apmalong/data-finops/blob/main/GLOSSARY.md"><code>GLOSSARY.md</code></a>.</p>
 <!-- reference:start -->
-<p>Attributes authoritative cloud charges to the data workloads that caused them. It never creates money, loses money or counts money two times. The terms here are settled. Contested terms are in <code>docs/implementation/open-questions.md</code> until they are resolved.</p>
+<p>Attributes authoritative cloud charges to the data workloads that caused them. It never creates money, loses money or counts money more than one time. The terms here are settled. Contested terms are in <code>docs/implementation/open-questions.md</code> until they are resolved.</p>
 <h2 id="area-billing">Billing</h2>
 <dl>
 <dt id="billing-line">Billing Line</dt>
@@ -182,7 +182,7 @@
 <dd>The immutable, versioned record of Export Snapshots and the Allocation Snapshots computed from them. One of each is current, and all are kept.</dd>
 <dd class="avoid">Avoid: database, warehouse</dd>
 <dt id="allocation-snapshot">Allocation Snapshot</dt>
-<dd>The complete set of Allocations produced by one Calculation Run. Any period can be calculated again. Each new calculation creates a new snapshot and moves the current pointer.</dd>
+<dd>The complete set of Allocations produced by one Calculation Run. Any period can be calculated again. A new calculation with different inputs creates a new snapshot and moves the current pointer. A replay of the current snapshot stores nothing.</dd>
 <dd class="avoid">Avoid: result, rerun output</dd>
 </dl>
 <h2 id="area-deployment">Deployment</h2>

@@ -54,7 +54,8 @@ class Problem(BaseModel):
 
 
 class LineageReceipt(BaseModel):
-    """What one stored RunEvent changed, as the ingest result of the workload store counts it."""
+    """What the ingest of one RunEvent changed, as the ingest result of the workload store
+    counts it."""
 
     accepted: int
     duplicates: int
@@ -285,7 +286,7 @@ def create_app(
         billing_period: date | None = None,
         source: Annotated[str | None, Query(max_length=256)] = None,
     ) -> Provenance:
-        """How one Allocation Snapshot was made, chosen as for `/v1/allocations`: inputs,
+        """How one Allocation Snapshot was made, selected as for `/v1/allocations`: inputs,
         policies, the Export Snapshot it read, and the run that superseded it, if any."""
         with Reporting(db) as read_model:
             return read_model.provenance(

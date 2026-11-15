@@ -1253,7 +1253,7 @@
     "/v1/provenance": {
       "get": {
         "summary": "Provenance",
-        "description": "How one Allocation Snapshot was made, chosen as for `/v1/allocations`: inputs,\npolicies, the Export Snapshot it read, and the run that superseded it, if any.",
+        "description": "How one Allocation Snapshot was made, selected as for `/v1/allocations`: inputs,\npolicies, the Export Snapshot it read, and the run that superseded it, if any.",
         "operationId": "provenance_v1_provenance_get",
         "parameters": [
           {
@@ -3609,7 +3609,7 @@
           "changed_copies"
         ],
         "title": "LineageReceipt",
-        "description": "What one stored RunEvent changed, as the ingest result of the workload store counts it."
+        "description": "What the ingest of one RunEvent changed, as the ingest result of the workload store\ncounts it."
       },
       "LineageUnsupported": {
         "properties": {
