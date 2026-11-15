@@ -25,59 +25,70 @@ class Storage(pulumi.ComponentResource):
         child = pulumi.ResourceOptions.merge(
             kept_on_destroy(settings), pulumi.ResourceOptions(parent=self)
         )
-        self.bucket = aws.s3.Bucket(name, force_destroy=settings.delete_data_on_destroy, opts=child)
-        guards: list[pulumi.CustomResource] = [
-            aws.s3.BucketPublicAccessBlock(
-                name,
-                bucket=self.bucket.id,
-                block_public_acls=True,
-                block_public_policy=True,
-                ignore_public_acls=True,
-                restrict_public_buckets=True,
-                opts=child,
-            ),
-            aws.s3.BucketOwnershipControls(
-                name,
-                bucket=self.bucket.id,
-                rule={"object_ownership": "BucketOwnerEnforced"},
-                opts=child,
-            ),
-            aws.s3.BucketServerSideEncryptionConfiguration(
-                name, bucket=self.bucket.id, rules=[_encryption(settings)], opts=child
-            ),
-            aws.s3.BucketVersioning(
-                name,
-                bucket=self.bucket.id,
-                versioning_configuration={"status": "Enabled"},
-                opts=child,
-            ),
-            aws.s3.BucketLifecycleConfiguration(
-                name,
-                bucket=self.bucket.id,
-                rules=[
-                    {
-                        "id": "noncurrent-versions",
-                        "status": "Enabled",
-                        "filter": {},
-                        "noncurrent_version_expiration": {
-                            "noncurrent_days": settings.noncurrent_version_days
-                        },
-                    },
-                    {
-                        "id": "inbox",
-                        "status": "Enabled",
-                        "filter": {"prefix": INBOX},
-                        "expiration": {"days": settings.inbox_retention_days},
-                    },
-                ],
-                opts=child,
-            ),
-            aws.s3.BucketPolicy(
-                name, bucket=self.bucket.id, policy=self.bucket.arn.apply(_tls_only), opts=child
-            ),
-        ]
+        self.bucket, guards = private_bucket(
+            name,
+            force_destroy=settings.delete_data_on_destroy,
+            encryption=_encryption(settings),
+            expiring={"": settings.noncurrent_version_days, INBOX: settings.inbox_retention_days},
+            opts=child,
+        )
         self.ready = pulumi.Output.all(self.bucket.id, *[g.id for g in guards])
         self.register_outputs({"bucket": self.bucket.bucket})
+
+
+def private_bucket(
+    name: str,
+    *,
+    force_destroy: bool,
+    encryption: aws.s3.BucketServerSideEncryptionConfigurationRuleArgsDict,
+    expiring: dict[str, int],
+    opts: pulumi.ResourceOptions,
+) -> tuple[aws.s3.Bucket, list[pulumi.CustomResource]]:
+    """A bucket with every guard of the policy pack (spec 08 §Policy pack, 1): all public access
+    blocked, owner-enforced, encrypted, versioned and TLS only. `expiring` gives the days that
+    S3 keeps an old version (key `""`) and the objects under each other prefix."""
+    bucket = aws.s3.Bucket(name, force_destroy=force_destroy, opts=opts)
+    rules: list[aws.s3.BucketLifecycleConfigurationRuleArgsDict] = [
+        {
+            "id": "noncurrent-versions",
+            "status": "Enabled",
+            "filter": {},
+            "noncurrent_version_expiration": {"noncurrent_days": expiring[""]},
+        }
+    ]
+    rules += [
+        {
+            "id": prefix.strip("/"),
+            "status": "Enabled",
+            "filter": {"prefix": prefix},
+            "expiration": {"days": days},
+        }
+        for prefix, days in expiring.items()
+        if prefix
+    ]
+    guards: list[pulumi.CustomResource] = [
+        aws.s3.BucketPublicAccessBlock(
+            name,
+            bucket=bucket.id,
+            block_public_acls=True,
+            block_public_policy=True,
+            ignore_public_acls=True,
+            restrict_public_buckets=True,
+            opts=opts,
+        ),
+        aws.s3.BucketOwnershipControls(
+            name, bucket=bucket.id, rule={"object_ownership": "BucketOwnerEnforced"}, opts=opts
+        ),
+        aws.s3.BucketServerSideEncryptionConfiguration(
+            name, bucket=bucket.id, rules=[encryption], opts=opts
+        ),
+        aws.s3.BucketVersioning(
+            name, bucket=bucket.id, versioning_configuration={"status": "Enabled"}, opts=opts
+        ),
+        aws.s3.BucketLifecycleConfiguration(name, bucket=bucket.id, rules=rules, opts=opts),
+        aws.s3.BucketPolicy(name, bucket=bucket.id, policy=bucket.arn.apply(_tls_only), opts=opts),
+    ]
+    return bucket, guards
 
 
 def kept_on_destroy(settings: Settings) -> pulumi.ResourceOptions:
@@ -87,11 +98,17 @@ def kept_on_destroy(settings: Settings) -> pulumi.ResourceOptions:
     return pulumi.ResourceOptions(retain_on_delete=not settings.delete_data_on_destroy)
 
 
+S3_MANAGED: aws.s3.BucketServerSideEncryptionConfigurationRuleArgsDict = {
+    "apply_server_side_encryption_by_default": {"sse_algorithm": "AES256"}
+}
+"""Encryption with the S3-managed key."""
+
+
 def _encryption(
     settings: Settings,
 ) -> aws.s3.BucketServerSideEncryptionConfigurationRuleArgsDict:
     if settings.kms_key_arn is None:
-        return {"apply_server_side_encryption_by_default": {"sse_algorithm": "AES256"}}
+        return S3_MANAGED
     return {
         "apply_server_side_encryption_by_default": {
             "sse_algorithm": "aws:kms",

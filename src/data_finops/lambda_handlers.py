@@ -1,18 +1,21 @@
 """The Deployment's Lambda entry points (spec 08; ADR 0026): thin wrappers over `collection` and
 `api`, like `cli`. Each `make_*_handler` takes its clients and environment, so tests hand it
-stubs; `collector` and `api` are what the functions are configured to call."""
+stubs; `collector`, `api` and `generator` are what the functions are configured to call."""
 
 import json
 import os
 import tempfile
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from pathlib import Path
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 from data_finops.collection import AwsClients, CollectionSettings
 from data_finops.collection.remote import DATABASE_KEY, run_remote_collection
 from data_finops.collection.run import FAILED, DimensionsUnavailable
 from data_finops.providers.aws import S3Reader, S3Writer, WriteConflict, refresh_file
+
+if TYPE_CHECKING:
+    from data_finops.public_demo.dataset import DatasetFile
 
 COLLECTOR_SETTINGS = "DATA_FINOPS_COLLECTOR_SETTINGS"
 """The environment variable holding the collector's settings as JSON, with the keys of the
@@ -21,6 +24,8 @@ API_BUCKET = "DATA_FINOPS_BUCKET"
 """The environment variable naming the Deployment's bucket, for the API function."""
 API_EXPLANATION_DETAIL = "DATA_FINOPS_EXPLANATION_DETAIL"
 """How much of the Billing Line the API's Cost Explanations show; `minimal` unless set."""
+DEMO_BUCKET = "DATA_FINOPS_DEMO_BUCKET"
+"""The environment variable naming the public demo's bucket, for the dataset generator."""
 
 Handler = Callable[[Mapping[str, Any], Any], Any]
 
@@ -31,6 +36,10 @@ class CollectionFailed(RuntimeError):
 
 class ApiMisconfigured(RuntimeError):
     """The API function's environment is wrong; the message names the variable."""
+
+
+class GeneratorMisconfigured(RuntimeError):
+    """The dataset generator's environment is wrong; the message names the variable."""
 
 
 def make_collector_handler(
@@ -128,11 +137,41 @@ def make_api_handler(
     return handler
 
 
+def make_generator_handler(
+    s3: Callable[[], Any],
+    environ: Mapping[str, str],
+    files: "Callable[[], Iterable[DatasetFile]] | None" = None,
+) -> Handler:
+    """The public demo's dataset generator (spec 09 §The demo dataset): a one-off invocation
+    writes the dataset under `dataset/` in the demo bucket and returns how many files and
+    bytes it wrote. A failed write fails the invocation; invoking it again writes the same
+    files."""
+    from data_finops.public_demo import dataset
+
+    def handler(event: Mapping[str, Any], context: Any) -> Any:
+        bucket = environ.get(DEMO_BUCKET)
+        if not bucket:
+            raise GeneratorMisconfigured(f"{DEMO_BUCKET} is not set")
+        written = dataset.upload(s3(), bucket, (files or dataset.generate)())
+        print(json.dumps(written))
+        return written
+
+    return handler
+
+
 def collector(event: Mapping[str, Any], context: Any) -> Any:
     """The collector function's handler: `data_finops.lambda_handlers.collector`."""
     from data_finops.aws_clients import make_aws_clients
 
     return make_collector_handler(make_aws_clients, os.environ)(event, context)
+
+
+def generator(event: Mapping[str, Any], context: Any) -> Any:
+    """The dataset generator's handler: `data_finops.lambda_handlers.generator`."""
+    from data_finops.aws_clients import make_s3_client
+
+    region = os.environ.get("AWS_REGION", "")
+    return make_generator_handler(lambda: make_s3_client(region), os.environ)(event, context)
 
 
 _api_handler: Handler | None = None

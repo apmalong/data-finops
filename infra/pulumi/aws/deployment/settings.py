@@ -52,6 +52,8 @@ CONFIG_KEYS: dict[str, str] = {
     "alarm_email": "alarmEmail",
     "delete_data_on_destroy": "deleteDataOnDestroy",
     "cost_dimensions": "costDimensions",
+    "public_demo": "publicDemo",
+    "demo_scan_cutoff_bytes": "demoScanCutoffBytes",
 }
 """Each setting's stack configuration key (`data-finops:<key>`, or `aws:region`); a Budget
 field is `budget.<field>`."""
@@ -64,6 +66,7 @@ BOUNDS: dict[str, tuple[int, int]] = {
     "api_memory_mb": (128, 10240),
     "noncurrent_version_days": (1, 3650),
     "inbox_retention_days": (1, 3650),
+    "demo_scan_cutoff_bytes": (10_000_000, 1_000_000_000_000),
 }
 """Each whole-number setting's inclusive bounds (spec 08; the first two match the collector's
 own, `data_finops.collection.run`)."""
@@ -151,6 +154,13 @@ class Settings:
     """An optional path to a Cost Dimensions file (TOML, spec 09). The stack uploads it to
     `config/cost-dimensions.toml` in the bucket, and the collector applies it in each
     Collection Run. Unset, no dimensions apply."""
+    public_demo: bool = False
+    """Whether the stack also makes the public demo (spec 09). The demo has its own bucket, the
+    `data-finops-demo` Athena workgroup, the Glue tables of the demo dataset and the dataset
+    generator function. Set it to `false` and run `pulumi up` to remove the demo."""
+    demo_scan_cutoff_bytes: int = 1_000_000_000
+    """The most bytes one query in the demo workgroup can scan before Athena cancels it. Athena
+    accepts 10 MB or more."""
 
     def __post_init__(self) -> None:
         for field in ("region", "export_bucket", "export_name"):
@@ -200,6 +210,7 @@ class Settings:
             "delete_data_on_destroy": _flag(
                 get("delete_data_on_destroy"), CONFIG_KEYS["delete_data_on_destroy"]
             ),
+            "public_demo": _flag(get("public_demo"), CONFIG_KEYS["public_demo"]),
         }
         for field in (*BOUNDS, "api_reserved_concurrency", "log_retention_days"):
             if (value := get(field)) is not None:

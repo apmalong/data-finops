@@ -175,6 +175,59 @@
       "Effect": "Allow",
       "Action": ["budgets:ViewBudget", "budgets:ModifyBudget"],
       "Resource": "arn:aws:budgets::${aws:PrincipalAccount}:budget/data-finops-*"
+    },
+    {
+      "Sid": "DemoWorkgroup",
+      "Effect": "Allow",
+      "Action": [
+        "athena:CreateWorkGroup",
+        "athena:GetWorkGroup",
+        "athena:UpdateWorkGroup",
+        "athena:DeleteWorkGroup",
+        "athena:ListTagsForResource",
+        "athena:TagResource",
+        "athena:UntagResource"
+      ],
+      "Resource": "arn:aws:athena:*:${aws:PrincipalAccount}:workgroup/data-finops-demo"
+    },
+    {
+      "Sid": "GlueCatalog",
+      "Effect": "Allow",
+      "Action": [
+        "glue:CreateDatabase",
+        "glue:GetDatabase",
+        "glue:UpdateDatabase",
+        "glue:DeleteDatabase",
+        "glue:CreateTable",
+        "glue:GetTable",
+        "glue:UpdateTable",
+        "glue:DeleteTable",
+        "glue:GetTags",
+        "glue:TagResource",
+        "glue:UntagResource"
+      ],
+      "Resource": "arn:aws:glue:*:${aws:PrincipalAccount}:catalog"
+    },
+    {
+      "Sid": "DemoGlueTables",
+      "Effect": "Allow",
+      "Action": [
+        "glue:CreateDatabase",
+        "glue:GetDatabase",
+        "glue:UpdateDatabase",
+        "glue:DeleteDatabase",
+        "glue:CreateTable",
+        "glue:GetTable",
+        "glue:UpdateTable",
+        "glue:DeleteTable",
+        "glue:GetTags",
+        "glue:TagResource",
+        "glue:UntagResource"
+      ],
+      "Resource": [
+        "arn:aws:glue:*:${aws:PrincipalAccount}:database/data_finops_demo",
+        "arn:aws:glue:*:${aws:PrincipalAccount}:table/data_finops_demo/*"
+      ]
     }
   ]
 }

@@ -39,6 +39,7 @@ def test_the_defaults_are_spec_08s() -> None:
     assert settings.inbox_retention_days == 30
     assert (settings.kms_key_arn, settings.budget, settings.alarm_email) == (None, None, None)
     assert (settings.explanation_detail, settings.delete_data_on_destroy) == ("minimal", False)
+    assert (settings.public_demo, settings.demo_scan_cutoff_bytes) == (False, 1_000_000_000)
 
 
 def test_every_setting_can_be_given() -> None:
@@ -63,8 +64,11 @@ def test_every_setting_can_be_given() -> None:
             "data-finops:budgetEmail": "owner@example.com",
             "data-finops:alarmEmail": "owner@example.com",
             "data-finops:deleteDataOnDestroy": "true",
+            "data-finops:publicDemo": "true",
+            "data-finops:demoScanCutoffBytes": "500000000",
         }
     )
+    assert (settings.public_demo, settings.demo_scan_cutoff_bytes) == (True, 500_000_000)
     assert settings.export_prefix == "focus"
     assert settings.budget == Budget(monthly_usd=Decimal("25"), email="owner@example.com")
     assert (settings.api_reserved_concurrency, settings.delete_data_on_destroy) == (2, True)
@@ -90,6 +94,8 @@ def test_every_setting_can_be_given() -> None:
         ({"data-finops:inboxRetentionDays": "0"}, "inboxRetentionDays"),
         ({"data-finops:kmsKeyArn": "secret-not-an-arn"}, "kmsKeyArn"),
         ({"data-finops:explanationDetail": "everything"}, "explanationDetail"),
+        ({"data-finops:publicDemo": "yes"}, "publicDemo"),
+        ({"data-finops:demoScanCutoffBytes": "9999999"}, "demoScanCutoffBytes"),
         ({"data-finops:budgetMonthlyUsd": "25"}, "budgetEmail"),
         ({"data-finops:budgetEmail": "owner@example.com"}, "budgetMonthlyUsd"),
         (

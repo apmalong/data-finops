@@ -14,7 +14,7 @@ The Deployment must not contain code that is not vetted. These tickets go first:
 ## Layout
 - `src/data_finops/public_demo/`: the simulated orchestrator and the dataset generator (ADR 0030), and the publisher (ADR 0029).
   - This is not the `data-finops demo` command, which loads the fixtures locally.
-  - The entry points are `data_finops.lambda_handlers.simulator` and `data_finops.lambda_handlers.publisher`, in the same package zip.
+  - The entry points are `data_finops.lambda_handlers.simulator`, `data_finops.lambda_handlers.publisher` and `data_finops.lambda_handlers.generator` (the dataset generator, Q78), in the same package zip.
   - Their AWS clients come from `aws_clients`, the only module that imports boto3.
 - `infra/pulumi/aws/deployment/demo.py`: the `PublicDemo` component. The stack creates it only when `publicDemo` is `true`.
 - `src/data_finops/api/dashboard/`: the static mode (below).
@@ -76,9 +76,14 @@ The Deployment must not contain code that is not vetted. These tickets go first:
   The explicit deny of the collector on query execution does not change.
 
 ## The demo dataset
-- **Contents:** the dataset generator makes it one time, in a one-off invocation. It is a few hundred MB of orders, customers and events, as Parquet in the demo bucket.
-- **Tables:** the stack declares them as Glue tables.
+- **Contents:** the dataset generator makes it one time, in a one-off invocation. It is a few hundred MB of orders, customers and events, as Parquet in the demo bucket, under `dataset/` (Q77).
+- **The generator:** a Lambda function in the stack, which the output `demoGeneratorFunction` names (Q78). The owner invokes it one time. Its role can only write `dataset/*` in the demo bucket, and its log group.
+  - It writes the Parquet with pyarrow (ADR 0018, amended by Q76).
+  - It makes one part of a million rows at a time, so that the memory stays small.
+- **Tables:** the stack declares them as Glue tables, in the Glue database `data_finops_demo`. The columns of the tables and of the Parquet files are the same, and a test compares them.
 - **Determinism:** the generator has a seed, so a rebuild gives the same data.
+- **The demo bucket:** the `PublicDemo` component makes it with the dataset (#225). It has the same guards as the bucket of the Deployment, with the S3-managed key. All its contents can be made again, so it is deleted with the demo.
+  - Athena writes the results of the demo's queries under `athena-results/`. S3 deletes them after one day.
 
 ## The publisher (ADR 0029)
 - **Trigger:** S3 sends an event when the collector writes the database object. The publisher downloads the object (as the API handler does), and runs the `reporting` read model in the same process.
@@ -100,17 +105,18 @@ The Deployment must not contain code that is not vetted. These tickets go first:
 
 ## The site
 - **Host:** a private demo bucket (all four public access blocks, encrypted) behind a CloudFront distribution with origin access control. It is HTTPS only, on the CloudFront domain (no custom domain), with a cache configuration for a daily snapshot.
+  - CloudFront serves only the prefix of the site. It never serves `dataset/` or `athena-results/` (Q77).
 - **The dashboard:** the M5 dashboard, served with a `static` data source. Each API call maps to a file in the current snapshot. A call that the snapshot does not cover shows "not in the public demo".
 - **The banner (Q67):** "Simulated workload; real Athena charges, reconciled to the bill; data trails by about a day", with the time and the Calculation Run of the snapshot.
 - **Links:** the README and the docs site (home page, navigation) link to the public URL. The stack outputs it as `demoUrl`.
 
 ## Stack, settings and policy pack
 - **New settings:** `publicDemo` (default `false`), `demoScanCutoffBytes`, `demoSchedule` and `costDimensions`. Each has a docstring, so that the generated settings reference shows it.
-- **New outputs:** `demoUrl`, `demoBucket`.
+- **New outputs:** `demoUrl`, `demoBucket` and `demoGeneratorFunction`. They exist only when `publicDemo` is `true`.
 - **Policy pack:**
   - The demo bucket gets the same S3 policies as the bucket of the Deployment.
   - A new policy: each CloudFront distribution uses origin access control, and redirects HTTP to HTTPS.
-  - The allowlists of policy 4 get the simulator and publisher policies. Only the simulator can start queries, and only on the demo workgroup.
+  - The allowlists of policy 4 get the generator, simulator and publisher policies. Only the simulator can start queries, and only on the demo workgroup.
 - **The deployer draft policy:** it gets CloudFront, Glue, EventBridge and the new roles.
 
 ## Cost limits
@@ -169,7 +175,7 @@ Each seam is test-first, with hand-made mutation checks recorded in the PR. No t
 ## Owner-only steps
 - **Deploy:** the deploy wizard gets the `publicDemo` stage.
   - It sets the setting and runs `pulumi up`.
-  - It triggers the dataset generator one time and the simulator one time, then the collector on the next day.
+  - It invokes `demoGeneratorFunction` one time and the simulator one time, then the collector on the next day.
   - It opens `demoUrl`.
 - **Evaluation:** the owner reviews the evaluation before it is published.
 

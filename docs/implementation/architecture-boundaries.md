@@ -43,5 +43,8 @@
   - `collection.remote` fetches and writes the database object.
   - The Lambda handlers (`lambda_handlers`) are entry points over `collection` and `api`, as `cli` is. The API handler also keeps a copy of the database object, and gets it again only when its ETag changes, through `providers.aws`.
   - The two entry points get their AWS clients from `aws_clients`, the only module that imports boto3 (#183, #184).
+- `public_demo`: the parts of the public demo that run in AWS (M7, spec 09). It is not the `data-finops demo` command.
+  - `public_demo.dataset` makes the demo dataset as Parquet, and writes it through `providers.aws`. It is the second module that can import pyarrow (ADR 0018, amended).
+  - The `generator` Lambda handler is its entry point. No other package imports `public_demo`.
 
 Do not enforce a simplistic linear import graph. Identity and lineage are independent inputs to attribution, not submodules of billing.

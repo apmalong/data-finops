@@ -100,9 +100,10 @@ def _after_build(
     settings: Settings = SETTINGS,
 ) -> pulumi.Output[None]:
     deployment = build(settings, package=_stand_in(tmp_path))
-    return pulumi.Output.all(deployment.storage.ready, deployment.compute.ready).apply(
-        lambda _: check(_recorded())
-    )
+    ready = [deployment.storage.ready, deployment.compute.ready]
+    if deployment.demo is not None:
+        ready.append(deployment.demo.ready)
+    return pulumi.Output.all(*ready).apply(lambda _: check(_recorded()))
 
 
 def test_the_cli_is_the_pinned_release() -> None:
@@ -133,6 +134,18 @@ def test_the_program_with_cost_dimensions_passes_every_policy(
         assert result.returncode == 0, result.stdout + result.stderr
 
     settings = dataclasses.replace(SETTINGS, cost_dimensions=str(config))
+    return _after_build(tmp_path, check, settings)
+
+
+@pulumi.runtime.test
+def test_the_program_with_the_public_demo_passes_every_policy(
+    tmp_path: Path,
+) -> pulumi.Output[None]:
+    def check(resources: list[dict[str, Any]]) -> None:
+        result = _analyze(tmp_path, resources)
+        assert result.returncode == 0, result.stdout + result.stderr
+
+    settings = dataclasses.replace(SETTINGS, public_demo=True)
     return _after_build(tmp_path, check, settings)
 
 

@@ -72,9 +72,11 @@ POLICY_ACTIONS: dict[str, frozenset[str]] = {
     "scheduler": frozenset({"lambda:InvokeFunction"}),
     "producer": frozenset({"s3:PutObject"}),
     "reader": frozenset({"lambda:InvokeFunctionUrl", "lambda:InvokeFunction"}),
+    "generator": frozenset({"s3:PutObject"}) | LOGS,
 }
-"""Each Deployment policy, by the suffix of its name (`deployment.compute`), and every action
-spec 08 §IAM grants it. A policy named otherwise is a violation, so a rename fails closed."""
+"""Each Deployment policy, by the suffix of its name (`deployment.compute`, `deployment.demo`),
+and every action spec 08 §IAM and spec 09 grant it. A policy named otherwise is a
+violation, so a rename fails closed."""
 RULED_OUT = (
     "aws:ec2/vpc:",
     "aws:ec2/subnet:",
@@ -136,8 +138,9 @@ def _tls_only(props: dict[str, Any], report: Report) -> None:
 
 def _guarded(args: StackValidationArgs, report: Report) -> None:
     """Every bucket has each guard, counted by type: a guard names its bucket by the bucket's
-    ID, unknown at preview, so it cannot be linked there. Sound for the Deployment's one
-    bucket; a stack with several would need the links checked another way."""
+    ID, unknown at preview, so it cannot be linked there. The Deployment's bucket and the demo
+    bucket get their guards from one function (`deployment.storage.private_bucket`), so a
+    count is sound for them; buckets made another way would need the links checked."""
     counts = Counter(resource.resource_type for resource in args.resources)
     buckets = counts[BUCKET]
     for typ, name in GUARDS.items():

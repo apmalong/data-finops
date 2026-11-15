@@ -53,6 +53,9 @@ class Compute(pulumi.ComponentResource):
     collector: aws.lambda_.Function
     api: aws.lambda_.Function
     url: aws.lambda_.FunctionUrl
+    code: dict[str, Any]
+    """Where every function's code is: the package object and its hash, the runtime and the
+    architecture. The demo's functions use it too."""
     producer_policy: aws.iam.Policy
     reader_policy: aws.iam.Policy
     ready: pulumi.Output[list[Any]]
@@ -130,6 +133,7 @@ class Compute(pulumi.ComponentResource):
             "s3_key": code.key,
             "source_code_hash": _code_hash(package),
         }
+        self.code = common
         self.collector = aws.lambda_.Function(
             f"{name}-collector",
             name=f"{name}-{stack}-collector",

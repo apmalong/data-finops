@@ -75,6 +75,8 @@
 <tr><td><code>alarmEmail</code></td><td>unset</td><td>An optional address to send an alarm to when the collector function reports errors, through an SNS topic.</td></tr>
 <tr><td><code>deleteDataOnDestroy</code></td><td><code>false</code></td><td>Whether <code>pulumi destroy</code> deletes the bucket and its data. By default the bucket is kept, with the database and the Inbox in it.</td></tr>
 <tr><td><code>costDimensions</code></td><td>unset</td><td>An optional path to a Cost Dimensions file (TOML, spec 09). The stack uploads it to <code>config/cost-dimensions.toml</code> in the bucket, and the collector applies it in each Collection Run. Unset, no dimensions apply.</td></tr>
+<tr><td><code>publicDemo</code></td><td><code>false</code></td><td>Whether the stack also makes the public demo (spec 09). The demo has its own bucket, the <code>data-finops-demo</code> Athena workgroup, the Glue tables of the demo dataset and the dataset generator function. Set it to <code>false</code> and run <code>pulumi up</code> to remove the demo.</td></tr>
+<tr><td><code>demoScanCutoffBytes</code></td><td><code>1000000000</code></td><td>The most bytes one query in the demo workgroup can scan before Athena cancels it. Athena accepts 10 MB or more. A whole number from 10000000 to 1000000000000.</td></tr>
 </tbody>
 </table>
 </div>
@@ -89,6 +91,8 @@
 <tr><td><code>readerPolicyArn</code></td><td>The managed policy that lets a principal call the API&#x27;s Function URL.</td></tr>
 <tr><td><code>collectorFunction</code></td><td>The collector function&#x27;s name, for its logs or to invoke a Collection Run by hand.</td></tr>
 <tr><td><code>apiFunction</code></td><td>The API function&#x27;s name, for its logs.</td></tr>
+<tr><td><code>demoBucket</code></td><td>Only with publicDemo: the public demo&#x27;s bucket, with the demo dataset.</td></tr>
+<tr><td><code>demoGeneratorFunction</code></td><td>Only with publicDemo: the function that writes the demo dataset. Invoke it one time after the first deploy.</td></tr>
 </tbody>
 </table>
 </div>

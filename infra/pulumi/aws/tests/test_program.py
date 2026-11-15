@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pulumi
 import pytest
-from deployment.program import OUTPUTS, build, require_local_state, require_package
+from deployment.program import DEMO_OUTPUTS, OUTPUTS, build, require_local_state, require_package
 from deployment.settings import Settings
 
 from tests.mocks import MOCKS
@@ -33,7 +33,7 @@ def test_the_program_outputs_what_the_reference_lists(tmp_path: Path) -> pulumi.
     )
     outputs = build(settings, package=_stand_in(tmp_path)).outputs()
     # The generated reference page (scripts/site) lists OUTPUTS: exactly these, in order.
-    assert list(outputs) == list(OUTPUTS)
+    assert list(outputs) == [k for k in OUTPUTS if k not in DEMO_OUTPUTS]
     return pulumi.Output.all(**outputs).apply(
         lambda values: assert_equal(
             {k: values[k] for k in ("bucket", "apiUrl")},
