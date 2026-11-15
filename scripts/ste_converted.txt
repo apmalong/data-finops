@@ -53,3 +53,7 @@ docs/specs/05-security-operations.md
 # #238 part 2: specs 06-07.
 docs/specs/06-api-and-dashboard.md
 docs/specs/07-documentation-site.md
+
+# #238 part 3: specs 08-09.
+docs/specs/08-aws-deployment.md
+docs/specs/09-public-demo.md
