@@ -46,6 +46,7 @@
 - `public_demo`: the parts of the public demo that run in AWS (M7, spec 09). It is not the `data-finops demo` command.
   - `public_demo.dataset` makes the demo dataset as Parquet, and writes it through `providers.aws`. It is the second module that can import pyarrow (ADR 0018, amended).
   - `public_demo.simulator` is the simulated orchestrator. It runs the plan of a start in Athena, through `providers.aws`, and writes the records to the Inbox. `public_demo.workload` holds its DAGs and models as data.
-  - The `generator` and `simulator` Lambda handlers are its entry points. No other package imports `public_demo`.
+  - `public_demo.publisher` renders the Demo Snapshot through the public interface of `reporting`, with a filter of Billing Lines, and writes it through `providers.aws`.
+  - The `generator`, `simulator` and `publisher` Lambda handlers are its entry points. No other package imports `public_demo`.
 
 Do not enforce a simplistic linear import graph. Identity and lineage are independent inputs to attribution, not submodules of billing.

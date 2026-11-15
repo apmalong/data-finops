@@ -23,6 +23,7 @@ from importlib.resources import files
 from typing import Any
 
 from data_finops.collection.run import DBT_INBOX, OPENLINEAGE_INBOX
+from data_finops.providers.aws import put_bytes
 from data_finops.providers.aws.calls import call
 from data_finops.public_demo.dataset import TENANTS
 from data_finops.public_demo.workload import (
@@ -277,15 +278,11 @@ def _write(
     namespace of the Athena datasets."""
     for executed in attempt_runs:
         folder = f"{DBT_INBOX}{executed.attempt.invocation_id}/"
-        _put(s3, bucket, f"{folder}manifest.json", _json(_manifest(executed)))
-        _put(s3, bucket, f"{folder}run_results.json", _json(_run_results(executed)))
+        put_bytes(s3, bucket, f"{folder}manifest.json", _json(_manifest(executed)))
+        put_bytes(s3, bucket, f"{folder}run_results.json", _json(_run_results(executed)))
     events = _events(run, attempt_runs, span, succeeded, source)
     body = "".join(json.dumps(event) + "\n" for event in events).encode("utf-8")
-    _put(s3, bucket, f"{OPENLINEAGE_INBOX}{run.dag}/{run.run_id}.jsonl", body)
-
-
-def _put(s3: Any, bucket: str, key: str, body: bytes) -> None:
-    call(s3.put_object, Bucket=bucket, Key=key, Body=body)
+    put_bytes(s3, bucket, f"{OPENLINEAGE_INBOX}{run.dag}/{run.run_id}.jsonl", body)
 
 
 def _json(document: dict[str, Any]) -> bytes:

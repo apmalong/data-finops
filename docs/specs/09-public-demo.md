@@ -49,7 +49,7 @@ The Deployment must not contain code that is not vetted. These tickets go first:
   - The dashboard gets a dimension view, in both data sources.
 - **A Deployment:** the setting `costDimensions` holds the path of the file.
   - The stack uploads the file to `config/cost-dimensions.toml` in the bucket of the Deployment. The reason is that the settings of the collector go in an environment variable, which is limited to 4 KB.
-  - The roles of the collector and the publisher can read that one object.
+  - Only the role of the collector can read that object. The publisher does not need it, because each Allocation records whether a dimension is sensitive (Q83).
   - The collector reads the object before it collects anything. If the object cannot be read or used, the run stops, and the error names the key, never the content.
   - `data-finops collect` takes a `--dimensions` file or a bucket key in its settings (`cost_dimensions_key`), not both.
 - **Sensitive dimensions:** they are not in the minimal Cost Explanation, the public form of the dimension route or the Demo Snapshot. The public form of the route is part of the Demo Snapshot (Q74). The full API shows them.
@@ -95,20 +95,24 @@ The Deployment must not contain code that is not vetted. These tickets go first:
 
 ## The publisher (ADR 0029)
 - **Trigger:** S3 sends an event when the collector writes the database object. The publisher downloads the object (as the API handler does), and runs the `reporting` read model in the same process.
-- **Files:** for the current and the previous Billing Periods, it writes these files:
-  - `costs/summary.json`
-  - the Allocation pages
+- **Files:** for the current and the previous Billing Periods, it writes these files, in the shapes of the API (`public_demo.publisher.KEYS` gives each path):
+  - the Cost Summary, one file for each Cost Basis
+  - the Allocation pages, without sensitive Cost Dimensions
   - the Roll-ups by kind
-  - the Workload Run list, and the lineage of each root run
+  - the Workload Run list, and the lineage of each root run that published cost reaches
   - the Roll-ups by each Cost Dimension that is not sensitive
   - the minimal Cost Explanation of each published Allocation
 
-  It also writes `snapshot.json`: when it was published, the Calculation Run, the period covered and the explained share.
+  A page holds 1,000 items at most. It also writes `snapshot.json`: when it was published, and for each Billing Period its Calculation Run, its billed cost and the explained share (the share that is not Unallocated), before credits.
 - **What is public:**
   - Only the Athena usage lines whose ResourceId is the demo workgroup are public, and what comes from them.
+  - The read model gets a filter of Billing Lines, and the publisher sets it to these lines (Q82). Each read then sees only them and their Allocations. The Allocations keep the refs of the owner's Calculation Run.
+  - A Snapshot Scope with none of these lines is not published, and neither is a scope that is not calculated.
   - Each 12-digit account ID becomes `123456789012`.
   - Credit lines are not included, and the page says that amounts are before credits.
-- **Atomic swap:** the files are written under a new prefix. Then `current.json` changes to that prefix. Thus readers never see half a snapshot. Old prefixes expire after a few days.
+- **Atomic swap:** the files are written under a new prefix, `snapshots/<published at>-<random>/`. Then `current.json` changes to that prefix. Thus readers never see half a snapshot. If a write fails, `current.json` does not change.
+  - Only one publisher runs at a time (reserved concurrency 1, #229). Thus an older publish cannot move `current.json` back.
+  - S3 deletes a prefix after 30 days. If no snapshot is published for 30 days, `current.json` names a prefix that is gone, and the demo shows nothing.
 - **IAM, a role of its own:** `s3:GetObject` on the database object, `s3:PutObject` and `s3:ListBucket` on the demo bucket, and its log group.
 
 ## The site

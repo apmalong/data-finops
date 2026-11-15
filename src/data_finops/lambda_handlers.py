@@ -1,7 +1,7 @@
 """The Deployment's Lambda entry points (spec 08; ADR 0026): thin wrappers over `collection`,
 `api` and `public_demo` (spec 09), like `cli`. Each `make_*_handler` takes its clients and
-environment, so tests hand it stubs; `collector`, `api`, `generator` and `simulator` are what
-the functions are configured to call."""
+environment, so tests hand it stubs; `collector`, `api`, `generator`, `simulator` and
+`publisher` are what the functions are configured to call."""
 
 import json
 import os
@@ -18,6 +18,7 @@ from data_finops.providers.aws import S3Reader, S3Writer, WriteConflict, refresh
 
 if TYPE_CHECKING:
     from data_finops.public_demo.dataset import DatasetFile
+    from data_finops.reporting import LineFilter
 
 COLLECTOR_SETTINGS = "DATA_FINOPS_COLLECTOR_SETTINGS"
 """The environment variable holding the collector's settings as JSON, with the keys of the
@@ -29,7 +30,8 @@ API_BUCKET = DEPLOYMENT_BUCKET
 API_EXPLANATION_DETAIL = "DATA_FINOPS_EXPLANATION_DETAIL"
 """How much of the Billing Line the API's Cost Explanations show; `minimal` unless set."""
 DEMO_BUCKET = "DATA_FINOPS_DEMO_BUCKET"
-"""The environment variable naming the public demo's bucket, for the dataset generator."""
+"""The environment variable naming the public demo's bucket, for the dataset generator and the
+publisher."""
 
 Handler = Callable[[Mapping[str, Any], Any], Any]
 
@@ -44,6 +46,10 @@ class ApiMisconfigured(RuntimeError):
 
 class GeneratorMisconfigured(RuntimeError):
     """The dataset generator's environment is wrong; the message names the variable."""
+
+
+class PublisherMisconfigured(RuntimeError):
+    """The publisher's environment is wrong; the message names the variable."""
 
 
 class SimulatorMisconfigured(RuntimeError):
@@ -207,6 +213,39 @@ def _scheduled_time(event: Mapping[str, Any], clock: Callable[[], datetime]) -> 
     return moment.astimezone(UTC)
 
 
+def make_publisher_handler(
+    s3: Callable[[], Any],
+    environ: Mapping[str, str],
+    *,
+    clock: Callable[[], datetime],
+    scratch: Path,
+    lines: "LineFilter | None" = None,
+) -> Handler:
+    """The public demo's publisher (spec 09 §The publisher): when the collector writes the
+    database object, it downloads it, as the API function does, and publishes the Demo
+    Snapshot to the demo bucket. With no database object yet, it publishes nothing."""
+    from data_finops.public_demo.publisher import publish
+
+    def handler(event: Mapping[str, Any], context: Any) -> Any:
+        buckets = {name: environ.get(name) for name in (DEPLOYMENT_BUCKET, DEMO_BUCKET)}
+        for name, bucket in buckets.items():
+            if not bucket:
+                raise PublisherMisconfigured(f"{name} is not set")
+        client = s3()
+        scratch.mkdir(parents=True, exist_ok=True)
+        path = scratch / "data-finops.sqlite"
+        if refresh_file(client, str(buckets[DEPLOYMENT_BUCKET]), DATABASE_KEY, path, None) is None:
+            print(json.dumps({"published": False}))
+            return {"published": False}
+        pointer = publish(
+            path, s3=client, bucket=str(buckets[DEMO_BUCKET]), clock=clock, lines=lines
+        )
+        print(json.dumps(pointer))
+        return pointer
+
+    return handler
+
+
 def collector(event: Mapping[str, Any], context: Any) -> Any:
     """The collector function's handler: `data_finops.lambda_handlers.collector`."""
     from data_finops.aws_clients import make_aws_clients
@@ -220,6 +259,19 @@ def generator(event: Mapping[str, Any], context: Any) -> Any:
 
     region = os.environ.get("AWS_REGION", "")
     return make_generator_handler(lambda: make_s3_client(region), os.environ)(event, context)
+
+
+def publisher(event: Mapping[str, Any], context: Any) -> Any:
+    """The publisher's handler: `data_finops.lambda_handlers.publisher`."""
+    from data_finops.aws_clients import make_s3_client
+
+    region = os.environ.get("AWS_REGION", "")
+    return make_publisher_handler(
+        lambda: make_s3_client(region),
+        os.environ,
+        clock=lambda: datetime.now(UTC),
+        scratch=Path(tempfile.gettempdir()) / "data-finops-publisher",
+    )(event, context)
 
 
 def simulator(event: Mapping[str, Any], context: Any) -> Any:
