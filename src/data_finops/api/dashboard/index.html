@@ -40,6 +40,15 @@
       </div>
       <div id="runs" class="runs-panel"></div>
     </section>
+
+    <section aria-labelledby="dimensions-title">
+      <h2 id="dimensions-title">Cost Dimensions</h2>
+      <p class="hint">The same Allocations, grouped by an attribute that your organization configures, such as team or tenant. A value is a claim, never Evidence. The values, unassigned included, add up to the total.</p>
+      <form class="filters" aria-label="Which Cost Dimension">
+        <label id="dimension-label">Cost Dimension <select id="dimension"></select></label>
+      </form>
+      <div id="dimensions" class="multiples"></div>
+    </section>
     <section id="detail" class="panel detail" aria-live="polite" hidden></section>
   </main>
   <div class="tooltip" id="tooltip" aria-hidden="true" hidden></div>

@@ -47,7 +47,12 @@ def test_every_api_path_the_dashboard_calls_is_in_the_openapi_document() -> None
     called = set(re.findall(r'"(/v1/[a-z/{}_]+)"', script))
     assert called and called <= set(OPENAPI["paths"])
     # The drilldown (#118) calls the Allocations, Cost Explanation and lineage reads too.
-    assert {"/v1/allocations", "/v1/allocations/{ref}/explanation", "/v1/lineage"} <= called
+    assert {
+        "/v1/allocations",
+        "/v1/allocations/{ref}/explanation",
+        "/v1/lineage",
+        "/v1/rollups/dimensions/{name}",
+    } <= called
 
 
 def test_the_dashboard_needs_no_library_and_no_network_beyond_its_api() -> None:

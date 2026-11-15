@@ -9,6 +9,7 @@ const ROLLUPS = "/v1/rollups";
 const ALLOCATIONS = "/v1/allocations";
 const EXPLANATION = "/v1/allocations/{ref}/explanation";
 const LINEAGE = "/v1/lineage";
+const DIMENSIONS = "/v1/rollups/dimensions/{name}";
 const PAGE_SIZE = 1000;
 // Run statuses that need a reader: failed or aborted work, and two terminal events that
 // disagree (`conflicting`), which is as unresolved as a failure.
@@ -19,7 +20,7 @@ const ATTENTION_STATUSES = new Set(["failed", "aborted", "conflicting"]);
 const BAR_REACH = 0.75;
 const MIXED_REACH = 0.5;
 
-const state = { scope: 0, basis: "BilledCost", summaries: [], request: 0, detailRequest: 0 };
+const state = { scope: 0, basis: "BilledCost", dimension: "", summaries: [], request: 0, detailRequest: 0 };
 const byId = (id) => document.getElementById(id);
 
 function element(tag, attributes = {}, ...children) {
@@ -257,6 +258,67 @@ function rootRunsPanel(page) {
   return panel;
 }
 
+// ---- Cost Dimensions (#223; ADR 0031): the same Allocations grouped by a configured attribute.
+
+/** Where a value came from: one source, or each source with its exact amount. */
+function sourcesText(total) {
+  const named = total.sources.filter((s) => s.source);
+  if (named.length === 1) return `from ${named[0].source}`;
+  return named.map((s) => `${s.source} ${s.amount}`).join(" · ");
+}
+
+/** One panel for each currency: each value in the chosen Cost Basis, unassigned highlighted,
+ *  and the total that the API gives (the dashboard never adds amounts). */
+function dimensionPanels(page) {
+  const byCurrency = new Map();
+  for (const item of page.items) {
+    for (const total of item.totals) {
+      if (total.cost_basis !== state.basis) continue;
+      if (!byCurrency.has(total.currency)) byCurrency.set(total.currency, []);
+      const unassigned = item.value == null;
+      byCurrency.get(total.currency).push({
+        name: unassigned ? "unassigned" : item.value,
+        detail: unassigned ? "no source gave a value" : sourcesText(total),
+        amount: total.amount,
+        attention: unassigned,
+      });
+    }
+  }
+  if (byCurrency.size === 0) {
+    return [element("p", { class: "meta", text: `Nothing in ${state.basis} for ${page.dimension}.` })];
+  }
+  return [...byCurrency].map(([currency, rows]) => {
+    const total = page.totals.find((t) => t.currency === currency && t.cost_basis === state.basis);
+    const charted = rows.filter((r) => Number(r.amount) !== 0);
+    return element("article", { class: "panel" },
+      element("h3", { text: `${page.dimension}, ${state.basis}, ${currency}` }),
+      charted.length ? barChart(charted) : element("p", { class: "meta", text: "Nothing billed." }),
+      amountTable(`Amount, ${currency}`, rows, total
+        ? [{ kind: "total", cells: [`${state.basis} total`, "every value, unassigned included", total.amount] }]
+        : []));
+  });
+}
+
+async function renderDimensions(params, current) {
+  const target = byId("dimensions");
+  const first = await getJson(ALLOCATIONS, { ...params, limit: 1 });
+  if (!current()) return;
+  const sample = first.items.length ? first.items[0].allocation.dimensions || {} : {};
+  const names = Object.keys(sample).sort();
+  byId("dimension-label").hidden = names.length === 0;
+  if (names.length === 0) {
+    target.replaceChildren(element("p", { class: "meta", text: "No Cost Dimensions are configured for this Calculation Run. Give a configuration with --dimensions (spec 09)." }));
+    return;
+  }
+  if (!names.includes(state.dimension)) state.dimension = names[0];
+  byId("dimension").replaceChildren(...names.map((name) => element("option", { value: name, text: name })));
+  byId("dimension").value = state.dimension;
+  const page = await getJson(DIMENSIONS.replace("{name}", encodeURIComponent(state.dimension)),
+    { ...params, limit: PAGE_SIZE });
+  if (!current()) return;
+  target.replaceChildren(...dimensionPanels(page));
+}
+
 function showNotice(text) {
   const notice = byId("notice");
   notice.hidden = !text;
@@ -299,6 +361,7 @@ async function render() {
   byId("rollups-run").replaceChildren(rollupPanel("Workload Runs", runs,
     (key) => ({ name: key, detail: "", mono: true, open: () => openLineage(key) })));
   byId("runs").replaceChildren(rootRunsPanel(roots));
+  await renderDimensions(scopeParams(summary.scope), current);
 }
 
 // ---- Details on demand (#118): the Allocations behind an amount, one Allocation's Cost
@@ -532,5 +595,6 @@ function change(update) {
 }
 byId("basis").addEventListener("change", change((value) => (state.basis = value)));
 byId("scope").addEventListener("change", change((value) => (state.scope = Number(value))));
+byId("dimension").addEventListener("change", change((value) => (state.dimension = value)));
 window.addEventListener("hashchange", () => openFromHash().catch(fail));
 render().then(openFromHash).catch(fail);

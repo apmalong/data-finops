@@ -273,9 +273,17 @@ class Reporting:
             )
             for value, by_basis in sorted(totals.items(), key=_none_last)
         ]
+        overall: dict[tuple[str, str], Decimal] = {}
+        for by_basis in totals.values():
+            for key, by_source in by_basis.items():
+                overall[key] = overall.get(key, Decimal(0)) + sum(by_source.values(), Decimal(0))
         return DimensionRollupPage(
             calculation_run_id=stored.snapshot.calculation_run_id,
             dimension=name,
+            totals=[
+                RollupAmount(currency=currency, cost_basis=CostBasis(basis), amount=amount)
+                for (currency, basis), amount in sorted(overall.items())
+            ],
             total=len(entries),
             limit=limit,
             offset=offset,
