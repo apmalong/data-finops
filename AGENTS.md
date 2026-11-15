@@ -1,14 +1,14 @@
 # Agent instructions
 
-You implement the Data FinOps project that this repository specifies. Treat the specifications and ADRs as authoritative. Keep to the scope of the task, and tell the owner before you expand it. If the implementation shows a contradiction, document an ADR amendment. Then continue with the smallest safe interpretation.
+You implement the Data FinOps project that this repository specifies. Treat the specifications and ADRs as authoritative. Do not expand the scope silently. If the implementation shows a contradiction, document an ADR amendment. Then continue with the smallest safe interpretation.
 
 ## Engineering rules
 - Python 3.12+, typed code, `pytest`, `ruff` and `mypy` (or pyright). Calculations are deterministic, with `Decimal` for currency. Monetary arithmetic never uses floating point.
-- Build an **offline synthetic end-to-end path first**. Unit and integration tests never require real cloud credentials.
+- Build an **offline synthetic end-to-end path first**. Never make unit or integration tests require real cloud credentials.
 - The cloud bill is authoritative. Telemetry explains the allocation. Never invent exact query costs from duration or time overlap.
 - Keep billed amounts, estimated allocations and potential savings separate. Keep the provenance and the method of each allocation.
 - Reconcile for each source billing line or cost pool, currency, period and adjustment version. Prevent double counts on replay.
-- By default, do not export credentials, raw SQL with sensitive literals, customer data or tenant identifiers to an external service.
+- By default, avoid the export of credentials, raw SQL with sensitive literals, customer data or tenant identifiers to an external service.
 - Optional integrations must fail open. A telemetry outage must not fail production ETL.
 - Copy third-party source only with a license check for each file and its original notices. Also record the source URL, the pinned commit, the modifications and a provenance entry.
 - Prefer official APIs and SDK dependencies to copies of application internals.
@@ -25,18 +25,18 @@ All development follows the engineering skills of Matt Pocock (`mattpocock-skill
    - Run type checks and single test files often.
    - At the end, run `python -m scripts.gates` (each gate, in each project). Then run `code-review` against `main`. Its reviewers are advisory (see "Work with AI").
    - Commit with `Closes #<ticket>`.
-5. **Standards gate:** before a collector, parser, serializer, lineage model, telemetry format, allocation algorithm or integration, apply ADR 0014 (see the section below).
+5. **Standards gate:** before each collector, parser, serializer, lineage model, telemetry format, allocation algorithm or integration, apply ADR 0014 (see the section below).
 6. **Pull request:** the body follows the `pr` skill (Summary, Evidence, Merge Danger).
-   - For test and check results, the Evidence section quotes the `## Gates` block that `python -m scripts.gates` printed, or links the CI run. Copy these results. Never write them by hand.
+   - For test and check results, the Evidence section quotes the `## Gates` block that `python -m scripts.gates` printed, or links the CI run. Never write them by hand.
    - The body also has the review label from "Work with AI".
    - `main` is protected. A PR is required, and the `quality` check must pass.
 7. **Documentation:** each ticket names the Diátaxis documentation type that it changes (tutorial, how-to, reference, explanation, or none) in a `## Documentation` section. Done includes that change (ADR 0025, spec 07). The code-review Spec reviewer checks it against the diff.
    - Write and edit documentation with the `simplified-technical-english` skill (`.claude/skills/`).
    - *Milestone D exception (owner, 2026-11-05):*
      - Content-only tickets (site pages) skip `tdd`, mutation checks and the Standards reviewer. Write each page. Then build and check it with `python -m scripts.site build` and `check`.
-     - Run its page runner test and the full suite one time. One reviewer checks the accuracy against the ADRs and specs, and against the rules of the skill.
+       - For a content-only ticket, run the page runner test of the page and the full suite one time. One reviewer checks the accuracy against the ADRs and specs, and against the rules of the `simplified-technical-english` skill.
      - Tooling tickets keep the full loop.
-     - The other tickets of D are grouped into PRs. Each PR closes each ticket in it, with a section for each ticket. The groups are in `docs/implementation/plan.md`, section D.
+     - The tickets of D that are not done are grouped into PRs. Each PR closes each ticket in it, with a section for each ticket. The groups are in `docs/implementation/plan.md`, section D.
 8. **Close a milestone** only with verification that you can run. Record the commands and the output in `progress.md`, and update the affected documents.
 9. **Bugs and intake:** bugs use `diagnosing-bugs`. Issue intake uses `triage`, with the labels in `docs/agents/triage-labels.md`.
 
@@ -74,7 +74,7 @@ A PR that changes one of the four kinds of work must not merge with `AI-reviewed
 - `src/data_finops/{contracts,billing,normalization,ledger,identity,lineage,dbt,workload,attribution,calculation,collection,reporting,api,cli,providers}`, plus `lambda_handlers.py` and `aws_clients.py` (the `aws` extra).
 - `uv run python -m data_finops.schemas` generates the contracts into `schemas/`.
 - `scripts/` holds operator tools and upstream checks that use the network. It never holds product code.
-- `infra/pulumi/aws`: the Pulumi components of the Deployment and, in `policy/`, its policy pack. These are two more uv projects with their own checks, which run in the `infra` job of CI. Only the owner runs its `wizards/`. An agent never runs them.
+- `infra/pulumi/aws`: the Pulumi components of the Deployment and, in `policy/`, its policy pack. These are two more uv projects with their own checks, which run in the `infra` job of CI. Only the owner runs `infra/pulumi/aws/wizards/`. An agent never runs them.
 - `tests/{unit,integration,contract}`
 - `examples/demo`
 - `site/`: the user documentation site, deployed as committed (ADR 0025). `scripts/site/` is its dev tooling, outside the wheel.

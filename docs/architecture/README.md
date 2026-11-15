@@ -1,6 +1,6 @@
 # Architecture diagrams
 
-What M0–M6 built, drawn from the code as it stands. The terms are the terms in [`GLOSSARY.md`](../../GLOSSARY.md). The decisions are in [`docs/adr/`](../adr/).
+What M0–M6 built, drawn from the code as it stands. [`GLOSSARY.md`](../../GLOSSARY.md) defines the terms. The decisions are in [`docs/adr/`](../adr/).
 
 | Diagram | Answers | Tool |
 |---|---|---|
@@ -295,6 +295,6 @@ Generated from the schema: the Ledger and the workload store each create their t
 | `site/assets/explanation/bill-to-roll-ups.svg` | `bill-to-roll-ups.d2` (the site's The bill is authoritative page) | `d2 --layout elk docs/architecture/bill-to-roll-ups.d2 site/assets/explanation/bill-to-roll-ups.svg` |
 | `site/assets/explanation/deployment.svg` | `deployment.d2` (the site's Deployment architecture page) | `d2 --layout elk docs/architecture/deployment.d2 site/assets/explanation/deployment.svg` |
 | `site/assets/explanation/coverage.svg` | `coverage.d2` (the site's Allocation and Coverage page) | `d2 --layout elk docs/architecture/coverage.d2 site/assets/explanation/coverage.svg` |
-| Mermaid blocks | the glossary, the ingest path, the Calculation Run or the read path | edit this file. GitHub draws them. |
+| Mermaid blocks | the glossary, the ingest path, the Calculation Run or the read path | Edit this file. GitHub draws them. |
 
 Tools: D2 0.9.0 (`winget install Terrastruct.D2`). CI checks only `database.d2` against the schema, not whether the SVGs are up to date with their sources.

@@ -22,13 +22,13 @@
   - It imports nothing from `providers`, `ledger` or `workload`. The callers classify Billing Lines into pools, and they give the Billable Usage (`attribution.engine`, #81).
   - Roll-ups (`attribution.rollups`) are pure sums too.
 - `calculation`: the Calculation Run (#88). It is a thin orchestrator over `ledger`, `workload`, `providers` and the pure `attribution` engine.
-  - These packages meet only here, and in `collection` (below), which gives the Calculation Run what it collected.
+  - All four meet only here. `collection` (below) gets to them through `calculation`, and gives it what it collected.
   - It resolves the Evidence of each Allocation with `attribution.rollups`.
   - No SQL and no AWS.
 - `reporting`: the read model (M5). It is read-only.
   - It answers cost summaries, allocations, explanations, lineage, reconciliation and provenance from the `ledger` and `workload` read interfaces. It returns response models.
   - It computes Roll-ups at read time with the pure `attribution.rollups`.
-  - It is one of the only modules that import both stores. The others are `calculation` and `collection`.
+  - Only `reporting`, `calculation` and `collection` import both stores. `cli` can too, with the condition in its entry below.
 - `api`: the HTTP adapter (FastAPI, optional `api` extra) and the static dashboard.
   - It reads only through `reporting`. Its one write gives OpenLineage events to `WorkloadStore` (ADR 0024).
   - No SQL.
@@ -41,7 +41,7 @@
   - These collectors fetch files and API responses, and give them to the current readers. They never write to a store themselves.
 - `collection`: the Collection Run (M6, spec 08). It is a thin orchestrator over `providers.aws`, the `billing` Delivery reader, the public ingest functions of the stores, and `calculation`.
   - `collection.remote` fetches and writes the database object.
-  - The Lambda handlers (`lambda_handlers`) are entry points over `collection` and `api`, as `cli` is. The API handler also keeps the database object by ETag, through `providers.aws`.
+  - The Lambda handlers (`lambda_handlers`) are entry points over `collection` and `api`, as `cli` is. The API handler also keeps a copy of the database object, and gets it again only when its ETag changes, through `providers.aws`.
   - The two entry points get their AWS clients from `aws_clients`, the only module that imports boto3 (#183, #184).
 
 Do not enforce a simplistic linear import graph. Identity and lineage are independent inputs to attribution, not submodules of billing.
