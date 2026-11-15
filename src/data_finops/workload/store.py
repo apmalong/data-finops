@@ -10,7 +10,7 @@ ParentRunFacet.
 import hashlib
 import json
 import sqlite3
-from collections import Counter
+from collections import Counter, defaultdict
 from collections.abc import Iterable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -20,6 +20,7 @@ from pathlib import Path
 from types import TracebackType
 from typing import Any, NamedTuple, Self
 
+from data_finops.contracts.dimensions import NO_DIMENSIONS, CostDimensions, select_claims
 from data_finops.contracts.workload import (
     DataAsset,
     DbtNode,
@@ -47,6 +48,7 @@ from data_finops.identity.links import (
     ModelExecutionKey,
     QueryExecutionKey,
     is_identifier,
+    query_comment,
     resolve_invocation,
     resolve_model_run,
     resolve_query,
@@ -136,6 +138,7 @@ CREATE TABLE IF NOT EXISTS workload_query_execution (
     invocation_id TEXT,
     node_id TEXT,
     entry_json TEXT NOT NULL,
+    claims_json TEXT NOT NULL DEFAULT '{}',
     PRIMARY KEY (account_id, region, query_execution_id, digest)
 );
 CREATE INDEX IF NOT EXISTS workload_query_execution_model
@@ -150,9 +153,10 @@ CREATE TABLE IF NOT EXISTS workload_inbox_object (
 
 _REQUIRED_COLUMNS = {
     "workload_lineage_event": {"dbt_invocation_id", "dbt_node_id"},
-    "workload_query_execution": {"invocation_id", "node_id"},
+    "workload_query_execution": {"invocation_id", "node_id", "claims_json"},
 }
-"""Columns added after a table was first released (M3); checked when a store is opened."""
+"""Columns added after a table was first released (M3, M7); checked when a store is
+opened."""
 
 _START = "START"
 _TERMINAL = {
@@ -231,6 +235,9 @@ class QueryHistoryIngestResult:
     """Stored beside an observation of the same Query Execution with other content."""
     file_rejection: str | None = None
     """Why the whole file was refused (nothing stored); never content from the file."""
+    claims_dropped: int = 0
+    """Configured Cost Dimension claims that were not kept: a value that is not a string of
+    1 to 128 characters (spec 09). Never the value."""
 
 
 class _QueryObservation(NamedTuple):
@@ -246,6 +253,7 @@ class _QueryObservation(NamedTuple):
     invocation_id: str | None
     node_id: str | None
     entry_json: str
+    claims_json: str
 
     def claim(self) -> ModelExecutionKey | None:
         """The Model Execution this observation's Trusted Query Comment named, if any."""
@@ -559,6 +567,21 @@ class WorkloadStore:
         found += [root for root in dict.fromkeys(roots) if root != run_id and root not in found]
         return found
 
+    def run_tags(self, run_id: str) -> dict[str, str]:
+        """The OpenLineage tags of a run: the `tags` run facet and job facet of its stored
+        events (a Cost Dimension source, ADR 0031). A key with more than one value is
+        ambiguous and is left out. A tag is a claim, never Evidence."""
+        values: dict[str, set[str]] = defaultdict(set)
+        for stored in self.stored_events(run_id):
+            event = json.loads(stored)
+            for part in ("run", "job"):
+                facet = ((event.get(part) or {}).get("facets") or {}).get("tags") or {}
+                for tag in facet.get("tags") or []:
+                    key, value = (tag or {}).get("key"), (tag or {}).get("value")
+                    if isinstance(key, str) and isinstance(value, str) and key and value:
+                        values[key].add(value)
+        return {key: next(iter(found)) for key, found in sorted(values.items()) if len(found) == 1}
+
     def ingest_dbt_artifact(self, path: Path) -> ArtifactIngestResult:
         """Store a dbt run-results (v6) or manifest (v12) file, keyed by invocation and hash.
 
@@ -591,7 +614,12 @@ class WorkloadStore:
         return ArtifactIngestResult(outcome, invocation)
 
     def ingest_query_history(
-        self, path: Path, *, account_id: str, region: str
+        self,
+        path: Path,
+        *,
+        account_id: str,
+        region: str,
+        dimensions: CostDimensions = NO_DIMENSIONS,
     ) -> QueryHistoryIngestResult:
         """Store an Athena BatchGetQueryExecution response read from one account and region.
 
@@ -600,14 +628,23 @@ class WorkloadStore:
         text, execution parameters and free-text failure reasons never reach storage. The same
         content again is a duplicate; other content for the same key is kept beside it and
         flagged.
+
+        The Cost Dimension claims of the first-line comment are kept beside the observation,
+        not in its digest: only the keys that `dimensions` configures (ADR 0031). The first
+        ingest of an observation sets its claims, so a key added later applies only to
+        queries ingested after it, and an ingest again is still a duplicate.
         """
         screening = screen_query_history(path, account_id=account_id, region=region)
         if isinstance(screening, str):
             return QueryHistoryIngestResult(file_rejection=screening)
-        accepted = changed_copies = 0
+        accepted = changed_copies = claims_dropped = 0
         with self._write_transaction():
             for screened in screening.entries:
                 claim = trusted_query_comment(screened.parsed.Query)
+                claims, dropped = select_claims(
+                    query_comment(screened.parsed.Query), dimensions.comment_keys
+                )
+                claims_dropped += dropped
                 # The comment's identifiers are part of the observation, so reports of one
                 # query naming different Model Executions are kept apart (spec 03 step D).
                 stored_json = _canonical(
@@ -626,7 +663,7 @@ class WorkloadStore:
                     "INSERT OR IGNORE INTO workload_query_execution (account_id, region,"
                     " query_execution_id, digest, workgroup, statement_type, state,"
                     " submitted_us, completed_us, scanned_bytes, invocation_id, node_id,"
-                    " entry_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    " entry_json, claims_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     (
                         *key,
                         digest,
@@ -639,6 +676,7 @@ class WorkloadStore:
                         claim.invocation_id if claim else None,
                         claim.node_id if claim else None,
                         stored_json,
+                        _canonical(claims),
                     ),
                 ).rowcount
                 accepted += stored
@@ -648,6 +686,7 @@ class WorkloadStore:
             duplicates=len(screening.entries) - accepted,
             rejected=tuple(screening.rejected),
             changed_copies=changed_copies,
+            claims_dropped=claims_dropped,
         )
 
     def query_execution(
@@ -680,6 +719,7 @@ class WorkloadStore:
                 if claim
                 else None
             ),
+            claims=json.loads(first.claims_json),
             provenance=first.digest,
             flags=(QueryExecutionFlag.CONFLICTING_OBSERVATIONS,) if len(rows) > 1 else (),
         )
@@ -710,7 +750,7 @@ class WorkloadStore:
         """A Query Execution's stored observations, by digest."""
         rows = self._connection.execute(
             "SELECT digest, workgroup, statement_type, state, submitted_us, completed_us,"
-            " scanned_bytes, invocation_id, node_id, entry_json"
+            " scanned_bytes, invocation_id, node_id, entry_json, claims_json"
             " FROM workload_query_execution WHERE account_id = ?"
             " AND region = ? AND query_execution_id = ? ORDER BY digest",
             (account_id, region, query_execution_id),

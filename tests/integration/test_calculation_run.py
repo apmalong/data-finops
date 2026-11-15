@@ -342,6 +342,7 @@ def test_allocations_record_every_rule_version_that_shaped_them(
     assert stored is not None
     assert stored.snapshot.policy_version == (
         "allocation-engine/1+line-classification/1+athena-billable-usage/2+athena-billing-scope/2"
+        "+cost-dimensions/1"
     )
 
 

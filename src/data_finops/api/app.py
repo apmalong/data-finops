@@ -30,6 +30,7 @@ from data_finops.reporting import (
     CostExplanation,
     CostSummaries,
     DatabaseUnavailable,
+    DimensionRollupPage,
     NotFound,
     Provenance,
     Reporting,
@@ -108,6 +109,13 @@ _SELECTION_PROBLEMS: dict[int | str, dict[str, Any]] = {
         " the fields to give, never their values."
     ),
     404: _problem_doc("No such Calculation Run, or no calculated Snapshot Scope matches."),
+}
+_DIMENSION_PROBLEMS: dict[int | str, dict[str, Any]] = {
+    **_SELECTION_PROBLEMS,
+    404: _problem_doc(
+        "No such Calculation Run, no calculated Snapshot Scope matches, or the snapshot has no"
+        " such Cost Dimension."
+    ),
 }
 _HEALTH_RESPONSES: dict[int | str, dict[str, Any]] = {
     401: _READ_PROBLEMS[401],
@@ -248,6 +256,30 @@ def create_app(
         with Reporting(db) as read_model:
             return read_model.rollups(
                 level=level,
+                calculation_run_id=calculation_run_id,
+                billing_account_id=billing_account_id,
+                billing_period=billing_period,
+                source=source,
+                limit=limit,
+                offset=offset,
+            )
+
+    @app.get("/v1/rollups/dimensions/{name}", responses=_DIMENSION_PROBLEMS)
+    def dimension_rollups(
+        name: Annotated[str, PathParameter(max_length=64)],
+        calculation_run_id: Annotated[str | None, Query(max_length=128)] = None,
+        billing_account_id: Annotated[str | None, Query(max_length=128)] = None,
+        billing_period: date | None = None,
+        source: Annotated[str | None, Query(max_length=256)] = None,
+        limit: Annotated[int, Query(ge=1, le=MAX_PAGE_SIZE)] = 100,
+        offset: Annotated[int, Query(ge=0)] = 0,
+    ) -> DimensionRollupPage:
+        """What each value of one Cost Dimension holds in one Allocation Snapshot, selected as
+        for `/v1/allocations`, and how its sources split (ADR 0031). Unassigned cost has the
+        value null. The totals of all values equal the totals of the snapshot."""
+        with Reporting(db) as read_model:
+            return read_model.dimension_rollups(
+                name=name,
                 calculation_run_id=calculation_run_id,
                 billing_account_id=billing_account_id,
                 billing_period=billing_period,

@@ -25,6 +25,7 @@ from data_finops.billing.aws_data_exports import (
 )
 from data_finops.calculation import run_calculation
 from data_finops.contracts.billing import FocusExport, SnapshotScope
+from data_finops.contracts.dimensions import NO_DIMENSIONS, CostDimensions
 from data_finops.dbt.artifacts import MAX_ARTIFACT_BYTES
 from data_finops.ledger import ImportOutcome, Ledger, SnapshotConflictError
 from data_finops.providers.aws import (
@@ -214,10 +215,15 @@ class AwsClients:
 
 
 def run_collection(
-    db: Path, settings: CollectionSettings, *, clients: AwsClients
+    db: Path,
+    settings: CollectionSettings,
+    *,
+    clients: AwsClients,
+    dimensions: CostDimensions = NO_DIMENSIONS,
 ) -> CollectionSummary:
     """Collect every source into the database at `db`, then start one Calculation Run per
-    Snapshot Scope on whatever was stored."""
+    Snapshot Scope on whatever was stored. `dimensions` applies at the Athena ingest and in
+    each Calculation Run (ADR 0031)."""
     with tempfile.TemporaryDirectory(prefix="data-finops-collect-") as scratch:
         with WorkloadStore(db) as store:
             # Workload metadata first (spec 08 §1); links are derived when queried, so the
@@ -227,12 +233,15 @@ def run_collection(
             openlineage = _collect_openlineage(
                 store, clients.s3, settings.bucket, Path(scratch), warnings
             )
-            athena = _collect_athena(store, clients.athena, settings, Path(scratch), warnings)
+            athena = _collect_athena(
+                store, clients.athena, settings, Path(scratch), warnings, dimensions
+            )
         with Ledger(db) as ledger:
             focus = _collect_focus(ledger, clients.s3, settings, Path(scratch), warnings)
     with Ledger(db) as ledger, WorkloadStore(db) as store:
         runs = [
-            run_calculation(ledger, store, scope).calculation_run_id for scope in ledger.scopes()
+            run_calculation(ledger, store, scope, dimensions=dimensions).calculation_run_id
+            for scope in ledger.scopes()
         ]
     return CollectionSummary(
         sources={"dbt": dbt, "openlineage": openlineage, "athena": athena, "focus": focus},
@@ -344,6 +353,7 @@ def _collect_athena(
     settings: CollectionSettings,
     scratch: Path,
     warnings: list[str],
+    dimensions: CostDimensions,
 ) -> SourceSummary:
     """Each configured workgroup's Query Executions that are not stored yet."""
     tally = _Tally()
@@ -387,7 +397,10 @@ def _collect_athena(
             path = scratch / "history.json"
             path.write_text(json.dumps(response), encoding="utf-8")
             result = store.ingest_query_history(
-                path, account_id=settings.account_id, region=settings.region
+                path,
+                account_id=settings.account_id,
+                region=settings.region,
+                dimensions=dimensions,
             )
             if result.file_rejection is not None:
                 # The response is built here, so a refused file is a fault, not bad input.

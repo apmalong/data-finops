@@ -92,7 +92,7 @@
 <p>Known Billable Usage is 0.001 TB, the same as the billed quantity, so Coverage is 1. <code>q-001</code> gets a $6.00 Metered Share. Its <a href="../reference/glossary.html#trusted-query-comment">Trusted Query Comment</a> names Model Execution <code>model.demo.orders</code>, so the $6.00 rolls up to it. The bill's $4.00 S3 storage line is outside every policy, so it is Unallocated as <code>ineligible</code>.</p>
 
 <h2 id="policy">The current Athena policy</h2>
-<p>Calculation Runs record their policy version, today <code>allocation-engine/1+line-classification/1+athena-billable-usage/2+athena-billing-scope/2</code>. <code>athena-billable-usage/2</code> sets each Query Execution's Billable Usage:</p>
+<p>Calculation Runs record their policy version, today <code>allocation-engine/1+line-classification/1+athena-billable-usage/2+athena-billing-scope/2+cost-dimensions/1</code>. <code>athena-billable-usage/2</code> sets each Query Execution's Billable Usage:</p>
 <ul>
 <li>a failed one, or one that scanned 0 bytes: 0</li>
 <li>any other one that succeeded or was canceled: the data that it scanned, rounded up to the next MB, with a minimum of 10 MB</li>

@@ -195,6 +195,44 @@ class RollupPage(_Response):
     items: list[RollupEntry]
 
 
+class DimensionSourceAmount(_Response):
+    """The part of a dimension value that one source gave."""
+
+    source: str | None
+    """For example `query_comment.team`. None for unassigned cost."""
+    amount: DecimalString
+
+
+class DimensionTotal(_Response):
+    """What one value of a Cost Dimension holds, in one currency and Cost Basis."""
+
+    currency: CurrencyCode
+    cost_basis: CostBasis
+    amount: DecimalString
+    sources: list[DimensionSourceAmount]
+    """How the amount splits by source. The parts add up to `amount`."""
+
+
+class DimensionRollupEntry(_Response):
+    """One value of a Cost Dimension: a view over Allocations, as a Roll-up is (ADR 0031)."""
+
+    value: str | None
+    """None: unassigned. No source gave a value."""
+    totals: list[DimensionTotal]
+
+
+class DimensionRollupPage(_Response):
+    """One page of the values of one Cost Dimension in one Allocation Snapshot. The totals of
+    all values, unassigned included, equal the totals of the snapshot."""
+
+    calculation_run_id: str
+    dimension: str
+    total: int
+    limit: int
+    offset: int
+    items: list[DimensionRollupEntry]
+
+
 class ExplainedModelExecution(_Response):
     """The Model Execution that the Evidence of an Allocation links, as the workload store
     holds it. `execution` or `dbt_node` is None when that part was never ingested."""

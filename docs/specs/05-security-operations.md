@@ -11,6 +11,7 @@ The `data-finops` command (stdlib `argparse`) has these subcommands:
 - `ingest {focus,openlineage,dbt,athena} PATH --db PATH` (athena also takes `--account-id` and `--region`)
 - `calculate --db PATH`
 - `collect --db PATH --config FILE`: one Collection Run against AWS (spec 08)
+- `ingest athena`, `calculate` and `collect` also take `--dimensions FILE`: the Cost Dimensions configuration (spec 09).
 
 Exit codes:
 - 0: everything was stored.

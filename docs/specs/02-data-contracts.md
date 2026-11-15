@@ -22,6 +22,7 @@ Typed Pydantic models in `src/data_finops` are the source of truth for contracts
 - `QueryExecution`: provider, account_id, region, query_execution_id, workgroup, statement_type, state, submitted_at and completed_at, scanned_bytes, billable_bytes, the IDs of the correlation comment, provenance and flags.
   - The versioned provider policy computes billable_bytes.
   - The IDs of the correlation comment are extracted (see spec 04, data protection).
+  - claims: the Cost Dimension claims from the first-line query comment. Only the keys that the configuration names are kept (spec 09, ADR 0031). A claim is never Evidence.
   - A reservation ID and other workload metadata are not stored yet.
 - `DataAsset`: namespace and name, as the OpenLineage "Naming Conventions" give them for datasets. Kind and metadata are not stored yet.
 - `LineageEdge`: a Workload Run and a Data Asset that it read (`input`) or wrote (`output`), observed_at and provenance. Edges between two Data Assets are not stored. Column-level lineage is the eventual goal (owner, 2026-11-07).
@@ -35,7 +36,8 @@ Typed Pydantic models in `src/data_finops` are the source of truth for contracts
   - category: direct, shared, idle or unallocated.
   - confidence: direct_verified, metered_estimate or heuristic_estimate. It is absent when the category is unallocated.
   - coverage: for metered shares.
-- `AllocationSnapshot`: calculation_run_id, policy_version, input digest (Export Snapshots and telemetry), created_at and is_current.
+  - dimensions: the value and source of each configured Cost Dimension, by name (spec 09, ADR 0031). A value of null is unassigned.
+- `AllocationSnapshot`: calculation_run_id, policy_version, input digest (Export Snapshots and telemetry), created_at, is_current and dimensions_sha256. dimensions_sha256 is the SHA-256 of the Cost Dimensions configuration. It is not part of the input digest (Q72).
 
 ## Identity and time
 All timestamps are ISO-8601 UTC. Keep the provider region for API queries. Never equate a dbt `unique_id` with a specific run. Join `invocation_id` and the execution or run context. Give identifiers a namespace across accounts and providers.

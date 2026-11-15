@@ -31,6 +31,7 @@ ledger: Ledger (billing) {
     "policy_version": TEXT {constraint: [not_null]}
     "created_at_us": INTEGER {constraint: [not_null]}
     "export_snapshot_id": TEXT
+    "dimensions_sha256": TEXT
   }
   allocation: {
     shape: sql_table
@@ -124,6 +125,7 @@ workload: Workload store {
     "invocation_id": TEXT
     "node_id": TEXT
     "entry_json": TEXT {constraint: [not_null]}
+    "claims_json": TEXT {constraint: [not_null]}
   }
   workload_inbox_object: {
     shape: sql_table

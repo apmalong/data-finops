@@ -11,6 +11,7 @@ from aws_stubs import (
     BUCKET,
     METADATA,
     athena_client,
+    expect_batch,
     expect_get,
     expect_history,
     expect_listing,
@@ -24,6 +25,7 @@ from fixture_database import FIXTURES
 from data_finops.cli import main, make_aws_clients
 from data_finops.collection import AwsClients, CollectionSettings
 from data_finops.reporting import Reporting
+from data_finops.workload.store import WorkloadStore
 
 EVENTS = (FIXTURES / "openlineage" / "events.json").read_bytes()
 KEY = "inbox/openlineage/run.json"
@@ -183,3 +185,44 @@ def test_the_aws_clients_retry_throttled_calls_a_bounded_number_of_times(
     for client in (clients.s3, clients.athena):
         assert client.meta.region_name == "us-east-1"
         assert client.meta.config.retries == {"mode": "standard", "total_max_attempts": 5}
+
+
+def test_collect_keeps_the_claims_that_its_dimensions_name(tmp_path: Path) -> None:
+    db = tmp_path / "data-finops.sqlite"
+    config = _config(tmp_path, SETTINGS)
+    dimensions = tmp_path / "cost-dimensions.toml"
+    dimensions.write_text('[dimensions.team]\nsources = ["query_comment.team"]\n', encoding="utf-8")
+    entry = {
+        "QueryExecutionId": "q-team",
+        "Query": '/* {"team": "finance", "secret": "s"} */\nselect 1',
+        "StatementType": "DML",
+        "WorkGroup": "demo",
+        "Status": {
+            "State": "SUCCEEDED",
+            "SubmissionDateTime": "2026-10-01T01:00:00Z",
+            "CompletionDateTime": "2026-10-01T01:00:10Z",
+        },
+        "Statistics": {"DataScannedInBytes": 1},
+    }
+    s3, athena = s3_client(), athena_client()
+    with stubbed(s3) as s3_stubber, stubbed(athena) as athena_stubber:
+        expect_listing(s3_stubber, "inbox/dbt/", {})
+        expect_listing(s3_stubber, "inbox/openlineage/", {})
+        expect_history(athena_stubber, ["q-team"])
+        expect_batch(athena_stubber, [entry])
+        expect_prefixes(s3_stubber, METADATA, [])
+        argv = [
+            "collect",
+            "--db",
+            str(db),
+            "--config",
+            str(config),
+            "--dimensions",
+            str(dimensions),
+        ]
+        code = main(argv, aws_clients=lambda settings: AwsClients(s3=s3, athena=athena))
+
+    assert code == 0
+    with WorkloadStore(db) as store:
+        query = store.query_execution("123456789012", "us-east-1", "q-team")
+    assert query is not None and dict(query.claims) == {"team": "finance"}

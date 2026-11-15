@@ -3,6 +3,7 @@
 Results are read back through the Ledger's public interface, never from tables.
 """
 
+import hashlib
 import sqlite3
 from decimal import Decimal
 from pathlib import Path
@@ -170,3 +171,40 @@ def test_a_database_from_before_m3_exits_two_and_says_to_recreate_it(
     assert main(["ingest", "openlineage", events, "--db", str(db)]) == 2
     expected = f"data-finops: {db} was made by an older data-finops; recreate it" + chr(10)
     assert capsys.readouterr().err == expected
+
+
+DIMENSIONS = '[dimensions.env]\nsources = ["query_comment.target_name"]\n'
+
+
+def test_dimensions_reach_ingest_and_the_calculation_run(tmp_path: Path) -> None:
+    db = tmp_path / "data-finops.sqlite"
+    config = tmp_path / "cost-dimensions.toml"
+    config.write_text(DIMENSIONS, encoding="utf-8")
+    main(["ingest", "focus", str(FIXTURES / "focus" / "export-2026-10.json"), "--db", str(db)])
+    athena = ["athena", str(FIXTURES / "athena" / "query-executions.json"), *ATHENA_SCOPE]
+    assert main(["ingest", *athena, "--dimensions", str(config), "--db", str(db)]) == 0
+
+    assert main(["calculate", "--dimensions", str(config), "--db", str(db)]) == 0
+    with Ledger(db) as ledger:
+        stored = ledger.current_allocations(SCOPE)
+    assert stored is not None
+    query = next(a for a in stored.allocations if a.target_id == "q-001")
+    assert (query.dimensions["env"].value, query.dimensions["env"].source) == (
+        "dev",
+        "query_comment.target_name",
+    )
+    assert stored.snapshot.dimensions_sha256 == hashlib.sha256(config.read_bytes()).hexdigest()
+
+
+@pytest.mark.parametrize("command", [["calculate"], ["ingest", "athena", "x.json", *ATHENA_SCOPE]])
+def test_an_invalid_dimensions_file_is_refused_naming_the_fault(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], command: list[str]
+) -> None:
+    config = tmp_path / "cost-dimensions.toml"
+    config.write_text('[dimensions.env]\nsources = ["secret_source.x"]\n', encoding="utf-8")
+    db = tmp_path / "data-finops.sqlite"
+    db.touch()
+
+    assert main([*command, "--dimensions", str(config), "--db", str(db)]) == 2
+    err = capsys.readouterr().err
+    assert "unknown source" in err and "cost-dimensions.toml" in err
