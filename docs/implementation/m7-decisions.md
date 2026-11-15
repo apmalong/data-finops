@@ -1,6 +1,6 @@
 # M7 decisions (owner, 2026-11-07)
 
-Code, specs, PRs and tickets cite these as "Q<n>". The numbers continue from M6's log (`m6-decisions.md`, Q1–Q52). Each question was asked with a recommended answer. The owner's answer is recorded where it differs from the recommendation; otherwise the recommendation was accepted. The Source column says which (AGENTS.md, Working with AI). In Q70, the brief is the owner's, and the timing was the recommendation. ADRs 0029–0031 and spec 09 remain authoritative; this log records only who decided what.
+Code, specs, PRs and tickets cite these as "Q<n>". The numbers continue from M6's log (`m6-decisions.md`, Q1–Q52). Each question was asked with a recommended answer. The owner's answer is recorded where it differs from the recommendation; otherwise the recommendation was accepted. The Source column says which (AGENTS.md, Work with AI). In Q70, the brief is the owner's, and the timing was the recommendation. ADRs 0029–0031 and spec 09 remain authoritative; this log records only who decided what.
 
 The owner's brief (2026-11-07): stand data-finops up for real, then show what the published site looks like and why it is better than AWS's own FinOps tools. "Ideally people could go to the repo or docs site and click their way to the dashboard to see it load with recent data." The DAG data may be simulated, but it must be believable and tied to real Athena usage, without running MWAA, "because that costs a lot of money".
 
