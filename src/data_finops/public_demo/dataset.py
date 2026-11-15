@@ -18,7 +18,7 @@ from typing import Any
 import pyarrow as pa
 import pyarrow.parquet as pq
 
-from data_finops.providers.aws.calls import call
+from data_finops.providers.aws import put_bytes
 
 SEED = 20261107
 """The seed of the demo dataset, so that a rebuild gives the same data."""
@@ -115,13 +115,7 @@ def upload(s3: Any, bucket: str, files: Iterable[DatasetFile]) -> dict[str, int]
     invocation writes the same bytes again."""
     count = size = 0
     for file in files:
-        call(
-            s3.put_object,
-            Bucket=bucket,
-            Key=f"{PREFIX}{file.key}",
-            Body=file.data,
-            ContentType=PARQUET_MEDIA_TYPE,
-        )
+        put_bytes(s3, bucket, f"{PREFIX}{file.key}", file.data, content_type=PARQUET_MEDIA_TYPE)
         count, size = count + 1, size + len(file.data)
     return {"files": count, "bytes": size}
 

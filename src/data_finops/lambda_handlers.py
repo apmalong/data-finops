@@ -17,8 +17,8 @@ from data_finops.collection.run import FAILED, DimensionsUnavailable
 from data_finops.providers.aws import S3Reader, S3Writer, WriteConflict, refresh_file
 
 if TYPE_CHECKING:
-    from data_finops.contracts.billing import FocusBillingLine
     from data_finops.public_demo.dataset import DatasetFile
+    from data_finops.reporting import LineFilter
 
 COLLECTOR_SETTINGS = "DATA_FINOPS_COLLECTOR_SETTINGS"
 """The environment variable holding the collector's settings as JSON, with the keys of the
@@ -219,7 +219,7 @@ def make_publisher_handler(
     *,
     clock: Callable[[], datetime],
     scratch: Path,
-    lines: "Callable[[FocusBillingLine], bool] | None" = None,
+    lines: "LineFilter | None" = None,
 ) -> Handler:
     """The public demo's publisher (spec 09 §The publisher): when the collector writes the
     database object, it downloads it, as the API function does, and publishes the Demo

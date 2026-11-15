@@ -138,6 +138,17 @@ def put_file(s3: S3Writer, bucket: str, key: str, path: Path, *, etag: str | Non
             raise
 
 
+def put_bytes(
+    s3: Any, bucket: str, key: str, body: bytes, *, content_type: str | None = None
+) -> None:
+    """Write `body` as the object `key`, over any version. A failure raises AwsSourceError with
+    the AWS error code alone."""
+    params: dict[str, Any] = {"Bucket": bucket, "Key": key, "Body": body}
+    if content_type is not None:
+        params["ContentType"] = content_type
+    call(s3.put_object, **params)
+
+
 def refresh_file(s3: S3Reader, bucket: str, key: str, path: Path, etag: str | None) -> str | None:
     """Make `path` the object's current version and return its ETag, or None when there is no
     such object yet (`path` is then removed). When `etag` is still current (S3 answers 304 to

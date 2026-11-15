@@ -107,9 +107,12 @@ The Deployment must not contain code that is not vetted. These tickets go first:
 - **What is public:**
   - Only the Athena usage lines whose ResourceId is the demo workgroup are public, and what comes from them.
   - The read model gets a filter of Billing Lines, and the publisher sets it to these lines (Q82). Each read then sees only them and their Allocations. The Allocations keep the refs of the owner's Calculation Run.
+  - A Snapshot Scope with none of these lines is not published, and neither is a scope that is not calculated.
   - Each 12-digit account ID becomes `123456789012`.
   - Credit lines are not included, and the page says that amounts are before credits.
-- **Atomic swap:** the files are written under a new prefix, `snapshots/<published at>/`. Then `current.json` changes to that prefix. Thus readers never see half a snapshot. If a write fails, `current.json` does not change. S3 deletes a prefix after 7 days.
+- **Atomic swap:** the files are written under a new prefix, `snapshots/<published at>-<random>/`. Then `current.json` changes to that prefix. Thus readers never see half a snapshot. If a write fails, `current.json` does not change.
+  - Only one publisher runs at a time (reserved concurrency 1, #229). Thus an older publish cannot move `current.json` back.
+  - S3 deletes a prefix after 30 days. If no snapshot is published for 30 days, `current.json` names a prefix that is gone, and the demo shows nothing.
 - **IAM, a role of its own:** `s3:GetObject` on the database object, `s3:PutObject` and `s3:ListBucket` on the demo bucket, and its log group.
 
 ## The site

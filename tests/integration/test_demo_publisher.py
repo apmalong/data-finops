@@ -16,7 +16,7 @@ from typing import Any
 import pytest
 from aws_stubs import s3_client, stubbed
 from botocore.stub import ANY
-from fixture_database import EXPORT, FIXTURES
+from fixture_database import EXPORT, FIXTURES, OTHER_EXPORT
 from jsonschema import Draft202012Validator
 
 from data_finops.api import create_app
@@ -36,6 +36,8 @@ from data_finops.public_demo.publisher import (
 from data_finops.workload.store import WorkloadStore
 
 OWNER = "210987654321"
+ELSEWHERE = "345678901234"
+"""Another account of the owner's, with no demo line."""
 PUBLISHED = datetime(2026, 11, 5, 7, 0, tzinfo=UTC)
 DEMO = demo_lines("demo")
 DIMENSIONS = CostDimensions.from_mapping(
@@ -72,6 +74,12 @@ def _fill(path: Path) -> None:
         store.ingest_dbt_artifact(FIXTURES / "dbt" / "manifest.json")
         store.ingest_dbt_artifact(FIXTURES / "dbt" / "run_results.json")
         run_calculation(ledger, store, export.snapshot.scope, dimensions=DIMENSIONS)
+        # Another account's scope in the same period, S3 lines only: none of it is the demo's.
+        other = FocusExport.model_validate_json(
+            OTHER_EXPORT.model_dump_json().replace(OWNER, ELSEWHERE)
+        )
+        ledger.import_snapshot(other)
+        run_calculation(ledger, store, other.snapshot.scope, dimensions=DIMENSIONS)
 
 
 @pytest.fixture(scope="module")
@@ -120,6 +128,54 @@ def test_the_demo_lines_are_its_workgroups_usage_only() -> None:
 
     assert DEMO(usage) and not DEMO(credit) and not DEMO(other)
     assert not DEMO(usage.model_copy(update={"ResourceId": None}))
+
+
+def test_a_scope_with_no_demo_line_is_not_published(database: Path, files: dict[str, str]) -> None:
+    from data_finops.reporting import Reporting
+
+    with Reporting(database) as read_model:
+        runs = {s.snapshot.calculation_run_id for s in read_model.cost_summary().summaries}
+    summary = json.loads(files["v1/costs/summary/BilledCost.json"])
+    (published,) = [s["snapshot"]["calculation_run_id"] for s in summary["summaries"]]
+    (elsewhere,) = runs - {published}
+    assert summary["uncalculated_scopes"] == []
+    assert all(elsewhere not in key and elsewhere not in text for key, text in files.items())
+
+
+def test_the_explained_share_leaves_out_what_is_unallocated(database: Path) -> None:
+    # Both of the demo account's lines: $6.00 explained, $4.00 Unallocated (the S3 line).
+    def owners(line: Any) -> bool:
+        return OWNER in (line.SubAccountId or "")
+
+    rendered = render(database, published_at=PUBLISHED, lines=owners)
+    snapshot = json.loads(next(f.body for f in rendered if f.key == "snapshot.json"))
+    (period,) = snapshot["periods"]
+    assert (period["billed"], period["explained_share"]) == ("10.00", "0.6000")
+
+
+@pytest.mark.parametrize(
+    ("text", "shown"),
+    [
+        (
+            "arn:aws:athena:us-east-1:210987654321:workgroup/x",
+            "arn:aws:athena:us-east-1:123456789012:workgroup/x",
+        ),
+        (
+            "210987654321.dkr.ecr.us-east-1.amazonaws.com",
+            "123456789012.dkr.ecr.us-east-1.amazonaws.com",
+        ),
+        ("aws-focus-210987654321-2026-10-v1#0", "aws-focus-123456789012-2026-10-v1#0"),
+        ('"BillingAccountId":"210987654321"', '"BillingAccountId":"123456789012"'),
+        ("3fa85f64-5717-4562-b3fc-210987654321", "3fa85f64-5717-4562-b3fc-210987654321"),
+        ("a1b2c3210987654321d4e5f6", "a1b2c3210987654321d4e5f6"),
+        ("0.210987654321", "0.210987654321"),
+        ("2109876543210", "2109876543210"),
+    ],
+)
+def test_masking_changes_account_ids_and_nothing_else(text: str, shown: str) -> None:
+    from data_finops.public_demo.publisher import masked
+
+    assert masked(text) == shown
 
 
 def test_no_twelve_digit_number_but_the_example(files: dict[str, str]) -> None:
@@ -213,7 +269,7 @@ def test_current_json_moves_only_after_every_file_is_written(database: Path) -> 
         pointer = publish(database, s3=s3, bucket=BUCKET, clock=lambda: PUBLISHED, lines=DEMO)
 
     assert keys[-1] == CURRENT and CURRENT not in keys[:-1]
-    assert pointer["prefix"] == "snapshots/20261105T070000Z/"
+    assert re.fullmatch(r"snapshots/20261105T070000Z-[0-9a-f]{8}/", pointer["prefix"])
     assert all(key.startswith(pointer["prefix"]) for key in keys[:-1])
     assert len(keys) - 1 == pointer["files"] == count
 
@@ -265,7 +321,7 @@ def test_the_handler_publishes_the_database_object_of_the_deployment(
         )
         result = handler({"Records": []}, None)
 
-    assert result["prefix"] == "snapshots/20261105T070000Z/" and keys[-1] == CURRENT
+    assert result["prefix"].startswith("snapshots/20261105T070000Z-") and keys[-1] == CURRENT
 
 
 def test_with_no_database_object_yet_nothing_is_published(tmp_path: Path) -> None:

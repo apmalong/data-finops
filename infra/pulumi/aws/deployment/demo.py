@@ -1,7 +1,8 @@
 """The public demo (spec 09; ADR 0029, ADR 0030), made only when `publicDemo` is on: the demo
 bucket, the `data-finops-demo` Athena workgroup, the Glue tables of the demo dataset and the
-function that generates it (#225), and the simulated orchestrator with its schedule (#226). The
-publisher and CloudFront come later (#227, #229)."""
+function that generates it (#225), the simulated orchestrator with its schedule (#226), and the
+expiry of the publisher's snapshots (#227). The publisher's function, trigger and role, and
+CloudFront, come with #229."""
 
 import json
 from collections.abc import Callable
@@ -22,9 +23,9 @@ DATASET_PREFIX = "dataset/"
 """Where the dataset is in the demo bucket (`data_finops.public_demo.dataset.PREFIX`)."""
 SNAPSHOTS_PREFIX = "snapshots/"
 """Where the publisher writes each Demo Snapshot, under a new prefix (#227)."""
-SNAPSHOT_DAYS = 7
-"""How long S3 keeps a Demo Snapshot. The publisher writes a new one after each Collection Run,
-so only a week without one would leave `current.json` naming an expired prefix."""
+SNAPSHOT_DAYS = 30
+"""How long S3 keeps a Demo Snapshot. The publisher writes a new one after each Collection Run;
+only 30 days without one would leave `current.json` naming an expired prefix."""
 RESULTS_PREFIX = "athena-results/"
 """Where Athena writes the results of the demo's queries. S3 deletes them after a day."""
 HANDLER = "data_finops.lambda_handlers.generator"

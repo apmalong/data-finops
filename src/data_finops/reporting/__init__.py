@@ -39,6 +39,7 @@ from data_finops.reporting.reporting import (
     AmbiguousScope,
     ConflictingFilters,
     DatabaseUnavailable,
+    LineFilter,
     NotFound,
     Reporting,
     without_sensitive_dimensions,
@@ -46,6 +47,7 @@ from data_finops.reporting.reporting import (
 
 __all__ = [
     "MAX_PAGE_SIZE",
+    "LineFilter",
     "without_sensitive_dimensions",
     "AllocatedAmount",
     "AllocationEntry",
