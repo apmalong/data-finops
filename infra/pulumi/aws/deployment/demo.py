@@ -283,12 +283,36 @@ class PublicDemo(pulumi.ComponentResource):
             opts=child,
         )
         origin = "demo-bucket"
-        behavior: dict[str, Any] = {
+        https = "redirect-to-https"
+        reads = ["GET", "HEAD"]
+
+        def ordered(
+            path_pattern: str, cache_policy_id: str
+        ) -> aws.cloudfront.DistributionOrderedCacheBehaviorArgsDict:
+            return {
+                "path_pattern": path_pattern,
+                "target_origin_id": origin,
+                "viewer_protocol_policy": https,
+                "allowed_methods": reads,
+                "cached_methods": reads,
+                "compress": True,
+                "cache_policy_id": cache_policy_id,
+            }
+
+        origins: list[aws.cloudfront.DistributionOriginArgsDict] = [
+            {
+                "origin_id": origin,
+                "domain_name": self.bucket.bucket_regional_domain_name,
+                "origin_access_control_id": access.id,
+            }
+        ]
+        default: aws.cloudfront.DistributionDefaultCacheBehaviorArgsDict = {
             "target_origin_id": origin,
-            "viewer_protocol_policy": "redirect-to-https",
-            "allowed_methods": ["GET", "HEAD"],
-            "cached_methods": ["GET", "HEAD"],
+            "viewer_protocol_policy": https,
+            "allowed_methods": reads,
+            "cached_methods": reads,
             "compress": True,
+            "cache_policy_id": CACHING_OPTIMIZED,
         }
         distribution = aws.cloudfront.Distribution(
             f"{name}-demo",
@@ -296,18 +320,11 @@ class PublicDemo(pulumi.ComponentResource):
             comment=f"{name} {stack}: the public demo",
             default_root_object="index.html",
             price_class="PriceClass_100",
-            origins=[
-                {
-                    "origin_id": origin,
-                    "domain_name": self.bucket.bucket_regional_domain_name,
-                    "origin_access_control_id": access.id,
-                }
-            ],
-            default_cache_behavior=behavior | {"cache_policy_id": CACHING_OPTIMIZED},
+            origins=origins,
+            default_cache_behavior=default,
             ordered_cache_behaviors=[
-                behavior | {"path_pattern": CURRENT, "cache_policy_id": CACHING_DISABLED},
-                behavior
-                | {"path_pattern": f"{SNAPSHOTS_PREFIX}*", "cache_policy_id": CACHING_OPTIMIZED},
+                ordered(CURRENT, CACHING_DISABLED),  # it moves: never cached
+                ordered(f"{SNAPSHOTS_PREFIX}*", CACHING_OPTIMIZED),
             ],
             restrictions={"geo_restriction": {"restriction_type": "none"}},
             viewer_certificate={"cloudfront_default_certificate": True},
