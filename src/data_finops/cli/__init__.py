@@ -145,7 +145,7 @@ def build_parser() -> argparse.ArgumentParser:
     serve.add_argument(
         "--token-file",
         type=Path,
-        help="a file holding the bearer token (or set DATA_FINOPS_TOKEN); required off loopback",
+        help="a file with the bearer token (or set DATA_FINOPS_TOKEN). Required off loopback.",
     )
     serve.add_argument(
         "--explanation-detail",

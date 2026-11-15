@@ -133,6 +133,8 @@ _SENTENCE_END_IN_LIST = re.compile(r"[.!?]+(?:\s+|$)|:(?:\s+|$)")  # for the wor
 _ABBREVIATION = re.compile(r"(?<!\w)(?:e\.g|i\.e|vs|cf)\.", re.IGNORECASE)  # not a sentence end
 _LIST_ITEM = re.compile(r"^\s*(?:(?P<number>\d+[.)])|[-*+])\s+")
 _HEADING = re.compile(r"^ {0,3}#{1,6}\s+(?P<text>.*?)[\s#]*$")
+_TERM_LINE = re.compile(r"^\*\*(?P<text>[^*]+)\*\*:\s*$")  # GLOSSARY: a term, as a heading
+_AVOID_LINE = re.compile(r"^\s*_Avoid_:")  # GLOSSARY: words to avoid, mentioned, not used
 _BLOCK_START = re.compile(r"^\s*(?:#{1,6}\s|>|\|)")  # a heading, a quote or a table row
 _TABLE_RULE = re.compile(r"^\s*\|?\s*:?-+:?\s*(?:\|\s*:?-+:?\s*)*\|?\s*$")
 _FRONT_MATTER = re.compile(r"^---\s*$")
@@ -297,9 +299,13 @@ def _markdown_segments(text: str, skip_decision: bool = False) -> Iterator[_Segm
             yield from flush()
         if not line.strip() or line.lstrip().startswith(">"):  # a blank line or a quote
             continue
-        if heading := _HEADING.match(line):
-            yield _Segment(number, heading["text"])
+        if title := _HEADING.match(line) or _TERM_LINE.match(line):
+            yield from flush()
+            yield _Segment(number, title["text"])
             in_list = False
+            continue
+        if _AVOID_LINE.match(line):
+            yield from flush()
             continue
         if line.lstrip().startswith("|"):
             if not _TABLE_RULE.match(line):
@@ -351,6 +357,9 @@ _HTML_SKIPPED = frozenset({"blockquote", "pre", "script", "style", "svg", "templ
 _HTML_CODE = frozenset({"code", "kbd", "samp", "var"})
 """Inline code, which counts as one word."""
 _HTML_REGION = re.compile(r"^\s*(?P<name>[\w-]+):(?P<edge>start|end)\s*$")
+CHECKED_REGIONS = frozenset({"reference"})
+"""Generated regions that are checked: the reference text that `scripts/site` makes from
+its sources (#237). The other regions (head, nav, onpage, pager, pages, footer) are layout."""
 
 
 class _HtmlSegments(HTMLParser):
@@ -366,12 +375,18 @@ class _HtmlSegments(HTMLParser):
         self._skipped = 0  # the open skipped elements
         self._code = 0  # the open inline code elements
         self._region: str | None = None  # the generated region that the parser is in
+        self._avoid: str | None = None  # the open element that lists words to avoid
+        self._avoid_depth = 0  # its open elements of the same tag, itself included
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
-        if self._region or self._skipped:
-            self._skipped += tag in _HTML_SKIPPED and not self._region
+        if self._region or self._skipped or self._avoid:
+            self._skipped += tag in _HTML_SKIPPED and not (self._region or self._avoid)
+            self._avoid_depth += tag == self._avoid
             return
-        if tag in _HTML_SKIPPED:
+        if "avoid" in (dict(attrs).get("class") or "").split():  # the glossary's Avoid lists
+            self._flush()
+            self._avoid, self._avoid_depth = tag, 1
+        elif tag in _HTML_SKIPPED:
             self._flush()
             self._skipped = 1
         elif tag in _HTML_CODE:
@@ -387,7 +402,10 @@ class _HtmlSegments(HTMLParser):
     def handle_endtag(self, tag: str) -> None:
         if self._region:
             return
-        if self._skipped:
+        if self._avoid:
+            self._avoid_depth -= tag == self._avoid
+            self._avoid = self._avoid if self._avoid_depth else None
+        elif self._skipped:
             self._skipped -= tag in _HTML_SKIPPED
         elif tag in _HTML_CODE:
             self._code = max(self._code - 1, 0)
@@ -399,14 +417,16 @@ class _HtmlSegments(HTMLParser):
 
     def handle_comment(self, data: str) -> None:
         region = _HTML_REGION.match(data)
-        if region and region["edge"] == "start" and not self._region:
+        if region and region["name"] in CHECKED_REGIONS:
+            self._flush()  # a checked region starts and ends a segment, but is read
+        elif region and region["edge"] == "start" and not self._region:
             self._flush()
             self._region = region["name"]
         elif region and region["name"] == self._region:
             self._region = None
 
     def handle_data(self, data: str) -> None:
-        if not (self._region or self._skipped or self._code):
+        if not (self._region or self._skipped or self._code or self._avoid):
             self._add(data)
 
     def close(self) -> None:

@@ -9,7 +9,7 @@ from data_finops.contracts.types import UtcDatetime
 
 
 class QueryCorrelation(BaseModel):
-    """Identifiers extracted from a trusted query comment; the query text is not kept."""
+    """Identifiers extracted from a trusted query comment. The query text is not kept."""
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
@@ -86,7 +86,7 @@ class DbtNode(BaseModel):
 
 
 class WorkloadRunStatus(StrEnum):
-    """Derived from a run's terminal event, whatever the arrival order (spec 02)."""
+    """Derived from the terminal event of a run, in any arrival order (spec 02)."""
 
     RUNNING = "running"
     COMPLETED = "completed"
@@ -97,7 +97,7 @@ class WorkloadRunStatus(StrEnum):
 
 
 class WorkloadRunFlag(StrEnum):
-    """Disagreements among a run's stored observations, shown rather than resolved."""
+    """Disagreements among the stored observations of a run. They are shown, not resolved."""
 
     CONFLICTING_OBSERVATIONS = "conflicting_observations"
     """Two events with the same run, event type and time but different content."""
@@ -108,7 +108,7 @@ class WorkloadRunFlag(StrEnum):
 
 
 class WorkloadRun(BaseModel):
-    """One OpenLineage run as reported, including dbt-ol's per-model runs (ADR 0022)."""
+    """One OpenLineage run as reported, also the per-model runs of dbt-ol (ADR 0022)."""
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
@@ -129,7 +129,7 @@ class WorkloadRun(BaseModel):
 
 
 class DataAsset(BaseModel):
-    """Identified by the OpenLineage dataset naming convention."""
+    """Identified as the OpenLineage "Naming Conventions" give it for datasets."""
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 

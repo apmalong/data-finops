@@ -354,3 +354,31 @@ def test_a_comment_marker_inside_a_code_span_does_not_start_a_skipped_region() -
 
     assert _rules(text) == ["should"]
     assert _rules(plain) == ["should"]
+
+
+def test_the_generated_reference_region_is_checked_and_the_layout_regions_are_not() -> None:
+    page = (
+        "<!-- nav:start -->\n<p>You should.</p>\n<!-- nav:end -->\n"
+        "<!-- reference:start -->\n<p>You may.</p>\n<!-- reference:end -->\n"
+    )
+
+    assert _html_rules(page) == [(5, "may")]
+
+
+def test_a_glossary_term_line_is_its_own_segment_and_avoid_lists_are_not_checked() -> None:
+    entry = f"**Reconciliation**:\n{_words(25)}\n_Avoid_: balancing, matching"
+
+    assert _rules(entry) == []
+
+
+def test_an_html_avoid_list_is_not_checked() -> None:
+    avoid = '<dd class="avoid">Avoid: matching</dd>'
+    page = f"<dl><dt>Reconciliation</dt><dd>It checks.</dd>{avoid}</dl>"
+
+    assert _html_rules(page) == []
+
+
+def test_an_avoid_list_with_a_nested_element_of_the_same_tag_stays_skipped() -> None:
+    page = '<p><span class="avoid">Avoid: <span>tag</span>, matching</span> It checks.</p>'
+
+    assert _html_rules(page) == []

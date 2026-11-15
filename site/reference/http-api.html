@@ -78,7 +78,7 @@
 <table>
 <thead><tr><th>Parameter</th><th>In</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
 <tbody>
-<tr><td><code>cost_basis</code></td><td>query</td><td>optional</td><td>CostBasis: one of &quot;BilledCost&quot;, &quot;EffectiveCost&quot;, &quot;ListCost&quot;, &quot;ContractedCost&quot;, default &quot;BilledCost&quot;</td><td></td></tr>
+<tr><td><code>cost_basis</code></td><td>query</td><td>optional</td><td>CostBasis: one of <code>&quot;BilledCost&quot;</code>, <code>&quot;EffectiveCost&quot;</code>, <code>&quot;ListCost&quot;</code>, <code>&quot;ContractedCost&quot;</code>, default &quot;BilledCost&quot;</td><td></td></tr>
 <tr><td><code>billing_account_id</code></td><td>query</td><td>optional</td><td>string, at most 128 characters, or null</td><td></td></tr>
 <tr><td><code>billing_period</code></td><td>query</td><td>optional</td><td>string, date, or null</td><td></td></tr>
 </tbody>
@@ -91,13 +91,13 @@
 <tr><td>200</td><td>Successful Response</td><td><code>application/json</code>: <a href="#schema-cost-summaries">CostSummaries</a></td></tr>
 <tr><td>400</td><td>Invalid request: the detail names the fields, never their values.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
 <tr><td>401</td><td>When a token is configured: no valid bearer token (ADR 0024).</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
-<tr><td>500</td><td>An unexpected failure; the detail reveals nothing about it.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
+<tr><td>500</td><td>An unexpected failure. The detail tells nothing about it.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
 <tr><td>503</td><td>The database cannot be opened as a current data-finops database.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
 </tbody>
 </table>
 </div>
 <h2 id="get-v1-allocations"><code>GET /v1/allocations</code>: Allocations</h2>
-<p>One page of one Allocation Snapshot: a named Calculation Run&#x27;s, or else the current one of the single Snapshot Scope that `billing_account_id`, `billing_period` and `source` select.</p>
+<p>One page of one Allocation Snapshot. It is the snapshot of a named Calculation Run. If no run is named, it is the current snapshot of the single Snapshot Scope that <code>billing_account_id</code>, <code>billing_period</code> and <code>source</code> select.</p>
 <div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
 <table>
 <thead><tr><th>Parameter</th><th>In</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
@@ -107,9 +107,9 @@
 <tr><td><code>billing_period</code></td><td>query</td><td>optional</td><td>string, date, or null</td><td></td></tr>
 <tr><td><code>source</code></td><td>query</td><td>optional</td><td>string, at most 256 characters, or null</td><td></td></tr>
 <tr><td><code>target_id</code></td><td>query</td><td>optional</td><td>string, at most 256 characters, or null</td><td></td></tr>
-<tr><td><code>category</code></td><td>query</td><td>optional</td><td>AllocationCategory: one of &quot;direct&quot;, &quot;shared&quot;, &quot;idle&quot;, &quot;unallocated&quot;, or null</td><td></td></tr>
+<tr><td><code>category</code></td><td>query</td><td>optional</td><td>AllocationCategory: one of <code>&quot;direct&quot;</code>, <code>&quot;shared&quot;</code>, <code>&quot;idle&quot;</code>, <code>&quot;unallocated&quot;</code>, or null</td><td></td></tr>
 <tr><td><code>billing_line_ref</code></td><td>query</td><td>optional</td><td>string, at most 256 characters, or null</td><td></td></tr>
-<tr><td><code>cost_basis</code></td><td>query</td><td>optional</td><td>CostBasis: one of &quot;BilledCost&quot;, &quot;EffectiveCost&quot;, &quot;ListCost&quot;, &quot;ContractedCost&quot;, or null</td><td></td></tr>
+<tr><td><code>cost_basis</code></td><td>query</td><td>optional</td><td>CostBasis: one of <code>&quot;BilledCost&quot;</code>, <code>&quot;EffectiveCost&quot;</code>, <code>&quot;ListCost&quot;</code>, <code>&quot;ContractedCost&quot;</code>, or null</td><td></td></tr>
 <tr><td><code>limit</code></td><td>query</td><td>optional</td><td>integer, 1 to 1000, default 100</td><td></td></tr>
 <tr><td><code>offset</code></td><td>query</td><td>optional</td><td>integer, at least 0, default 0</td><td></td></tr>
 </tbody>
@@ -120,21 +120,21 @@
 <thead><tr><th>Status</th><th>Meaning</th><th>Body</th></tr></thead>
 <tbody>
 <tr><td>200</td><td>Successful Response</td><td><code>application/json</code>: <a href="#schema-allocation-page">AllocationPage</a></td></tr>
-<tr><td>400</td><td>Invalid request, or filters matching several Snapshot Scopes: the detail names the fields to give, never their values.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
+<tr><td>400</td><td>Invalid request, or filters that match more than one Snapshot Scope: the detail names the fields to give, never their values.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
 <tr><td>401</td><td>When a token is configured: no valid bearer token (ADR 0024).</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
-<tr><td>500</td><td>An unexpected failure; the detail reveals nothing about it.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
+<tr><td>500</td><td>An unexpected failure. The detail tells nothing about it.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
 <tr><td>503</td><td>The database cannot be opened as a current data-finops database.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
 <tr><td>404</td><td>No such Calculation Run, or no calculated Snapshot Scope matches.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
 </tbody>
 </table>
 </div>
 <h2 id="get-v1-rollups"><code>GET /v1/rollups</code>: Rollups</h2>
-<p>What each Model Execution or Workload Run cost in one Allocation Snapshot, chosen as for `/v1/allocations`; kept apart because a Roll-up is a view, never an Allocation.</p>
+<p>What each Model Execution or Workload Run cost in one Allocation Snapshot, selected as for <code>/v1/allocations</code>. This route is separate, because a Roll-up is a view, never an Allocation.</p>
 <div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
 <table>
 <thead><tr><th>Parameter</th><th>In</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
 <tbody>
-<tr><td><code>level</code></td><td>query</td><td>required</td><td>one of &quot;model_execution&quot;, &quot;workload_run&quot;</td><td></td></tr>
+<tr><td><code>level</code></td><td>query</td><td>required</td><td>one of <code>&quot;model_execution&quot;</code>, <code>&quot;workload_run&quot;</code></td><td></td></tr>
 <tr><td><code>calculation_run_id</code></td><td>query</td><td>optional</td><td>string, at most 128 characters, or null</td><td></td></tr>
 <tr><td><code>billing_account_id</code></td><td>query</td><td>optional</td><td>string, at most 128 characters, or null</td><td></td></tr>
 <tr><td><code>billing_period</code></td><td>query</td><td>optional</td><td>string, date, or null</td><td></td></tr>
@@ -149,9 +149,9 @@
 <thead><tr><th>Status</th><th>Meaning</th><th>Body</th></tr></thead>
 <tbody>
 <tr><td>200</td><td>Successful Response</td><td><code>application/json</code>: <a href="#schema-rollup-page">RollupPage</a></td></tr>
-<tr><td>400</td><td>Invalid request, or filters matching several Snapshot Scopes: the detail names the fields to give, never their values.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
+<tr><td>400</td><td>Invalid request, or filters that match more than one Snapshot Scope: the detail names the fields to give, never their values.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
 <tr><td>401</td><td>When a token is configured: no valid bearer token (ADR 0024).</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
-<tr><td>500</td><td>An unexpected failure; the detail reveals nothing about it.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
+<tr><td>500</td><td>An unexpected failure. The detail tells nothing about it.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
 <tr><td>503</td><td>The database cannot be opened as a current data-finops database.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
 <tr><td>404</td><td>No such Calculation Run, or no calculated Snapshot Scope matches.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
 </tbody>
@@ -167,7 +167,7 @@
 <tr><td><code>billing_account_id</code></td><td>query</td><td>optional</td><td>string, at most 128 characters, or null</td><td></td></tr>
 <tr><td><code>billing_period</code></td><td>query</td><td>optional</td><td>string, date, or null</td><td></td></tr>
 <tr><td><code>source</code></td><td>query</td><td>optional</td><td>string, at most 256 characters, or null</td><td></td></tr>
-<tr><td><code>cost_basis</code></td><td>query</td><td>optional</td><td>CostBasis: one of &quot;BilledCost&quot;, &quot;EffectiveCost&quot;, &quot;ListCost&quot;, &quot;ContractedCost&quot;, or null</td><td></td></tr>
+<tr><td><code>cost_basis</code></td><td>query</td><td>optional</td><td>CostBasis: one of <code>&quot;BilledCost&quot;</code>, <code>&quot;EffectiveCost&quot;</code>, <code>&quot;ListCost&quot;</code>, <code>&quot;ContractedCost&quot;</code>, or null</td><td></td></tr>
 <tr><td><code>limit</code></td><td>query</td><td>optional</td><td>integer, 1 to 1000, default 100</td><td></td></tr>
 <tr><td><code>offset</code></td><td>query</td><td>optional</td><td>integer, at least 0, default 0</td><td></td></tr>
 </tbody>
@@ -178,16 +178,16 @@
 <thead><tr><th>Status</th><th>Meaning</th><th>Body</th></tr></thead>
 <tbody>
 <tr><td>200</td><td>Successful Response</td><td><code>application/json</code>: <a href="#schema-allocation-reconciliation">AllocationReconciliation</a></td></tr>
-<tr><td>400</td><td>Invalid request, or filters matching several Snapshot Scopes: the detail names the fields to give, never their values.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
+<tr><td>400</td><td>Invalid request, or filters that match more than one Snapshot Scope: the detail names the fields to give, never their values.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
 <tr><td>401</td><td>When a token is configured: no valid bearer token (ADR 0024).</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
-<tr><td>500</td><td>An unexpected failure; the detail reveals nothing about it.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
+<tr><td>500</td><td>An unexpected failure. The detail tells nothing about it.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
 <tr><td>503</td><td>The database cannot be opened as a current data-finops database.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
 <tr><td>404</td><td>No such Calculation Run, or no calculated Snapshot Scope matches.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
 </tbody>
 </table>
 </div>
 <h2 id="get-v1-provenance"><code>GET /v1/provenance</code>: Provenance</h2>
-<p>How one Allocation Snapshot was made, chosen as for `/v1/allocations`: inputs, policies, the Export Snapshot it read, and the run that superseded it, if any.</p>
+<p>How one Allocation Snapshot was made, selected as for <code>/v1/allocations</code>: inputs, policies, the Export Snapshot it read, and the run that superseded it, if any.</p>
 <div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
 <table>
 <thead><tr><th>Parameter</th><th>In</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
@@ -204,16 +204,16 @@
 <thead><tr><th>Status</th><th>Meaning</th><th>Body</th></tr></thead>
 <tbody>
 <tr><td>200</td><td>Successful Response</td><td><code>application/json</code>: <a href="#schema-provenance">Provenance</a></td></tr>
-<tr><td>400</td><td>Invalid request, or filters matching several Snapshot Scopes: the detail names the fields to give, never their values.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
+<tr><td>400</td><td>Invalid request, or filters that match more than one Snapshot Scope: the detail names the fields to give, never their values.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
 <tr><td>401</td><td>When a token is configured: no valid bearer token (ADR 0024).</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
-<tr><td>500</td><td>An unexpected failure; the detail reveals nothing about it.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
+<tr><td>500</td><td>An unexpected failure. The detail tells nothing about it.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
 <tr><td>503</td><td>The database cannot be opened as a current data-finops database.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
 <tr><td>404</td><td>No such Calculation Run, or no calculated Snapshot Scope matches.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
 </tbody>
 </table>
 </div>
 <h2 id="get-v1-lineage"><code>GET /v1/lineage</code>: Lineage</h2>
-<p>Without `run_id`, the topmost Workload Runs (paged); with it, that run&#x27;s lineage: its family, Data Assets, Lineage Edges and the Identity Links that reach its Model Executions and their Query Executions, each with its Link Outcome.</p>
+<p>Without <code>run_id</code>, the topmost Workload Runs, in pages. With <code>run_id</code>, the lineage of that run: its family, Data Assets and Lineage Edges. It also gives the Identity Links that reach its Model Executions and their Query Executions, each with its Link Outcome.</p>
 <div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
 <table>
 <thead><tr><th>Parameter</th><th>In</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
@@ -231,14 +231,14 @@
 <tr><td>200</td><td>Successful Response</td><td><code>application/json</code>: RootRunPage or RunLineage</td></tr>
 <tr><td>400</td><td>Invalid request: the detail names the fields, never their values.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
 <tr><td>401</td><td>When a token is configured: no valid bearer token (ADR 0024).</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
-<tr><td>500</td><td>An unexpected failure; the detail reveals nothing about it.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
+<tr><td>500</td><td>An unexpected failure. The detail tells nothing about it.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
 <tr><td>503</td><td>The database cannot be opened as a current data-finops database.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
 <tr><td>404</td><td>No event reports or names that Workload Run.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
 </tbody>
 </table>
 </div>
 <h2 id="get-v1-allocations-ref-explanation"><code>GET /v1/allocations/{ref}/explanation</code>: Explanation</h2>
-<p>The Cost Explanation of one Allocation, addressed `&lt;calculation_run_id&gt;#&lt;position&gt;` (the `#` sent as `%23`): Billing Line, Allocation, Evidence resolved, Roll-ups.</p>
+<p>The Cost Explanation of one Allocation, addressed <code>&lt;calculation_run_id&gt;#&lt;position&gt;</code> (the <code>#</code> sent as <code>%23</code>): Billing Line, Allocation, Evidence resolved, Roll-ups.</p>
 <div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
 <table>
 <thead><tr><th>Parameter</th><th>In</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
@@ -254,14 +254,14 @@
 <tr><td>200</td><td>Successful Response</td><td><code>application/json</code>: <a href="#schema-cost-explanation">CostExplanation</a></td></tr>
 <tr><td>400</td><td>Invalid request: the detail names the fields, never their values.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
 <tr><td>401</td><td>When a token is configured: no valid bearer token (ADR 0024).</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
-<tr><td>500</td><td>An unexpected failure; the detail reveals nothing about it.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
+<tr><td>500</td><td>An unexpected failure. The detail tells nothing about it.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
 <tr><td>503</td><td>The database cannot be opened as a current data-finops database.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
 <tr><td>404</td><td>No such Allocation.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
 </tbody>
 </table>
 </div>
 <h2 id="post-api-v1-lineage"><code>POST /api/v1/lineage</code>: Receive Lineage</h2>
-<p>Store one OpenLineage RunEvent, the default endpoint of OpenLineage&#x27;s HTTP transport (spec 04). Screened exactly as one item of an event file. The one async endpoint (spec 06): it streams the body so an oversized one is refused at the cap instead of buffered (ADR 0024), then ingests in the thread pool.</p>
+<p>Store one OpenLineage RunEvent. This is the default endpoint of the OpenLineage HTTP transport (spec 04). The event is screened exactly as one item of an event file. This is the one async endpoint (spec 06). It reads the body as a stream, so a body over the limit is refused at the limit and not buffered (ADR 0024). Then it ingests the event in the thread pool.</p>
 <p>Request body: <code>application/json</code>, required.</p>
 <div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
 <table>
@@ -269,11 +269,11 @@
 <tbody>
 <tr><td>201</td><td>Stored, or already stored (a duplicate).</td><td><code>application/json</code>: <a href="#schema-lineage-receipt">LineageReceipt</a></td></tr>
 <tr><td>202</td><td>A JobEvent or DatasetEvent: not stored.</td><td><code>application/json</code>: <a href="#schema-lineage-unsupported">LineageUnsupported</a></td></tr>
-<tr><td>400</td><td>Rejected: the detail gives the kind and failing field, never content.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
+<tr><td>400</td><td>Rejected: the detail gives the kind and the field that failed, never content.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
 <tr><td>401</td><td>When a token is configured: no valid bearer token (ADR 0024).</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
-<tr><td>413</td><td>The body is larger than one event may be (1 MiB).</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
-<tr><td>415</td><td>The body has a Content-Encoding; send the event uncompressed.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
-<tr><td>500</td><td>An unexpected failure; the detail reveals nothing about it.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
+<tr><td>413</td><td>The body is larger than the limit for one event (1 MiB).</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
+<tr><td>415</td><td>The body has a Content-Encoding. Send the event uncompressed.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
+<tr><td>500</td><td>An unexpected failure. The detail tells nothing about it.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
 <tr><td>503</td><td>The database cannot be opened as a current data-finops database.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
 </tbody>
 </table>
@@ -285,11 +285,11 @@
 <table>
 <thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
 <tbody>
-<tr><td><code>category</code></td><td>required</td><td>AllocationCategory: one of &quot;direct&quot;, &quot;shared&quot;, &quot;idle&quot;, &quot;unallocated&quot;</td><td></td></tr>
-<tr><td><code>confidence</code></td><td>required</td><td>Confidence: one of &quot;direct_verified&quot;, &quot;metered_estimate&quot;, &quot;heuristic_estimate&quot;, or null</td><td></td></tr>
-<tr><td><code>amount</code></td><td>required</td><td>string, matching ^-?[0-9]+(\.[0-9]+)?$</td><td></td></tr>
-<tr><td><code>coverage_min</code></td><td>optional</td><td>string, matching ^-?[0-9]+(\.[0-9]+)?$, or null</td><td></td></tr>
-<tr><td><code>coverage_max</code></td><td>optional</td><td>string, matching ^-?[0-9]+(\.[0-9]+)?$, or null</td><td></td></tr>
+<tr><td><code>category</code></td><td>required</td><td>AllocationCategory: one of <code>&quot;direct&quot;</code>, <code>&quot;shared&quot;</code>, <code>&quot;idle&quot;</code>, <code>&quot;unallocated&quot;</code></td><td></td></tr>
+<tr><td><code>confidence</code></td><td>required</td><td>Confidence: one of <code>&quot;direct_verified&quot;</code>, <code>&quot;metered_estimate&quot;</code>, <code>&quot;heuristic_estimate&quot;</code>, or null</td><td></td></tr>
+<tr><td><code>amount</code></td><td>required</td><td>string, pattern <code>^-?[0-9]+(\.[0-9]+)?$</code></td><td></td></tr>
+<tr><td><code>coverage_min</code></td><td>optional</td><td>string, pattern <code>^-?[0-9]+(\.[0-9]+)?$</code>, or null</td><td></td></tr>
+<tr><td><code>coverage_max</code></td><td>optional</td><td>string, pattern <code>^-?[0-9]+(\.[0-9]+)?$</code>, or null</td><td></td></tr>
 </tbody>
 </table>
 </div>
@@ -301,15 +301,15 @@
 <tbody>
 <tr><td><code>billing_line_ref</code></td><td>required</td><td>string</td><td></td></tr>
 <tr><td><code>pool_id</code></td><td>required</td><td>string</td><td></td></tr>
-<tr><td><code>target_type</code></td><td>required</td><td>TargetType: one of &quot;query_execution&quot;, &quot;idle&quot;, &quot;unallocated&quot;</td><td></td></tr>
+<tr><td><code>target_type</code></td><td>required</td><td>TargetType: one of <code>&quot;query_execution&quot;</code>, <code>&quot;idle&quot;</code>, <code>&quot;unallocated&quot;</code></td><td></td></tr>
 <tr><td><code>target_id</code></td><td>required</td><td>string</td><td></td></tr>
-<tr><td><code>amount</code></td><td>required</td><td>string, matching ^-?[0-9]+(\.[0-9]+)?$</td><td></td></tr>
-<tr><td><code>currency</code></td><td>required</td><td>string, matching ^[A-Z]{3}$</td><td></td></tr>
+<tr><td><code>amount</code></td><td>required</td><td>string, pattern <code>^-?[0-9]+(\.[0-9]+)?$</code></td><td></td></tr>
+<tr><td><code>currency</code></td><td>required</td><td>string, pattern <code>^[A-Z]{3}$</code></td><td></td></tr>
 <tr><td><code>cost_basis</code></td><td>required</td><td>string</td><td></td></tr>
-<tr><td><code>category</code></td><td>required</td><td>AllocationCategory: one of &quot;direct&quot;, &quot;shared&quot;, &quot;idle&quot;, &quot;unallocated&quot;</td><td></td></tr>
+<tr><td><code>category</code></td><td>required</td><td>AllocationCategory: one of <code>&quot;direct&quot;</code>, <code>&quot;shared&quot;</code>, <code>&quot;idle&quot;</code>, <code>&quot;unallocated&quot;</code></td><td></td></tr>
 <tr><td><code>method</code></td><td>required</td><td>string</td><td></td></tr>
-<tr><td><code>confidence</code></td><td>optional</td><td>Confidence: one of &quot;direct_verified&quot;, &quot;metered_estimate&quot;, &quot;heuristic_estimate&quot;, or null</td><td></td></tr>
-<tr><td><code>coverage</code></td><td>optional</td><td>string, matching ^-?[0-9]+(\.[0-9]+)?$, or null</td><td></td></tr>
+<tr><td><code>confidence</code></td><td>optional</td><td>Confidence: one of <code>&quot;direct_verified&quot;</code>, <code>&quot;metered_estimate&quot;</code>, <code>&quot;heuristic_estimate&quot;</code>, or null</td><td></td></tr>
+<tr><td><code>coverage</code></td><td>optional</td><td>string, pattern <code>^-?[0-9]+(\.[0-9]+)?$</code>, or null</td><td></td></tr>
 <tr><td><code>policy_version</code></td><td>required</td><td>string</td><td></td></tr>
 <tr><td><code>calculation_run_id</code></td><td>required</td><td>string</td><td></td></tr>
 <tr><td><code>evidence_refs</code></td><td>optional</td><td>list of string, default []</td><td></td></tr>
@@ -318,23 +318,23 @@
 </table>
 </div>
 <h3 id="schema-allocation-category">AllocationCategory</h3>
-<p>One of direct, shared, idle, unallocated.</p>
+<p>One of <code>direct</code>, <code>shared</code>, <code>idle</code>, <code>unallocated</code>.</p>
 <h3 id="schema-allocation-currency-reconciliation">AllocationCurrencyReconciliation</h3>
-<p>Every line of one currency and Cost Basis; never added to another currency&#x27;s.</p>
+<p>Each line of one currency and Cost Basis. It is never added to a different currency.</p>
 <div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
 <table>
 <thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
 <tbody>
-<tr><td><code>currency</code></td><td>required</td><td>string, matching ^[A-Z]{3}$</td><td></td></tr>
-<tr><td><code>cost_basis</code></td><td>required</td><td>CostBasis: one of &quot;BilledCost&quot;, &quot;EffectiveCost&quot;, &quot;ListCost&quot;, &quot;ContractedCost&quot;</td><td></td></tr>
-<tr><td><code>billed</code></td><td>required</td><td>string, matching ^-?[0-9]+(\.[0-9]+)?$</td><td></td></tr>
-<tr><td><code>allocated_amount</code></td><td>required</td><td>string, matching ^-?[0-9]+(\.[0-9]+)?$</td><td></td></tr>
-<tr><td><code>reconciliation_delta</code></td><td>required</td><td>string, matching ^-?[0-9]+(\.[0-9]+)?$</td><td></td></tr>
+<tr><td><code>currency</code></td><td>required</td><td>string, pattern <code>^[A-Z]{3}$</code></td><td></td></tr>
+<tr><td><code>cost_basis</code></td><td>required</td><td>CostBasis: one of <code>&quot;BilledCost&quot;</code>, <code>&quot;EffectiveCost&quot;</code>, <code>&quot;ListCost&quot;</code>, <code>&quot;ContractedCost&quot;</code></td><td></td></tr>
+<tr><td><code>billed</code></td><td>required</td><td>string, pattern <code>^-?[0-9]+(\.[0-9]+)?$</code></td><td></td></tr>
+<tr><td><code>allocated_amount</code></td><td>required</td><td>string, pattern <code>^-?[0-9]+(\.[0-9]+)?$</code></td><td></td></tr>
+<tr><td><code>reconciliation_delta</code></td><td>required</td><td>string, pattern <code>^-?[0-9]+(\.[0-9]+)?$</code></td><td></td></tr>
 </tbody>
 </table>
 </div>
 <h3 id="schema-allocation-entry">AllocationEntry</h3>
-<p>One Allocation and its address, `&lt;calculation_run_id&gt;#&lt;position&gt;` (spec 06).</p>
+<p>One Allocation and its address, <code>&lt;calculation_run_id&gt;#&lt;position&gt;</code> (spec 06).</p>
 <div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
 <table>
 <thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
@@ -351,18 +351,18 @@
 <thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
 <tbody>
 <tr><td><code>billing_line_ref</code></td><td>required</td><td>string</td><td></td></tr>
-<tr><td><code>currency</code></td><td>required</td><td>string, matching ^[A-Z]{3}$</td><td></td></tr>
-<tr><td><code>cost_basis</code></td><td>required</td><td>CostBasis: one of &quot;BilledCost&quot;, &quot;EffectiveCost&quot;, &quot;ListCost&quot;, &quot;ContractedCost&quot;</td><td></td></tr>
-<tr><td><code>billed</code></td><td>required</td><td>string, matching ^-?[0-9]+(\.[0-9]+)?$</td><td></td></tr>
-<tr><td><code>allocated_amount</code></td><td>required</td><td>string, matching ^-?[0-9]+(\.[0-9]+)?$</td><td></td></tr>
-<tr><td><code>reconciliation_delta</code></td><td>required</td><td>string, matching ^-?[0-9]+(\.[0-9]+)?$</td><td></td></tr>
+<tr><td><code>currency</code></td><td>required</td><td>string, pattern <code>^[A-Z]{3}$</code></td><td></td></tr>
+<tr><td><code>cost_basis</code></td><td>required</td><td>CostBasis: one of <code>&quot;BilledCost&quot;</code>, <code>&quot;EffectiveCost&quot;</code>, <code>&quot;ListCost&quot;</code>, <code>&quot;ContractedCost&quot;</code></td><td></td></tr>
+<tr><td><code>billed</code></td><td>required</td><td>string, pattern <code>^-?[0-9]+(\.[0-9]+)?$</code></td><td></td></tr>
+<tr><td><code>allocated_amount</code></td><td>required</td><td>string, pattern <code>^-?[0-9]+(\.[0-9]+)?$</code></td><td></td></tr>
+<tr><td><code>reconciliation_delta</code></td><td>required</td><td>string, pattern <code>^-?[0-9]+(\.[0-9]+)?$</code></td><td></td></tr>
 </tbody>
 </table>
 </div>
 <h3 id="schema-allocation-method">AllocationMethod</h3>
-<p>How an amount was allocated; for Unallocated amounts, why (spec 03, M4 structure 10). One of estimated_metered_share, provider_line_match, weighted_share, no_observed_activity, ineligible, adjustment, coverage_remainder, coverage_exceeded, no_evidence.</p>
+<p>How an amount was allocated. For Unallocated amounts, why (spec 03, M4 structure 10). One of <code>estimated_metered_share</code>, <code>provider_line_match</code>, <code>weighted_share</code>, <code>no_observed_activity</code>, <code>ineligible</code>, <code>adjustment</code>, <code>coverage_remainder</code>, <code>coverage_exceeded</code>, <code>no_evidence</code>.</p>
 <h3 id="schema-allocation-page">AllocationPage</h3>
-<p>One page of a single Allocation Snapshot&#x27;s Allocations; offsets are stable because the snapshot never changes.</p>
+<p>One page of the Allocations of a single Allocation Snapshot. Offsets are stable, because the snapshot never changes.</p>
 <div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
 <table>
 <thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
@@ -392,11 +392,11 @@
 </table>
 </div>
 <h3 id="schema-billing-line-detail">BillingLineDetail</h3>
-<p>How much of the Billing Line a Cost Explanation shows (ADR 0028). One of full, minimal.</p>
+<p>How much of the Billing Line a Cost Explanation shows (ADR 0028). One of <code>full</code>, <code>minimal</code>.</p>
 <h3 id="schema-confidence">Confidence</h3>
-<p>One of direct_verified, metered_estimate, heuristic_estimate.</p>
+<p>One of <code>direct_verified</code>, <code>metered_estimate</code>, <code>heuristic_estimate</code>.</p>
 <h3 id="schema-cost-basis">CostBasis</h3>
-<p>The FOCUS cost column a figure is taken from; bases are never added together. One of BilledCost, EffectiveCost, ListCost, ContractedCost.</p>
+<p>The FOCUS cost column that a figure comes from. Bases are never added together. One of <code>BilledCost</code>, <code>EffectiveCost</code>, <code>ListCost</code>, <code>ContractedCost</code>.</p>
 <h3 id="schema-cost-explanation">CostExplanation</h3>
 <p>The chain behind one Allocation (GLOSSARY): its Billing Line, the Allocation, its Evidence resolved, and the Roll-ups it contributes to.</p>
 <div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
@@ -406,7 +406,7 @@
 <tr><td><code>ref</code></td><td>required</td><td>string</td><td></td></tr>
 <tr><td><code>billing_line_ref</code></td><td>required</td><td>string</td><td></td></tr>
 <tr><td><code>billing_line</code></td><td>required</td><td>MinimalBillingLine or FocusBillingLine</td><td></td></tr>
-<tr><td><code>billing_line_detail</code></td><td>required</td><td>BillingLineDetail: one of &quot;full&quot;, &quot;minimal&quot;</td><td></td></tr>
+<tr><td><code>billing_line_detail</code></td><td>required</td><td>BillingLineDetail: one of <code>&quot;full&quot;</code>, <code>&quot;minimal&quot;</code></td><td></td></tr>
 <tr><td><code>allocation</code></td><td>required</td><td>Allocation</td><td></td></tr>
 <tr><td><code>unallocated_reason</code></td><td>required</td><td>string, or null</td><td></td></tr>
 <tr><td><code>query_execution</code></td><td>required</td><td>QueryExecution, or null</td><td></td></tr>
@@ -417,7 +417,7 @@
 </table>
 </div>
 <h3 id="schema-cost-summaries">CostSummaries</h3>
-<p>The Cost Summary of each matching Snapshot Scope&#x27;s current Allocation Snapshot.</p>
+<p>The Cost Summary of the current Allocation Snapshot of each Snapshot Scope that matches.</p>
 <div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
 <table>
 <thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
@@ -434,29 +434,29 @@
 <thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
 <tbody>
 <tr><td><code>scope</code></td><td>required</td><td>SnapshotScope</td><td></td></tr>
-<tr><td><code>cost_basis</code></td><td>required</td><td>CostBasis: one of &quot;BilledCost&quot;, &quot;EffectiveCost&quot;, &quot;ListCost&quot;, &quot;ContractedCost&quot;</td><td></td></tr>
+<tr><td><code>cost_basis</code></td><td>required</td><td>CostBasis: one of <code>&quot;BilledCost&quot;</code>, <code>&quot;EffectiveCost&quot;</code>, <code>&quot;ListCost&quot;</code>, <code>&quot;ContractedCost&quot;</code></td><td></td></tr>
 <tr><td><code>snapshot</code></td><td>required</td><td>ServedSnapshot</td><td></td></tr>
 <tr><td><code>currencies</code></td><td>required</td><td>list of CurrencySummary</td><td></td></tr>
 </tbody>
 </table>
 </div>
 <h3 id="schema-currency-summary">CurrencySummary</h3>
-<p>One currency&#x27;s part of a Cost Summary; never added to another currency&#x27;s.</p>
+<p>The part of a Cost Summary for one currency. It is never added to a different currency.</p>
 <div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
 <table>
 <thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
 <tbody>
-<tr><td><code>currency</code></td><td>required</td><td>string, matching ^[A-Z]{3}$</td><td></td></tr>
-<tr><td><code>billed</code></td><td>required</td><td>string, matching ^-?[0-9]+(\.[0-9]+)?$</td><td></td></tr>
+<tr><td><code>currency</code></td><td>required</td><td>string, pattern <code>^[A-Z]{3}$</code></td><td></td></tr>
+<tr><td><code>billed</code></td><td>required</td><td>string, pattern <code>^-?[0-9]+(\.[0-9]+)?$</code></td><td></td></tr>
 <tr><td><code>allocated</code></td><td>required</td><td>list of AllocatedAmount</td><td></td></tr>
 <tr><td><code>unallocated</code></td><td>required</td><td>list of UnallocatedAmount</td><td></td></tr>
-<tr><td><code>adjustments</code></td><td>required</td><td>string, matching ^-?[0-9]+(\.[0-9]+)?$</td><td></td></tr>
-<tr><td><code>reconciliation_delta</code></td><td>required</td><td>string, matching ^-?[0-9]+(\.[0-9]+)?$</td><td></td></tr>
+<tr><td><code>adjustments</code></td><td>required</td><td>string, pattern <code>^-?[0-9]+(\.[0-9]+)?$</code></td><td></td></tr>
+<tr><td><code>reconciliation_delta</code></td><td>required</td><td>string, pattern <code>^-?[0-9]+(\.[0-9]+)?$</code></td><td></td></tr>
 </tbody>
 </table>
 </div>
 <h3 id="schema-data-asset">DataAsset</h3>
-<p>Identified by the OpenLineage dataset naming convention.</p>
+<p>Identified as the OpenLineage &quot;Naming Conventions&quot; give it for datasets.</p>
 <div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
 <table>
 <thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
@@ -481,14 +481,14 @@
 <tr><td><code>materialized</code></td><td>optional</td><td>string, or null</td><td></td></tr>
 <tr><td><code>depends_on</code></td><td>optional</td><td>list of string, default []</td><td></td></tr>
 <tr><td><code>provenance</code></td><td>optional</td><td>string, or null</td><td></td></tr>
-<tr><td><code>flags</code></td><td>optional</td><td>list of DbtObservationFlag: one of &quot;conflicting_observations&quot;, default []</td><td></td></tr>
+<tr><td><code>flags</code></td><td>optional</td><td>list of DbtObservationFlag: one of <code>&quot;conflicting_observations&quot;</code>, default []</td><td></td></tr>
 </tbody>
 </table>
 </div>
 <h3 id="schema-dbt-observation-flag">DbtObservationFlag</h3>
-<p>One of conflicting_observations.</p>
+<p>One of <code>conflicting_observations</code>.</p>
 <h3 id="schema-explained-model-execution">ExplainedModelExecution</h3>
-<p>The Model Execution an Allocation&#x27;s Evidence links, as the workload store holds it; `execution` or `dbt_node` is None when that part was never ingested.</p>
+<p>The Model Execution that the Evidence of an Allocation links, as the workload store holds it. <code>execution</code> or <code>dbt_node</code> is None when that part was never ingested.</p>
 <div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
 <table>
 <thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
@@ -506,16 +506,16 @@
 <table>
 <thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
 <tbody>
-<tr><td><code>level</code></td><td>required</td><td>one of &quot;model_execution&quot;, &quot;workload_run&quot;</td><td></td></tr>
+<tr><td><code>level</code></td><td>required</td><td>one of <code>&quot;model_execution&quot;</code>, <code>&quot;workload_run&quot;</code></td><td></td></tr>
 <tr><td><code>key</code></td><td>required</td><td>string</td><td></td></tr>
-<tr><td><code>currency</code></td><td>required</td><td>string, matching ^[A-Z]{3}$</td><td></td></tr>
-<tr><td><code>cost_basis</code></td><td>required</td><td>CostBasis: one of &quot;BilledCost&quot;, &quot;EffectiveCost&quot;, &quot;ListCost&quot;, &quot;ContractedCost&quot;</td><td></td></tr>
-<tr><td><code>amount</code></td><td>required</td><td>string, matching ^-?[0-9]+(\.[0-9]+)?$</td><td></td></tr>
+<tr><td><code>currency</code></td><td>required</td><td>string, pattern <code>^[A-Z]{3}$</code></td><td></td></tr>
+<tr><td><code>cost_basis</code></td><td>required</td><td>CostBasis: one of <code>&quot;BilledCost&quot;</code>, <code>&quot;EffectiveCost&quot;</code>, <code>&quot;ListCost&quot;</code>, <code>&quot;ContractedCost&quot;</code></td><td></td></tr>
+<tr><td><code>amount</code></td><td>required</td><td>string, pattern <code>^-?[0-9]+(\.[0-9]+)?$</code></td><td></td></tr>
 </tbody>
 </table>
 </div>
 <h3 id="schema-explained-workload-run">ExplainedWorkloadRun</h3>
-<p>A Workload Run an Allocation&#x27;s Evidence names; `run` is None if never reported.</p>
+<p>A Workload Run that the Evidence of an Allocation names. <code>run</code> is None if no event reported it.</p>
 <div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
 <table>
 <thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
@@ -542,18 +542,18 @@
 <table>
 <thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
 <tbody>
-<tr><td><code>BilledCost</code></td><td>required</td><td>string, matching ^-?[0-9]+(\.[0-9]+)?$</td><td></td></tr>
-<tr><td><code>EffectiveCost</code></td><td>required</td><td>string, matching ^-?[0-9]+(\.[0-9]+)?$</td><td></td></tr>
-<tr><td><code>ListCost</code></td><td>required</td><td>string, matching ^-?[0-9]+(\.[0-9]+)?$</td><td></td></tr>
-<tr><td><code>ContractedCost</code></td><td>required</td><td>string, matching ^-?[0-9]+(\.[0-9]+)?$</td><td></td></tr>
+<tr><td><code>BilledCost</code></td><td>required</td><td>string, pattern <code>^-?[0-9]+(\.[0-9]+)?$</code></td><td></td></tr>
+<tr><td><code>EffectiveCost</code></td><td>required</td><td>string, pattern <code>^-?[0-9]+(\.[0-9]+)?$</code></td><td></td></tr>
+<tr><td><code>ListCost</code></td><td>required</td><td>string, pattern <code>^-?[0-9]+(\.[0-9]+)?$</code></td><td></td></tr>
+<tr><td><code>ContractedCost</code></td><td>required</td><td>string, pattern <code>^-?[0-9]+(\.[0-9]+)?$</code></td><td></td></tr>
 <tr><td><code>BillingAccountId</code></td><td>required</td><td>string</td><td></td></tr>
-<tr><td><code>BillingCurrency</code></td><td>required</td><td>string, matching ^[A-Z]{3}$</td><td></td></tr>
+<tr><td><code>BillingCurrency</code></td><td>required</td><td>string, pattern <code>^[A-Z]{3}$</code></td><td></td></tr>
 <tr><td><code>BillingPeriodStart</code></td><td>required</td><td>string, date-time</td><td></td></tr>
 <tr><td><code>BillingPeriodEnd</code></td><td>required</td><td>string, date-time</td><td></td></tr>
 <tr><td><code>ChargePeriodStart</code></td><td>required</td><td>string, date-time</td><td></td></tr>
 <tr><td><code>ChargePeriodEnd</code></td><td>required</td><td>string, date-time</td><td></td></tr>
-<tr><td><code>ChargeCategory</code></td><td>required</td><td>FocusChargeCategory: one of &quot;Usage&quot;, &quot;Purchase&quot;, &quot;Tax&quot;, &quot;Credit&quot;, &quot;Adjustment&quot;</td><td></td></tr>
-<tr><td><code>ChargeClass</code></td><td>optional</td><td>FocusChargeClass: one of &quot;Correction&quot;, or null</td><td></td></tr>
+<tr><td><code>ChargeCategory</code></td><td>required</td><td>FocusChargeCategory: one of <code>&quot;Usage&quot;</code>, <code>&quot;Purchase&quot;</code>, <code>&quot;Tax&quot;</code>, <code>&quot;Credit&quot;</code>, <code>&quot;Adjustment&quot;</code></td><td></td></tr>
+<tr><td><code>ChargeClass</code></td><td>optional</td><td>FocusChargeClass: one of <code>&quot;Correction&quot;</code>, or null</td><td></td></tr>
 <tr><td><code>ProviderName</code></td><td>required</td><td>string</td><td></td></tr>
 <tr><td><code>ServiceName</code></td><td>required</td><td>string</td><td></td></tr>
 <tr><td><code>ServiceCategory</code></td><td>optional</td><td>string, or null</td><td></td></tr>
@@ -561,9 +561,9 @@
 <tr><td><code>RegionId</code></td><td>optional</td><td>string, or null</td><td></td></tr>
 <tr><td><code>ResourceId</code></td><td>optional</td><td>string, or null</td><td></td></tr>
 <tr><td><code>SubAccountId</code></td><td>optional</td><td>string, or null</td><td></td></tr>
-<tr><td><code>ConsumedQuantity</code></td><td>optional</td><td>string, matching ^-?[0-9]+(\.[0-9]+)?$, or null</td><td></td></tr>
+<tr><td><code>ConsumedQuantity</code></td><td>optional</td><td>string, pattern <code>^-?[0-9]+(\.[0-9]+)?$</code>, or null</td><td></td></tr>
 <tr><td><code>ConsumedUnit</code></td><td>optional</td><td>string, or null</td><td></td></tr>
-<tr><td><code>PricingQuantity</code></td><td>optional</td><td>string, matching ^-?[0-9]+(\.[0-9]+)?$, or null</td><td></td></tr>
+<tr><td><code>PricingQuantity</code></td><td>optional</td><td>string, pattern <code>^-?[0-9]+(\.[0-9]+)?$</code>, or null</td><td></td></tr>
 <tr><td><code>PricingUnit</code></td><td>optional</td><td>string, or null</td><td></td></tr>
 <tr><td><code>Tags</code></td><td>optional</td><td>object of string, or null</td><td></td></tr>
 <tr><td><code>data_finops_raw_values</code></td><td>optional</td><td>object of string, or null</td><td></td></tr>
@@ -571,16 +571,16 @@
 </table>
 </div>
 <h3 id="schema-focus-charge-category">FocusChargeCategory</h3>
-<p>One of Usage, Purchase, Tax, Credit, Adjustment.</p>
+<p>One of <code>Usage</code>, <code>Purchase</code>, <code>Tax</code>, <code>Credit</code>, <code>Adjustment</code>.</p>
 <h3 id="schema-focus-charge-class">FocusChargeClass</h3>
-<p>One of Correction.</p>
+<p>One of <code>Correction</code>.</p>
 <h3 id="schema-health">Health</h3>
-<p>Whether the database opens as a current data-finops database; a status, not an error.</p>
+<p>Whether the database opens as a current data-finops database. This is a status, not an error.</p>
 <div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
 <table>
 <thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
 <tbody>
-<tr><td><code>status</code></td><td>required</td><td>one of &quot;ok&quot;, &quot;unavailable&quot;</td><td></td></tr>
+<tr><td><code>status</code></td><td>required</td><td>one of <code>&quot;ok&quot;</code>, <code>&quot;unavailable&quot;</code></td><td></td></tr>
 </tbody>
 </table>
 </div>
@@ -600,19 +600,19 @@
 </table>
 </div>
 <h3 id="schema-invocation-link">InvocationLink</h3>
-<p>The dbt invocation a run reports, and its Link Outcome to a Workload Run: `linked` to this run, or for example `ambiguous` when several runs report it.</p>
+<p>The dbt invocation that a run reports, and its Link Outcome to a Workload Run. The outcome is <code>linked</code> to this run, or for example <code>ambiguous</code> when more than one run reports it.</p>
 <div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
 <table>
 <thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
 <tbody>
 <tr><td><code>invocation_id</code></td><td>required</td><td>string</td><td></td></tr>
-<tr><td><code>outcome</code></td><td>required</td><td>LinkOutcome: one of &quot;linked&quot;, &quot;no_evidence&quot;, &quot;unmatched&quot;, &quot;ambiguous&quot;</td><td></td></tr>
+<tr><td><code>outcome</code></td><td>required</td><td>LinkOutcome: one of <code>&quot;linked&quot;</code>, <code>&quot;no_evidence&quot;</code>, <code>&quot;unmatched&quot;</code>, <code>&quot;ambiguous&quot;</code></td><td></td></tr>
 <tr><td><code>linked_run_id</code></td><td>required</td><td>string, or null</td><td></td></tr>
 </tbody>
 </table>
 </div>
 <h3 id="schema-lineage-direction">LineageDirection</h3>
-<p>One of input, output.</p>
+<p>One of <code>input</code>, <code>output</code>.</p>
 <h3 id="schema-lineage-edge">LineageEdge</h3>
 <div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
 <table>
@@ -620,7 +620,7 @@
 <tbody>
 <tr><td><code>run_id</code></td><td>required</td><td>string</td><td></td></tr>
 <tr><td><code>asset</code></td><td>required</td><td>DataAsset</td><td></td></tr>
-<tr><td><code>direction</code></td><td>required</td><td>LineageDirection: one of &quot;input&quot;, &quot;output&quot;</td><td></td></tr>
+<tr><td><code>direction</code></td><td>required</td><td>LineageDirection: one of <code>&quot;input&quot;</code>, <code>&quot;output&quot;</code></td><td></td></tr>
 <tr><td><code>observed_at</code></td><td>required</td><td>string, date-time</td><td></td></tr>
 <tr><td><code>provenance</code></td><td>optional</td><td>string, or null</td><td></td></tr>
 </tbody>
@@ -640,7 +640,7 @@
 </table>
 </div>
 <h3 id="schema-lineage-receipt">LineageReceipt</h3>
-<p>What storing one RunEvent changed, as the workload store&#x27;s ingest result counts it.</p>
+<p>What the ingest of one RunEvent changed, as the ingest result of the workload store counts it.</p>
 <div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
 <table>
 <thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
@@ -662,36 +662,36 @@
 </table>
 </div>
 <h3 id="schema-link-outcome">LinkOutcome</h3>
-<p>What became of an attempt to link a workload identity (GLOSSARY: Link Outcome). One of linked, no_evidence, unmatched, ambiguous.</p>
+<p>What became of an attempt to link a workload identity (GLOSSARY: Link Outcome). One of <code>linked</code>, <code>no_evidence</code>, <code>unmatched</code>, <code>ambiguous</code>.</p>
 <h3 id="schema-link-resolution">LinkResolution</h3>
-<p>A Link Outcome, with the Identity Link only when the outcome is `linked`.</p>
+<p>A Link Outcome, with the Identity Link only when the outcome is <code>linked</code>.</p>
 <div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
 <table>
 <thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
 <tbody>
-<tr><td><code>outcome</code></td><td>required</td><td>LinkOutcome: one of &quot;linked&quot;, &quot;no_evidence&quot;, &quot;unmatched&quot;, &quot;ambiguous&quot;</td><td></td></tr>
+<tr><td><code>outcome</code></td><td>required</td><td>LinkOutcome: one of <code>&quot;linked&quot;</code>, <code>&quot;no_evidence&quot;</code>, <code>&quot;unmatched&quot;</code>, <code>&quot;ambiguous&quot;</code></td><td></td></tr>
 <tr><td><code>link</code></td><td>optional</td><td>IdentityLink, or null</td><td></td></tr>
 </tbody>
 </table>
 </div>
 <h3 id="schema-minimal-billing-line">MinimalBillingLine</h3>
-<p>A Billing Line with only the columns `FocusBillingLine` declares and their raw values (ADR 0028): `Tags` is always left out, and no other column is accepted.</p>
+<p>A Billing Line with only the columns <code>FocusBillingLine</code> declares and their raw values (ADR 0028): <code>Tags</code> is always left out, and no other column is accepted.</p>
 <div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
 <table>
 <thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
 <tbody>
-<tr><td><code>BilledCost</code></td><td>required</td><td>string, matching ^-?[0-9]+(\.[0-9]+)?$</td><td></td></tr>
-<tr><td><code>EffectiveCost</code></td><td>required</td><td>string, matching ^-?[0-9]+(\.[0-9]+)?$</td><td></td></tr>
-<tr><td><code>ListCost</code></td><td>required</td><td>string, matching ^-?[0-9]+(\.[0-9]+)?$</td><td></td></tr>
-<tr><td><code>ContractedCost</code></td><td>required</td><td>string, matching ^-?[0-9]+(\.[0-9]+)?$</td><td></td></tr>
+<tr><td><code>BilledCost</code></td><td>required</td><td>string, pattern <code>^-?[0-9]+(\.[0-9]+)?$</code></td><td></td></tr>
+<tr><td><code>EffectiveCost</code></td><td>required</td><td>string, pattern <code>^-?[0-9]+(\.[0-9]+)?$</code></td><td></td></tr>
+<tr><td><code>ListCost</code></td><td>required</td><td>string, pattern <code>^-?[0-9]+(\.[0-9]+)?$</code></td><td></td></tr>
+<tr><td><code>ContractedCost</code></td><td>required</td><td>string, pattern <code>^-?[0-9]+(\.[0-9]+)?$</code></td><td></td></tr>
 <tr><td><code>BillingAccountId</code></td><td>required</td><td>string</td><td></td></tr>
-<tr><td><code>BillingCurrency</code></td><td>required</td><td>string, matching ^[A-Z]{3}$</td><td></td></tr>
+<tr><td><code>BillingCurrency</code></td><td>required</td><td>string, pattern <code>^[A-Z]{3}$</code></td><td></td></tr>
 <tr><td><code>BillingPeriodStart</code></td><td>required</td><td>string, date-time</td><td></td></tr>
 <tr><td><code>BillingPeriodEnd</code></td><td>required</td><td>string, date-time</td><td></td></tr>
 <tr><td><code>ChargePeriodStart</code></td><td>required</td><td>string, date-time</td><td></td></tr>
 <tr><td><code>ChargePeriodEnd</code></td><td>required</td><td>string, date-time</td><td></td></tr>
-<tr><td><code>ChargeCategory</code></td><td>required</td><td>FocusChargeCategory: one of &quot;Usage&quot;, &quot;Purchase&quot;, &quot;Tax&quot;, &quot;Credit&quot;, &quot;Adjustment&quot;</td><td></td></tr>
-<tr><td><code>ChargeClass</code></td><td>optional</td><td>FocusChargeClass: one of &quot;Correction&quot;, or null</td><td></td></tr>
+<tr><td><code>ChargeCategory</code></td><td>required</td><td>FocusChargeCategory: one of <code>&quot;Usage&quot;</code>, <code>&quot;Purchase&quot;</code>, <code>&quot;Tax&quot;</code>, <code>&quot;Credit&quot;</code>, <code>&quot;Adjustment&quot;</code></td><td></td></tr>
+<tr><td><code>ChargeClass</code></td><td>optional</td><td>FocusChargeClass: one of <code>&quot;Correction&quot;</code>, or null</td><td></td></tr>
 <tr><td><code>ProviderName</code></td><td>required</td><td>string</td><td></td></tr>
 <tr><td><code>ServiceName</code></td><td>required</td><td>string</td><td></td></tr>
 <tr><td><code>ServiceCategory</code></td><td>optional</td><td>string, or null</td><td></td></tr>
@@ -699,9 +699,9 @@
 <tr><td><code>RegionId</code></td><td>optional</td><td>string, or null</td><td></td></tr>
 <tr><td><code>ResourceId</code></td><td>optional</td><td>string, or null</td><td></td></tr>
 <tr><td><code>SubAccountId</code></td><td>optional</td><td>string, or null</td><td></td></tr>
-<tr><td><code>ConsumedQuantity</code></td><td>optional</td><td>string, matching ^-?[0-9]+(\.[0-9]+)?$, or null</td><td></td></tr>
+<tr><td><code>ConsumedQuantity</code></td><td>optional</td><td>string, pattern <code>^-?[0-9]+(\.[0-9]+)?$</code>, or null</td><td></td></tr>
 <tr><td><code>ConsumedUnit</code></td><td>optional</td><td>string, or null</td><td></td></tr>
-<tr><td><code>PricingQuantity</code></td><td>optional</td><td>string, matching ^-?[0-9]+(\.[0-9]+)?$, or null</td><td></td></tr>
+<tr><td><code>PricingQuantity</code></td><td>optional</td><td>string, pattern <code>^-?[0-9]+(\.[0-9]+)?$</code>, or null</td><td></td></tr>
 <tr><td><code>PricingUnit</code></td><td>optional</td><td>string, or null</td><td></td></tr>
 <tr><td><code>data_finops_raw_values</code></td><td>optional</td><td>object of string, or null</td><td></td></tr>
 </tbody>
@@ -719,7 +719,7 @@
 <tr><td><code>started_at</code></td><td>optional</td><td>string, date-time, or null</td><td></td></tr>
 <tr><td><code>completed_at</code></td><td>optional</td><td>string, date-time, or null</td><td></td></tr>
 <tr><td><code>provenance</code></td><td>optional</td><td>string, or null</td><td></td></tr>
-<tr><td><code>flags</code></td><td>optional</td><td>list of DbtObservationFlag: one of &quot;conflicting_observations&quot;, default []</td><td></td></tr>
+<tr><td><code>flags</code></td><td>optional</td><td>list of DbtObservationFlag: one of <code>&quot;conflicting_observations&quot;</code>, default []</td><td></td></tr>
 </tbody>
 </table>
 </div>
@@ -742,18 +742,18 @@
 </table>
 </div>
 <h3 id="schema-query-claim">QueryClaim</h3>
-<p>A Query Execution whose Trusted Query Comment names a Model Execution, and what became of that claim (its Link Outcome): only `linked` makes an Identity Link; `ambiguous` and `unmatched` claims are shown so a missing link is explained, not hidden.</p>
+<p>A Query Execution whose Trusted Query Comment names a Model Execution, and the Link Outcome of that claim. Only <code>linked</code> makes an Identity Link. <code>ambiguous</code> and <code>unmatched</code> claims are shown, so that the reason for no link is explained, not hidden.</p>
 <div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
 <table>
 <thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
 <tbody>
 <tr><td><code>query_execution</code></td><td>required</td><td>QueryExecution</td><td></td></tr>
-<tr><td><code>outcome</code></td><td>required</td><td>LinkOutcome: one of &quot;linked&quot;, &quot;no_evidence&quot;, &quot;unmatched&quot;, &quot;ambiguous&quot;</td><td></td></tr>
+<tr><td><code>outcome</code></td><td>required</td><td>LinkOutcome: one of <code>&quot;linked&quot;</code>, <code>&quot;no_evidence&quot;</code>, <code>&quot;unmatched&quot;</code>, <code>&quot;ambiguous&quot;</code></td><td></td></tr>
 </tbody>
 </table>
 </div>
 <h3 id="schema-query-correlation">QueryCorrelation</h3>
-<p>Identifiers extracted from a trusted query comment; the query text is not kept.</p>
+<p>Identifiers extracted from a trusted query comment. The query text is not kept.</p>
 <div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
 <table>
 <thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
@@ -781,21 +781,21 @@
 <tr><td><code>billable_bytes</code></td><td>optional</td><td>integer, at least 0.0, or null</td><td></td></tr>
 <tr><td><code>correlation</code></td><td>optional</td><td>QueryCorrelation, or null</td><td></td></tr>
 <tr><td><code>provenance</code></td><td>optional</td><td>string, or null</td><td></td></tr>
-<tr><td><code>flags</code></td><td>optional</td><td>list of QueryExecutionFlag: one of &quot;conflicting_observations&quot;, default []</td><td></td></tr>
+<tr><td><code>flags</code></td><td>optional</td><td>list of QueryExecutionFlag: one of <code>&quot;conflicting_observations&quot;</code>, default []</td><td></td></tr>
 </tbody>
 </table>
 </div>
 <h3 id="schema-query-execution-flag">QueryExecutionFlag</h3>
-<p>One of conflicting_observations.</p>
+<p>One of <code>conflicting_observations</code>.</p>
 <h3 id="schema-rollup-amount">RollupAmount</h3>
 <p>One Roll-up total, in one currency and Cost Basis.</p>
 <div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
 <table>
 <thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
 <tbody>
-<tr><td><code>currency</code></td><td>required</td><td>string, matching ^[A-Z]{3}$</td><td></td></tr>
-<tr><td><code>cost_basis</code></td><td>required</td><td>CostBasis: one of &quot;BilledCost&quot;, &quot;EffectiveCost&quot;, &quot;ListCost&quot;, &quot;ContractedCost&quot;</td><td></td></tr>
-<tr><td><code>amount</code></td><td>required</td><td>string, matching ^-?[0-9]+(\.[0-9]+)?$</td><td></td></tr>
+<tr><td><code>currency</code></td><td>required</td><td>string, pattern <code>^[A-Z]{3}$</code></td><td></td></tr>
+<tr><td><code>cost_basis</code></td><td>required</td><td>CostBasis: one of <code>&quot;BilledCost&quot;</code>, <code>&quot;EffectiveCost&quot;</code>, <code>&quot;ListCost&quot;</code>, <code>&quot;ContractedCost&quot;</code></td><td></td></tr>
+<tr><td><code>amount</code></td><td>required</td><td>string, pattern <code>^-?[0-9]+(\.[0-9]+)?$</code></td><td></td></tr>
 </tbody>
 </table>
 </div>
@@ -817,7 +817,7 @@
 <thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
 <tbody>
 <tr><td><code>calculation_run_id</code></td><td>required</td><td>string</td><td></td></tr>
-<tr><td><code>level</code></td><td>required</td><td>one of &quot;model_execution&quot;, &quot;workload_run&quot;</td><td></td></tr>
+<tr><td><code>level</code></td><td>required</td><td>one of <code>&quot;model_execution&quot;</code>, <code>&quot;workload_run&quot;</code></td><td></td></tr>
 <tr><td><code>total</code></td><td>required</td><td>integer</td><td></td></tr>
 <tr><td><code>limit</code></td><td>required</td><td>integer</td><td></td></tr>
 <tr><td><code>offset</code></td><td>required</td><td>integer</td><td></td></tr>
@@ -872,7 +872,7 @@
 </table>
 </div>
 <h3 id="schema-snapshot-scope">SnapshotScope</h3>
-<p>What an Export Snapshot covers; a restatement replaces the snapshot for its scope.</p>
+<p>What an Export Snapshot covers. A restatement replaces the snapshot for its scope.</p>
 <div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
 <table>
 <thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
@@ -885,20 +885,20 @@
 </table>
 </div>
 <h3 id="schema-target-type">TargetType</h3>
-<p>One of query_execution, idle, unallocated.</p>
+<p>One of <code>query_execution</code>, <code>idle</code>, <code>unallocated</code>.</p>
 <h3 id="schema-unallocated-amount">UnallocatedAmount</h3>
 <p>Unallocated amounts for one reason (the Allocation&#x27;s method), Adjustments aside.</p>
 <div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
 <table>
 <thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
 <tbody>
-<tr><td><code>reason</code></td><td>required</td><td>AllocationMethod: one of &quot;estimated_metered_share&quot;, &quot;provider_line_match&quot;, &quot;weighted_share&quot;, &quot;no_observed_activity&quot;, &quot;ineligible&quot;, &quot;adjustment&quot;, &quot;coverage_remainder&quot;, &quot;coverage_exceeded&quot;, &quot;no_evidence&quot;</td><td></td></tr>
-<tr><td><code>amount</code></td><td>required</td><td>string, matching ^-?[0-9]+(\.[0-9]+)?$</td><td></td></tr>
+<tr><td><code>reason</code></td><td>required</td><td>AllocationMethod: one of <code>&quot;estimated_metered_share&quot;</code>, <code>&quot;provider_line_match&quot;</code>, <code>&quot;weighted_share&quot;</code>, <code>&quot;no_observed_activity&quot;</code>, <code>&quot;ineligible&quot;</code>, <code>&quot;adjustment&quot;</code>, <code>&quot;coverage_remainder&quot;</code>, <code>&quot;coverage_exceeded&quot;</code>, <code>&quot;no_evidence&quot;</code></td><td></td></tr>
+<tr><td><code>amount</code></td><td>required</td><td>string, pattern <code>^-?[0-9]+(\.[0-9]+)?$</code></td><td></td></tr>
 </tbody>
 </table>
 </div>
 <h3 id="schema-workload-run">WorkloadRun</h3>
-<p>One OpenLineage run as reported, including dbt-ol&#x27;s per-model runs (ADR 0022).</p>
+<p>One OpenLineage run as reported, also the per-model runs of dbt-ol (ADR 0022).</p>
 <div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
 <table>
 <thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
@@ -913,17 +913,17 @@
 <tr><td><code>root_run_id</code></td><td>optional</td><td>string, or null</td><td></td></tr>
 <tr><td><code>root_job_namespace</code></td><td>optional</td><td>string, or null</td><td></td></tr>
 <tr><td><code>root_job_name</code></td><td>optional</td><td>string, or null</td><td></td></tr>
-<tr><td><code>status</code></td><td>required</td><td>WorkloadRunStatus: one of &quot;running&quot;, &quot;completed&quot;, &quot;failed&quot;, &quot;aborted&quot;, &quot;conflicting&quot;</td><td></td></tr>
-<tr><td><code>flags</code></td><td>optional</td><td>list of WorkloadRunFlag: one of &quot;conflicting_observations&quot;, &quot;conflicting_jobs&quot;, &quot;conflicting_parents&quot;, default []</td><td></td></tr>
+<tr><td><code>status</code></td><td>required</td><td>WorkloadRunStatus: one of <code>&quot;running&quot;</code>, <code>&quot;completed&quot;</code>, <code>&quot;failed&quot;</code>, <code>&quot;aborted&quot;</code>, <code>&quot;conflicting&quot;</code></td><td></td></tr>
+<tr><td><code>flags</code></td><td>optional</td><td>list of WorkloadRunFlag: one of <code>&quot;conflicting_observations&quot;</code>, <code>&quot;conflicting_jobs&quot;</code>, <code>&quot;conflicting_parents&quot;</code>, default []</td><td></td></tr>
 <tr><td><code>started_at</code></td><td>optional</td><td>string, date-time, or null</td><td></td></tr>
 <tr><td><code>ended_at</code></td><td>optional</td><td>string, date-time, or null</td><td></td></tr>
 </tbody>
 </table>
 </div>
 <h3 id="schema-workload-run-flag">WorkloadRunFlag</h3>
-<p>Disagreements among a run&#x27;s stored observations, shown rather than resolved. One of conflicting_observations, conflicting_jobs, conflicting_parents.</p>
+<p>Disagreements among the stored observations of a run. They are shown, not resolved. One of <code>conflicting_observations</code>, <code>conflicting_jobs</code>, <code>conflicting_parents</code>.</p>
 <h3 id="schema-workload-run-status">WorkloadRunStatus</h3>
-<p>Derived from a run&#x27;s terminal event, whatever the arrival order (spec 02). One of running, completed, failed, aborted, conflicting.</p>
+<p>Derived from the terminal event of a run, in any arrival order (spec 02). One of <code>running</code>, <code>completed</code>, <code>failed</code>, <code>aborted</code>, <code>conflicting</code>.</p>
 <!-- reference:end -->
 <!-- pager:start -->
 <nav class="pager" aria-label="Previous and next">

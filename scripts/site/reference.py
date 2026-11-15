@@ -10,7 +10,7 @@ import argparse
 import ast
 import json
 import re
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator
 from html import escape
 from typing import Any, NamedTuple
 
@@ -21,7 +21,7 @@ SCHEMA_SOURCE = "https://github.com/apmalong/data-finops/blob/main/schemas/"
 
 def render_cli(parser: argparse.ArgumentParser) -> str:
     """Every command group and command, with its usage and arguments; hidden options left out."""
-    sections = [f"<p>{escape(_text(parser.description))}</p>"] if parser.description else []
+    sections = [f"<p>{_inline(_text(parser.description))}</p>"] if parser.description else []
     for path, command, summary, subcommands in _commands(parser, []):
         parts = [
             f'<h2 id="{_slug("-".join(path))}"><code>{escape(command.prog)}</code></h2>',
@@ -84,11 +84,11 @@ def _argument_row(action: argparse.Action) -> str:
     shown = "" if default in (None, False, argparse.SUPPRESS) else escape(str(default))
     meaning = action.help or ""
     if action.choices is not None:
-        meaning += " One of " + ", ".join(str(c) for c in action.choices) + "."
+        meaning += " One of " + _code_list(action.choices) + "."
     return (
         f"<tr><td><code>{escape(name)}</code></td>"
         f"<td>{'required' if required else 'optional'}</td>"
-        f"<td>{shown}</td><td>{escape(meaning.strip())}</td></tr>"
+        f"<td>{shown}</td><td>{_inline(meaning)}</td></tr>"
     )
 
 
@@ -119,7 +119,7 @@ def _operation(path: str, method: str, operation: dict[str, Any], defs: dict[str
         f"{escape(operation.get('summary', ''))}</h2>"
     ]
     if operation.get("description"):
-        parts.append(f"<p>{escape(_text(operation['description']))}</p>")
+        parts.append(f"<p>{_inline(_text(operation['description']))}</p>")
     if operation.get("parameters"):
         rows = [_parameter_row(p, defs) for p in operation["parameters"]]
         parts.append(_table(["Parameter", "In", "Required", "Type", "Meaning"], rows))
@@ -137,8 +137,8 @@ def _parameter_row(parameter: dict[str, Any], defs: dict[str, Any]) -> str:
     return (
         f"<tr><td><code>{escape(parameter['name'])}</code></td>"
         f"<td>{escape(parameter.get('in', ''))}</td><td>{required}</td>"
-        f"<td>{escape(describe(parameter.get('schema', {}), defs))}</td>"
-        f"<td>{escape(parameter.get('description', ''))}</td></tr>"
+        f"<td>{_inline(describe(parameter.get('schema', {}), defs))}</td>"
+        f"<td>{_inline(parameter.get('description', ''))}</td></tr>"
     )
 
 
@@ -151,11 +151,11 @@ def _response_row(code: str, response: dict[str, Any], defs: dict[str, Any]) -> 
         elif "$ref" in schema and (name := _ref_name(schema)) in defs:
             what = f'<a href="#schema-{_slug(name)}">{escape(name)}</a>'
         else:
-            what = escape(describe(schema, defs))
+            what = _inline(describe(schema, defs))
         media_html = f"<code>{escape(media)}</code>"
         bodies.append(f"{media_html}: {what}" if what else media_html)
     return (
-        f"<tr><td>{escape(code)}</td><td>{escape(response.get('description', ''))}</td>"
+        f"<tr><td>{escape(code)}</td><td>{_inline(response.get('description', ''))}</td>"
         f"<td>{', '.join(bodies)}</td></tr>"
     )
 
@@ -177,7 +177,7 @@ def describe(schema: dict[str, Any], defs: dict[str, Any] | None = None) -> str:
     elif "allOf" in schema:
         text = " and ".join(describe(part, defs) for part in schema["allOf"])
     elif "enum" in schema:
-        text = "one of " + ", ".join(json.dumps(v) for v in schema["enum"])
+        text = "one of " + _code_list(json.dumps(v) for v in schema["enum"])
     elif "const" in schema:
         text = f"always {json.dumps(schema['const'])}"
     else:
@@ -200,7 +200,7 @@ def describe(schema: dict[str, Any], defs: dict[str, Any] | None = None) -> str:
         if "format" in schema:
             bounds.append(str(schema["format"]))
         if "pattern" in schema:
-            bounds.append(f"matching {schema['pattern']}")
+            bounds.append(f"pattern `{schema['pattern']}`")
         text = ", ".join([str(kind), *bounds]) if kind else ", ".join(bounds)
     if schema.get("default") is not None:
         text += f", default {json.dumps(schema['default'])}"
@@ -218,12 +218,12 @@ def render_contracts(schemas: dict[str, dict[str, Any]]) -> str:
             f"{escape(schema.get('title', stem))}</h2>"
         ]
         if schema.get("description"):
-            parts.append(f"<p>{escape(_text(schema['description']))}</p>")
+            parts.append(f"<p>{_inline(_text(schema['description']))}</p>")
         parts.append(_fields(schema, defs))
         if "allOf" in schema:
             parts.append(
-                "<p>The schema also has conditional rules between fields; "
-                f'<a href="{SCHEMA_SOURCE}{escape(filename)}">the schema file</a> is '
+                "<p>The schema also has conditional rules between fields. "
+                f'<a href="{SCHEMA_SOURCE}{escape(filename)}">The schema file</a> is '
                 "authoritative.</p>"
             )
         for name, definition in defs.items():
@@ -237,9 +237,9 @@ def _definition(anchor: str, name: str, definition: dict[str, Any], defs: dict[s
     parts = [f'<h3 id="{anchor}">{escape(name)}</h3>']
     sentences = [_text(definition.get("description", ""))]
     if "enum" in definition:
-        sentences.append("One of " + ", ".join(str(v) for v in definition["enum"]) + ".")
+        sentences.append("One of " + _code_list(definition["enum"]) + ".")
     if text := " ".join(s for s in sentences if s):
-        parts.append(f"<p>{escape(text)}</p>")
+        parts.append(f"<p>{_inline(text)}</p>")
     if "properties" in definition:
         parts.append(_fields(definition, defs))
     return "\n".join(parts)
@@ -250,8 +250,8 @@ def _fields(schema: dict[str, Any], defs: dict[str, Any]) -> str:
     rows = [
         f"<tr><td><code>{escape(name)}</code></td>"
         f"<td>{'required' if name in required else 'optional'}</td>"
-        f"<td>{escape(describe(field, defs))}</td>"
-        f"<td>{escape(_text(field.get('description', '')))}</td></tr>"
+        f"<td>{_inline(describe(field, defs))}</td>"
+        f"<td>{_inline(_text(field.get('description', '')))}</td></tr>"
         for name, field in schema.get("properties", {}).items()
     ]
     return _table(["Field", "Required", "Type", "Meaning"], rows)
@@ -441,6 +441,11 @@ def _close(area: str) -> str:
 def _inline(text: str) -> str:
     """Markdown text as HTML: escaped, with `code` spans."""
     return re.sub(r"`([^`]+)`", r"<code>\1</code>", escape(text.strip()))
+
+
+def _code_list(values: Iterable[Any]) -> str:
+    """Values as a list of code spans, which `_inline` renders as `<code>`."""
+    return ", ".join(f"`{value}`" for value in values)
 
 
 def _table(headers: list[str], rows: list[str]) -> str:
