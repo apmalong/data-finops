@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en">
+<head>
+<!-- head:start -->
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="../assets/site.css">
+<script src="../assets/site.js" defer></script>
+<!-- head:end -->
+<title>Configure Cost Dimensions - data-finops</title>
+<meta name="description" content="Group Allocations by team, tenant or any attribute of your organization: write a Cost Dimensions file, send the values in the query comment, and read the totals of each value.">
+</head>
+<body>
+<!-- nav:start -->
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="site-header"><a href="../index.html">data-finops</a></header>
+<nav class="site-nav" aria-label="Site">
+<ul>
+<li><a href="../tutorials/index.html">Tutorials</a></li>
+<li><a href="index.html">How-to guides</a>
+<ul>
+<li><a href="install.html">Install data-finops</a></li>
+<li><a href="ingest-focus-export.html">Ingest a FOCUS export</a></li>
+<li><a href="ingest-athena-history.html">Ingest Athena query history</a></li>
+<li><a href="ingest-dbt-artifacts.html">Ingest dbt artifacts</a></li>
+<li><a href="receive-openlineage.html">Receive OpenLineage events</a></li>
+<li><a href="send-to-inbox.html">Send workload metadata to the Inbox</a></li>
+<li><a href="calculate.html">Calculate Allocations</a></li>
+<li><a href="configure-cost-dimensions.html" aria-current="page">Configure Cost Dimensions</a></li>
+<li><a href="handle-restated-export.html">Handle a restated export</a></li>
+<li><a href="read-cost-explanation.html">Read a Cost Explanation</a></li>
+<li><a href="serve-with-token.html">Serve with a token</a></li>
+<li><a href="deploy-reference-workload.html">Deploy the reference workload</a></li>
+<li><a href="deploy-to-aws.html">Deploy to AWS</a></li>
+<li><a href="read-deployment.html">Read a Deployment</a></li>
+<li><a href="tear-down-deployment.html">Tear down a Deployment</a></li>
+</ul>
+</li>
+<li><a href="../reference/index.html">Reference</a></li>
+<li><a href="../explanation/index.html">Explanation</a></li>
+<li><a href="../contributing.html">Contribute to data-finops</a></li>
+</ul>
+</nav>
+<!-- nav:end -->
+<main id="main">
+<h1>Configure Cost Dimensions</h1>
+<!-- onpage:start -->
+<nav class="on-page" aria-label="On this page">
+<p>On this page</p>
+<ul>
+<li><a href="#file">Write the file</a></li>
+<li><a href="#comment">Send the values from dbt</a></li>
+<li><a href="#ingest">Ingest with the file</a></li>
+<li><a href="#read">Read the totals of each value</a></li>
+<li><a href="#deployment">In a Deployment</a></li>
+</ul>
+</nav>
+<!-- onpage:end -->
+<p>A <a href="../reference/glossary.html#cost-dimension">Cost Dimension</a> groups cost by an attribute that your organization selects, for example a team or a tenant. You declare each dimension and where its value comes from in one TOML file. Each Calculation Run then records the value and its source on each Allocation. This guide writes the file, sends the values from dbt, calculates with the file and reads the totals of each value. The decision is <a href="https://github.com/apmalong/data-finops/blob/main/docs/adr/0031-cost-dimensions-are-configured-claims.md">ADR 0031</a>, and the rules are in <a href="https://github.com/apmalong/data-finops/blob/main/docs/specs/09-public-demo.md">spec 09</a>.</p>
+<p>A dimension is a view of the Allocations. It does not change how a Billing Line is split. Its value is a claim: it tells you what a query comment, a tag or a map says. It is never Evidence for an Identity Link.</p>
+
+<h2 id="file">Write the file</h2>
+<p>This guide uses <code>fixtures/docs/cost-dimensions.toml</code>:</p>
+<div class="shell-tabs">
+<pre class="shell-posix"><code><span class="line">[dimensions.team]
+</span><span class="line">sources = ["query_comment.team", "workgroup_map"]
+</span><span class="line">workgroup_map = { "demo" = "analytics" }
+</span><span class="line">
+</span><span class="line">[dimensions.environment]
+</span><span class="line">sources = ["query_comment.target_name"]</span></code></pre>
+<pre class="shell-windows" data-derived=""><code><span class="line">[dimensions.team]
+</span><span class="line">sources = ["query_comment.team", "workgroup_map"]
+</span><span class="line">workgroup_map = { "demo" = "analytics" }
+</span><span class="line">
+</span><span class="line">[dimensions.environment]
+</span><span class="line">sources = ["query_comment.target_name"]</span></code></pre>
+</div>
+<p>Each table under <code>dimensions</code> is one dimension. Its <code>sources</code> are tried in order, and the first source that gives a value wins. There are three kinds of source:</p>
+<ul>
+<li><code>query_comment.&lt;key&gt;</code>: a key in the JSON comment on the first line of the query, the same comment that holds the Trusted Query Comment.</li>
+<li><code>openlineage_tag.&lt;key&gt;</code>: a tag in the OpenLineage tags facets (of the run and of its job) of the Workload Run of the query's dbt invocation. The tags of that run come first, then the tags of its parents, up to the root run. If one run has two values for the key, that run is skipped, and its parents are tried.</li>
+<li><code>workgroup_map</code>: the Athena workgroup of the query, through the map that the dimension gives. For an amount with no query, it is the workgroup of the Billing Line.</li>
+</ul>
+<p>The rules:</p>
+<ul>
+<li>A file has 8 dimensions at most, and its <code>query_comment</code> sources name 16 keys at most.</li>
+<li>Ingest keeps only the comment keys that the file names. A value longer than 128 characters is removed, and the ingest result counts it as a dropped claim.</li>
+<li>An unknown key or source refuses the file. The error names the file and the fault, never a value.</li>
+<li>Add <code>sensitive = true</code> to a dimension to keep its values out of the minimal Cost Explanation and out of the public demo. The full API still shows them.</li>
+</ul>
+
+<h2 id="comment">Send the values from dbt</h2>
+<p>dbt sends a comment on the first line of each query that it runs. Make that comment JSON, with the Trusted Query Comment's <code>invocation_id</code> and <code>node_id</code>, and with each key that your dimensions read. Put this macro in <code>macros/data_finops_query_comment.sql</code> of your dbt project:</p>
+<div class="shell-tabs">
+<pre class="shell-posix"><code><span class="line">{% macro data_finops_query_comment(node) -%}
+</span><span class="line">  {%- set comment = {
+</span><span class="line">      "app": "dbt",
+</span><span class="line">      "dbt_version": dbt_version,
+</span><span class="line">      "invocation_id": invocation_id,
+</span><span class="line">      "node_id": node.unique_id if node is not none else none,
+</span><span class="line">      "target_name": target.name,
+</span><span class="line">      "team": node.config.meta.get("team") if node is not none else none,
+</span><span class="line">  } -%}
+</span><span class="line">  {{- return(tojson(comment)) -}}
+</span><span class="line">{%- endmacro %}</span></code></pre>
+<pre class="shell-windows" data-derived=""><code><span class="line">{% macro data_finops_query_comment(node) -%}
+</span><span class="line">  {%- set comment = {
+</span><span class="line">      "app": "dbt",
+</span><span class="line">      "dbt_version": dbt_version,
+</span><span class="line">      "invocation_id": invocation_id,
+</span><span class="line">      "node_id": node.unique_id if node is not none else none,
+</span><span class="line">      "target_name": target.name,
+</span><span class="line">      "team": node.config.meta.get("team") if node is not none else none,
+</span><span class="line">  } -%}
+</span><span class="line">  {{- return(tojson(comment)) -}}
+</span><span class="line">{%- endmacro %}</span></code></pre>
+</div>
+<p>Then select it in <code>dbt_project.yml</code>. The comment must be at the start of the query, so do not append it:</p>
+<div class="shell-tabs">
+<pre class="shell-posix"><code><span class="line">query-comment:
+</span><span class="line">  comment: "{{ data_finops_query_comment(node) }}"
+</span><span class="line">  append: false</span></code></pre>
+<pre class="shell-windows" data-derived=""><code><span class="line">query-comment:
+</span><span class="line">  comment: "{{ data_finops_query_comment(node) }}"
+</span><span class="line">  append: false</span></code></pre>
+</div>
+<p>This macro reads the team from each model's <code>meta</code>, for example <code>{{ config(meta={"team": "finance"}) }}</code>. You can also read a value from an environment variable that your orchestrator sets, with <code>env_var("TEAM", "")</code>. The reference workload uses the same macro without <code>team</code>: see its <a href="https://github.com/apmalong/data-finops/blob/main/examples/reference-workload/README.md">README</a>. The macro writes the same comment for each query of a model, so each query of the model gets the same claims.</p>
+
+<h2 id="ingest">Ingest with the file</h2>
+<p>Give the same file to <code>ingest athena</code> and to <code>calculate</code>. Ingest keeps the claims, and the Calculation Run resolves them:</p>
+<div class="shell-tabs">
+<pre class="shell-posix"><code class="run"><span class="line">data-finops ingest focus fixtures/focus/export-2026-10.json --db finops.sqlite
+</span><span class="line">data-finops ingest athena fixtures/athena/query-executions.json --account-id 123456789012 --region us-east-1 --dimensions fixtures/docs/cost-dimensions.toml --db finops.sqlite
+</span><span class="line">data-finops calculate --dimensions fixtures/docs/cost-dimensions.toml --db finops.sqlite
+</span><span class="line">data-finops serve --db finops.sqlite</span></code></pre>
+<pre class="shell-windows" data-derived=""><code><span class="line">data-finops ingest focus fixtures/focus/export-2026-10.json --db finops.sqlite
+</span><span class="line">data-finops ingest athena fixtures/athena/query-executions.json --account-id 123456789012 --region us-east-1 --dimensions fixtures/docs/cost-dimensions.toml --db finops.sqlite
+</span><span class="line">data-finops calculate --dimensions fixtures/docs/cost-dimensions.toml --db finops.sqlite
+</span><span class="line">data-finops serve --db finops.sqlite</span></code></pre>
+</div>
+<pre class="output checked"><span class="line">focus: new aws-focus-123456789012-2026-10-v1
+</span><span class="line">athena: 2 accepted, 0 duplicates, 0 changed copies, 0 rejected
+</span><span class="line">calculate: 123456789012 2026-10-01 aws-data-exports:FOCUS_1_2_AWS: new calc-…
+</span><span class="line">serving finops.sqlite at http://127.0.0.1:8000/ (Ctrl+C to stop)</span></pre>
+<p><code>serve</code> does not stop, so run the next command in a second terminal.</p>
+<p>The configuration applies only from now on:</p>
+<ul>
+<li>A comment key that you add later applies only to the queries that are ingested after it. The query text is not kept, so the key cannot be read again from stored queries.</li>
+<li>A changed file does not change a stored Allocation Snapshot, and it does not start a new snapshot by itself. It applies at the next snapshot that new inputs make. Each snapshot records the SHA-256 of the file that it used.</li>
+</ul>
+
+<h2 id="read">Read the totals of each value</h2>
+<p>Ask for the Roll-ups of one dimension:</p>
+<div class="shell-tabs">
+<pre class="shell-posix"><code class="run"><span class="line">curl -s http://127.0.0.1:8000/v1/rollups/dimensions/team</span></code></pre>
+<pre class="shell-windows" data-derived=""><code><span class="line">curl.exe -s http://127.0.0.1:8000/v1/rollups/dimensions/team</span></code></pre>
+</div>
+<pre class="output checked"><span class="line">{"calculation_run_id":"calc-…","dimension":"team","totals":[{"currency":"USD","cost_basis":"BilledCost","amount":"10.00"},…"items":[{"value":"analytics","totals":[{"currency":"USD","cost_basis":"BilledCost","amount":"6.00","sources":[{"source":"workgroup_map","amount":"6.00"}]},…{"value":null,"totals":[{"currency":"USD","cost_basis":"BilledCost","amount":"4.00","sources":[{"source":null,"amount":"4.00"}]},…</span></pre>
+<p>Read it in this order:</p>
+<ul>
+<li><code>totals</code> is the total of the Allocation Snapshot for each currency and Cost Basis: $10.00 BilledCost. The values always add up to it, so you do not have to add them.</li>
+<li><code>analytics</code> has $6.00. The fixture's comments have no <code>team</code> key, so the second source gave the value: the query ran in the <code>demo</code> workgroup, which the map gives to <code>analytics</code>.</li>
+<li>The value <code>null</code> is unassigned: $4.00. It is the S3 line, which has no query and no workgroup. Unassigned cost stays visible. It is never spread among the other values.</li>
+</ul>
+<p>A dimension that no Allocation of the snapshot has gives 404. The dashboard shows the same totals in its Cost Dimensions section, with a list to select the dimension.</p>
+
+<h2 id="deployment">In a Deployment</h2>
+<p>Set the stack's <code>costDimensions</code> setting to the path of your file, then run <code>pulumi up</code>. The stack uploads the file to <code>config/cost-dimensions.toml</code> in the Deployment's bucket, and only the collector can read it. The collector reads it at the start of each Collection Run. If it cannot read or use the file, the run stops, and the error names the key of the object, never its content. See <a href="../reference/deployment-settings.html">Deployment settings</a>.</p>
+<p><code>data-finops collect</code> takes a <code>--dimensions</code> file, or the key of the object in its settings (<code>cost_dimensions_key</code>), but not both.</p>
+<!-- pager:start -->
+<nav class="pager" aria-label="Previous and next">
+<a rel="prev" href="calculate.html">Previous: Calculate Allocations</a>
+<a rel="next" href="handle-restated-export.html">Next: Handle a restated export</a>
+</nav>
+<!-- pager:end -->
+</main>
+<!-- footer:start -->
+<footer>
+<p>This site describes the <code>main</code> branch. Nothing is released yet. No license has been chosen yet. Source on <a href="https://github.com/apmalong/data-finops">GitHub</a>.</p>
+</footer>
+<!-- footer:end -->
+</body>
+</html>

@@ -1,6 +1,6 @@
 # Architecture diagrams
 
-What M0–M6 built, drawn from the code as it stands. [`GLOSSARY.md`](../../GLOSSARY.md) defines the terms. The decisions are in [`docs/adr/`](../adr/).
+What M0–M7 built, drawn from the code as it stands. [`GLOSSARY.md`](../../GLOSSARY.md) defines the terms. The decisions are in [`docs/adr/`](../adr/).
 
 | Diagram | Answers | Tool |
 |---|---|---|
@@ -11,7 +11,8 @@ What M0–M6 built, drawn from the code as it stands. [`GLOSSARY.md`](../../GLOS
 | [Calculation Run](#calculation-run) | How a Snapshot Scope's bill becomes an Allocation Snapshot | Mermaid |
 | [How the results are read](#how-the-results-are-read) | How the dashboard and the API answer | Mermaid |
 | [Collection Run](#collection-run) | How a Deployment's collector fetches from AWS and writes the database object | Mermaid |
-| [Deployment](#deployment) | What runs in the AWS account, and across which trust boundaries | D2 (the site's) |
+| [Cost Dimensions and the Public Demo](#cost-dimensions-and-the-public-demo) | How a configured dimension reaches an Allocation, and how a Demo Snapshot is published and read | Mermaid |
+| [Deployment](#deployment) | What runs in the AWS account, and across which trust boundaries, with the optional Public Demo | D2 (the site's) |
 | [Database](#database) | Every table and column in the shared SQLite file | D2, generated |
 
 ## System context
@@ -22,6 +23,7 @@ What M0–M6 built, drawn from the code as it stands. [`GLOSSARY.md`](../../GLOS
 - **Stores:** the Ledger is the only cost authority. Lineage and dbt records explain work and never carry money (ADR 0003).
 - **Calculation:** `calculation` is the only module that brings the two stores together with the pure `attribution` engine and the Athena policies.
 - **Reads:** `reporting` reads both stores for the API and the dashboard, only through their read interfaces (architecture-boundaries.md). When the Ledger opens an older file, it can still add its newer columns to that file.
+- **Cost Dimensions and the Public Demo (M7):** ingest keeps the configured claims, and each Calculation Run records the dimensions on each Allocation. The `public_demo` package runs the demo's workload and publishes its Demo Snapshot. See [Cost Dimensions and the Public Demo](#cost-dimensions-and-the-public-demo).
 - **Contracts:** `schemas/` holds the generated JSON Schemas for Billing Lines, Export Snapshots and Allocations, and the OpenAPI document. Tests keep each in step with the code.
 
 ## Ingest flow
@@ -100,6 +102,14 @@ classDiagram
     class Inbox {
         inbox/openlineage/ and inbox/dbt/ in a Deployment's bucket
     }
+    class CostDimension["Cost Dimension"] {
+        configured sources, first value wins
+        value + source, or unassigned
+    }
+    class DemoSnapshot["Demo Snapshot"] {
+        the demo's lines only, account IDs replaced
+        swapped in whole through current.json
+    }
 
     ExportSnapshot "1" *-- "many" BillingLine
     WorkloadRun "0..1" <-- "many" WorkloadRun : parent / root
@@ -121,6 +131,9 @@ classDiagram
     CollectionRun --> ExportSnapshot : ingests newer Deliveries as
     CollectionRun --> QueryExecution : stores finished, unseen ones
     CollectionRun --> AllocationSnapshot : a Calculation Run per Snapshot Scope
+    QueryExecution --> CostDimension : claims from the query comment
+    Allocation --> CostDimension : records value and source, a view
+    DemoSnapshot --> AllocationSnapshot : published from the current one
 ```
 
 Identity Links (M3) connect workload records with only explicit Evidence, never with time overlap (ADR 0006):
@@ -279,6 +292,40 @@ sequenceDiagram
 
 Two Lambda functions without a VPC share one SQLite file in S3: the collector is its only writer, by S3 compare-and-swap. The API reads it behind an `AWS_IAM` Function URL (ADR 0026). The diagram is the diagram of the site, from `deployment.d2`. The Deployment architecture page of the site explains the trust boundaries and the cost. The Pulumi components and the policy pack are in `infra/pulumi/aws/` (spec 08).
 
+## Cost Dimensions and the Public Demo
+
+**Cost Dimensions (M7, ADR 0031).** An organization declares the attributes that it groups cost by, such as team or tenant, in one TOML file (`--dimensions FILE`, or a Deployment's `costDimensions`).
+- **Capture:** `ingest athena` keeps only the comment keys that the file names, as the `claims` of each Query Execution. There are 16 keys at most, and a value over 128 characters is dropped and counted.
+- **Resolution:** each Calculation Run resolves each dimension from its sources in order: a query comment key, an OpenLineage tag of the linked Workload Run and its parents, or a workgroup map. It records the value and the source on each Allocation. Cost with no value is unassigned.
+- **A view only:** a dimension never changes how a Billing Line is split, and a claim is never Evidence. Thus the total of each dimension equals the total of the snapshot.
+- **Forward only:** the SHA-256 of the file is recorded on the Allocation Snapshot, but it is not part of the input digest. A changed file applies from the next snapshot that new inputs make.
+
+**The Public Demo (M7, ADRs 0029 and 0030, spec 09).** An optional part of a Deployment (`publicDemo`). The right side of the [Deployment](#deployment) diagram shows it.
+- **The workload:** `public_demo.simulator` plays Airflow and dbt. It runs real queries in the `data-finops-demo` workgroup over the dataset that `public_demo.dataset` generated, and writes OpenLineage events and dbt artifacts to the Inbox. The collector reads them as any producer's.
+- **The site:** after each Collection Run, `public_demo.publisher` writes a Demo Snapshot: the read model's answers, as files in the shapes of the API. The read model gets a line filter, so that only the demo workgroup's usage lines and what comes from them are published. CloudFront serves the snapshot and the dashboard, which reads the files in its static mode (`static.js`).
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Col as collector
+    participant S3 as Deployment bucket
+    participant Pub as lambda_handlers.publisher
+    participant Read as reporting.Reporting (line filter)
+    participant Demo as demo bucket
+    participant CF as CloudFront
+    participant Browser as dashboard (static mode)
+    Col->>S3: PutObject database/data-finops.sqlite
+    S3->>Pub: S3 event (object created)
+    Pub->>S3: GetObject the database
+    Pub->>Read: only the demo workgroup's usage lines
+    Read-->>Pub: Cost Summary, Allocations, Roll-ups, Cost Dimensions, lineage, Cost Explanations
+    Pub->>Demo: PutObject a new prefix under snapshots/, account IDs replaced
+    Pub->>Demo: current.json, by a conditional write, only forward in time
+    Browser->>CF: GET current.json, then the files of that snapshot
+    CF->>Demo: reads only the site (origin access control)
+    CF-->>Browser: JSON in the shapes of the API, or 403: "not in the public demo"
+```
+
 ## Database
 
 ![Database](database.svg)
@@ -293,7 +340,7 @@ Generated from the schema: the Ledger and the workload store each create their t
 | `ingest-flow.svg` | `ingest-flow.d2` | `d2 --layout elk docs/architecture/ingest-flow.d2 docs/architecture/ingest-flow.svg` |
 | `system-context.svg` | `system-context.d2` (the system's inputs, packages, stores or readers) | `d2 --layout elk docs/architecture/system-context.d2 docs/architecture/system-context.svg` |
 | `site/assets/explanation/bill-to-roll-ups.svg` | `bill-to-roll-ups.d2` (the site's The bill is authoritative page) | `d2 --layout elk docs/architecture/bill-to-roll-ups.d2 site/assets/explanation/bill-to-roll-ups.svg` |
-| `site/assets/explanation/deployment.svg` | `deployment.d2` (the site's Deployment architecture page) | `d2 --layout elk docs/architecture/deployment.d2 site/assets/explanation/deployment.svg` |
+| `site/assets/explanation/deployment.svg` | `deployment.d2` (the site's Deployment architecture and Public Demo pages) | `d2 --layout elk docs/architecture/deployment.d2 site/assets/explanation/deployment.svg` |
 | `site/assets/explanation/coverage.svg` | `coverage.d2` (the site's Allocation and Coverage page) | `d2 --layout elk docs/architecture/coverage.d2 site/assets/explanation/coverage.svg` |
 | Mermaid blocks | the glossary, the ingest path, the Calculation Run or the read path | Edit this file. GitHub draws them. |
 

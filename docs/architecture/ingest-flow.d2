@@ -1,4 +1,4 @@
-# How each input reaches the shared SQLite file (as built through M6).
+# How each input reaches the shared SQLite file (as built through M7).
 # Files arrive through `data-finops ingest <kind>`; OpenLineage events also over HTTP; and a
 # Collection Run (`data-finops collect`, or a Deployment's collector) fetches all three kinds
 # from AWS and hands each to the same reader.
@@ -118,8 +118,8 @@ queries: {
   screen: providers.athena.screen_query_history\nper entry, at most 512 MiB {class: step}
   refused: whole file refused, nothing stored\ntoo large · not a BatchGetQueryExecution response\naccount or region disagrees {class: refused}
   rejected: rejected by position and field,\nnever stored or echoed {class: refused}
-  comment: identity.links.trusted_query_comment\nfirst line only: invocation_id, node_id {class: step}
-  clean: keep allowlisted metadata + comment IDs\n(no query text) · sha256 of stored JSON {class: step}
+  comment: identity.links.trusted_query_comment\nfirst line only: invocation_id, node_id\nwith --dimensions: the configured keys as claims\n(at most 16 keys, and a value over 128 characters is dropped and counted) {class: step}
+  clean: keep allowlisted metadata + comment IDs + claims\n(no query text) · sha256 of stored JSON {class: step}
   key: key = account · region · query ID + digest {class: step}
   stored: stored {class: outcome}
   duplicate: duplicate (nothing stored) {class: outcome}
@@ -148,20 +148,21 @@ workload_events -> links
 collect: data-finops collect · a Deployment's collector\nread-only AWS calls (providers.aws) {class: input}
 collection: {
   label: collection.run: every source attempted, in this order
+  config: "config/cost-dimensions.toml when the settings name it:\nread first; if it cannot be read or used, the run stops" {class: step}
   dbt_inbox: "inbox/dbt/<invocation>/: keys not in the Watermark\na folder waits for both files; each at most 512 MiB" {class: step}
   events_inbox: inbox/openlineage/: keys not in the Watermark\neach event at most 1 MiB {class: step}
   history: Athena: page ListQueryExecutions\n(maxHistoryPages · max_history_pages)\nBatchGetQueryExecution for unseen IDs only\nQUEUED or RUNNING left for the next run {class: step}
   deliveries: Data Exports: list metadata/ for\nbillingLookbackPeriods · billing_lookback_periods\ncomplete Deliveries newer than the current snapshot, oldest first\nonly manifest-listed files: at most 2 GiB each, 8 GiB a Delivery {class: step}
   calculate: a Calculation Run for each Snapshot Scope,\non what was stored {class: step}
   summary: "one JSON summary line: stored · duplicates · rejected per source,\nwarnings, Calculation Runs; exit 0, 1 (rejected) or 2 (a source failed)" {class: outcome}
-  dbt_inbox -> events_inbox -> history -> deliveries -> calculate -> summary
+  config -> dbt_inbox -> events_inbox -> history -> deliveries -> calculate -> summary
 }
 watermark: Collection Watermark {
   workload_inbox_object: workload_inbox_object\n(Inbox objects processed, by key and ETag) {class: table}
   export_delivery_collected: export_delivery_collected\n(Deliveries taken) {class: table}
   query_ids: Athena query IDs: the stored\nQuery Executions themselves {class: table}
 }
-collect -> collection.dbt_inbox
+collect -> collection.config
 collection.dbt_inbox -> artifacts.screen: each file
 collection.events_inbox -> lineage.screen: each file
 collection.history -> queries.screen: the response

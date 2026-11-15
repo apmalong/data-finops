@@ -11,6 +11,7 @@
     {"title": "Receive OpenLineage events", "path": "how-to/receive-openlineage.html"},
     {"title": "Send workload metadata to the Inbox", "path": "how-to/send-to-inbox.html"},
     {"title": "Calculate Allocations", "path": "how-to/calculate.html"},
+    {"title": "Configure Cost Dimensions", "path": "how-to/configure-cost-dimensions.html"},
     {"title": "Handle a restated export", "path": "how-to/handle-restated-export.html"},
     {"title": "Read a Cost Explanation", "path": "how-to/read-cost-explanation.html"},
     {"title": "Serve with a token", "path": "how-to/serve-with-token.html"},
@@ -34,6 +35,8 @@
     {"title": "Export Snapshots and restatements", "path": "explanation/export-snapshots-and-restatements.html"},
     {"title": "Security model", "path": "explanation/security-model.html"},
     {"title": "Deployment architecture", "path": "explanation/deployment-architecture.html"},
+    {"title": "The Public Demo", "path": "explanation/public-demo.html"},
+    {"title": "Compared with AWS's cost tools", "path": "explanation/compared-with-aws-tools.html"},
     {"title": "Decision records", "path": "explanation/decision-records.html"}
   ]},
   {"title": "Contribute to data-finops", "path": "contributing.html"}
