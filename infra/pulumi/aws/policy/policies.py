@@ -77,6 +77,7 @@ POLICY_ACTIONS: dict[str, frozenset[str]] = {
         {
             "athena:StartQueryExecution",
             "athena:GetQueryExecution",
+            "athena:StopQueryExecution",
             "glue:GetDatabase",
             "glue:GetTable",
             "glue:GetPartitions",
@@ -85,6 +86,7 @@ POLICY_ACTIONS: dict[str, frozenset[str]] = {
             "s3:GetObject",
             "s3:PutObject",
             "s3:AbortMultipartUpload",
+            "kms:GenerateDataKey",
         }
     )
     | LOGS,

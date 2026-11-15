@@ -68,11 +68,11 @@ def test_every_setting_can_be_given() -> None:
             "data-finops:deleteDataOnDestroy": "true",
             "data-finops:publicDemo": "true",
             "data-finops:demoScanCutoffBytes": "500000000",
-            "data-finops:demoSchedule": "cron(15 */4 * * ? *)",
+            "data-finops:demoSchedule": "cron(15 3/6 * * ? *)",
         }
     )
     assert (settings.public_demo, settings.demo_scan_cutoff_bytes) == (True, 500_000_000)
-    assert settings.demo_schedule == "cron(15 */4 * * ? *)"
+    assert settings.demo_schedule == "cron(15 3/6 * * ? *)"
     assert settings.collected_workgroups == ("demo", "data-finops-demo")
     assert settings.export_prefix == "focus"
     assert settings.budget == Budget(monthly_usd=Decimal("25"), email="owner@example.com")
@@ -101,8 +101,11 @@ def test_every_setting_can_be_given() -> None:
         ({"data-finops:explanationDetail": "everything"}, "explanationDetail"),
         ({"data-finops:publicDemo": "yes"}, "publicDemo"),
         ({"data-finops:demoScanCutoffBytes": "9999999"}, "demoScanCutoffBytes"),
-        ({"data-finops:demoSchedule": "cron(55 */6 * * ? *)"}, "demoSchedule"),
-        ({"data-finops:demoSchedule": "cron(5 */6 * * ? *)"}, "demoSchedule"),
+        ({"data-finops:demoSchedule": "cron(55 0/6 * * ? *)"}, "demoSchedule"),
+        ({"data-finops:demoSchedule": "cron(5 0/6 * * ? *)"}, "demoSchedule"),
+        ({"data-finops:demoSchedule": "cron(25 6/6 * * ? *)"}, "demoSchedule"),
+        ({"data-finops:demoSchedule": "cron(25 * * * ? *)"}, "demoSchedule"),
+        ({"data-finops:demoSchedule": "cron(25 0/6 * * ? *) "}, "demoSchedule"),
         ({"data-finops:demoSchedule": "cron(*/20 * * * ? *)"}, "demoSchedule"),
         ({"data-finops:demoSchedule": "rate(6 hours)"}, "demoSchedule"),
         ({"data-finops:budgetMonthlyUsd": "25"}, "budgetEmail"),

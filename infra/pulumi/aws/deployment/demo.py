@@ -10,7 +10,7 @@ from typing import Any
 import pulumi
 import pulumi_aws as aws
 
-from deployment.compute import allow, log_writing, trust_policy
+from deployment.compute import allow, key_grant, log_writing, trust_policy
 from deployment.settings import DEMO_WORKGROUP, Settings
 from deployment.storage import INBOX, S3_MANAGED, private_bucket
 
@@ -203,6 +203,13 @@ class PublicDemo(pulumi.ComponentResource):
             opts=pulumi.ResourceOptions(parent=self, depends_on=[group]),
             **code,
         )
+        # The schedule does not retry, and neither does Lambda: a retry runs the queries again.
+        retries = aws.lambda_.FunctionEventInvokeConfig(
+            f"{name}-simulator",
+            function_name=function.name,
+            maximum_retry_attempts=0,
+            opts=child,
+        )
         scheduler = aws.iam.Role(
             f"{name}-demo-scheduler",
             assume_role_policy=trust_policy("scheduler.amazonaws.com"),
@@ -229,7 +236,7 @@ class PublicDemo(pulumi.ComponentResource):
             },
             opts=child,
         )
-        return function, [group, role, policy, function, scheduler, invoke, schedule]
+        return function, [group, role, policy, function, retries, scheduler, invoke, schedule]
 
     def outputs(self) -> dict[str, pulumi.Output[str]]:
         """The component's stack outputs (spec 09 §Stack)."""
@@ -256,13 +263,21 @@ def _simulator_policy(
     results = f"{bucket_arn}/{RESULTS_PREFIX}*"
     return allow(
         [
-            (["athena:StartQueryExecution", "athena:GetQueryExecution"], [workgroup]),
+            (
+                [
+                    "athena:StartQueryExecution",
+                    "athena:GetQueryExecution",
+                    "athena:StopQueryExecution",
+                ],
+                [workgroup],
+            ),
             (["glue:GetDatabase", "glue:GetTable", "glue:GetPartitions"], tables),
             (["s3:ListBucket", "s3:GetBucketLocation"], [bucket_arn]),
             ("s3:GetObject", [f"{bucket_arn}/{DATASET_PREFIX}*"]),
             ("s3:PutObject", [results, f"{inbox_arn}/{INBOX}*"]),
             ("s3:AbortMultipartUpload", [results]),
             log_writing(group_arn),
+            *key_grant(settings, ["kms:GenerateDataKey"]),  # the Inbox's bucket's key, if any
         ]
     )
 

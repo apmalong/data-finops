@@ -77,7 +77,7 @@
 <tr><td><code>costDimensions</code></td><td>unset</td><td>An optional path to a Cost Dimensions file (TOML, spec 09). The stack uploads it to <code>config/cost-dimensions.toml</code> in the bucket, and the collector applies it in each Collection Run. Unset, no dimensions apply.</td></tr>
 <tr><td><code>publicDemo</code></td><td><code>false</code></td><td>Whether the stack also makes the public demo (spec 09). The demo has its own bucket, the <code>data-finops-demo</code> Athena workgroup, the Glue tables of the demo dataset and the dataset generator function. Set it to <code>false</code> and run <code>pulumi up</code> to remove the demo.</td></tr>
 <tr><td><code>demoScanCutoffBytes</code></td><td><code>1000000000</code></td><td>The most bytes one query in the demo workgroup can scan before Athena cancels it. Athena accepts 10 MB or more. A whole number from 10000000 to 1000000000000.</td></tr>
-<tr><td><code>demoSchedule</code></td><td><code>cron(25 0/6 * * ? *)</code></td><td>When the demo&#x27;s simulated orchestrator starts, as an EventBridge Scheduler cron expression, in UTC. Its minute must be one number from 10 to 40, so that no query ends near the hour (spec 09). The first start of a day runs <code>daily_orders</code>.</td></tr>
+<tr><td><code>demoSchedule</code></td><td><code>cron(25 0/6 * * ? *)</code></td><td>When the demo&#x27;s simulated orchestrator starts, in UTC: every six hours, as <code>cron(M H/6 * * ? *)</code>. M, from 10 to 40, keeps each query away from the hour (spec 09). H, from 0 to 5, is the first start of the day, which runs <code>daily_orders</code>, and <code>weekly_finance</code> on Mondays. Each start runs <code>hourly_events</code>.</td></tr>
 </tbody>
 </table>
 </div>

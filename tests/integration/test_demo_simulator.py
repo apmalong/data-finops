@@ -15,7 +15,11 @@ from botocore.stub import ANY, Stubber
 
 from data_finops.contracts.workload import LinkOutcome, WorkloadRunStatus
 from data_finops.identity.links import query_comment, trusted_query_comment
-from data_finops.lambda_handlers import API_BUCKET, SimulatorMisconfigured, make_simulator_handler
+from data_finops.lambda_handlers import (
+    DEPLOYMENT_BUCKET,
+    SimulatorMisconfigured,
+    make_simulator_handler,
+)
 from data_finops.public_demo.simulator import DagRun, plan, simulate
 from data_finops.workload.store import ArtifactOutcome, WorkloadStore
 
@@ -35,13 +39,14 @@ class _Clock:
         return self.now
 
 
-def _statements(runs: tuple[DagRun, ...]) -> list[str]:
+def _statements(runs: tuple[DagRun, ...]) -> list[tuple[str, str]]:
+    """Each statement sent, with the state Athena gives it: a failing model's fails."""
     return [
-        statement
+        (statement, "SUCCEEDED" if model.status == "success" else "FAILED")
         for run in runs
         for attempt in run.attempts
         for model in attempt.models
-        if model.status == "success"
+        if model.status != "skipped"
         for statement in model.statements
     ]
 
@@ -50,8 +55,8 @@ def _attempts(runs: tuple[DagRun, ...]) -> int:
     return sum(len(run.attempts) for run in runs)
 
 
-def _expect_queries(stub: Stubber, statements: list[str]) -> None:
-    for number, statement in enumerate(statements):
+def _expect_queries(stub: Stubber, statements: list[tuple[str, str]]) -> None:
+    for number, (statement, state) in enumerate(statements):
         stub.add_response(
             "start_query_execution",
             {"QueryExecutionId": f"q-{number:03d}"},
@@ -66,7 +71,7 @@ def _expect_queries(stub: Stubber, statements: list[str]) -> None:
             {
                 "QueryExecution": {
                     "QueryExecutionId": f"q-{number:03d}",
-                    "Status": {"State": "SUCCEEDED"},
+                    "Status": {"State": state},
                     "Statistics": {"DataScannedInBytes": 1_000_000 * (number + 1)},
                 }
             },
@@ -74,7 +79,7 @@ def _expect_queries(stub: Stubber, statements: list[str]) -> None:
         )
 
 
-Simulated = tuple[tuple[DagRun, ...], dict[str, bytes], list[str]]
+Simulated = tuple[tuple[DagRun, ...], dict[str, bytes], list[tuple[str, str]]]
 
 
 def _simulate(start: datetime) -> Simulated:
@@ -169,7 +174,7 @@ def test_failed_and_retried_tasks_are_recorded_as_failed(tmp_path: Path) -> None
             assert any(not run.succeeded for run in runs) or number == 0
 
 
-def _history(statements: list[str]) -> dict[str, Any]:
+def _history(statements: list[tuple[str, str]]) -> dict[str, Any]:
     """What BatchGetQueryExecution would answer for the stubbed queries."""
     return {
         "QueryExecutions": [
@@ -185,7 +190,7 @@ def _history(statements: list[str]) -> dict[str, Any]:
                 },
                 "Statistics": {"DataScannedInBytes": 1_000_000 * (number + 1)},
             }
-            for number, statement in enumerate(statements)
+            for number, (statement, _) in enumerate(statements)
         ],
         "UnprocessedQueryExecutionIds": [],
     }
@@ -215,12 +220,25 @@ def test_some_tasks_fail_and_succeed_on_retry_and_some_runs_fail() -> None:
     assert 0 < len(failed) / len(runs) < 0.05
 
 
+def test_a_failing_model_sends_one_query_that_names_a_missing_column() -> None:
+    from data_finops.public_demo.dataset import SCHEMAS
+
+    runs = [run for n in range(400) for run in plan(MONDAY + timedelta(hours=6 * n))]
+    failing = [m for r in runs for a in r.attempts for m in a.models if m.status == "error"]
+    assert failing
+    for model in failing:
+        (statement,) = model.statements
+        sql = statement.partition("\n")[2]
+        column, _, table = sql.removeprefix("select ").partition(" from ")
+        assert column not in SCHEMAS[table].names
+
+
 def test_every_query_starts_with_a_trusted_query_comment(
     simulated: Simulated,
 ) -> None:
     runs, _, statements = simulated
     invocations = {attempt.invocation_id for run in runs for attempt in run.attempts}
-    for statement in statements:
+    for statement, _ in statements:
         key = trusted_query_comment(statement)
         assert key is not None and key.invocation_id in invocations
         assert key.node_id.startswith("model.demo_shop.")
@@ -289,7 +307,10 @@ def test_the_handler_plans_the_scheduled_time_of_its_event() -> None:
                 "put_object", {"ETag": '"e"'}, {"Bucket": BUCKET, "Key": ANY, "Body": ANY}
             )
         handler = make_simulator_handler(
-            lambda: (athena, s3), {API_BUCKET: BUCKET}, clock=_Clock(tuesday), sleep=lambda _: None
+            lambda: (athena, s3),
+            {DEPLOYMENT_BUCKET: BUCKET},
+            clock=_Clock(tuesday),
+            sleep=lambda _: None,
         )
         result = handler({"scheduled_time": "2026-11-17T06:25:00Z"}, None)
 
@@ -302,8 +323,8 @@ def test_the_handler_plans_the_scheduled_time_of_its_event() -> None:
 @pytest.mark.parametrize(
     ("environ", "event", "named"),
     [
-        ({}, {"scheduled_time": "2026-11-17T06:25:00Z"}, API_BUCKET),
-        ({API_BUCKET: BUCKET}, {"scheduled_time": "secret-not-a-time"}, "scheduled_time"),
+        ({}, {"scheduled_time": "2026-11-17T06:25:00Z"}, DEPLOYMENT_BUCKET),
+        ({DEPLOYMENT_BUCKET: BUCKET}, {"scheduled_time": "secret-not-a-time"}, "scheduled_time"),
     ],
 )
 def test_a_wrong_environment_or_event_is_named(
@@ -315,3 +336,20 @@ def test_a_wrong_environment_or_event_is_named(
     with pytest.raises(SimulatorMisconfigured, match=named) as raised:
         handler(event, None)
     assert "secret" not in str(raised.value)
+
+
+def test_a_query_that_runs_too_long_is_stopped_and_fails_its_model() -> None:
+    from data_finops.public_demo import simulator
+
+    athena = athena_client()
+    with stubbed(athena) as stub:
+        stub.add_response("start_query_execution", {"QueryExecutionId": "q-slow"})
+        for _ in range(simulator.MAX_POLLS):
+            running = {"QueryExecutionId": "q-slow", "Status": {"State": "RUNNING"}}
+            stub.add_response(
+                "get_query_execution", {"QueryExecution": running}, {"QueryExecutionId": "q-slow"}
+            )
+        stub.add_response("stop_query_execution", {}, {"QueryExecutionId": "q-slow"})
+        state = simulator._run_query(athena, "select 1", sleep=lambda _: None)
+
+    assert state == ("CANCELLED", 0)

@@ -22,21 +22,29 @@ from functools import cache
 from importlib.resources import files
 from typing import Any
 
+from data_finops.collection.run import DBT_INBOX, OPENLINEAGE_INBOX
 from data_finops.providers.aws.calls import call
-from data_finops.public_demo.workload import DAGS, MODELS, NAMESPACE, PROJECT, TENANTS, Dag
+from data_finops.public_demo.dataset import TENANTS
+from data_finops.public_demo.workload import (
+    DAGS,
+    DATABASE,
+    MODELS,
+    NAMESPACE,
+    PROJECT,
+    WORKGROUP,
+    Dag,
+)
 
 SEED = 20261107
-WORKGROUP = "data-finops-demo"
-DATABASE = "data_finops_demo"
+"""The seed of every plan, with the start time: a start planned again gives the same runs."""
 TASK_RETRY = 0.05
 """The share of tasks that fail one time and succeed on retry (spec 09)."""
 RUN_FAILURE = 0.02
 """The share of DAG runs that fail completely: one task fails on both tries."""
 POLL_SECONDS = 1.0
-MAX_POLLS = 600
-"""How long one query may run before the simulator stops waiting for it."""
-DBT_INBOX = "inbox/dbt/"
-OPENLINEAGE_INBOX = "inbox/openlineage/"
+MAX_POLLS = 120
+"""How long one query may run, in polls, before the simulator stops it. The demo's queries
+take seconds; a stopped query fails its model."""
 TERMINAL = frozenset({"SUCCEEDED", "FAILED", "CANCELLED"})
 
 Clock = Callable[[], datetime]
@@ -50,7 +58,9 @@ class PlannedModel:
     statements: tuple[str, ...]
     """Each statement as it is sent: the query comment, then the SQL."""
     status: str
-    """`success`, `error` (the model fails before its queries) or `skipped` (after an error)."""
+    """`success`; `error`, when its one statement names a column that does not exist, so that
+    Athena fails it, as a real dbt failure fails a query (Athena does not charge for it); or
+    `skipped`, after an error. A skipped model's statements are never sent."""
 
 
 @dataclass(frozen=True)
@@ -102,7 +112,7 @@ def _plan_dag(rng: random.Random, dag: Dag, start: datetime) -> DagRun:
     for position, task in enumerate(dag.tasks):
         tries = 2 if position == failing_task or rng.random() < TASK_RETRY else 1
         for try_number in range(1, tries + 1):
-            fails = try_number == 1 and tries == 2 or position == failing_task
+            fails = (try_number == 1 and tries == 2) or position == failing_task
             attempts.append(
                 _plan_attempt(rng, dag, task.name, task.models, try_number, fails, airflow_run_id)
             )
@@ -134,11 +144,12 @@ def _plan_attempt(
             "tenant_id": tenant,
             "dag_run_id": airflow_run_id,
         }
-        statements = tuple(
-            f"-- /* {json.dumps(comment)} */\n{sql.format(tenant=tenant)}" for sql in MODELS[name]
-        )
         status = (
             "success" if position < error_at else "error" if position == error_at else "skipped"
+        )
+        sqls = MODELS[name] if status != "error" else (f"select {name}_status from orders",)
+        statements = tuple(
+            f"-- /* {json.dumps(comment)} */\n{sql.format(tenant=tenant)}" for sql in sqls
         )
         planned.append(PlannedModel(name, node_id, tenant, statements, status))
     return Attempt(task, try_number, run_id, dbt_run_id, invocation_id, tuple(planned))
@@ -189,21 +200,23 @@ def simulate(
     """Run the plan of a start, and write each DAG run's records to the Inbox of `bucket` as
     soon as the DAG run ends. A failed AWS call raises AwsSourceError with the code alone."""
     queries = failed = 0
+    source = f"awsathena://athena.{athena.meta.region_name}.amazonaws.com"
     runs = plan(start, seed)
     for run in runs:
         started = clock()
-        done: list[_AttemptRun] = []
+        attempt_runs: list[_AttemptRun] = []
         for attempt in run.attempts:
-            if done and not done[-1].succeeded and done[-1].attempt.task != attempt.task:
+            last = attempt_runs[-1] if attempt_runs else None
+            if last and not last.succeeded and last.attempt.task != attempt.task:
                 break  # a task failed with no retry left: the DAG run stops, as Airflow's would
             executed = _execute(attempt, athena, clock, sleep)
             queries += executed.queries
-            done.append(executed)
+            attempt_runs.append(executed)
         ended = clock()
-        finished = {executed.attempt.task for executed in done if executed.succeeded}
+        finished = {executed.attempt.task for executed in attempt_runs if executed.succeeded}
         succeeded = finished == {task.name for task in _dag(run.dag).tasks}
         failed += not succeeded
-        _write(s3, bucket, run, done, started, ended, succeeded)
+        _write(s3, bucket, run, attempt_runs, (started, ended), succeeded, source)
     return {"dag_runs": len(runs), "failed_dag_runs": failed, "queries": queries}
 
 
@@ -211,15 +224,10 @@ def _execute(
     attempt: Attempt, athena: Any, clock: Clock, sleep: Callable[[float], None]
 ) -> _AttemptRun:
     executed = _AttemptRun(attempt, started=clock())
-    failing = False
     for model in attempt.models:
-        if model.status == "skipped" or failing:
-            continue
+        if model.status == "skipped":
+            break
         began = clock()
-        if model.status == "error":
-            executed.models.append(_ModelRun(model, "error", began, clock()))
-            failing = True
-            continue
         scanned, status = 0, "success"
         for statement in model.statements:
             state, size = _run_query(athena, statement, sleep)
@@ -229,7 +237,8 @@ def _execute(
                 status = "error"
                 break
         executed.models.append(_ModelRun(model, status, began, clock(), scanned))
-        failing = status == "error"
+        if status == "error":
+            break
     executed.finished = clock()
     return executed
 
@@ -248,25 +257,27 @@ def _run_query(athena: Any, statement: str, sleep: Callable[[float], None]) -> t
         if state in TERMINAL:
             return state, int(execution.get("Statistics", {}).get("DataScannedInBytes", 0))
         sleep(POLL_SECONDS)
-    return "TIMED_OUT", 0
+    call(athena.stop_query_execution, QueryExecutionId=query_id)
+    return "CANCELLED", 0
 
 
 def _write(
     s3: Any,
     bucket: str,
     run: DagRun,
-    done: list[_AttemptRun],
-    started: datetime,
-    ended: datetime,
+    attempt_runs: list[_AttemptRun],
+    span: tuple[datetime, datetime],
     succeeded: bool,
+    source: str,
 ) -> None:
     """The dbt artifacts first, then the events: the collector reads each invocation's folder
-    once both files are there, and the events in any order."""
-    for executed in done:
+    once both files are there, and the events in any order. `source` is the OpenLineage
+    namespace of the Athena datasets."""
+    for executed in attempt_runs:
         folder = f"{DBT_INBOX}{executed.attempt.invocation_id}/"
-        _put(s3, bucket, f"{folder}manifest.json", _json(_manifest(executed, started)))
+        _put(s3, bucket, f"{folder}manifest.json", _json(_manifest(executed)))
         _put(s3, bucket, f"{folder}run_results.json", _json(_run_results(executed)))
-    events = _events(run, done, started, ended, succeeded)
+    events = _events(run, attempt_runs, span, succeeded, source)
     body = "".join(json.dumps(event) + "\n" for event in events).encode("utf-8")
     _put(s3, bucket, f"{OPENLINEAGE_INBOX}{run.dag}/{run.run_id}.jsonl", body)
 
@@ -308,6 +319,14 @@ def _time(moment: datetime) -> str:
     return moment.isoformat().replace("+00:00", "Z")
 
 
+def _timed(event: dict[str, Any], phase: str, when: datetime, succeeded: bool) -> dict[str, Any]:
+    """The event of a run's start (`phase` START) or end, with its time and its type: START,
+    COMPLETE or FAIL."""
+    end = "COMPLETE" if succeeded else "FAIL"
+    event.update(eventTime=_time(when), eventType="START" if phase == "START" else end)
+    return event
+
+
 def _airflow_names(run: DagRun, task: str = "dbt_run") -> dict[str, str]:
     return {
         "reference-airflow": NAMESPACE,
@@ -319,53 +338,57 @@ def _airflow_names(run: DagRun, task: str = "dbt_run") -> dict[str, str]:
 
 
 def _events(
-    run: DagRun, done: list[_AttemptRun], started: datetime, ended: datetime, succeeded: bool
+    run: DagRun,
+    attempt_runs: list[_AttemptRun],
+    span: tuple[datetime, datetime],
+    succeeded: bool,
+    source: str,
 ) -> list[dict[str, Any]]:
     """The DAG run's events in the order Airflow and dbt-ol would send them."""
-    events = [_dag_event(run, "START", started)]
-    states: dict[str, str] = {}
-    for executed in done:
-        events += _task_events(run, executed)
-        states[executed.attempt.task] = "success" if executed.succeeded else "failed"
-    events.append(_dag_event(run, "COMPLETE" if succeeded else "FAIL", ended, states, started))
+    started, ended = span
+    events = [_dag_event(run, "START", started, started, succeeded)]
+    for executed in attempt_runs:
+        events += _task_events(run, executed, source)
+    end = _dag_event(run, "END", ended, started, succeeded)
+    states = end["run"]["facets"]["airflowState"]
+    for executed in attempt_runs:  # the last try of each task is its state
+        task = executed.attempt.task
+        states["tasksState"][task] = "success" if executed.succeeded else "failed"
+        finished = executed.finished or executed.started
+        states["tasksDuration"][task] = (finished - executed.started).total_seconds()
+    events.append(end)
     return events
 
 
 def _dag_event(
-    run: DagRun,
-    kind: str,
-    when: datetime,
-    states: dict[str, str] | None = None,
-    started: datetime | None = None,
+    run: DagRun, phase: str, when: datetime, started: datetime, succeeded: bool
 ) -> dict[str, Any]:
-    event = _template("dag_start" if kind == "START" else "dag_complete", _airflow_names(run))
-    event.update(eventTime=_time(when), eventType=kind)
+    template = "dag_start" if phase == "START" else "dag_complete"
+    event = _timed(_template(template, _airflow_names(run)), phase, when, succeeded)
     event["run"]["runId"] = run.run_id
     dag_run = event["run"]["facets"]["airflowDagRun"]["dagRun"]
     dag_run.update(run_type="scheduled", triggered_by="timetable", run_after=_time(run.start))
-    dag_run["start_date"] = _time(started or when)
+    dag_run["start_date"] = _time(started)
     dag_run.pop("triggering_user_name", None)
-    if states is not None and started is not None:
+    if phase != "START":
         dag_run.update(end_date=_time(when), duration=(when - started).total_seconds())
         event["run"]["facets"]["airflowState"] = {
             **event["run"]["facets"]["airflowState"],
-            "dagRunState": "success" if kind == "COMPLETE" else "failed",
-            "tasksState": states,
-            "tasksDuration": {task: 0.0 for task in states},
+            "dagRunState": "success" if succeeded else "failed",
+            "tasksState": {},
+            "tasksDuration": {},
         }
     return event
 
 
-def _task_events(run: DagRun, executed: _AttemptRun) -> list[dict[str, Any]]:
+def _task_events(run: DagRun, executed: _AttemptRun, source: str) -> list[dict[str, Any]]:
     attempt = executed.attempt
     names = _airflow_names(run, attempt.task)
     finished = executed.finished or executed.started
     events = []
-    for kind, when in (("START", executed.started), ("END", finished)):
-        name = "task_start" if kind == "START" else "task_complete"
-        event = _template(name, names)
-        end_kind = "COMPLETE" if executed.succeeded else "FAIL"
-        event.update(eventTime=_time(when), eventType=kind if kind == "START" else end_kind)
+    for phase, when in (("START", executed.started), ("END", finished)):
+        name = "task_start" if phase == "START" else "task_complete"
+        event = _timed(_template(name, names), phase, when, executed.succeeded)
         event["run"]["runId"] = attempt.run_id
         facets = event["run"]["facets"]
         facets["airflow"]["taskUuid"] = attempt.run_id
@@ -377,7 +400,7 @@ def _task_events(run: DagRun, executed: _AttemptRun) -> list[dict[str, Any]]:
         facets["parent"]["root"]["run"]["runId"] = run.run_id
         events.append(event)
     start, end = events
-    return [start, *_dbt_events(run, executed), end]
+    return [start, *_dbt_events(run, executed, source), end]
 
 
 def _dbt_names() -> dict[str, str]:
@@ -393,16 +416,15 @@ def _parent(run: DagRun, template: dict[str, Any], job: str, namespace: str, run
     }
 
 
-def _dbt_events(run: DagRun, executed: _AttemptRun) -> list[dict[str, Any]]:
+def _dbt_events(run: DagRun, executed: _AttemptRun, source: str) -> list[dict[str, Any]]:
     """dbt-ol's events: the invocation run, a child of the task run, and a run per model."""
     attempt = executed.attempt
     job = f"dbt-run-{PROJECT}"
     events = []
-    for kind in ("START", "END"):
-        event = _template("dbt_start" if kind == "START" else "dbt_complete", _dbt_names())
-        when = executed.started if kind == "START" else executed.finished or executed.started
-        end_kind = "COMPLETE" if executed.succeeded else "FAIL"
-        event.update(eventTime=_time(when), eventType=kind if kind == "START" else end_kind)
+    for phase in ("START", "END"):
+        template = "dbt_start" if phase == "START" else "dbt_complete"
+        when = executed.started if phase == "START" else executed.finished or executed.started
+        event = _timed(_template(template, _dbt_names()), phase, when, executed.succeeded)
         event["job"]["name"] = job
         event["run"]["runId"] = attempt.dbt_run_id
         event["run"]["facets"]["dbt_run"]["invocation_id"] = attempt.invocation_id
@@ -417,11 +439,11 @@ def _dbt_events(run: DagRun, executed: _AttemptRun) -> list[dict[str, Any]]:
     models = []
     for model_run in executed.models:
         model_id = _model_run_id(attempt, model_run.model)
-        for kind, when in (("START", model_run.started), ("END", model_run.finished)):
-            event = _template("model_start" if kind == "START" else "model_complete", _dbt_names())
-            end_kind = "COMPLETE" if model_run.status == "success" else "FAIL"
-            event.update(eventTime=_time(when), eventType=kind if kind == "START" else end_kind)
-            _model_job(event, model_run.model)
+        for phase, when in (("START", model_run.started), ("END", model_run.finished)):
+            template = "model_start" if phase == "START" else "model_complete"
+            succeeded = model_run.status == "success"
+            event = _timed(_template(template, _dbt_names()), phase, when, succeeded)
+            _model_job(event, model_run.model, source)
             event["run"]["runId"] = model_id
             event["run"]["facets"]["dbt_run"]["invocation_id"] = attempt.invocation_id
             _parent(run, event["run"]["facets"]["parent"], job, NAMESPACE, attempt.dbt_run_id)
@@ -434,7 +456,7 @@ def _model_run_id(attempt: Attempt, model: PlannedModel) -> str:
     return str(uuid.uuid5(uuid.UUID(attempt.dbt_run_id), model.node_id))
 
 
-def _model_job(event: dict[str, Any], model: PlannedModel) -> None:
+def _model_job(event: dict[str, Any], model: PlannedModel, source: str) -> None:
     event["job"]["name"] = f"awsdatacatalog.{PROJECT}.{PROJECT}.{model.name}"
     facets = event["job"]["facets"]
     facets["dbt_node"].update(
@@ -444,7 +466,6 @@ def _model_job(event: dict[str, Any], model: PlannedModel) -> None:
         original_file_path=f"models/{model.name}.sql",
     )
     facets["sql"]["query"] = model.statements[-1].partition("\n")[2]
-    source = "awsathena://athena.us-east-1.amazonaws.com"
     event["inputs"] = [
         {"namespace": source, "name": f"awsdatacatalog.{DATABASE}.{table}"}
         for table in ("customers", "orders", "events")
@@ -453,7 +474,7 @@ def _model_job(event: dict[str, Any], model: PlannedModel) -> None:
     event["outputs"] = [{"namespace": source, "name": f"awsdatacatalog.{PROJECT}.{model.name}"}]
 
 
-def _manifest(executed: _AttemptRun, started: datetime) -> dict[str, Any]:
+def _manifest(executed: _AttemptRun) -> dict[str, Any]:
     manifest = _template("manifest", {"reference_workload": PROJECT})
     metadata = manifest["metadata"]
     metadata.update(

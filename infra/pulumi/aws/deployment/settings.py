@@ -22,8 +22,8 @@ DEFAULT_SCHEDULE = "cron(0 6 * * ? *)"
 DEFAULT_DEMO_SCHEDULE = "cron(25 0/6 * * ? *)"
 DEMO_WORKGROUP = "data-finops-demo"
 """The Athena workgroup of the public demo's simulated workload (spec 09)."""
-DEMO_START = re.compile(r"cron\((\d{1,2}) ")
-"""The minute of a cron expression, when it is one number."""
+DEMO_SCHEDULE = re.compile(r"cron\((\d{1,2}) (\d)/6 \* \* \? \*\)")
+"""The form of `demoSchedule`: a start every six hours, from a minute and a first hour."""
 DEFAULT_EXPLANATION_DETAIL = "minimal"
 LOG_RETENTION_DAYS = frozenset(
     {1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1096, 1827, 2192, 2557,
@@ -168,9 +168,10 @@ class Settings:
     """The most bytes one query in the demo workgroup can scan before Athena cancels it. Athena
     accepts 10 MB or more."""
     demo_schedule: str = DEFAULT_DEMO_SCHEDULE
-    """When the demo's simulated orchestrator starts, as an EventBridge Scheduler cron
-    expression, in UTC. Its minute must be one number from 10 to 40, so that no query ends near
-    the hour (spec 09). The first start of a day runs `daily_orders`."""
+    """When the demo's simulated orchestrator starts, in UTC: every six hours, as
+    `cron(M H/6 * * ? *)`. M, from 10 to 40, keeps each query away from the hour (spec 09). H,
+    from 0 to 5, is the first start of the day, which runs `daily_orders`, and `weekly_finance`
+    on Mondays. Each start runs `hourly_events`."""
 
     def __post_init__(self) -> None:
         for field in ("region", "export_bucket", "export_name"):
@@ -193,9 +194,11 @@ class Settings:
             raise SettingsError("explanationDetail must be one of full, minimal")
         if self.cost_dimensions is not None and not Path(self.cost_dimensions).is_file():
             raise SettingsError("costDimensions must be the path of a file")
-        minute = DEMO_START.match(self.demo_schedule)
-        if minute is None or not 10 <= int(minute.group(1)) <= 40:
-            raise SettingsError("demoSchedule must be a cron expression whose minute is 10 to 40")
+        demo = DEMO_SCHEDULE.fullmatch(self.demo_schedule)
+        if demo is None or not 10 <= int(demo.group(1)) <= 40 or int(demo.group(2)) > 5:
+            raise SettingsError(
+                "demoSchedule must be cron(M H/6 * * ? *), with M from 10 to 40 and H from 0 to 5"
+            )
 
     @property
     def collected_workgroups(self) -> tuple[str, ...]:

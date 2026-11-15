@@ -268,7 +268,8 @@ def log_writing(group_arn: str) -> tuple[list[str], list[str]]:
     return ["logs:CreateLogStream", "logs:PutLogEvents"], [f"{group_arn}:*"]
 
 
-def _key(settings: Settings, actions: list[str]) -> list[tuple[str | list[str], list[str]]]:
+def key_grant(settings: Settings, actions: list[str]) -> list[tuple[str | list[str], list[str]]]:
+    """The grant of `actions` on the bucket's KMS key, when the bucket has one."""
     return [] if settings.kms_key_arn is None else [(actions, [settings.kms_key_arn])]
 
 
@@ -301,7 +302,7 @@ def _collector_policy(
             ),
             ("s3:PutObject", [f"{bucket_arn}/{DATABASE_KEY}"]),
             log_writing(group_arn),
-            *_key(settings, ["kms:Decrypt", "kms:GenerateDataKey"]),
+            *key_grant(settings, ["kms:Decrypt", "kms:GenerateDataKey"]),
         ]
     )
     policy["Statement"].insert(
@@ -324,7 +325,7 @@ def _api_policy(settings: Settings, bucket_arn: str, group_arn: str) -> dict[str
             ("s3:GetObject", [f"{bucket_arn}/{DATABASE_KEY}"]),
             ("s3:ListBucket", [bucket_arn]),
             log_writing(group_arn),
-            *_key(settings, ["kms:Decrypt"]),
+            *key_grant(settings, ["kms:Decrypt"]),
         ]
     )
 

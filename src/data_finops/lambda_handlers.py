@@ -22,9 +22,10 @@ if TYPE_CHECKING:
 COLLECTOR_SETTINGS = "DATA_FINOPS_COLLECTOR_SETTINGS"
 """The environment variable holding the collector's settings as JSON, with the keys of the
 `collect` settings file (spec 08)."""
-API_BUCKET = "DATA_FINOPS_BUCKET"
+DEPLOYMENT_BUCKET = "DATA_FINOPS_BUCKET"
 """The environment variable naming the Deployment's bucket, for the API function and the
 simulator, which writes to its Inbox."""
+API_BUCKET = DEPLOYMENT_BUCKET
 API_EXPLANATION_DETAIL = "DATA_FINOPS_EXPLANATION_DETAIL"
 """How much of the Billing Line the API's Cost Explanations show; `minimal` unless set."""
 DEMO_BUCKET = "DATA_FINOPS_DEMO_BUCKET"
@@ -181,9 +182,9 @@ def make_simulator_handler(
     from data_finops.public_demo.simulator import simulate
 
     def handler(event: Mapping[str, Any], context: Any) -> Any:
-        bucket = environ.get(API_BUCKET)
+        bucket = environ.get(DEPLOYMENT_BUCKET)
         if not bucket:
-            raise SimulatorMisconfigured(f"{API_BUCKET} is not set")
+            raise SimulatorMisconfigured(f"{DEPLOYMENT_BUCKET} is not set")
         start = _scheduled_time(event, clock)
         athena, s3 = clients()
         summary = simulate(start, athena=athena, s3=s3, bucket=bucket, clock=clock, sleep=sleep)

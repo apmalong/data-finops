@@ -154,6 +154,7 @@ def test_the_simulator_may_only_query_the_demo_workgroup(tmp_path: Path) -> pulu
         assert _role_policy("-simulator") == {
             "athena:StartQueryExecution": [workgroup],
             "athena:GetQueryExecution": [workgroup],
+            "athena:StopQueryExecution": [workgroup],
             "glue:GetDatabase": [
                 f"{glue}:catalog",
                 f"{glue}:database/data_finops_demo",
@@ -253,3 +254,23 @@ def test_the_demo_bucket_is_private_and_removed_with_the_demo(
 
     kms = "arn:aws:kms:us-east-1:123456789012:key/example"
     return _after(tmp_path, check, public_demo=True, kms_key_arn=kms)
+
+
+@pulumi.runtime.test
+def test_with_a_kms_key_the_simulator_can_write_the_inbox(tmp_path: Path) -> pulumi.Output[None]:
+    kms = "arn:aws:kms:us-east-1:123456789012:key/example"
+
+    def check(_: Deployment) -> None:
+        assert _role_policy("-simulator")["kms:GenerateDataKey"] == [kms]
+
+    return _after(tmp_path, check, public_demo=True, kms_key_arn=kms)
+
+
+@pulumi.runtime.test
+def test_lambda_does_not_retry_the_simulator(tmp_path: Path) -> pulumi.Output[None]:
+    def check(_: Deployment) -> None:
+        config = MOCKS.one("aws:lambda/functionEventInvokeConfig:FunctionEventInvokeConfig")
+        assert config.inputs["functionName"] == "data-finops-test-simulator"
+        assert config.inputs["maximumRetryAttempts"] == 0
+
+    return _after(tmp_path, check, public_demo=True)

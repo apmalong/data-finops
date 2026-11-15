@@ -2,9 +2,9 @@
 0030): which DAG runs when, its tasks, the models of each task and the real SQL of each model.
 
 Each statement runs in the `data-finops-demo` workgroup against the demo dataset (#225), so
-its scan, and its cost, is real. `{tenant}` is one of the dataset's tenants, chosen by the
-plan; nothing else is put in the SQL. The statements only read: the simulator's role has no
-grant to write a table.
+its scan, and its cost, is real. `{tenant}` is one of the dataset's tenants
+(`dataset.TENANTS`), chosen by the plan; nothing else is put in the SQL. The statements only
+read: the simulator's role has no grant to write a table.
 """
 
 from collections.abc import Callable
@@ -15,8 +15,10 @@ PROJECT = "demo_shop"
 """The demo's dbt project. A model's `node_id` is `model.demo_shop.<model>`."""
 NAMESPACE = "demo-airflow"
 """The OpenLineage namespace of the simulated Airflow, as `reference-airflow` was."""
-TENANTS = ("northwind", "contoso", "fabrikam", "tailspin", "wingtip", "adventure-works")
-"""The tenants of the demo dataset (`dataset.TENANTS`): believable and fictional."""
+WORKGROUP = "data-finops-demo"
+"""The Athena workgroup of the demo (`infra/pulumi/aws/deployment/demo.py`)."""
+DATABASE = "data_finops_demo"
+"""The Glue database of the demo dataset (`infra/pulumi/aws/deployment/demo.py`)."""
 
 MODELS: dict[str, tuple[str, ...]] = {
     "stg_customers": (
