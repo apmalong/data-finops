@@ -28,11 +28,13 @@ OUTPUTS: dict[str, str] = {
     "demoBucket": "Only with publicDemo: the public demo's bucket, with the demo dataset.",
     "demoGeneratorFunction": "Only with publicDemo: the function that writes the demo "
     "dataset. Invoke it one time after the first deploy.",
+    "demoSimulatorFunction": "Only with publicDemo: the simulated orchestrator, which its "
+    "schedule starts. Invoke it by hand to run the DAGs due now.",
 }
 """Each stack output and what it is for. The site's generated deployment settings reference
 reads this literal from the source, and `Deployment.outputs` gives exactly these, less
 `DEMO_OUTPUTS` when `publicDemo` is off."""
-DEMO_OUTPUTS = ("demoBucket", "demoGeneratorFunction")
+DEMO_OUTPUTS = ("demoBucket", "demoGeneratorFunction", "demoSimulatorFunction")
 
 
 def require_local_state() -> None:
@@ -84,7 +86,11 @@ def build(
         account_id = aws.get_caller_identity_output().account_id
     storage = Storage(NAME, settings)
     compute = Compute(NAME, settings, storage, package=package, account_id=account_id)
-    demo = PublicDemo(NAME, settings, code=compute.code) if settings.public_demo else None
+    demo = None
+    if settings.public_demo:
+        demo = PublicDemo(
+            NAME, settings, code=compute.code, inbox=storage.bucket, account_id=account_id
+        )
     return Deployment(storage=storage, compute=compute, demo=demo)
 
 

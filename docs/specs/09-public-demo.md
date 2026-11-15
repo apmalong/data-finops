@@ -56,24 +56,32 @@ The Deployment must not contain code that is not vetted. These tickets go first:
 
 ## The simulated orchestrator (ADR 0030)
 - **Schedule:** EventBridge Scheduler, a few times a day. Each start is between :10 and :40 past the hour, so that no query finishes near the boundary of an hour (OQ-25).
+  - The setting `demoSchedule` is `cron(M H/6 * * ? *)`: a start every six hours, `cron(25 0/6 * * ? *)` by default. M is from 10 to 40. H, from 0 to 5, is the first start of the day, which runs `daily_orders`.
+  - The schedule gives the simulator its scheduled time. The plan of a start comes from a seed and that time only, so a start that is invoked again plans the same runs.
+  - The schedule and Lambda do not retry a failed start, because a retry runs the queries again.
+  - The simulator stops a query that runs for more than two minutes. Then its model fails.
+  - The `PublicDemo` component makes the function, its role and the schedule (#226, Q79).
 - **DAGs:** `daily_orders` (one time each day), `hourly_events` (each six hours) and `weekly_finance` (Mondays). Each DAG has two to four tasks. Each dbt task runs two to five models from the dbt project of the demo.
 - **Queries:**
   - Each model runs one to three real statements in the `data-finops-demo` workgroup, against the demo dataset.
   - The first line of each statement is the dbt-athena query comment (`-- /* {"app": "dbt", "node_id": …, "invocation_id": …, "team": …, "tenant_id": …, "dag_run_id": …} */`). It has the invocation ID of the run, and believable fictional teams and tenants.
   - The workgroup has a scan cutoff for each query, as the reference workload had.
 - **Variety:** models scan from less than 10 MB to a few hundred MB. About 5% of tasks fail one time and succeed on retry. Sometimes a run fails completely.
+  - A model fails as a real dbt model fails: Athena fails its query, which names a column that does not exist. Athena does not charge for the failed query. The models after it are skipped.
 - **Records:**
   - Each run writes its OpenLineage events (Airflow DAG run, task runs with a ParentRunFacet, dbt-ol model runs) to `inbox/openlineage/`.
   - Each dbt invocation writes its `manifest.json` and `run_results.json` to `inbox/dbt/<invocation>/`.
   - The events and artifacts come from templates in `fixtures/reference-workload/`. They must pass the current readers, unchanged.
 - **IAM, a role of its own:**
-  - `athena:StartQueryExecution` and `athena:GetQueryExecution` on the demo workgroup only
-  - `glue:Get*` on the demo database and its tables
-  - `s3:GetObject` on the dataset, and `s3:PutObject` on the results prefix
-  - the producer grant on `inbox/*`
+  - `athena:StartQueryExecution`, `athena:GetQueryExecution` and `athena:StopQueryExecution` on the demo workgroup only
+  - `glue:GetDatabase`, `glue:GetTable` and `glue:GetPartitions` on the catalog, the demo database and its tables
+  - `s3:ListBucket` and `s3:GetBucketLocation` on the demo bucket, which Athena also needs (Q80)
+  - `s3:GetObject` on the dataset, and `s3:PutObject` and `s3:AbortMultipartUpload` on the results prefix
+  - the producer grant on `inbox/*`, and `kms:GenerateDataKey` on the key of the bucket when `kmsKeyArn` is set
   - its log group
 
   The explicit deny of the collector on query execution does not change.
+- **The collector:** when `publicDemo` is `true`, the stack adds `data-finops-demo` to the workgroups whose history the collector reads, and to its grant. The `workgroups` setting does not change (Q81).
 
 ## The demo dataset
 - **Contents:** the dataset generator makes it one time, in a one-off invocation. It is a few hundred MB of orders, customers and events, as Parquet in the demo bucket, under `dataset/` (Q77).
@@ -112,7 +120,7 @@ The Deployment must not contain code that is not vetted. These tickets go first:
 
 ## Stack, settings and policy pack
 - **New settings:** `publicDemo` (default `false`), `demoScanCutoffBytes`, `demoSchedule` and `costDimensions`. Each has a docstring, so that the generated settings reference shows it.
-- **New outputs:** `demoUrl`, `demoBucket` and `demoGeneratorFunction`. They exist only when `publicDemo` is `true`.
+- **New outputs:** `demoUrl`, `demoBucket`, `demoGeneratorFunction` and `demoSimulatorFunction`. They exist only when `publicDemo` is `true`.
 - **Policy pack:**
   - The demo bucket gets the same S3 policies as the bucket of the Deployment.
   - A new policy: each CloudFront distribution uses origin access control, and redirects HTTP to HTTPS.

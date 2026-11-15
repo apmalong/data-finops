@@ -57,6 +57,16 @@ Asked with options only. The owner chose each option, so no recommendation was g
 | Q77 | Where the dataset is | **Owner:** in the demo bucket, under `dataset/`. #225 makes the bucket, and #229 limits CloudFront to the prefix of the site. The other options were the bucket of the Deployment, or a third bucket | Owner | spec 09 §The demo dataset, §The site |
 | Q78 | What runs the generator | **Owner:** a Lambda function, with a role of its own, that the owner invokes one time. The other option was a CLI command with the owner's credentials | Owner | spec 09 §Layout, §The demo dataset |
 
+## Round 4 (2026-11-15, #226)
+
+Asked with options only. The owner chose each option, so no recommendation was given.
+
+| # | Question | Decision | Source | Recorded in |
+|---|---|---|---|---|
+| Q79 | Which ticket makes the simulator's function, role, schedule and policy-pack allowlist | **Owner:** all in #226. #229 keeps CloudFront, and the trigger, role and allowlist of the publisher. The other option was the Python code only in #226 | Owner | spec 09 §The simulated orchestrator |
+| Q80 | The simulator's S3 grant | **Owner:** add what Athena needs: `s3:ListBucket` and `s3:GetBucketLocation` on the demo bucket, and `s3:AbortMultipartUpload` on the results. The other option was the grant of spec 09 as it was written | Owner | spec 09 §The simulated orchestrator |
+| Q81 | How the demo workgroup gets into the collector's workgroups | **Owner:** the stack adds it when `publicDemo` is `true`. The other option was that the owner sets it | Owner | spec 09 §The simulated orchestrator |
+
 ## Facts the decisions rest on
 
 From the research note `docs/research/m7-aws-finops-tools.md`, checked 2026-11-07:

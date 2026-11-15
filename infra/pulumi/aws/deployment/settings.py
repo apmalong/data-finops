@@ -19,6 +19,11 @@ from typing import Any
 import pulumi
 
 DEFAULT_SCHEDULE = "cron(0 6 * * ? *)"
+DEFAULT_DEMO_SCHEDULE = "cron(25 0/6 * * ? *)"
+DEMO_WORKGROUP = "data-finops-demo"
+"""The Athena workgroup of the public demo's simulated workload (spec 09)."""
+DEMO_SCHEDULE = re.compile(r"cron\((\d{1,2}) (\d)/6 \* \* \? \*\)")
+"""The form of `demoSchedule`: a start every six hours, from a minute and a first hour."""
 DEFAULT_EXPLANATION_DETAIL = "minimal"
 LOG_RETENTION_DAYS = frozenset(
     {1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1096, 1827, 2192, 2557,
@@ -54,6 +59,7 @@ CONFIG_KEYS: dict[str, str] = {
     "cost_dimensions": "costDimensions",
     "public_demo": "publicDemo",
     "demo_scan_cutoff_bytes": "demoScanCutoffBytes",
+    "demo_schedule": "demoSchedule",
 }
 """Each setting's stack configuration key (`data-finops:<key>`, or `aws:region`); a Budget
 field is `budget.<field>`."""
@@ -161,6 +167,11 @@ class Settings:
     demo_scan_cutoff_bytes: int = 1_000_000_000
     """The most bytes one query in the demo workgroup can scan before Athena cancels it. Athena
     accepts 10 MB or more."""
+    demo_schedule: str = DEFAULT_DEMO_SCHEDULE
+    """When the demo's simulated orchestrator starts, in UTC: every six hours, as
+    `cron(M H/6 * * ? *)`. M, from 10 to 40, keeps each query away from the hour (spec 09). H,
+    from 0 to 5, is the first start of the day, which runs `daily_orders`, and `weekly_finance`
+    on Mondays. Each start runs `hourly_events`."""
 
     def __post_init__(self) -> None:
         for field in ("region", "export_bucket", "export_name"):
@@ -183,6 +194,18 @@ class Settings:
             raise SettingsError("explanationDetail must be one of full, minimal")
         if self.cost_dimensions is not None and not Path(self.cost_dimensions).is_file():
             raise SettingsError("costDimensions must be the path of a file")
+        demo = DEMO_SCHEDULE.fullmatch(self.demo_schedule)
+        if demo is None or not 10 <= int(demo.group(1)) <= 40 or int(demo.group(2)) > 5:
+            raise SettingsError(
+                "demoSchedule must be cron(M H/6 * * ? *), with M from 10 to 40 and H from 0 to 5"
+            )
+
+    @property
+    def collected_workgroups(self) -> tuple[str, ...]:
+        """The workgroups whose history the collector reads: `workgroups`, and the demo's when
+        `publicDemo` is on (spec 09, Q81)."""
+        demo = (DEMO_WORKGROUP,) if self.public_demo else ()
+        return self.workgroups + tuple(w for w in demo if w not in self.workgroups)
 
     @classmethod
     def from_config(cls, config: pulumi.Config, aws_config: pulumi.Config) -> "Settings":
@@ -211,6 +234,7 @@ class Settings:
                 get("delete_data_on_destroy"), CONFIG_KEYS["delete_data_on_destroy"]
             ),
             "public_demo": _flag(get("public_demo"), CONFIG_KEYS["public_demo"]),
+            "demo_schedule": get("demo_schedule") or DEFAULT_DEMO_SCHEDULE,
         }
         for field in (*BOUNDS, "api_reserved_concurrency", "log_retention_days"):
             if (value := get(field)) is not None:

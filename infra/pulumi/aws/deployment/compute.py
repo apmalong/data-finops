@@ -245,7 +245,7 @@ def _collector_settings(settings: Settings, bucket: str, account_id: str) -> dic
         "bucket": bucket,
         "region": settings.region,
         "account_id": account_id,
-        "workgroups": list(settings.workgroups),
+        "workgroups": list(settings.collected_workgroups),
         "export_bucket": settings.export_bucket,
         "export_prefix": settings.export_prefix,
         "export_name": settings.export_name,
@@ -268,7 +268,8 @@ def log_writing(group_arn: str) -> tuple[list[str], list[str]]:
     return ["logs:CreateLogStream", "logs:PutLogEvents"], [f"{group_arn}:*"]
 
 
-def _key(settings: Settings, actions: list[str]) -> list[tuple[str | list[str], list[str]]]:
+def key_grant(settings: Settings, actions: list[str]) -> list[tuple[str | list[str], list[str]]]:
+    """The grant of `actions` on the bucket's KMS key, when the bucket has one."""
     return [] if settings.kms_key_arn is None else [(actions, [settings.kms_key_arn])]
 
 
@@ -283,7 +284,7 @@ def _collector_policy(
     export = f"arn:aws:s3:::{settings.export_bucket}"
     workgroups = [
         f"arn:aws:athena:{settings.region}:{account_id}:workgroup/{name}"
-        for name in settings.workgroups
+        for name in settings.collected_workgroups
     ]
     policy = allow(
         [
@@ -301,7 +302,7 @@ def _collector_policy(
             ),
             ("s3:PutObject", [f"{bucket_arn}/{DATABASE_KEY}"]),
             log_writing(group_arn),
-            *_key(settings, ["kms:Decrypt", "kms:GenerateDataKey"]),
+            *key_grant(settings, ["kms:Decrypt", "kms:GenerateDataKey"]),
         ]
     )
     policy["Statement"].insert(
@@ -324,7 +325,7 @@ def _api_policy(settings: Settings, bucket_arn: str, group_arn: str) -> dict[str
             ("s3:GetObject", [f"{bucket_arn}/{DATABASE_KEY}"]),
             ("s3:ListBucket", [bucket_arn]),
             log_writing(group_arn),
-            *_key(settings, ["kms:Decrypt"]),
+            *key_grant(settings, ["kms:Decrypt"]),
         ]
     )
 

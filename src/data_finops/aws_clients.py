@@ -27,6 +27,12 @@ def make_s3_client(region: str) -> Any:
     return session.client("s3", config=config)
 
 
+def make_athena_client(region: str) -> Any:
+    """An Athena client for the region, configured as `make_aws_clients` configures its own."""
+    session, config = _aws_session(None, region)
+    return session.client("athena", config=config)
+
+
 def _aws_session(profile: str | None, region: str) -> tuple[Any, Any]:
     try:
         import boto3

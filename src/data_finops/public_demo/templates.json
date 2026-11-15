@@ -1,0 +1,1222 @@
+{
+ "dag_start": {
+  "eventTime": "2026-11-02T19:59:21.208797Z",
+  "eventType": "START",
+  "inputs": [],
+  "job": {
+   "facets": {
+    "airflow": {
+     "_producer": "https://github.com/apache/airflow/tree/providers-openlineage/2.20.1",
+     "_schemaURL": "https://openlineage.io/spec/2-0-2/OpenLineage.json#/$defs/JobFacet",
+     "tasks": {
+      "dbt_run": {
+       "emits_ol_events": true,
+       "is_setup": false,
+       "is_teardown": false,
+       "operator": "airflow.providers.standard.operators.bash.BashOperator"
+      }
+     }
+    },
+    "jobType": {
+     "_producer": "https://github.com/apache/airflow/tree/providers-openlineage/2.20.1",
+     "_schemaURL": "https://openlineage.io/spec/facets/2-0-4/JobTypeJobFacet.json#/$defs/JobTypeJobFacet",
+     "integration": "AIRFLOW",
+     "jobType": "DAG",
+     "processingType": "BATCH"
+    },
+    "ownership": {
+     "_producer": "https://github.com/apache/airflow/tree/providers-openlineage/2.20.1",
+     "_schemaURL": "https://openlineage.io/spec/facets/1-0-1/OwnershipJobFacet.json#/$defs/OwnershipJobFacet",
+     "owners": [
+      {
+       "name": "anon-71737aafe4b7"
+      }
+     ]
+    },
+    "tags": {
+     "_producer": "https://github.com/apache/airflow/tree/providers-openlineage/2.20.1",
+     "_schemaURL": "https://openlineage.io/spec/facets/1-0-0/TagsJobFacet.json#/$defs/TagsJobFacet",
+     "tags": [
+      {
+       "key": "anon-b54da32ad34d",
+       "source": "AIRFLOW",
+       "value": "anon-b54da32ad34d"
+      }
+     ]
+    }
+   },
+   "name": "reference_workload",
+   "namespace": "reference-airflow"
+  },
+  "outputs": [],
+  "producer": "https://github.com/apache/airflow/tree/providers-openlineage/2.20.1",
+  "run": {
+   "facets": {
+    "airflowDagRun": {
+     "_producer": "https://github.com/apache/airflow/tree/providers-openlineage/2.20.1",
+     "_schemaURL": "https://openlineage.io/spec/2-0-2/OpenLineage.json#/$defs/RunFacet",
+     "dag": {
+      "dag_id": "reference_workload",
+      "fileloc": "anon-7e457833a0da",
+      "owner": "anon-71737aafe4b7",
+      "start_date": "2026-11-01T00:00:00Z",
+      "tags": "anon-3fa6110710bc",
+      "timetable_summary": "None"
+     },
+     "dagRun": {
+      "clear_number": 0,
+      "dag_bundle_name": "dags-folder",
+      "dag_id": "reference_workload",
+      "dag_version_id": "01a19dd8-0fbb-749a-9650-d15b4e4cea9a",
+      "dag_version_number": 1,
+      "run_after": "2026-11-02T19:59:20.204649Z",
+      "run_id": "manual__2026-11-02T19:59:20.204649+00:00",
+      "run_type": "manual",
+      "start_date": "2026-11-02T19:59:21.208797Z",
+      "triggered_by": "cli",
+      "triggering_user_name": "anon-bc7435ecf85c"
+     }
+    },
+    "processing_engine": {
+     "_producer": "https://github.com/apache/airflow/tree/providers-openlineage/2.20.1",
+     "_schemaURL": "https://openlineage.io/spec/facets/1-1-1/ProcessingEngineRunFacet.json#/$defs/ProcessingEngineRunFacet",
+     "name": "Airflow",
+     "openlineageAdapterVersion": "2.20.1",
+     "version": "3.3.2"
+    },
+    "tags": {
+     "_producer": "https://github.com/apache/airflow/tree/providers-openlineage/2.20.1",
+     "_schemaURL": "https://openlineage.io/spec/facets/1-0-0/TagsRunFacet.json#/$defs/TagsRunFacet",
+     "tags": [
+      {
+       "key": "openlineage_client_version",
+       "source": "OPENLINEAGE_CLIENT",
+       "value": "anon-502fc7dd8816"
+      }
+     ]
+    }
+   },
+   "runId": "01a19dd8-4a8c-72ec-873a-a3bb810cbae6"
+  },
+  "schemaURL": "https://openlineage.io/spec/2-0-2/OpenLineage.json#/$defs/RunEvent"
+ },
+ "task_start": {
+  "eventTime": "2026-11-02T19:59:27.652440Z",
+  "eventType": "START",
+  "inputs": [],
+  "job": {
+   "facets": {
+    "jobType": {
+     "_producer": "https://github.com/apache/airflow/tree/providers-openlineage/2.20.1",
+     "_schemaURL": "https://openlineage.io/spec/facets/2-0-4/JobTypeJobFacet.json#/$defs/JobTypeJobFacet",
+     "integration": "AIRFLOW",
+     "jobType": "TASK",
+     "processingType": "BATCH"
+    },
+    "ownership": {
+     "_producer": "https://github.com/apache/airflow/tree/providers-openlineage/2.20.1",
+     "_schemaURL": "https://openlineage.io/spec/facets/1-0-1/OwnershipJobFacet.json#/$defs/OwnershipJobFacet",
+     "owners": [
+      {
+       "name": "anon-71737aafe4b7"
+      }
+     ]
+    },
+    "sourceCode": {
+     "_producer": "https://github.com/apache/airflow/tree/providers-openlineage/2.20.1",
+     "_schemaURL": "https://openlineage.io/spec/facets/1-0-1/SourceCodeJobFacet.json#/$defs/SourceCodeJobFacet",
+     "language": "bash",
+     "sourceCode": "anon-1de6853219b2"
+    },
+    "tags": {
+     "_producer": "https://github.com/apache/airflow/tree/providers-openlineage/2.20.1",
+     "_schemaURL": "https://openlineage.io/spec/facets/1-0-0/TagsJobFacet.json#/$defs/TagsJobFacet",
+     "tags": [
+      {
+       "key": "anon-b54da32ad34d",
+       "source": "AIRFLOW",
+       "value": "anon-b54da32ad34d"
+      }
+     ]
+    }
+   },
+   "name": "reference_workload.dbt_run",
+   "namespace": "reference-airflow"
+  },
+  "outputs": [],
+  "producer": "https://github.com/apache/airflow/tree/providers-openlineage/2.20.1",
+  "run": {
+   "facets": {
+    "airflow": {
+     "_producer": "https://github.com/apache/airflow/tree/providers-openlineage/2.20.1",
+     "_schemaURL": "https://openlineage.io/spec/2-0-2/OpenLineage.json#/$defs/RunFacet",
+     "dag": {
+      "dag_id": "reference_workload",
+      "fileloc": "anon-7e457833a0da",
+      "owner": "anon-71737aafe4b7",
+      "start_date": "2026-11-01T00:00:00Z",
+      "tags": "anon-3fa6110710bc",
+      "timetable_summary": "None"
+     },
+     "dagRun": {
+      "clear_number": 0,
+      "dag_id": "reference_workload",
+      "run_after": "2026-11-02T19:59:20.204649Z",
+      "run_id": "manual__2026-11-02T19:59:20.204649+00:00",
+      "run_type": "manual",
+      "start_date": "2026-11-02T19:59:21.208797Z",
+      "triggering_user_name": "anon-bc7435ecf85c"
+     },
+     "task": {
+      "depends_on_past": false,
+      "downstream_task_ids": "[]",
+      "ignore_first_depends_on_past": false,
+      "inlets": "anon-21956a6de436",
+      "mapped": false,
+      "multiple_outputs": false,
+      "operator_class": "BashOperator",
+      "operator_class_path": "airflow.providers.standard.operators.bash.BashOperator",
+      "operator_provider_version": "1.19.0",
+      "outlets": "anon-21956a6de436",
+      "owner": "anon-71737aafe4b7",
+      "priority_weight": 1,
+      "queue": "default",
+      "retries": 0,
+      "retry_exponential_backoff": 0,
+      "task_id": "dbt_run",
+      "trigger_rule": "all_success",
+      "upstream_task_ids": "[]",
+      "wait_for_downstream": false,
+      "wait_for_past_depends_before_skipping": false
+     },
+     "taskInstance": {
+      "dag_bundle_name": "dags-folder",
+      "log_url": "http://anon-a203fe8f4bb6:8080/dags/reference_workload/runs/manual__2026-11-02T19%3A59%3A20.204649%2B00%3A00/tasks/dbt_run?try_number=1",
+      "try_number": 1
+     },
+     "taskUuid": "01a19dd8-4a8c-7abf-9e93-25adbcb5d081"
+    },
+    "parent": {
+     "_producer": "https://github.com/apache/airflow/tree/providers-openlineage/2.20.1",
+     "_schemaURL": "https://openlineage.io/spec/facets/1-2-0/ParentRunFacet.json#/$defs/ParentRunFacet",
+     "job": {
+      "facets": {},
+      "name": "reference_workload",
+      "namespace": "reference-airflow"
+     },
+     "root": {
+      "job": {
+       "facets": {},
+       "name": "reference_workload",
+       "namespace": "reference-airflow"
+      },
+      "run": {
+       "facets": {},
+       "runId": "01a19dd8-4a8c-72ec-873a-a3bb810cbae6"
+      }
+     },
+     "run": {
+      "facets": {},
+      "runId": "01a19dd8-4a8c-72ec-873a-a3bb810cbae6"
+     }
+    },
+    "processing_engine": {
+     "_producer": "https://github.com/apache/airflow/tree/providers-openlineage/2.20.1",
+     "_schemaURL": "https://openlineage.io/spec/facets/1-1-1/ProcessingEngineRunFacet.json#/$defs/ProcessingEngineRunFacet",
+     "name": "Airflow",
+     "openlineageAdapterVersion": "2.20.1",
+     "version": "3.3.2"
+    },
+    "tags": {
+     "_producer": "https://github.com/apache/airflow/tree/providers-openlineage/2.20.1",
+     "_schemaURL": "https://openlineage.io/spec/facets/1-0-0/TagsRunFacet.json#/$defs/TagsRunFacet",
+     "tags": [
+      {
+       "key": "openlineage_client_version",
+       "source": "OPENLINEAGE_CLIENT",
+       "value": "anon-502fc7dd8816"
+      }
+     ]
+    }
+   },
+   "runId": "01a19dd8-4a8c-7abf-9e93-25adbcb5d081"
+  },
+  "schemaURL": "https://openlineage.io/spec/2-0-2/OpenLineage.json#/$defs/RunEvent"
+ },
+ "dag_complete": {
+  "eventTime": "2026-11-02T20:00:01.568098Z",
+  "eventType": "COMPLETE",
+  "inputs": [],
+  "job": {
+   "facets": {
+    "jobType": {
+     "_producer": "https://github.com/apache/airflow/tree/providers-openlineage/2.20.1",
+     "_schemaURL": "https://openlineage.io/spec/facets/2-0-4/JobTypeJobFacet.json#/$defs/JobTypeJobFacet",
+     "integration": "AIRFLOW",
+     "jobType": "DAG",
+     "processingType": "BATCH"
+    },
+    "ownership": {
+     "_producer": "https://github.com/apache/airflow/tree/providers-openlineage/2.20.1",
+     "_schemaURL": "https://openlineage.io/spec/facets/1-0-1/OwnershipJobFacet.json#/$defs/OwnershipJobFacet",
+     "owners": [
+      {
+       "name": "anon-71737aafe4b7"
+      }
+     ]
+    },
+    "tags": {
+     "_producer": "https://github.com/apache/airflow/tree/providers-openlineage/2.20.1",
+     "_schemaURL": "https://openlineage.io/spec/facets/1-0-0/TagsJobFacet.json#/$defs/TagsJobFacet",
+     "tags": [
+      {
+       "key": "anon-b54da32ad34d",
+       "source": "AIRFLOW",
+       "value": "anon-b54da32ad34d"
+      }
+     ]
+    }
+   },
+   "name": "reference_workload",
+   "namespace": "reference-airflow"
+  },
+  "outputs": [],
+  "producer": "https://github.com/apache/airflow/tree/providers-openlineage/2.20.1",
+  "run": {
+   "facets": {
+    "airflowDagRun": {
+     "_producer": "https://github.com/apache/airflow/tree/providers-openlineage/2.20.1",
+     "_schemaURL": "https://openlineage.io/spec/2-0-2/OpenLineage.json#/$defs/RunFacet",
+     "dag": {
+      "dag_id": "reference_workload",
+      "fileloc": "anon-7e457833a0da",
+      "owner": "anon-71737aafe4b7",
+      "start_date": "2026-11-01T00:00:00Z",
+      "tags": "anon-3fa6110710bc",
+      "timetable_summary": "None"
+     },
+     "dagRun": {
+      "clear_number": 0,
+      "dag_bundle_name": "dags-folder",
+      "dag_id": "reference_workload",
+      "dag_version_id": "01a19dd8-0fbb-749a-9650-d15b4e4cea9a",
+      "dag_version_number": 1,
+      "duration": 40.359301,
+      "end_date": "2026-11-02T20:00:01.568098Z",
+      "run_after": "2026-11-02T19:59:20.204649Z",
+      "run_id": "manual__2026-11-02T19:59:20.204649+00:00",
+      "run_type": "manual",
+      "start_date": "2026-11-02T19:59:21.208797Z",
+      "triggered_by": "cli",
+      "triggering_user_name": "anon-bc7435ecf85c"
+     }
+    },
+    "airflowState": {
+     "_producer": "https://github.com/apache/airflow/tree/providers-openlineage/2.20.1",
+     "_schemaURL": "https://openlineage.io/spec/2-0-2/OpenLineage.json#/$defs/RunFacet",
+     "dagRunState": "success",
+     "tasksDuration": {
+      "dbt_run": 39.846
+     },
+     "tasksState": {
+      "dbt_run": "success"
+     }
+    },
+    "processing_engine": {
+     "_producer": "https://github.com/apache/airflow/tree/providers-openlineage/2.20.1",
+     "_schemaURL": "https://openlineage.io/spec/facets/1-1-1/ProcessingEngineRunFacet.json#/$defs/ProcessingEngineRunFacet",
+     "name": "Airflow",
+     "openlineageAdapterVersion": "2.20.1",
+     "version": "3.3.2"
+    },
+    "tags": {
+     "_producer": "https://github.com/apache/airflow/tree/providers-openlineage/2.20.1",
+     "_schemaURL": "https://openlineage.io/spec/facets/1-0-0/TagsRunFacet.json#/$defs/TagsRunFacet",
+     "tags": [
+      {
+       "key": "openlineage_client_version",
+       "source": "OPENLINEAGE_CLIENT",
+       "value": "anon-502fc7dd8816"
+      }
+     ]
+    }
+   },
+   "runId": "01a19dd8-4a8c-72ec-873a-a3bb810cbae6"
+  },
+  "schemaURL": "https://openlineage.io/spec/2-0-2/OpenLineage.json#/$defs/RunEvent"
+ },
+ "task_complete": {
+  "eventTime": "2026-11-02T20:00:01.470508Z",
+  "eventType": "COMPLETE",
+  "inputs": [],
+  "job": {
+   "facets": {
+    "jobType": {
+     "_producer": "https://github.com/apache/airflow/tree/providers-openlineage/2.20.1",
+     "_schemaURL": "https://openlineage.io/spec/facets/2-0-4/JobTypeJobFacet.json#/$defs/JobTypeJobFacet",
+     "integration": "AIRFLOW",
+     "jobType": "TASK",
+     "processingType": "BATCH"
+    },
+    "ownership": {
+     "_producer": "https://github.com/apache/airflow/tree/providers-openlineage/2.20.1",
+     "_schemaURL": "https://openlineage.io/spec/facets/1-0-1/OwnershipJobFacet.json#/$defs/OwnershipJobFacet",
+     "owners": [
+      {
+       "name": "anon-71737aafe4b7"
+      }
+     ]
+    },
+    "sourceCode": {
+     "_producer": "https://github.com/apache/airflow/tree/providers-openlineage/2.20.1",
+     "_schemaURL": "https://openlineage.io/spec/facets/1-0-1/SourceCodeJobFacet.json#/$defs/SourceCodeJobFacet",
+     "language": "bash",
+     "sourceCode": "anon-1de6853219b2"
+    },
+    "tags": {
+     "_producer": "https://github.com/apache/airflow/tree/providers-openlineage/2.20.1",
+     "_schemaURL": "https://openlineage.io/spec/facets/1-0-0/TagsJobFacet.json#/$defs/TagsJobFacet",
+     "tags": [
+      {
+       "key": "anon-b54da32ad34d",
+       "source": "AIRFLOW",
+       "value": "anon-b54da32ad34d"
+      }
+     ]
+    }
+   },
+   "name": "reference_workload.dbt_run",
+   "namespace": "reference-airflow"
+  },
+  "outputs": [],
+  "producer": "https://github.com/apache/airflow/tree/providers-openlineage/2.20.1",
+  "run": {
+   "facets": {
+    "airflow": {
+     "_producer": "https://github.com/apache/airflow/tree/providers-openlineage/2.20.1",
+     "_schemaURL": "https://openlineage.io/spec/2-0-2/OpenLineage.json#/$defs/RunFacet",
+     "dag": {
+      "dag_id": "reference_workload",
+      "fileloc": "anon-7e457833a0da",
+      "owner": "anon-71737aafe4b7",
+      "start_date": "2026-11-01T00:00:00Z",
+      "tags": "anon-3fa6110710bc",
+      "timetable_summary": "None"
+     },
+     "dagRun": {
+      "clear_number": 0,
+      "dag_id": "reference_workload",
+      "run_after": "2026-11-02T19:59:20.204649Z",
+      "run_id": "manual__2026-11-02T19:59:20.204649+00:00",
+      "run_type": "manual",
+      "start_date": "2026-11-02T19:59:21.208797Z",
+      "triggering_user_name": "anon-bc7435ecf85c"
+     },
+     "task": {
+      "depends_on_past": false,
+      "downstream_task_ids": "[]",
+      "ignore_first_depends_on_past": false,
+      "inlets": "anon-21956a6de436",
+      "mapped": false,
+      "multiple_outputs": false,
+      "operator_class": "BashOperator",
+      "operator_class_path": "airflow.providers.standard.operators.bash.BashOperator",
+      "operator_provider_version": "1.19.0",
+      "outlets": "anon-21956a6de436",
+      "owner": "anon-71737aafe4b7",
+      "priority_weight": 1,
+      "queue": "default",
+      "retries": 0,
+      "retry_exponential_backoff": 0,
+      "task_id": "dbt_run",
+      "trigger_rule": "all_success",
+      "upstream_task_ids": "[]",
+      "wait_for_downstream": false,
+      "wait_for_past_depends_before_skipping": false
+     },
+     "taskInstance": {
+      "dag_bundle_name": "dags-folder",
+      "log_url": "http://anon-a203fe8f4bb6:8080/dags/reference_workload/runs/manual__2026-11-02T19%3A59%3A20.204649%2B00%3A00/tasks/dbt_run?try_number=1",
+      "try_number": 1
+     },
+     "taskUuid": "01a19dd8-4a8c-7abf-9e93-25adbcb5d081"
+    },
+    "parent": {
+     "_producer": "https://github.com/apache/airflow/tree/providers-openlineage/2.20.1",
+     "_schemaURL": "https://openlineage.io/spec/facets/1-2-0/ParentRunFacet.json#/$defs/ParentRunFacet",
+     "job": {
+      "facets": {},
+      "name": "reference_workload",
+      "namespace": "reference-airflow"
+     },
+     "root": {
+      "job": {
+       "facets": {},
+       "name": "reference_workload",
+       "namespace": "reference-airflow"
+      },
+      "run": {
+       "facets": {},
+       "runId": "01a19dd8-4a8c-72ec-873a-a3bb810cbae6"
+      }
+     },
+     "run": {
+      "facets": {},
+      "runId": "01a19dd8-4a8c-72ec-873a-a3bb810cbae6"
+     }
+    },
+    "processing_engine": {
+     "_producer": "https://github.com/apache/airflow/tree/providers-openlineage/2.20.1",
+     "_schemaURL": "https://openlineage.io/spec/facets/1-1-1/ProcessingEngineRunFacet.json#/$defs/ProcessingEngineRunFacet",
+     "name": "Airflow",
+     "openlineageAdapterVersion": "2.20.1",
+     "version": "3.3.2"
+    },
+    "tags": {
+     "_producer": "https://github.com/apache/airflow/tree/providers-openlineage/2.20.1",
+     "_schemaURL": "https://openlineage.io/spec/facets/1-0-0/TagsRunFacet.json#/$defs/TagsRunFacet",
+     "tags": [
+      {
+       "key": "openlineage_client_version",
+       "source": "OPENLINEAGE_CLIENT",
+       "value": "anon-502fc7dd8816"
+      }
+     ]
+    }
+   },
+   "runId": "01a19dd8-4a8c-7abf-9e93-25adbcb5d081"
+  },
+  "schemaURL": "https://openlineage.io/spec/2-0-2/OpenLineage.json#/$defs/RunEvent"
+ },
+ "dbt_start": {
+  "eventTime": "2026-11-02T19:59:30.454406Z",
+  "eventType": "START",
+  "inputs": [],
+  "job": {
+   "facets": {
+    "jobType": {
+     "_producer": "https://github.com/OpenLineage/OpenLineage/tree/1.54.0/integration/dbt",
+     "_schemaURL": "https://openlineage.io/spec/facets/2-0-4/JobTypeJobFacet.json#/$defs/JobTypeJobFacet",
+     "integration": "DBT",
+     "jobType": "JOB",
+     "processingType": "BATCH"
+    }
+   },
+   "name": "dbt-run-reference_workload",
+   "namespace": "reference-airflow"
+  },
+  "outputs": [],
+  "producer": "https://github.com/OpenLineage/OpenLineage/tree/1.54.0/integration/dbt",
+  "run": {
+   "facets": {
+    "dbt_run": {
+     "_producer": "https://github.com/OpenLineage/OpenLineage/tree/1.54.0/client/python",
+     "_schemaURL": "https://github.com/OpenLineage/OpenLineage/tree/main/integration/common/openlineage/schema/dbt-run-run-facet.json",
+     "dbt_runtime": "core",
+     "invocation_id": "1856232b-b384-4d23-ba84-0dc187d3795f",
+     "profile_name": "reference_workload",
+     "project_name": "reference_workload",
+     "project_version": "1.0.0"
+    },
+    "dbt_version": {
+     "_producer": "https://github.com/OpenLineage/OpenLineage/tree/1.54.0/client/python",
+     "_schemaURL": "https://github.com/OpenLineage/OpenLineage/tree/main/integration/common/openlineage/schema/dbt-version-run-facet.json",
+     "version": "1.12.6"
+    },
+    "parent": {
+     "_producer": "https://github.com/OpenLineage/OpenLineage/tree/1.54.0/client/python",
+     "_schemaURL": "https://openlineage.io/spec/facets/1-2-0/ParentRunFacet.json#/$defs/ParentRunFacet",
+     "job": {
+      "name": "reference_workload.dbt_run",
+      "namespace": "reference-airflow"
+     },
+     "root": {
+      "job": {
+       "name": "reference_workload",
+       "namespace": "reference-airflow"
+      },
+      "run": {
+       "runId": "01a19dd8-4a8c-72ec-873a-a3bb810cbae6"
+      }
+     },
+     "run": {
+      "runId": "01a19dd8-4a8c-7abf-9e93-25adbcb5d081"
+     }
+    },
+    "processing_engine": {
+     "_producer": "https://github.com/OpenLineage/OpenLineage/tree/1.54.0/client/python",
+     "_schemaURL": "https://openlineage.io/spec/facets/1-1-1/ProcessingEngineRunFacet.json#/$defs/ProcessingEngineRunFacet",
+     "name": "dbt",
+     "openlineageAdapterVersion": "1.54.0",
+     "version": "1.12.6"
+    },
+    "tags": {
+     "_producer": "https://github.com/OpenLineage/OpenLineage/tree/1.54.0/client/python",
+     "_schemaURL": "https://openlineage.io/spec/facets/1-0-0/TagsRunFacet.json#/$defs/TagsRunFacet",
+     "tags": [
+      {
+       "key": "openlineage_client_version",
+       "source": "OPENLINEAGE_CLIENT",
+       "value": "anon-2831f0d83c65"
+      }
+     ]
+    }
+   },
+   "runId": "01a19dd8-7296-72cf-bd35-196b0a602ab5"
+  },
+  "schemaURL": "https://openlineage.io/spec/2-0-2/OpenLineage.json#/$defs/RunEvent"
+ },
+ "model_start": {
+  "eventTime": "2026-11-02T19:59:38.476920Z",
+  "eventType": "START",
+  "inputs": [],
+  "job": {
+   "facets": {
+    "dbt_node": {
+     "_producer": "https://github.com/OpenLineage/OpenLineage/tree/1.54.0/client/python",
+     "_schemaURL": "https://github.com/OpenLineage/OpenLineage/tree/main/integration/common/openlineage/schema/dbt-node-job-facet.json",
+     "alias": "stg_customers",
+     "database": "awsdatacatalog",
+     "original_file_path": "models/staging/stg_customers.sql",
+     "schema": "reference_workload",
+     "unique_id": "model.reference_workload.stg_customers"
+    },
+    "jobType": {
+     "_producer": "https://github.com/OpenLineage/OpenLineage/tree/1.54.0/integration/dbt",
+     "_schemaURL": "https://openlineage.io/spec/facets/2-0-4/JobTypeJobFacet.json#/$defs/JobTypeJobFacet",
+     "integration": "DBT",
+     "jobType": "MODEL",
+     "processingType": "BATCH"
+    },
+    "sql": {
+     "_producer": "https://github.com/OpenLineage/OpenLineage/tree/1.54.0/client/python",
+     "_schemaURL": "https://openlineage.io/spec/facets/1-1-0/SQLJobFacet.json#/$defs/SQLJobFacet",
+     "dialect": "athena",
+     "query": "select …"
+    }
+   },
+   "name": "awsdatacatalog.reference_workload.reference_workload.stg_customers",
+   "namespace": "dbt"
+  },
+  "outputs": [
+   {
+    "facets": {
+     "columnLineage": {
+      "_producer": "https://github.com/OpenLineage/OpenLineage/tree/1.54.0/client/python",
+      "_schemaURL": "https://openlineage.io/spec/facets/1-2-0/ColumnLineageDatasetFacet.json#/$defs/ColumnLineageDatasetFacet",
+      "dataset": [],
+      "fields": {
+       "customer_id": {
+        "inputFields": [
+         {
+          "field": "customer_id",
+          "name": "awsdatacatalog.reference_workload.raw_customers",
+          "namespace": "awsathena://athena.us-east-1.amazonaws.com",
+          "transformations": []
+         }
+        ]
+       },
+       "region": {
+        "inputFields": [
+         {
+          "field": "region",
+          "name": "awsdatacatalog.reference_workload.raw_customers",
+          "namespace": "awsathena://athena.us-east-1.amazonaws.com",
+          "transformations": []
+         }
+        ]
+       }
+      }
+     },
+     "dataSource": {
+      "_producer": "https://github.com/OpenLineage/OpenLineage/tree/1.54.0/client/python",
+      "_schemaURL": "https://openlineage.io/spec/facets/1-0-1/DatasourceDatasetFacet.json#/$defs/DatasourceDatasetFacet",
+      "name": "awsathena://athena.us-east-1.amazonaws.com",
+      "uri": "awsathena://athena.us-east-1.amazonaws.com"
+     },
+     "dbt_model": {
+      "_producer": "https://github.com/OpenLineage/OpenLineage/tree/1.54.0/client/python",
+      "_schemaURL": "https://github.com/OpenLineage/OpenLineage/tree/main/integration/common/openlineage/schema/dbt-model-dataset-facet.json",
+      "config": {
+       "access": "protected",
+       "materialized": "view"
+      }
+     },
+     "symlinks": {
+      "_producer": "https://github.com/OpenLineage/OpenLineage/tree/1.54.0/client/python",
+      "_schemaURL": "https://openlineage.io/spec/facets/1-0-1/SymlinksDatasetFacet.json#/$defs/SymlinksDatasetFacet",
+      "identifiers": [
+       {
+        "name": "table/reference_workload/stg_customers",
+        "namespace": "arn:aws:glue:us-east-1:111122223333",
+        "type": "TABLE"
+       }
+      ]
+     }
+    },
+    "name": "awsdatacatalog.reference_workload.stg_customers",
+    "namespace": "awsathena://athena.us-east-1.amazonaws.com",
+    "outputFacets": {
+     "outputStatistics": {
+      "_producer": "https://github.com/OpenLineage/OpenLineage/tree/1.54.0/client/python",
+      "_schemaURL": "https://openlineage.io/spec/facets/1-0-2/OutputStatisticsOutputDatasetFacet.json#/$defs/OutputStatisticsOutputDatasetFacet"
+     }
+    }
+   }
+  ],
+  "producer": "https://github.com/OpenLineage/OpenLineage/tree/1.54.0/integration/dbt",
+  "run": {
+   "facets": {
+    "dbt_run": {
+     "_producer": "https://github.com/OpenLineage/OpenLineage/tree/1.54.0/client/python",
+     "_schemaURL": "https://github.com/OpenLineage/OpenLineage/tree/main/integration/common/openlineage/schema/dbt-run-run-facet.json",
+     "dbt_runtime": "core",
+     "invocation_id": "1856232b-b384-4d23-ba84-0dc187d3795f",
+     "profile_name": "reference_workload",
+     "project_name": "reference_workload",
+     "project_version": "1.0.0"
+    },
+    "dbt_version": {
+     "_producer": "https://github.com/OpenLineage/OpenLineage/tree/1.54.0/client/python",
+     "_schemaURL": "https://github.com/OpenLineage/OpenLineage/tree/main/integration/common/openlineage/schema/dbt-version-run-facet.json",
+     "version": "1.12.6"
+    },
+    "parent": {
+     "_producer": "https://github.com/OpenLineage/OpenLineage/tree/1.54.0/client/python",
+     "_schemaURL": "https://openlineage.io/spec/facets/1-2-0/ParentRunFacet.json#/$defs/ParentRunFacet",
+     "job": {
+      "name": "dbt-run-reference_workload",
+      "namespace": "reference-airflow"
+     },
+     "root": {
+      "job": {
+       "name": "reference_workload",
+       "namespace": "reference-airflow"
+      },
+      "run": {
+       "runId": "01a19dd8-4a8c-72ec-873a-a3bb810cbae6"
+      }
+     },
+     "run": {
+      "runId": "01a19dd8-7296-72cf-bd35-196b0a602ab5"
+     }
+    },
+    "processing_engine": {
+     "_producer": "https://github.com/OpenLineage/OpenLineage/tree/1.54.0/client/python",
+     "_schemaURL": "https://openlineage.io/spec/facets/1-1-1/ProcessingEngineRunFacet.json#/$defs/ProcessingEngineRunFacet",
+     "name": "dbt",
+     "openlineageAdapterVersion": "1.54.0",
+     "version": "1.12.6"
+    },
+    "tags": {
+     "_producer": "https://github.com/OpenLineage/OpenLineage/tree/1.54.0/client/python",
+     "_schemaURL": "https://openlineage.io/spec/facets/1-0-0/TagsRunFacet.json#/$defs/TagsRunFacet",
+     "tags": [
+      {
+       "key": "openlineage_client_version",
+       "source": "OPENLINEAGE_CLIENT",
+       "value": "anon-2831f0d83c65"
+      }
+     ]
+    }
+   },
+   "runId": "01a19dd8-e9b7-7002-bc6f-642147c973dd"
+  },
+  "schemaURL": "https://openlineage.io/spec/2-0-2/OpenLineage.json#/$defs/RunEvent"
+ },
+ "model_complete": {
+  "eventTime": "2026-11-02T19:59:40.579396Z",
+  "eventType": "COMPLETE",
+  "inputs": [],
+  "job": {
+   "facets": {
+    "dbt_node": {
+     "_producer": "https://github.com/OpenLineage/OpenLineage/tree/1.54.0/client/python",
+     "_schemaURL": "https://github.com/OpenLineage/OpenLineage/tree/main/integration/common/openlineage/schema/dbt-node-job-facet.json",
+     "alias": "stg_customers",
+     "database": "awsdatacatalog",
+     "original_file_path": "models/staging/stg_customers.sql",
+     "schema": "reference_workload",
+     "unique_id": "model.reference_workload.stg_customers"
+    },
+    "jobType": {
+     "_producer": "https://github.com/OpenLineage/OpenLineage/tree/1.54.0/integration/dbt",
+     "_schemaURL": "https://openlineage.io/spec/facets/2-0-4/JobTypeJobFacet.json#/$defs/JobTypeJobFacet",
+     "integration": "DBT",
+     "jobType": "MODEL",
+     "processingType": "BATCH"
+    },
+    "sql": {
+     "_producer": "https://github.com/OpenLineage/OpenLineage/tree/1.54.0/client/python",
+     "_schemaURL": "https://openlineage.io/spec/facets/1-1-0/SQLJobFacet.json#/$defs/SQLJobFacet",
+     "dialect": "athena",
+     "query": "select …"
+    }
+   },
+   "name": "awsdatacatalog.reference_workload.reference_workload.stg_customers",
+   "namespace": "dbt"
+  },
+  "outputs": [
+   {
+    "facets": {
+     "columnLineage": {
+      "_producer": "https://github.com/OpenLineage/OpenLineage/tree/1.54.0/client/python",
+      "_schemaURL": "https://openlineage.io/spec/facets/1-2-0/ColumnLineageDatasetFacet.json#/$defs/ColumnLineageDatasetFacet",
+      "dataset": [],
+      "fields": {
+       "customer_id": {
+        "inputFields": [
+         {
+          "field": "customer_id",
+          "name": "awsdatacatalog.reference_workload.raw_customers",
+          "namespace": "awsathena://athena.us-east-1.amazonaws.com",
+          "transformations": []
+         }
+        ]
+       },
+       "region": {
+        "inputFields": [
+         {
+          "field": "region",
+          "name": "awsdatacatalog.reference_workload.raw_customers",
+          "namespace": "awsathena://athena.us-east-1.amazonaws.com",
+          "transformations": []
+         }
+        ]
+       }
+      }
+     },
+     "dataSource": {
+      "_producer": "https://github.com/OpenLineage/OpenLineage/tree/1.54.0/client/python",
+      "_schemaURL": "https://openlineage.io/spec/facets/1-0-1/DatasourceDatasetFacet.json#/$defs/DatasourceDatasetFacet",
+      "name": "awsathena://athena.us-east-1.amazonaws.com",
+      "uri": "awsathena://athena.us-east-1.amazonaws.com"
+     },
+     "dbt_model": {
+      "_producer": "https://github.com/OpenLineage/OpenLineage/tree/1.54.0/client/python",
+      "_schemaURL": "https://github.com/OpenLineage/OpenLineage/tree/main/integration/common/openlineage/schema/dbt-model-dataset-facet.json",
+      "config": {
+       "access": "protected",
+       "materialized": "view"
+      }
+     },
+     "symlinks": {
+      "_producer": "https://github.com/OpenLineage/OpenLineage/tree/1.54.0/client/python",
+      "_schemaURL": "https://openlineage.io/spec/facets/1-0-1/SymlinksDatasetFacet.json#/$defs/SymlinksDatasetFacet",
+      "identifiers": [
+       {
+        "name": "table/reference_workload/stg_customers",
+        "namespace": "arn:aws:glue:us-east-1:111122223333",
+        "type": "TABLE"
+       }
+      ]
+     }
+    },
+    "name": "awsdatacatalog.reference_workload.stg_customers",
+    "namespace": "awsathena://athena.us-east-1.amazonaws.com",
+    "outputFacets": {
+     "outputStatistics": {
+      "_producer": "https://github.com/OpenLineage/OpenLineage/tree/1.54.0/client/python",
+      "_schemaURL": "https://openlineage.io/spec/facets/1-0-2/OutputStatisticsOutputDatasetFacet.json#/$defs/OutputStatisticsOutputDatasetFacet"
+     }
+    }
+   }
+  ],
+  "producer": "https://github.com/OpenLineage/OpenLineage/tree/1.54.0/integration/dbt",
+  "run": {
+   "facets": {
+    "dbt_run": {
+     "_producer": "https://github.com/OpenLineage/OpenLineage/tree/1.54.0/client/python",
+     "_schemaURL": "https://github.com/OpenLineage/OpenLineage/tree/main/integration/common/openlineage/schema/dbt-run-run-facet.json",
+     "dbt_runtime": "core",
+     "invocation_id": "1856232b-b384-4d23-ba84-0dc187d3795f",
+     "profile_name": "reference_workload",
+     "project_name": "reference_workload",
+     "project_version": "1.0.0"
+    },
+    "dbt_version": {
+     "_producer": "https://github.com/OpenLineage/OpenLineage/tree/1.54.0/client/python",
+     "_schemaURL": "https://github.com/OpenLineage/OpenLineage/tree/main/integration/common/openlineage/schema/dbt-version-run-facet.json",
+     "version": "1.12.6"
+    },
+    "parent": {
+     "_producer": "https://github.com/OpenLineage/OpenLineage/tree/1.54.0/client/python",
+     "_schemaURL": "https://openlineage.io/spec/facets/1-2-0/ParentRunFacet.json#/$defs/ParentRunFacet",
+     "job": {
+      "name": "dbt-run-reference_workload",
+      "namespace": "reference-airflow"
+     },
+     "root": {
+      "job": {
+       "name": "reference_workload",
+       "namespace": "reference-airflow"
+      },
+      "run": {
+       "runId": "01a19dd8-4a8c-72ec-873a-a3bb810cbae6"
+      }
+     },
+     "run": {
+      "runId": "01a19dd8-7296-72cf-bd35-196b0a602ab5"
+     }
+    },
+    "processing_engine": {
+     "_producer": "https://github.com/OpenLineage/OpenLineage/tree/1.54.0/client/python",
+     "_schemaURL": "https://openlineage.io/spec/facets/1-1-1/ProcessingEngineRunFacet.json#/$defs/ProcessingEngineRunFacet",
+     "name": "dbt",
+     "openlineageAdapterVersion": "1.54.0",
+     "version": "1.12.6"
+    },
+    "tags": {
+     "_producer": "https://github.com/OpenLineage/OpenLineage/tree/1.54.0/client/python",
+     "_schemaURL": "https://openlineage.io/spec/facets/1-0-0/TagsRunFacet.json#/$defs/TagsRunFacet",
+     "tags": [
+      {
+       "key": "openlineage_client_version",
+       "source": "OPENLINEAGE_CLIENT",
+       "value": "anon-2831f0d83c65"
+      }
+     ]
+    }
+   },
+   "runId": "01a19dd8-e9b7-7002-bc6f-642147c973dd"
+  },
+  "schemaURL": "https://openlineage.io/spec/2-0-2/OpenLineage.json#/$defs/RunEvent"
+ },
+ "dbt_complete": {
+  "eventTime": "2026-11-02T20:00:00.965626Z",
+  "eventType": "COMPLETE",
+  "inputs": [],
+  "job": {
+   "facets": {
+    "jobType": {
+     "_producer": "https://github.com/OpenLineage/OpenLineage/tree/1.54.0/integration/dbt",
+     "_schemaURL": "https://openlineage.io/spec/facets/2-0-4/JobTypeJobFacet.json#/$defs/JobTypeJobFacet",
+     "integration": "DBT",
+     "jobType": "JOB",
+     "processingType": "BATCH"
+    }
+   },
+   "name": "dbt-run-reference_workload",
+   "namespace": "reference-airflow"
+  },
+  "outputs": [],
+  "producer": "https://github.com/OpenLineage/OpenLineage/tree/1.54.0/integration/dbt",
+  "run": {
+   "facets": {
+    "dbt_run": {
+     "_producer": "https://github.com/OpenLineage/OpenLineage/tree/1.54.0/client/python",
+     "_schemaURL": "https://github.com/OpenLineage/OpenLineage/tree/main/integration/common/openlineage/schema/dbt-run-run-facet.json",
+     "dbt_runtime": "core",
+     "invocation_id": "1856232b-b384-4d23-ba84-0dc187d3795f",
+     "profile_name": "reference_workload",
+     "project_name": "reference_workload",
+     "project_version": "1.0.0"
+    },
+    "dbt_version": {
+     "_producer": "https://github.com/OpenLineage/OpenLineage/tree/1.54.0/client/python",
+     "_schemaURL": "https://github.com/OpenLineage/OpenLineage/tree/main/integration/common/openlineage/schema/dbt-version-run-facet.json",
+     "version": "1.12.6"
+    },
+    "parent": {
+     "_producer": "https://github.com/OpenLineage/OpenLineage/tree/1.54.0/client/python",
+     "_schemaURL": "https://openlineage.io/spec/facets/1-2-0/ParentRunFacet.json#/$defs/ParentRunFacet",
+     "job": {
+      "name": "reference_workload.dbt_run",
+      "namespace": "reference-airflow"
+     },
+     "root": {
+      "job": {
+       "name": "reference_workload",
+       "namespace": "reference-airflow"
+      },
+      "run": {
+       "runId": "01a19dd8-4a8c-72ec-873a-a3bb810cbae6"
+      }
+     },
+     "run": {
+      "runId": "01a19dd8-4a8c-7abf-9e93-25adbcb5d081"
+     }
+    },
+    "processing_engine": {
+     "_producer": "https://github.com/OpenLineage/OpenLineage/tree/1.54.0/client/python",
+     "_schemaURL": "https://openlineage.io/spec/facets/1-1-1/ProcessingEngineRunFacet.json#/$defs/ProcessingEngineRunFacet",
+     "name": "dbt",
+     "openlineageAdapterVersion": "1.54.0",
+     "version": "1.12.6"
+    },
+    "tags": {
+     "_producer": "https://github.com/OpenLineage/OpenLineage/tree/1.54.0/client/python",
+     "_schemaURL": "https://openlineage.io/spec/facets/1-0-0/TagsRunFacet.json#/$defs/TagsRunFacet",
+     "tags": [
+      {
+       "key": "openlineage_client_version",
+       "source": "OPENLINEAGE_CLIENT",
+       "value": "anon-2831f0d83c65"
+      }
+     ]
+    }
+   },
+   "runId": "01a19dd8-7296-72cf-bd35-196b0a602ab5"
+  },
+  "schemaURL": "https://openlineage.io/spec/2-0-2/OpenLineage.json#/$defs/RunEvent"
+ },
+ "manifest": {
+  "metadata": {
+   "dbt_schema_version": "https://schemas.getdbt.com/dbt/manifest/v12.json",
+   "dbt_version": "1.12.6",
+   "generated_at": "2026-11-01T21:19:34.143667Z",
+   "invocation_id": "0d9fc611-0f9f-43ea-81bb-ba7bc63be72f",
+   "invocation_started_at": "2026-11-01T21:18:20.509524Z",
+   "env": {},
+   "project_name": "reference_workload",
+   "project_id": "anon-940a85b8db53",
+   "user_id": null,
+   "send_anonymous_usage_stats": false,
+   "adapter_type": "athena",
+   "quoting": {
+    "database": true,
+    "schema": true,
+    "identifier": true,
+    "column": null
+   },
+   "run_started_at": "2026-11-01T21:18:20.511827Z"
+  },
+  "nodes": {
+   "model.reference_workload.stg_orders": {
+    "database": "awsdatacatalog",
+    "schema": "reference_workload",
+    "name": "stg_orders",
+    "resource_type": "model",
+    "package_name": "reference_workload",
+    "path": "staging/stg_orders.sql",
+    "original_file_path": "models/staging/stg_orders.sql",
+    "unique_id": "model.reference_workload.stg_orders",
+    "fqn": [
+     "reference_workload",
+     "staging",
+     "stg_orders"
+    ],
+    "alias": "stg_orders",
+    "checksum": {
+     "name": "sha256",
+     "checksum": "a316785aa5215e86940633cf2a5709b18156e81d8a8903bd812c3dc4679c2e75"
+    },
+    "config": {
+     "enabled": true,
+     "alias": null,
+     "schema": null,
+     "database": null,
+     "tags": [],
+     "meta": {},
+     "group": null,
+     "static_analysis": null,
+     "materialized": "view",
+     "incremental_strategy": null,
+     "batch_size": null,
+     "lookback": 1,
+     "begin": null,
+     "persist_docs": {},
+     "post-hook": [],
+     "pre-hook": [],
+     "quoting": {},
+     "column_types": {},
+     "full_refresh": null,
+     "unique_key": null,
+     "on_schema_change": "ignore",
+     "on_configuration_change": "apply",
+     "grants": {},
+     "packages": [],
+     "docs": {
+      "show": true,
+      "node_color": null
+     },
+     "contract": {
+      "enforced": false,
+      "alias_types": true
+     },
+     "event_time": null,
+     "concurrent_batches": null,
+     "access": "protected",
+     "freshness": null,
+     "on_error": null,
+     "latest_version_pointer": {
+      "enabled": null,
+      "alias": null
+     }
+    },
+    "tags": [],
+    "description": "",
+    "columns": {},
+    "meta": {},
+    "group": null,
+    "docs": {
+     "show": true,
+     "node_color": null
+    },
+    "patch_path": null,
+    "build_path": "target/run/reference_workload/models/staging/stg_orders.sql",
+    "unrendered_config": {
+     "materialized": "view"
+    },
+    "created_at": 1793567902.6810381,
+    "relation_name": "\"awsdatacatalog\".\"reference_workload\".\"stg_orders\"",
+    "raw_code": "select …",
+    "doc_blocks": [],
+    "language": "sql",
+    "refs": [
+     {
+      "name": "raw_orders",
+      "package": null,
+      "version": null
+     }
+    ],
+    "sources": [],
+    "metrics": [],
+    "functions": [],
+    "depends_on": {
+     "macros": [],
+     "nodes": [
+      "seed.reference_workload.raw_orders"
+     ]
+    },
+    "compiled_path": "target/compiled/reference_workload/models/staging/stg_orders.sql",
+    "compiled": true,
+    "compiled_code": "select …",
+    "extra_ctes_injected": true,
+    "extra_ctes": [],
+    "contract": {
+     "enforced": false,
+     "alias_types": true,
+     "checksum": null
+    },
+    "access": "protected",
+    "constraints": [],
+    "version": null,
+    "latest_version": null,
+    "deprecation_date": null,
+    "primary_key": [],
+    "time_spine": null
+   }
+  },
+  "sources": {},
+  "macros": {},
+  "docs": {},
+  "exposures": {},
+  "metrics": {},
+  "groups": {},
+  "selectors": {},
+  "disabled": {},
+  "parent_map": {},
+  "child_map": {},
+  "group_map": {},
+  "saved_queries": {},
+  "semantic_models": {},
+  "unit_tests": {},
+  "functions": {}
+ },
+ "run_results": {
+  "metadata": {
+   "dbt_schema_version": "https://schemas.getdbt.com/dbt/run-results/v6.json",
+   "dbt_version": "1.12.6",
+   "generated_at": "2026-11-02T19:59:59.521463Z",
+   "invocation_id": "1856232b-b384-4d23-ba84-0dc187d3795f",
+   "invocation_started_at": "2026-11-02T19:59:32.866589Z",
+   "env": {}
+  },
+  "results": [
+   {
+    "status": "success",
+    "timing": [
+     {
+      "name": "compile",
+      "started_at": "2026-11-02T19:59:38.449154Z",
+      "completed_at": "2026-11-02T19:59:38.475560Z"
+     },
+     {
+      "name": "execute",
+      "started_at": "2026-11-02T19:59:38.476920Z",
+      "completed_at": "2026-11-02T19:59:40.579396Z"
+     }
+    ],
+    "thread_id": "Thread-1 (worker)",
+    "execution_time": 2.135218620300293,
+    "adapter_response": {
+     "_message": "anon-c51907f62583",
+     "code": "OK",
+     "rows_affected": -1,
+     "data_scanned_in_bytes": 0
+    },
+    "message": "anon-c51907f62583",
+    "failures": null,
+    "unique_id": "model.reference_workload.stg_customers",
+    "compiled": true,
+    "compiled_code": "select …",
+    "relation_name": "\"awsdatacatalog\".\"reference_workload\".\"stg_customers\"",
+    "batch_results": null,
+    "overload_results": null
+   }
+  ],
+  "elapsed_time": 23.06685471534729,
+  "args": {
+   "send_anonymous_usage_stats": false,
+   "log_format": "default",
+   "print": true,
+   "show_resource_report": false,
+   "macro_debugging": false,
+   "hints_enabled": true,
+   "select": [],
+   "latest_version_pointer_enabled_by_default": false,
+   "defer": false,
+   "empty": false,
+   "log_format_file": "debug",
+   "validate_macro_args": true,
+   "state_modified_compare_more_unrendered_values": true,
+   "require_resource_names_without_spaces": true,
+   "upload_to_artifacts_ingest_api": false,
+   "which": "run",
+   "require_source_and_semantic_model_names_without_spaces": false,
+   "populate_cache": true,
+   "skip_nodes_if_on_run_start_fails": true,
+   "enable_grouped_warn_error_parser_logs": false,
+   "snowflake_projects_otel": false,
+   "source_freshness_run_project_hooks": true,
+   "require_batched_execution_for_custom_microbatch_strategy": true,
+   "require_unique_project_resource_names": false,
+   "state_modified_compare_vars": false,
+   "use_colors_file": true,
+   "show_all_deprecations": false,
+   "use_v2_parser": false,
+   "write_json": true,
+   "use_catalogs_v2": false,
+   "printer_width": 80,
+   "introspect": true,
+   "require_valid_schema_from_generate_schema_name": false,
+   "maximum_seed_size_mib": 1,
+   "log_level": "info",
+   "static_parser": true,
+   "strict_mode": false,
+   "partial_parse_file_diff": true,
+   "allow_jinja_file_extensions": false,
+   "use_fast_test_edges": false,
+   "require_yaml_configuration_for_mf_time_spines": true,
+   "require_nested_cumulative_type_params": true,
+   "cache_selected_only": false,
+   "require_explicit_package_overrides_for_builtin_materializations": true,
+   "partial_parse": true,
+   "require_generic_test_arguments_property": true,
+   "log_level_file": "debug",
+   "quiet": false,
+   "require_ref_searches_node_package_before_root": false,
+   "require_all_warnings_handled_by_warn_error": true,
+   "log_file_max_bytes": 10485760,
+   "exclude": [],
+   "version_check": true,
+   "require_corrected_analysis_fqns": false,
+   "indirect_selection": "eager",
+   "support_custom_ref_kwargs": false,
+   "use_colors": true,
+   "require_sql_header_in_test_configs": false,
+   "favor_state": false
+  }
+ }
+}
