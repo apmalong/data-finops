@@ -58,8 +58,25 @@ The PRs, each against `main`, one open at a time (the tickets are on the spec is
 
 The groups follow AGENTS.md, "Tickets in one PR". The tooling tickets keep the full loop; only the content pages take milestone D's content exception.
 
+## M8: control plane
+One CLI controls a local Database or a Deployment: reads, runs, the Inbox, Cost Dimensions, overrides, the audit trail, and deploy and teardown. Consumers without AWS access sign in with OIDC, in the CLI or in a hosted dashboard. The wizards retire.
+
+Designed 2026-11-16 (owner decisions Q101–Q154 in `m8-decisions.md`). Spec 10, amendments to ADRs 0026 and 0027, and a control-plane ADR come next. The exit and the PRs are set with spec 10.
+
+The slices, in order (Q143):
+1. Spec 10, the ADRs, and the CLI target (`--db` or `--deployment`) with `summary`.
+2. The other reads.
+3. API Gateway and IAM routes, in place of the Function URL.
+4. The command pipeline: S3 command objects, the collector applying them, reserved concurrency or the debounce fallback, the retention lock, and the local queue.
+5. `run`, `runs` and `inbox`.
+6. Cost Dimensions in S3, with versions.
+7. Overrides.
+8. `deploy` and `teardown` through the Automation API, which retire the wizards (and close #213).
+9. OIDC: the JWT authorizer, Cognito or your own issuer, `login` and `users`.
+10. The hosted dashboard.
+
 ## Deferred
-GCP, Snowflake, dbt Elementary optional tables, dlt, Dagster, OTel, BI connectors, automatic optimization, multi-account aggregation, enterprise auth.
+GCP, Snowflake, dbt Elementary optional tables, dlt, Dagster, OTel, BI connectors, automatic optimization, multi-account aggregation, enterprise auth beyond M8's OIDC sign-in (for example SCIM provisioning or SAML).
 
 ## Work decomposition
 Each milestone must have issue-sized tasks: models, adapter, tests, docs. Prefer vertical runnable increments to scaffolding all deferred integrations.
