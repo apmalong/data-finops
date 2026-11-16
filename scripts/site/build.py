@@ -29,7 +29,9 @@ OPTIONAL_REGIONS = ("pages",)  # a section's index page may list its pages
 SOURCE = "https://github.com/apmalong/data-finops"
 
 STYLESHEET = "assets/site.css"
-SCRIPT = "assets/site.js"  # the shell tabs (#173); every page works without it
+SCRIPT = "assets/site.js"  # the shell tabs (#173) and the search (#274); pages work without it
+SEARCH_INDEX = "assets/search-index.json"  # written by build from the finished pages (#274)
+PUBLIC_DEMO = "explanation/public-demo.html"  # linked from the top bar when the nav lists it
 # The footer claims no more than is true: one unversioned site, no release, no license (OQ-8).
 FOOTER = (
     "<footer>\n"
@@ -40,7 +42,8 @@ FOOTER = (
 
 
 def build(repo: Path) -> dict[str, str]:
-    """Every page in the nav as it should be committed, keyed by its path in `site/`.
+    """Every page in the nav as it should be committed, keyed by its path in `site/`, and the
+    search index (`SEARCH_INDEX`) of those pages.
 
     A page the nav lists but the site lacks is left to the checker to report.
     """
@@ -69,6 +72,7 @@ def build(repo: Path) -> dict[str, str]:
         text = _line_spans(shell_tabs(entry.path, _stamp_reference(repo, entry.path, text)))
         (late,) = LATE_REGIONS
         built[entry.path] = _stamp(text, entry.path, late, _on_page(entry.path, text), True)
+    built[SEARCH_INDEX] = _search_index(nav, built)
     return built
 
 
@@ -140,21 +144,77 @@ def _link(current: str, entry_path: str, title: str) -> str:
     return f'<a href="{html.escape(href)}"{here}>{html.escape(title)}</a>'
 
 
+def _section_of(nav: tuple[Entry, ...], path: str) -> Entry | None:
+    """The top-level entry that is `path` or lists it; None for the home page."""
+    return next(
+        (top for top in nav[1:] if top.path == path or any(p.path == path for p in top.pages)),
+        None,
+    )
+
+
 def _nav(nav: tuple[Entry, ...], current: str) -> str:
-    """The site nav: every section, with only the current section's pages listed."""
-    home, *sections = nav
-    lines = []
-    for section in sections:
-        inside = current == section.path or any(p.path == current for p in section.pages)
-        pages = "\n".join(f"<li>{_link(current, p.path, p.title)}</li>" for p in section.pages)
-        children = f"\n<ul>\n{pages}\n</ul>\n" if inside and section.pages else ""
-        lines.append(f"<li>{_link(current, section.path, section.title)}{children}</li>")
-    items = "\n".join(lines)
+    """The top bar, the sidebar and the breadcrumbs (#274): every section in the sidebar, each
+    in a `<details>` that is open only for the current section. No script is needed."""
+    here = _section_of(nav, current)
+    items = []
+    for section in nav[1:]:
+        if not section.pages:
+            items.append(f"<li>{_link(current, section.path, section.title)}</li>")
+            continue
+        pages = [_link(current, section.path, "Overview")]
+        pages += [_link(current, p.path, p.title) for p in section.pages]
+        listed = "\n".join(f"<li>{link}</li>" for link in pages)
+        opened = "<details open>" if section is here else "<details>"
+        items.append(
+            f"<li>{opened}<summary>{html.escape(section.title)}</summary>\n"
+            f"<ul>\n{listed}\n</ul>\n</details></li>"
+        )
+    sidebar = "\n".join(items)
     return (
         '<a class="skip-link" href="#main">Skip to content</a>\n'
-        f'<header class="site-header">{_link(current, home.path, home.title)}</header>\n'
-        f'<nav class="site-nav" aria-label="Site">\n<ul>\n{items}\n</ul>\n</nav>'
+        + _top_bar(nav, current)
+        + '\n<nav class="site-nav" id="site-nav" aria-label="Site">\n'
+        + f"<ul>\n{sidebar}\n</ul>\n</nav>"
+        + _breadcrumbs(nav, current, here)
     )
+
+
+def _top_bar(nav: tuple[Entry, ...], current: str) -> str:
+    """The site name, the search box (hidden until site.js shows it) and the outside links."""
+    home = nav[0]
+    root = _relative(current, home.path)[: -len(home.path)] or "./"
+    links = ['<a class="menu-link" href="#site-nav">Menu</a>', f'<a href="{SOURCE}">GitHub</a>']
+    if any(e.path == PUBLIC_DEMO for e in walk(nav)):
+        links.insert(1, _link(current, PUBLIC_DEMO, "Public Demo"))
+    search = (
+        f'<form class="site-search" role="search" hidden '
+        f'data-index="{html.escape(_relative(current, SEARCH_INDEX))}" '
+        f'data-root="{html.escape(root)}">\n'
+        '<label for="site-search-query">Search the docs</label>\n'
+        '<input id="site-search-query" type="search" autocomplete="off" '
+        'placeholder="Search the docs">\n'
+        '<ul class="search-results" aria-live="polite"></ul>\n</form>'
+    )
+    name = html.escape(_relative(current, home.path))
+    return (
+        '<header class="site-header">\n'
+        f'<a class="site-name" href="{name}">{html.escape(home.title)}</a>\n'
+        f"{search}\n"
+        f'<nav class="site-links" aria-label="Elsewhere">{" ".join(links)}</nav>\n'
+        "</header>"
+    )
+
+
+def _breadcrumbs(nav: tuple[Entry, ...], current: str, section: Entry | None) -> str:
+    """Home, then the section, then the page; nothing on the home page."""
+    if section is None:
+        return ""
+    trail = [nav[0]] + ([section] if section.path != current else [])
+    title = next(e.title for e in walk(nav) if e.path == current)
+    crumbs = [f"<li>{_link(current, e.path, e.title)}</li>" for e in trail]
+    crumbs.append(f'<li aria-current="page">{html.escape(title)}</li>')
+    items = "\n".join(crumbs)
+    return f'\n<nav class="breadcrumbs" aria-label="Breadcrumb">\n<ol>\n{items}\n</ol>\n</nav>'
 
 
 def _pager(current: str, before: Entry | None, after: Entry | None) -> str:
@@ -205,6 +265,47 @@ def _on_page(page: str, text: str) -> str:
         + "\n".join(items)
         + "\n</ul>\n</nav>"
     )
+
+
+_MAIN = re.compile(r"<main\b[^>]*>(.*)</main>", re.DOTALL)
+_H1 = re.compile(r"<h1\b[^>]*>.*?</h1>", re.DOTALL)
+_TAG = re.compile(r"<[^>]+>")
+_INLINE_TAG = re.compile(r"</?(?:a|code|em|strong|span|abbr|kbd|b|i)\b[^>]*>")
+_OUTPUT = re.compile(r'<pre\b[^>]*class="output[^"]*"[^>]*>.*?</pre>', re.DOTALL)
+_STAMPED_IN_MAIN = ("onpage", "pager", "pages")
+
+
+def _search_index(nav: tuple[Entry, ...], built: dict[str, str]) -> str:
+    """For each built page, in nav order: its path, title, section, h2s and own text (#274).
+    The text leaves out what build stamps, so a search finds a page by its own words."""
+    entries = []
+    for entry in walk(nav):
+        page = built.get(entry.path)
+        if page is None:
+            continue
+        found = _MAIN.search(page)
+        main = found[1] if found else ""
+        for name in _STAMPED_IN_MAIN:
+            main = re.sub(
+                f"<!-- {name}:start -->.*?<!-- {name}:end -->", " ", main, flags=re.DOTALL
+            )
+        section = _section_of(nav, entry.path)
+        entries.append(
+            {
+                "path": entry.path,
+                "title": entry.title,
+                "section": section.title if section is not None else "",
+                "headings": [_plain(h[2]) for h in _H2.finditer(main)],
+                "text": _plain(_OUTPUT.sub(" ", _H1.sub(" ", main))),
+            }
+        )
+    return json.dumps(entries, ensure_ascii=False, indent=0) + "\n"
+
+
+def _plain(fragment: str) -> str:
+    """The text of an HTML fragment: no tags, entities decoded, white space collapsed. An
+    inline tag joins its neighbours, so "<a>Line</a>," stays "Line,"."""
+    return " ".join(html.unescape(_TAG.sub(" ", _INLINE_TAG.sub("", fragment))).split())
 
 
 def _pages(section: Entry) -> str:

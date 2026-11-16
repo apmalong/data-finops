@@ -14,6 +14,7 @@
   --link: #1f5fae;
   --rule: #e4e3df;
   --attention: #eb6834;
+  --bar: 56px; /* the top bar's height: the sticky columns sit under it */
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
@@ -41,8 +42,10 @@
 }
 
 * { box-sizing: border-box; }
-html { -webkit-text-size-adjust: 100%; }
-/* Readable template (#171): 17px body, about 68ch of prose per line, 1.6 line height. */
+html { -webkit-text-size-adjust: 100%; scroll-padding-top: 72px; }  /* anchors clear the top bar */
+/* Readable template (#171): 17px body, about 68ch of prose per line, 1.6 line height.
+   The layout (#274), after docs sites such as GitLab's: a top bar across the full width, a
+   sidebar with the whole nav, breadcrumbs, the page, and "On this page" on wide screens. */
 body {
   margin: 0;
   background: var(--bg-page);
@@ -50,41 +53,113 @@ body {
   font: 17px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  grid-template-areas: "header" "nav" "main" "footer";
+  grid-template-areas: "header" "crumbs" "main" "nav" "footer";  /* narrow: the nav after the page */
 }
 @media (min-width: 900px) {
   body {
-    grid-template-columns: 14rem minmax(0, 44rem);
-    grid-template-areas: "header header" "nav main" "nav footer";
-    column-gap: 3rem;
-    justify-content: center;
+    grid-template-columns: 17rem minmax(0, 1fr);
+    grid-template-rows: auto auto 1fr auto;
+    grid-template-areas: "header header" "nav crumbs" "nav main" "nav footer";
   }
+  .menu-link { display: none; }  /* the sidebar is in view */
+  /* The sidebar stays in place under the top bar and scrolls by itself. */
+  .site-nav {
+    position: sticky;
+    top: var(--bar);
+    align-self: start;
+    height: calc(100vh - var(--bar));  /* fills the column under the top bar */
+    overflow-y: auto;
+    border-right: 1px solid var(--rule);
+  }
+  .breadcrumbs, main, footer { padding-left: 2.5rem; padding-right: 2.5rem; }
+  main, .breadcrumbs, footer > p { max-width: 52rem; }
 }
 /* Wide screens: "On this page" floats into a right-hand column of main's padding, so the
    page's text keeps its measure and its margins, whatever the number of elements. */
 @media (min-width: 1200px) {
-  body { grid-template-columns: 14rem minmax(0, 58rem); }
-  body > main { padding-right: calc(14rem + 16px); }  /* beats the general main padding below */
-  main > .on-page { float: right; width: 12rem; margin: 0 -14rem 0 0; position: sticky; top: 16px; }
+  main, .breadcrumbs { max-width: calc(52rem + 15rem); }
+  body > main { padding-right: calc(15rem + 2.5rem); }  /* beats the general main padding */
+  main > .on-page {
+    float: right;
+    width: 13rem;
+    margin: 0 -15rem 0 0;
+    position: sticky;
+    top: calc(var(--bar) + 16px);
+    max-height: calc(100vh - var(--bar) - 32px);
+    overflow-y: auto;
+    border-left: 1px solid var(--rule);
+    padding-left: 14px;
+  }
 }
 
 /* Keyboard users skip straight to the content; the link shows only when focused. */
-.skip-link { position: absolute; left: 16px; top: -100px; background: var(--bg-surface); padding: 8px 12px; }
+.skip-link { position: absolute; z-index: 3; left: 16px; top: -100px; background: var(--bg-surface); padding: 8px 12px; }
 .skip-link:focus { top: 8px; }
 :focus-visible { outline: 2px solid var(--link); outline-offset: 2px; }
 
-.site-header { grid-area: header; padding: 16px; border-bottom: 1px solid var(--rule); }
-.site-header a { color: var(--text); font-weight: 600; text-decoration: none; }
+/* The top bar: the site name, the search and the outside links, always in view. */
+.site-header {
+  grid-area: header;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 24px;
+  min-height: var(--bar);
+  padding: 8px 16px;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--rule);
+}
+.site-name { color: var(--text); font-weight: 650; font-size: 1.1rem; text-decoration: none; }
+.site-links { display: flex; gap: 20px; margin-left: auto; font-size: 0.92rem; }
+.site-links a { color: var(--text-2); text-decoration: none; }
+.site-links a:hover { color: var(--link); text-decoration: underline; }
 
-/* The site nav lists the sections; build expands only the current one. */
-.site-nav { grid-area: nav; padding: 16px; font-size: 0.94rem; }
+/* The search: shown by site.js; its results drop down under the box. */
+.site-search { position: relative; flex: 1 1 18rem; max-width: 30rem; margin: 0; }
+@media (max-width: 899px) { .site-search { order: 3; flex-basis: 100%; max-width: none; } }
+.site-search[hidden] { display: none; }
+.site-search label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.site-search input {
+  width: 100%;
+  font: inherit;
+  font-size: 0.95rem;
+  color: var(--text);
+  background: var(--bg-page);
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  padding: 6px 12px;
+}
+.search-results { position: absolute; left: 0; right: 0; top: calc(100% + 4px); list-style: none; margin: 0; padding: 0; max-height: 70vh; overflow-y: auto; background: var(--bg-surface); border: 1px solid var(--rule); border-radius: 6px; }
+.search-results:empty { display: none; }
+.search-results li { max-width: none; margin: 0; padding: 8px 12px; border-bottom: 1px solid var(--rule); }
+.search-results li:last-child { border-bottom: 0; }
+.search-results a { font-weight: 600; }
+.search-section { margin-left: 8px; color: var(--text-3); font-size: 0.8rem; }
+.search-results p { margin: 2px 0 0; color: var(--text-2); font-size: 0.85rem; max-width: none; overflow-wrap: anywhere; }
+.search-none { color: var(--text-3); font-size: 0.9rem; }
+
+/* The sidebar: every section in a <details>; build opens only the current one. */
+.site-nav { grid-area: nav; padding: 16px; font-size: 0.94rem; background: var(--bg-surface); scroll-margin-top: var(--bar); }
 .site-nav ul { list-style: none; margin: 0; padding: 0; }
-.site-nav li { margin: 0 0 8px; }
-.site-nav ul ul { margin: 8px 0 4px 12px; padding-left: 10px; border-left: 1px solid var(--rule); }
+.site-nav li { margin: 0 0 6px; }
+.site-nav summary { cursor: pointer; color: var(--text); font-weight: 600; padding: 2px 0; }
+.site-nav details ul { margin: 6px 0 10px 6px; padding-left: 12px; border-left: 1px solid var(--rule); }
 /* Site nav and "On this page" links: quiet until hovered. */
 .site-nav a, .on-page a { color: var(--text-2); text-decoration: none; }
 .site-nav a:hover, .on-page a:hover { color: var(--link); text-decoration: underline; }
 .site-nav a[aria-current="page"] { color: var(--text); font-weight: 600; }
+.site-nav > ul > li > a { color: var(--text); font-weight: 600; }  /* a section with no pages */
+
+/* Breadcrumbs above the title: Home › Section › Page. */
+.breadcrumbs { grid-area: crumbs; padding: 16px 16px 0; font-size: 0.88rem; color: var(--text-3); }
+.breadcrumbs ol { list-style: none; display: flex; flex-wrap: wrap; margin: 0; padding: 0; }
+.breadcrumbs li { margin: 0; }
+.breadcrumbs li + li::before { content: "›"; padding: 0 8px; color: var(--text-3); }
+.breadcrumbs a { color: var(--text-2); text-decoration: none; }
+.breadcrumbs a:hover { color: var(--link); text-decoration: underline; }
 
 main { grid-area: main; padding: 8px 16px 32px; min-width: 0; }
 footer { grid-area: footer; padding: 16px; border-top: 1px solid var(--rule); color: var(--text-3); font-size: 0.85rem; }

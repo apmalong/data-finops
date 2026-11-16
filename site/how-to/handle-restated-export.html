@@ -13,12 +13,26 @@
 <body>
 <!-- nav:start -->
 <a class="skip-link" href="#main">Skip to content</a>
-<header class="site-header"><a href="../index.html">data-finops</a></header>
-<nav class="site-nav" aria-label="Site">
+<header class="site-header">
+<a class="site-name" href="../index.html">data-finops</a>
+<form class="site-search" role="search" hidden data-index="../assets/search-index.json" data-root="../">
+<label for="site-search-query">Search the docs</label>
+<input id="site-search-query" type="search" autocomplete="off" placeholder="Search the docs">
+<ul class="search-results" aria-live="polite"></ul>
+</form>
+<nav class="site-links" aria-label="Elsewhere"><a class="menu-link" href="#site-nav">Menu</a> <a href="../explanation/public-demo.html">Public Demo</a> <a href="https://github.com/apmalong/data-finops">GitHub</a></nav>
+</header>
+<nav class="site-nav" id="site-nav" aria-label="Site">
 <ul>
-<li><a href="../tutorials/index.html">Tutorials</a></li>
-<li><a href="index.html">How-to guides</a>
+<li><details><summary>Tutorials</summary>
 <ul>
+<li><a href="../tutorials/index.html">Overview</a></li>
+<li><a href="../tutorials/first-allocation.html">Your first allocation</a></li>
+</ul>
+</details></li>
+<li><details open><summary>How-to guides</summary>
+<ul>
+<li><a href="index.html">Overview</a></li>
 <li><a href="install.html">Install data-finops</a></li>
 <li><a href="ingest-focus-export.html">Ingest a FOCUS export</a></li>
 <li><a href="ingest-athena-history.html">Ingest Athena query history</a></li>
@@ -35,11 +49,41 @@
 <li><a href="read-deployment.html">Read a Deployment</a></li>
 <li><a href="tear-down-deployment.html">Tear down a Deployment</a></li>
 </ul>
-</li>
-<li><a href="../reference/index.html">Reference</a></li>
-<li><a href="../explanation/index.html">Explanation</a></li>
+</details></li>
+<li><details><summary>Reference</summary>
+<ul>
+<li><a href="../reference/index.html">Overview</a></li>
+<li><a href="../reference/cli.html">Command line</a></li>
+<li><a href="../reference/http-api.html">HTTP API</a></li>
+<li><a href="../reference/data-contracts.html">Data contracts</a></li>
+<li><a href="../reference/exit-codes-and-environment.html">Exit codes and environment</a></li>
+<li><a href="../reference/deployment-settings.html">Deployment settings</a></li>
+<li><a href="../reference/glossary.html">Glossary</a></li>
+</ul>
+</details></li>
+<li><details><summary>Explanation</summary>
+<ul>
+<li><a href="../explanation/index.html">Overview</a></li>
+<li><a href="../explanation/bill-is-authoritative.html">The bill is authoritative</a></li>
+<li><a href="../explanation/allocation-and-coverage.html">Allocation and Coverage</a></li>
+<li><a href="../explanation/identity-links-and-evidence.html">Identity Links and Evidence</a></li>
+<li><a href="../explanation/export-snapshots-and-restatements.html">Export Snapshots and restatements</a></li>
+<li><a href="../explanation/security-model.html">Security model</a></li>
+<li><a href="../explanation/deployment-architecture.html">Deployment architecture</a></li>
+<li><a href="../explanation/public-demo.html">The Public Demo</a></li>
+<li><a href="../explanation/compared-with-aws-tools.html">Compared with AWS&#x27;s cost tools</a></li>
+<li><a href="../explanation/decision-records.html">Decision records</a></li>
+</ul>
+</details></li>
 <li><a href="../contributing.html">Contribute to data-finops</a></li>
 </ul>
+</nav>
+<nav class="breadcrumbs" aria-label="Breadcrumb">
+<ol>
+<li><a href="../index.html">data-finops</a></li>
+<li><a href="index.html">How-to guides</a></li>
+<li aria-current="page">Handle a restated export</li>
+</ol>
 </nav>
 <!-- nav:end -->
 <main id="main">

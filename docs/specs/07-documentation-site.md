@@ -16,7 +16,13 @@ One page per document under `site/`, each one Diátaxis type. Home is `index.htm
 - Every page has the same `<head>`, header, nav and footer. The nav sits between `<!-- nav:start -->` and `<!-- nav:end -->` and is stamped from `site/nav.json`.
 - The footer says the site describes `main`, that nothing is released yet, and that the license is not chosen yet (OQ-8). It makes no license claim until OQ-8 is decided.
 - The readable template (owner, 2026-11-06, #171) restyles the same HTML:
-  - The nav lists the four sections and expands only the current one.
+  - The layout follows docs sites such as GitLab's (owner, 2026-11-15, #274). `build` stamps all of it in the `nav` region, and no part needs JavaScript:
+    - A top bar across the full width: the site name, the search box, and links to the Public Demo and to GitHub. It stays in view.
+    - A sidebar with every section. Each section is a `<details>`, and only the current one is open. The current page has `aria-current`. On wide screens the sidebar stays in view and scrolls by itself. On narrow screens it comes after the page, and a "Menu" link in the top bar goes to it.
+    - Breadcrumbs above the `h1`: Home, the section, then the page. The home page has none.
+  - Search (#274): `build` writes `site/assets/search-index.json`, with the path, title, section, `h2`s and text of each page. The text leaves out the stamped regions and the output of commands. There is no external service.
+    - `site.js` searches the index in the browser: a page matches when it holds each word of the query as text. A word in the title counts most, then a word in a heading, then a word in the text.
+    - The box is hidden without JavaScript. `?q=` in the address fills it.
   - Each page has an "On this page" list of its `h2`s, between `<!-- onpage:start -->` and `<!-- onpage:end -->` after its `h1`. It is stamped from the finished page, generated reference included, and an `h2` without an `id` fails the build. On screens over about 1200px it is a right-hand column. On narrower screens it sits under the `h1`.
   - Previous and next links, in `nav.json` order, sit between `<!-- pager:start -->` and `<!-- pager:end -->` at the end of `main`.
   - `build` puts each line of every plain-text code block (run and output blocks included) in `<span class="line">`. Thus a long command wraps with an indent on its next lines, and does not scroll. The text the page runner reads is unchanged. A wide table scrolls inside its own focusable box, never the page.
