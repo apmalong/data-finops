@@ -156,7 +156,7 @@ The TOML file of `data-finops collect` names the same settings in snake case (`a
 | `logRetentionDays` | 30 | Both log groups, which the stack creates |
 | `noncurrentVersionDays` | 30 | Expiry of old database object versions |
 | `inboxRetentionDays` | 30 | Expiry of Inbox objects |
-| `kmsKeyArn` | unset | A customer-managed key for the bucket (about $1 a month) |
+| `kmsKeyArn` | unset | A customer-managed key for the bucket (about $1 a month). The key ARN only: not an alias, and no wildcard (#270) |
 | `explanationDetail` | `minimal` | Cost Explanation detail (ADR 0028) |
 | `budgetMonthlyUsd`, `budgetEmail` | unset | An optional AWS Budget alert for the whole account, on forecast and actual spend. Set both or neither. |
 | `alarmEmail` | unset | An optional SNS topic and one alarm on the `Errors` metric of the collector |

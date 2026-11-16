@@ -211,17 +211,7 @@ class Compute(pulumi.ComponentResource):
         self.producer_policy = aws.iam.Policy(
             f"{name}-producer",
             description="data-finops: write OpenLineage events and dbt artifacts to the Inbox",
-            policy=bucket.arn.apply(
-                lambda arn: json.dumps(
-                    allow(
-                        [
-                            ("s3:PutObject", [f"{arn}/{INBOX}*"]),
-                            # S3 needs it for each SSE-KMS write (#270).
-                            *key_grant(settings, ["kms:GenerateDataKey"]),
-                        ]
-                    )
-                )
-            ),
+            policy=bucket.arn.apply(lambda arn: _producer_policy(settings, arn)),
             opts=child,
         )
         self.reader_policy = aws.iam.Policy(
@@ -335,6 +325,19 @@ def _api_policy(settings: Settings, bucket_arn: str, group_arn: str) -> dict[str
             log_writing(group_arn),
             *key_grant(settings, ["kms:Decrypt"]),
         ]
+    )
+
+
+def _producer_policy(settings: Settings, bucket_arn: str) -> str:
+    """Write into the Inbox and nothing else. With a customer key, S3 also needs
+    `kms:GenerateDataKey` on it for each write (#270)."""
+    return json.dumps(
+        allow(
+            [
+                ("s3:PutObject", [f"{bucket_arn}/{INBOX}*"]),
+                *key_grant(settings, ["kms:GenerateDataKey"]),
+            ]
+        )
     )
 
 

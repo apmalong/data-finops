@@ -98,6 +98,10 @@ def test_every_setting_can_be_given() -> None:
         ({"data-finops:noncurrentVersionDays": "0"}, "noncurrentVersionDays"),
         ({"data-finops:inboxRetentionDays": "0"}, "inboxRetentionDays"),
         ({"data-finops:kmsKeyArn": "secret-not-an-arn"}, "kmsKeyArn"),
+        # IAM grants key use on the key's ARN only: not through an alias, not on a pattern (#270).
+        ({"data-finops:kmsKeyArn": "arn:aws:kms:us-east-1:123456789012:alias/x"}, "kmsKeyArn"),
+        ({"data-finops:kmsKeyArn": "arn:aws:kms:us-east-1:123456789012:key/*"}, "kmsKeyArn"),
+        ({"data-finops:kmsKeyArn": "arn:aws:kms:us-east-1:123456789012:key/ab??"}, "kmsKeyArn"),
         ({"data-finops:explanationDetail": "everything"}, "explanationDetail"),
         ({"data-finops:publicDemo": "yes"}, "publicDemo"),
         ({"data-finops:demoScanCutoffBytes": "9999999"}, "demoScanCutoffBytes"),

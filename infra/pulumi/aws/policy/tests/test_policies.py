@@ -204,6 +204,7 @@ def _document(*statements: dict[str, Any]) -> dict[str, Any]:
 
 
 DATABASE = "arn:aws:s3:::b/database/data-finops.sqlite"
+KEY = "arn:aws:kms:us-east-1:123456789012:key/example"
 
 
 def _allow(action: Any, resource: Any = DATABASE) -> dict[str, Any]:
@@ -240,9 +241,6 @@ def test_each_policy_may_allow_its_own_actions() -> None:
     assert _iam(with_key, "data-finops-producer", MANAGED_POLICY) == []
 
 
-KEY = "arn:aws:kms:us-east-1:123456789012:key/example"
-
-
 @pytest.mark.parametrize(
     ("name", "action"),
     [
@@ -262,6 +260,9 @@ def test_a_key_action_is_allowed_only_on_a_kms_key(name: str, action: str) -> No
     [
         "arn:aws:kms:us-east-1:123456789012:key/*",  # every key in the account
         "arn:aws:kms:us-east-1:123456789012:key/data-*",  # every key whose id starts so
+        "arn:aws:kms:us-east-1:123456789012:key/data-????",  # IAM reads ? as one character
+        "arn:aws:kms:us-east-?:123456789012:key/example",
+        "arn:aws:kms:us-east-1:123456789012:key/a/b",
         # IAM does not grant key use through an alias:
         "arn:aws:kms:us-east-1:123456789012:alias/data-finops",
         [KEY, "arn:aws:s3:::b/inbox/*"],

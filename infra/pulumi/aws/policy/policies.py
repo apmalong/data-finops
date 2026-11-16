@@ -98,8 +98,9 @@ POLICY_ACTIONS: dict[str, frozenset[str]] = {
 """Each Deployment policy, by the suffix of its name (`deployment.compute`, `deployment.demo`),
 and every action spec 08 §IAM and spec 09 grant it. A policy named otherwise is a
 violation, so a rename fails closed."""
-KMS_KEY = re.compile(r"arn:aws[a-z-]*:kms:[^:*]+:[^:*]+:key/[^*]+")
-"""A KMS key's ARN, in any partition: the only resource a `kms:` action may name."""
+KMS_KEY = re.compile(r"arn:aws[a-z-]*:kms:[a-z0-9-]+:\d{12}:key/[A-Za-z0-9-]+")
+"""A KMS key's ARN, in any partition, with no wildcard. A `kms:` action names only such keys.
+`deployment.settings.KMS_KEY_ARN` is the same pattern."""
 DEMO_WORKGROUP = "data-finops-demo"
 """The only workgroup the simulator may run queries in (spec 09; `deployment.settings`)."""
 RULED_OUT = (

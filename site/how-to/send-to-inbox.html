@@ -114,7 +114,7 @@
 <p>Every file is capped at 512 MiB. A larger file is rejected by its key and never downloaded.</p>
 
 <h2 id="grant">Give the producer access</h2>
-<p>The identity that writes requires only <code>s3:PutObject</code> on <code>inbox/*</code>. If <code>kmsKeyArn</code> is set, it also requires <code>kms:GenerateDataKey</code> on that key. The stack outputs <code>producerPolicyArn</code>, a managed policy that grants exactly that. Attach it to the role your Airflow or dbt runs as, for example:</p>
+<p>The identity that writes requires <code>s3:PutObject</code> on <code>inbox/*</code>. If <code>kmsKeyArn</code> is set, it also requires <code>kms:GenerateDataKey</code> on that key. The stack outputs <code>producerPolicyArn</code>, a managed policy that grants these permissions and no others. Attach it to the role your Airflow or dbt runs as, for example:</p>
 <div class="shell-tabs">
 <pre class="shell-posix"><code><span class="line">aws iam attach-role-policy --role-name &lt;producer role&gt; --policy-arn &lt;producerPolicyArn&gt; --profile &lt;admin profile&gt;</span></code></pre>
 <pre class="shell-windows" data-derived=""><code><span class="line">aws iam attach-role-policy --role-name &lt;producer role&gt; --policy-arn &lt;producerPolicyArn&gt; --profile &lt;admin profile&gt;</span></code></pre>
