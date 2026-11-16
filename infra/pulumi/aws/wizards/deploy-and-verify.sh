@@ -199,8 +199,8 @@ finish() {
 
 # ── Shared by this wizard's stages ─────────────────────────────────────────
 # The owner runs this wizard, never an agent (spec 08, owner-only steps). Everything shown or
-# recorded goes through `mask`: no account ID, bucket, profile, email or URL appears, so the
-# record can be shared. Both wizards carry this block, so that each stands alone.
+# recorded goes through `mask`: no account ID, bucket, profile, email or private URL appears, so
+# the record can be shared. The Public Demo's demoUrl is public by design, so it is shown. Both wizards carry this block, so that each stands alone.
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
 STACK_DIR="$REPO/infra/pulumi/aws"
@@ -293,10 +293,38 @@ gone() {
 }
 
 RECORD="$LOCAL/deploy-and-verify-record.txt"
+DEMO=0 # 1 when the owner adds the Public Demo in this run
+DEMO_STAGES=2 # the stages after "The Public Demo (optional)" that only the demo has
+DEMO_DIMENSIONS=../../../examples/public-demo/cost-dimensions.toml # from STACK_DIR
+
+# hide_demo_bucket: mask the Public Demo's bucket, when the stack has one. Its demoUrl is public
+# by design (the README links it), so it is shown as it is.
+hide_demo_bucket() {
+  local demo_bucket
+  demo_bucket=$(quietly pulumi stack output demoBucket || true)
+  hide "$demo_bucket" "<demo bucket>"
+}
+
+# invoke_function FUNCTION: one invocation, its masked result shown and recorded, its file removed.
+invoke_function() {
+  local result="$LOCAL/deploy-wizard-$1-result.json"
+  TEMPORARY+=("$result")
+  run aws lambda invoke --function-name "$1" --cli-read-timeout 900 \
+    --region "$AWS_REGION_NAME" --profile "$DEPLOYER_PROFILE" "$result"
+  mask < "$result" | tee -a "$RECORD"
+  rm -f "$result"
+}
+
+# demo_output NAME: one of the Public Demo's stack outputs; stop if the stack has none.
+demo_output() {
+  quietly pulumi stack output "$1" || { warn "the stack has no output $1: is publicDemo on?"; exit 1; }
+}
+
+stop_before_demo() { warn "stopped before the Public Demo was created"; exit 1; }
 
 run_wizard() {
 
-TOTAL_STAGES=12
+TOTAL_STAGES=$((13 + DEMO_STAGES))
 
 banner "Deploy data-finops to AWS and verify it"
 mkdir -p "$LOCAL/pulumi"
@@ -404,6 +432,7 @@ run pulumi up --yes --policy-pack policy --suppress-outputs
 BUCKET=$(quietly pulumi stack output bucket); hide "$BUCKET" "<bucket>"
 API_URL=$(quietly pulumi stack output apiUrl); hide "$API_URL" "<apiUrl>/"
 COLLECTOR=$(quietly pulumi stack output collectorFunction)
+hide_demo_bucket # on a re-run, the Public Demo can already be on
 run pulumi stack output
 pause
 
@@ -441,14 +470,12 @@ if confirm "Check the Deployment's IAM and bucket policies with IAM Access Analy
 fi
 
 stage "One Collection Run"
-say "The collector runs once a day; this runs one now and shows its summary."
-confirm "Invoke the collector now?" || { warn "skipped: the schedule runs it at its next time"; finish; exit 0; }
-RESULT="$LOCAL/deploy-wizard-collector-result.json"
-TEMPORARY+=("$RESULT")
-run aws lambda invoke --function-name "$COLLECTOR" --cli-read-timeout 900 \
-  --region "$AWS_REGION_NAME" --profile "$DEPLOYER_PROFILE" "$RESULT"
-mask < "$RESULT" | tee -a "$RECORD"
-rm -f "$RESULT"
+say "The collector runs once a day. This runs one now and shows its summary."
+if confirm "Invoke the collector now?"; then
+  invoke_function "$COLLECTOR"
+else
+  show "skipped: the Collection Run (the schedule runs it at its next time)"
+fi
 pause
 
 stage "Read it back through the API"
@@ -461,9 +488,69 @@ else
 fi
 pause
 
+stage "The Public Demo (optional)"
+say "The Public Demo publishes the dashboard of this Deployment on CloudFront, for anyone to"
+say "open. Only the demo workgroup's lines are published, never the rest of the bill. See the"
+say "site's Public Demo page."
+warn "Caution: a scheduled function runs real Athena queries. The demo costs about \$3 a month."
+say "To stop it, set publicDemo to false and run pulumi up again."
+if confirm "Add the Public Demo to this Deployment?"; then
+  DEMO=1
+  run pulumi config set publicDemo true
+  if quietly pulumi config get costDimensions >/dev/null; then
+    warn "costDimensions is already set. The demo shows only the dimensions that your file names."
+    if confirm "Replace it with the demo's file (team, tenant and Airflow run ID)?"; then
+      run pulumi config set costDimensions "$DEMO_DIMENSIONS"
+    else
+      show "costDimensions is already set: kept"
+    fi
+  else
+    run pulumi config set costDimensions "$DEMO_DIMENSIONS"
+  fi
+  run pulumi preview --policy-pack policy --suppress-outputs
+  confirm "Does the preview add only the Public Demo's resources, with no violation?" \
+    || stop_before_demo
+  confirm "Run pulumi up now?" || stop_before_demo
+  run pulumi up --yes --policy-pack policy --suppress-outputs
+  hide_demo_bucket
+  DEMO_URL=$(demo_output demoUrl)
+  GENERATOR=$(demo_output demoGeneratorFunction)
+  SIMULATOR=$(demo_output demoSimulatorFunction)
+  run pulumi stack output
+  pause
+else
+  show "skipped: the Public Demo"
+  TOTAL_STAGES=$((TOTAL_STAGES - DEMO_STAGES))
+fi
+
+if (( DEMO )); then
+  stage "The Public Demo: its dataset and a first run"
+  say "The generator writes the demo's dataset one time: about 400 MB of Parquet. Then the"
+  say "Simulated Orchestrator runs the DAGs that are due now, so you do not wait for its schedule."
+  if confirm "Write the dataset now (some minutes)?"; then invoke_function "$GENERATOR"; fi
+  if confirm "Run the Simulated Orchestrator now (real Athena queries)?"; then
+    invoke_function "$SIMULATOR"
+  fi
+  pause
+
+  stage "The Public Demo: publish and open it"
+  say "The bill of these queries arrives in the FOCUS export some hours later. The next"
+  say "Collection Run collects it, and then the publisher writes the first Demo Snapshot."
+  say "The schedule runs the collector once a day. On a later day, you can also run it here."
+  if confirm "Invoke the collector now? Say no on the day of the deploy."; then
+    invoke_function "$COLLECTOR"
+  fi
+  show "demoUrl: $DEMO_URL"
+  note "Until the first Demo Snapshot, the page shows nothing. Put demoUrl on the site's"
+  note "Public Demo page: the README and the home page link that page."
+  open_url "$DEMO_URL"
+  pause
+fi
+
 stage "Record"
 say "Everything shown, masked, is in $(basename "$RECORD") under .local/. Share that file to"
-say "record the deployment in progress.md; it holds no account ID, bucket, profile or URL."
+say "record the deployment in progress.md. It holds no account ID, bucket, profile or private"
+say "URL. It holds demoUrl, which is public."
 note "To remove the Deployment, run teardown.sh beside this wizard."
 pause
 

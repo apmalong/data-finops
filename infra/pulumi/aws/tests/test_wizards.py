@@ -29,7 +29,10 @@ SECRETS = {
     "url": "abcdefghij.lambda-url",
     "auto-named bucket": "data-finops-1a2b3c4",
     "passphrase": "correct-horse-staple",
+    "demo bucket": "owner-demo-bucket-7a8b",
 }
+DEMO_URL = "https://d111111abcdef8.cloudfront.net"
+"""Public by design (the README links it), so the wizard shows it unmasked."""
 SEEDED = {
     "DEPLOYER_PROFILE": SECRETS["deployer profile"],
     "REFERENCE_PROFILE": SECRETS["reference profile"],
@@ -151,6 +154,13 @@ DEPLOY_ANSWERS = [
     "y", "",  # deployed policies
     "y", "",  # collection run
     "",  # read back
+    "n",  # no Public Demo
+    "",  # record
+]  # fmt: skip
+DEMO_ANSWERS = DEPLOY_ANSWERS[:-2] + [
+    "y", "y", "y", "",  # the Public Demo: add it, the preview is right, pulumi up
+    "y", "y", "",  # the dataset, the simulator
+    "y", "",  # the collector, open demoUrl
     "",  # record
 ]  # fmt: skip
 
@@ -177,6 +187,72 @@ def test_the_deploy_wizard_dry_run_reaches_no_real_tool_and_masks_its_output(
     assert "pulumi did stack in <account>" in record  # masked by its label, not only the pattern
     assert "<bucket>" in record and "<deployer profile>" in record
     _nothing_secret(result.stdout, result.stderr, record)
+
+
+def test_without_a_yes_to_the_demo_the_wizard_sets_nothing_of_it(tmp_path: Path) -> None:
+    result, calls, record = _dry_run(DEPLOY, DEPLOY_ANSWERS, tmp_path)
+    assert result.returncode == 0, result.stdout[-2000:] + result.stderr[-2000:]
+    assert not any("publicDemo" in c or "costDimensions" in c for c in calls)
+    assert len([c for c in calls if c.startswith("pulumi up")]) == 1
+    assert "skipped: the Public Demo" in record
+
+
+def test_the_demo_stage_deploys_it_writes_the_dataset_runs_it_and_opens_it(
+    tmp_path: Path,
+) -> None:
+    result, calls, record = _dry_run(DEPLOY, DEMO_ANSWERS, tmp_path)
+    assert result.returncode == 0, result.stdout[-2000:] + result.stderr[-2000:]
+    setting = calls.index("pulumi config set publicDemo true")
+    demo_file = "../../../examples/public-demo/cost-dimensions.toml"
+    assert f"pulumi config set costDimensions {demo_file}" in calls
+    previews = [i for i, c in enumerate(calls) if c.startswith("pulumi preview")]
+    ups = [i for i, c in enumerate(calls) if c.startswith("pulumi up --yes")]
+    assert len(previews) == len(ups) == 2
+    assert setting < previews[1] < ups[1]  # the demo is checked by the policy pack first
+    invoked = [c.split()[4] for c in calls if c.startswith("aws lambda invoke --function-name")]
+    assert invoked == [
+        "data-finops-dev-collector",
+        "data-finops-dev-demo-generator",
+        "data-finops-dev-demo-simulator",
+        "data-finops-dev-collector",
+    ]
+    assert any(c.startswith("xdg-open") and DEMO_URL in c for c in calls)
+    assert DEMO_URL in record and "<demo bucket>" in record
+    _nothing_secret(result.stdout, result.stderr, record)
+
+
+@pytest.mark.parametrize("replace", [False, True], ids=["kept", "replaced"])
+def test_the_owner_chooses_whether_their_cost_dimensions_file_stays(
+    replace: bool, tmp_path: Path
+) -> None:
+    start = len(DEPLOY_ANSWERS) - 2
+    answers = DEMO_ANSWERS[: start + 1] + ["y" if replace else "n"] + DEMO_ANSWERS[start + 1 :]
+    result, calls, record = _dry_run(DEPLOY, answers, tmp_path, STUB_DIMENSIONS="1")
+    assert result.returncode == 0, result.stdout[-2000:] + result.stderr[-2000:]
+    assert "pulumi config set publicDemo true" in calls
+    replaced = [c for c in calls if c.startswith("pulumi config set costDimensions")]
+    assert len(replaced) == (1 if replace else 0)
+    assert ("costDimensions is already set: kept" in record) is not replace
+
+
+def test_without_a_collection_run_the_demo_is_still_offered(tmp_path: Path) -> None:
+    answers = list(DEPLOY_ANSWERS)
+    answers[-5] = "n"  # no to the collector; its pause follows
+    result, calls, record = _dry_run(DEPLOY, answers, tmp_path)
+    assert result.returncode == 0, result.stdout[-2000:] + result.stderr[-2000:]
+    assert not any(c.startswith("aws lambda invoke") for c in calls)
+    assert "skipped: the Collection Run" in record
+    assert "skipped: the Public Demo" in record
+
+
+@pytest.mark.parametrize("no_at", [1, 2], ids=["no to the preview", "no to pulumi up"])
+def test_the_demo_is_not_deployed_without_a_yes(no_at: int, tmp_path: Path) -> None:
+    start = len(DEPLOY_ANSWERS) - 2
+    answers = DEMO_ANSWERS[: start + no_at] + ["n"]
+    result, calls, _ = _dry_run(DEPLOY, answers, tmp_path)
+    assert result.returncode == 1
+    assert len([c for c in calls if c.startswith("pulumi up")]) == 1
+    assert not any("demo-generator" in c or "demo-simulator" in c for c in calls)
 
 
 @pytest.mark.parametrize("no_at", [16, 17], ids=["no to the preview", "no to pulumi up"])
