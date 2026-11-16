@@ -1,6 +1,6 @@
 # Control plane (M8)
 
-Decided in the M8 design session (2026-11-16). Each owner decision is logged in `docs/implementation/m8-decisions.md` (Q101–Q161). The design is ADR 0032. It amends ADRs 0026, 0027 and 0031. Spec 08 still applies where this spec does not change it.
+Decided in the M8 design session (2026-11-16). Each owner decision is logged in `docs/implementation/m8-decisions.md` (Q101–Q164). The design is ADR 0032. It amends ADRs 0026, 0027 and 0031. Spec 08 still applies where this spec does not change it.
 
 ## Scope
 One CLI controls a local Database or a Deployment: reads, runs, the Inbox, Cost Dimensions, Overrides, the audit trail, and deploy and teardown. Operators sign in with IAM. Consumers sign in with OIDC, in the CLI or in the Deployment Dashboard. The wizards retire.

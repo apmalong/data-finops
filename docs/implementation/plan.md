@@ -61,7 +61,7 @@ The groups follow AGENTS.md, "Tickets in one PR". The tooling tickets keep the f
 ## M8: control plane
 One CLI controls a local Database or a Deployment: reads, runs, the Inbox, Cost Dimensions, overrides, the audit trail, and deploy and teardown. Consumers without AWS access sign in with OIDC, in the CLI or in a hosted dashboard. The wizards retire.
 
-Designed 2026-11-16 (spec 10; ADR 0032, with amendments to ADRs 0006, 0026, 0027 and 0031; owner decisions Q101–Q161 in `m8-decisions.md`). The PRs are set when the tickets are cut.
+Designed 2026-11-16 (spec 10; ADR 0032, with amendments to ADRs 0006, 0026, 0027 and 0031; owner decisions Q101–Q164 in `m8-decisions.md`). Spec issue #287, tickets #288–#299 (milestone "M8: control plane").
 
 The slices, in order (Q143):
 1. Spec 10, the ADRs, and the CLI target (`--db` or `--deployment`) with `summary`.
@@ -74,6 +74,20 @@ The slices, in order (Q143):
 8. `deploy` and `teardown` through the Automation API, which retire the wizards (and close #213).
 9. OIDC: the JWT authorizer, Cognito or your own issuer, `login` and `users`.
 10. The hosted dashboard.
+
+The PRs, each against `main`, one open at a time (Q164):
+1. The CLI target and the reads (#288, #289).
+2. API Gateway with IAM routes (#290).
+3. The Command pipeline (#291).
+4. `run`, `runs` and `inbox` (#292).
+5. Versioned Cost Dimensions (#293).
+6. Dimension and link Overrides (#294, #295).
+7. `deploy` and `teardown`, which retire the wizards and close #213 (#296).
+8. OIDC sign-in (#297).
+9. The Deployment Dashboard (#298).
+10. The documentation (#299).
+
+PRs 7 and 8 need only PR 3, so they can go before PRs 4–6.
 
 ## Deferred
 GCP, Snowflake, dbt Elementary optional tables, dlt, Dagster, OTel, BI connectors, automatic optimization, multi-account aggregation, enterprise auth beyond M8's OIDC sign-in (for example SCIM provisioning or SAML).
