@@ -33,7 +33,7 @@ case "$name $*" in
   "aws sts get-caller-identity"*"--query Account"*) echo ${ACCOUNT} ;;
   "aws sts get-caller-identity"*) echo arn:aws:iam::${ACCOUNT}:user/owner-deployer-profile ;;
   "aws iam list-entities-for-policy"*) printf '0\t0\t0\n' ;;
-  "aws lambda invoke"*) printf '{"exit_code":0,"bucket":"owner-secret-bucket-1a2b","account":"%s","owner":"%s"}\n' "$ACCOUNT" "$OTHER" > "$last"; echo '{"StatusCode": 200}' ;;
+  "aws lambda invoke"*) printf '{"sources":{"focus":{"stored":0}},"exit_code":0,"bucket":"owner-secret-bucket-1a2b","account":"%s","owner":"%s"}\n' "$ACCOUNT" "$OTHER" > "$last"; echo '{"StatusCode": 200}' ;;
   "aws s3api head-bucket --bucket owner-secret-bucket-1a2b"*) [[ "${STUB_KEPT:-}" == 1 ]] && exit 0
     echo "An error occurred (404) when calling the HeadBucket operation: Not Found" >&2; exit 254 ;;
   # After a destroy, each read fails as the real service does for a missing resource.
@@ -51,6 +51,6 @@ case "$name $*" in
   "uv run --frozen python -m deployment.state_check ids"*) echo "${ACCOUNT}:data-finops-reference-budget" ;;
   "uv run --frozen python -m deployment.state_check policies"*) mkdir -p "$last"; echo '{}' > "$last/data-finops-collector.json"; echo data-finops-collector.json ;;
   "uv run --frozen python -m deployment.state_check"*) echo ok ;;
-  "uv "*) echo "uv ok" ;;
+  "uv "*) echo "uv ok in $(cygpath -w "$PWD" 2>/dev/null || pwd)" ;;
   "awscurl "*) echo '{"status":"ok","from":"https://abcdefghij.lambda-url.us-east-1.on.aws/"}' ;;
 esac

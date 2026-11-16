@@ -216,6 +216,15 @@ hide() { [[ -n "$1" ]] && SENSITIVE+=("$1|$2"); return 0; }
 hide "$LOCAL" "<local>"
 hide "$REPO" "<repo>"
 
+# hide_prefix PREFIX: hide the export's S3 prefix only where it is that prefix: in a path, or
+# as the value of the setting. A prefix is often a plain word, such as "focus", which also
+# names a source in the collector's summary.
+hide_prefix() {
+  [[ -n "$1" ]] || return 0
+  hide "exportPrefix $1" "exportPrefix <export prefix>"
+  hide "/$1/" "/<export prefix>/"
+}
+
 # hide_saved KEY...: hide each value already saved in ENV_FILE, before any command runs.
 hide_saved() {
   local key value label
@@ -333,9 +342,14 @@ TOTAL_STAGES=$((13 + DEMO_STAGES))
 
 banner "Deploy data-finops to AWS and verify it"
 mkdir -p "$LOCAL/pulumi"
-hide_saved DEPLOYER_PROFILE EXPORT_BUCKET EXPORT_NAME EXPORT_PREFIX WORKGROUP ALERT_EMAIL
+hide_saved DEPLOYER_PROFILE EXPORT_BUCKET EXPORT_NAME WORKGROUP ALERT_EMAIL
+hide_prefix "$(_existing EXPORT_PREFIX || true)"
 hide "$(native_path "$LOCAL")" "<local>" # the Windows form, as file_url writes it
 hide "$(native_path "$REPO")" "<repo>"
+if command -v cygpath >/dev/null 2>&1; then # and with backslashes, as uv's warnings write it
+  hide "$(cygpath -w "$LOCAL")" "<local>"
+  hide "$(cygpath -w "$REPO")" "<repo>"
+fi
 : > "$RECORD"
 
 stage "Tools"
@@ -396,7 +410,7 @@ for key in EXPORT_BUCKET EXPORT_NAME EXPORT_PREFIX WORKGROUP BUDGET_USD ALERT_EM
 done
 hide "$EXPORT_BUCKET" "<export bucket>"
 hide "$EXPORT_NAME" "<export name>"
-hide "$EXPORT_PREFIX" "<export prefix>"
+hide_prefix "${EXPORT_PREFIX:-}"
 hide "$WORKGROUP" "<workgroup>"
 hide "$ALERT_EMAIL" "<alert email>"
 ask_secret PULUMI_CONFIG_PASSPHRASE "Passphrase for the stack's state (chosen now, needed every time; not saved):"

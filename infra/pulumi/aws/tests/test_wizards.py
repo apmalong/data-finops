@@ -187,6 +187,11 @@ def test_the_deploy_wizard_dry_run_reaches_no_real_tool_and_masks_its_output(
     )
     assert "pulumi did stack in <account>" in record  # masked by its label, not only the pattern
     assert "<bucket>" in record and "<deployer profile>" in record
+    # The prefix "focus" is masked where it is the prefix, not where the word names a source.
+    assert "pulumi config set exportPrefix <export prefix>" in record
+    assert '"sources":{"focus":' in record
+    # uv's warnings name the repository with backslashes on Windows: masked too.
+    assert str(WIZARDS.parents[3]) not in record and "<repo>" in record
     _nothing_secret(result.stdout, result.stderr, record)
 
 
