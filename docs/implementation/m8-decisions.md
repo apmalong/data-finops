@@ -97,7 +97,7 @@ The owner's brief (2026-11-16): "i guess we need to think about what the control
 
 ## Round 8: what an Override of the owner changes (OQ-26)
 
-Spec 10 found that "owner" in Q112 had no meaning in GLOSSARY. These questions were asked with options only.
+Spec 10 found that "owner" in Q112 had no meaning in GLOSSARY. Q155–Q160 were asked with options only. Q161 was asked with a recommendation.
 
 | # | Question | Decision | Source | Recorded in |
 |---|---|---|---|---|
@@ -107,6 +107,7 @@ Spec 10 found that "owner" in Q112 had no meaning in GLOSSARY. These questions w
 | Q158 | What a link Override can do to an existing link | **Owner:** replace any link, including one that a Trusted Query Comment makes. The other options were to fill gaps only, and to fill gaps by default with `--replace` for operators | Owner | spec 10, ADR 0006 amendment |
 | Q159 | How an Allocation shows a link Override | **Owner:** a new Link Outcome, `override`. The Allocation keeps its Confidence, and its Evidence names the Override id and its principal. The other option was a lower Confidence too | Owner | ADR 0006 amendment, GLOSSARY |
 | Q160 | What a link Override can point to | **Owner:** a Model Execution or a Workload Run. The other option was a Model Execution only | Owner | spec 10 |
+| Q161 | How the owner dimension is marked | A key, `owner = true`, on at most one dimension in the Cost Dimensions TOML. Without it, `override dimension --owner` exits with 2 and says to mark one | Accepted recommendation | spec 10 |
 
 ## How these decisions relate to earlier ones
 

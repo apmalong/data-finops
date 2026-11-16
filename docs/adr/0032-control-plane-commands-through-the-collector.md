@@ -1,6 +1,6 @@
 # ADR 0032: The control plane sends Commands through the collector, behind an API Gateway with IAM and OIDC
 
-Status: Accepted (design, 2026-11-16). Decides M8's control plane (Q101–Q160, `docs/implementation/m8-decisions.md`). Amends ADR 0006 (link Overrides), ADR 0026 (points 2, 3 and 4), ADR 0027 (an endpoint on the internet) and ADR 0031 (points 1 and 5). Keeps ADR 0029: the Public Demo stays static (Q128). Spec 10 has the details.
+Status: Accepted (design, 2026-11-16). Decides M8's control plane (Q101–Q161, `docs/implementation/m8-decisions.md`). Amends ADR 0006 (link Overrides), ADR 0026 (points 2, 3 and 4), ADR 0027 (an endpoint on the internet) and ADR 0031 (points 1 and 5). Keeps ADR 0029: the Public Demo stays static (Q128). Spec 10 has the details.
 
 ## Context
 Today the CLI only writes to a local Database, and the API of a Deployment only reads. An operator controls a Deployment with Pulumi config, the wizards, a daily schedule and `aws lambda invoke`. A correction is a manual edit in S3. The owner wants a platform team to operate data-finops, and consumers to make some changes without AWS access (Q101, Q102).

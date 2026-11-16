@@ -61,7 +61,7 @@ The groups follow AGENTS.md, "Tickets in one PR". The tooling tickets keep the f
 ## M8: control plane
 One CLI controls a local Database or a Deployment: reads, runs, the Inbox, Cost Dimensions, overrides, the audit trail, and deploy and teardown. Consumers without AWS access sign in with OIDC, in the CLI or in a hosted dashboard. The wizards retire.
 
-Designed 2026-11-16 (spec 10; ADR 0032, with amendments to ADRs 0006, 0026, 0027 and 0031; owner decisions Q101–Q160 in `m8-decisions.md`). The PRs are set when the tickets are cut.
+Designed 2026-11-16 (spec 10; ADR 0032, with amendments to ADRs 0006, 0026, 0027 and 0031; owner decisions Q101–Q161 in `m8-decisions.md`). The PRs are set when the tickets are cut.
 
 The slices, in order (Q143):
 1. Spec 10, the ADRs, and the CLI target (`--db` or `--deployment`) with `summary`.
