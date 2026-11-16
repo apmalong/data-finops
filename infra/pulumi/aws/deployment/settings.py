@@ -147,7 +147,9 @@ class Settings:
     """How long an object stays in the Inbox, in days, before S3 expires it."""
     kms_key_arn: str | None = None
     """An optional customer-managed KMS key ARN to encrypt the bucket with, at about $1 a
-    month. Unset, the bucket uses the S3-managed key."""
+    month. Use the key ARN, `arn:aws:kms:<region>:<account>:key/<key id>`. An alias ARN is
+    refused, because IAM gives the use of a key only on its key ARN. Unset, the bucket uses
+    the S3-managed key."""
     explanation_detail: str = DEFAULT_EXPLANATION_DETAIL
     """How much the API's Cost Explanations show: `minimal` or `full` (ADR 0028)."""
     budget: Budget | None = None
