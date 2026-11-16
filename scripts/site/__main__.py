@@ -32,7 +32,7 @@ def _build() -> int:
     written = 0
     for path, text in built.items():
         target = REPO / "site" / path
-        if target.read_text(encoding="utf-8") != text:
+        if not target.is_file() or target.read_text(encoding="utf-8") != text:
             target.write_text(text, encoding="utf-8", newline="\n")
             print(f"wrote {_shown(target)}")
             written += 1

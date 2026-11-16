@@ -1,5 +1,6 @@
 """The readable template's stamping (#171, spec 07 "Layout"), tested through `build`."""
 
+import json
 from pathlib import Path
 
 import pytest
@@ -38,16 +39,105 @@ def three_sections(tmp_path: Path, calculate: str = "") -> dict[str, str]:
     return build(repo)
 
 
-def test_the_nav_expands_only_the_current_section(tmp_path: Path) -> None:
+def test_the_sidebar_lists_every_section_with_only_the_current_one_open(
+    tmp_path: Path,
+) -> None:
     built = three_sections(tmp_path)
     in_how_to = region(built["how-to/calculate.html"], "nav")
-    assert '<a href="calculate.html" aria-current="page">Calculate</a>' in in_how_to
-    assert '"../reference/index.html"' in in_how_to and "glossary.html" not in in_how_to
-    in_reference = region(built["reference/index.html"], "nav")
-    assert '<a href="glossary.html">Glossary</a>' in in_reference
-    assert "calculate.html" not in in_reference
+    start = in_how_to.index('<nav class="site-nav"')
+    sidebar = in_how_to[start : in_how_to.index("</nav>", start)]
+    assert '<a href="calculate.html" aria-current="page">Calculate</a>' in sidebar
+    assert '<a href="../reference/glossary.html">Glossary</a>' in sidebar  # closed, but listed
+    assert sidebar.count("<details open>") == 1
+    assert sidebar.index("<details open>") < sidebar.index("calculate.html")
+    assert sidebar.index("calculate.html") < sidebar.index("<details>")  # Reference: closed
+    assert "<summary>How-to guides</summary>" in sidebar
+    assert sidebar.count("aria-current") == 1
     home = region(built["index.html"], "nav")
-    assert "calculate.html" not in home and "glossary.html" not in home
+    assert "<details open>" not in home and "calculate.html" in home
+
+
+def test_breadcrumbs_lead_from_home_to_the_page(tmp_path: Path) -> None:
+    built = three_sections(tmp_path)
+    assert (
+        '<nav class="breadcrumbs" aria-label="Breadcrumb">\n<ol>\n'
+        '<li><a href="../index.html">Home</a></li>\n'
+        '<li><a href="index.html">How-to guides</a></li>\n'
+        '<li aria-current="page">Calculate</li>\n</ol>\n</nav>'
+    ) in region(built["how-to/calculate.html"], "nav")
+    assert (
+        '<li><a href="../index.html">Home</a></li>\n<li aria-current="page">Reference</li>'
+    ) in region(built["reference/index.html"], "nav")
+    assert "breadcrumbs" not in region(built["index.html"], "nav")
+
+
+def test_the_top_bar_holds_the_site_name_the_search_and_the_source(tmp_path: Path) -> None:
+    nav = region(three_sections(tmp_path)["reference/glossary.html"], "nav")
+    header = nav[nav.index('<header class="site-header">') : nav.index("</header>")]
+    assert '<a class="site-name" href="../index.html">Home</a>' in header
+    assert '<form class="site-search" role="search" hidden' in header  # site.js shows it
+    assert 'data-index="../assets/search-index.json"' in header
+    assert 'data-root="../"' in header
+    assert '<a href="https://github.com/apmalong/data-finops">GitHub</a>' in header
+    assert '<a class="menu-link" href="#site-nav">Menu</a>' in header  # outside "Elsewhere"
+    assert "Public Demo" not in header  # the nav lists no such page
+
+
+def test_the_top_bar_links_the_public_demo_when_the_nav_lists_it(tmp_path: Path) -> None:
+    nav = [
+        *NAV,
+        {
+            "title": "Explanation",
+            "path": "explanation/index.html",
+            "pages": [{"title": "The Public Demo", "path": "explanation/public-demo.html"}],
+        },
+    ]
+    repo = make_repo(
+        tmp_path,
+        nav,
+        {
+            "index.html": page("Home"),
+            "how-to/index.html": page("How-to guides"),
+            "how-to/calculate.html": page("Calculate"),
+            "explanation/index.html": page("Explanation"),
+            "explanation/public-demo.html": page("The Public Demo"),
+        },
+    )
+    links = region(build(repo)["how-to/calculate.html"], "nav")
+    assert '<a href="../explanation/public-demo.html">Public Demo</a>' in links
+
+
+def test_a_section_index_is_marked_current_as_its_overview(tmp_path: Path) -> None:
+    nav = region(three_sections(tmp_path)["how-to/index.html"], "nav")
+    assert '<a href="index.html" aria-current="page">Overview</a>' in nav
+
+
+def test_the_search_index_holds_each_pages_own_text(tmp_path: Path) -> None:
+    body = (
+        '<h2 id="run">Run <code>it</code></h2>\n'
+        '<p>Splits a Billing &amp; <a href="#x">Line</a>.</p>\n'
+        '<pre class="output checked">{"calculation_run_id": "calc-1"}</pre>\n'
+        "<pre><code>curl -s http://127.0.0.1:8000/health</code></pre>\n"
+    )
+    built = three_sections(tmp_path, page("Calculate", body=body))
+    index = json.loads(built["assets/search-index.json"])
+    entry = next(e for e in index if e["path"] == "how-to/calculate.html")
+    assert entry["title"] == "Calculate"
+    assert entry["section"] == "How-to guides"
+    assert entry["headings"] == ["Run it"]
+    assert "Splits a Billing & Line." in entry["text"]  # an inline tag adds no space
+    assert "calculation_run_id" not in entry["text"]  # a command's output is not searched
+    assert "curl.exe" not in entry["text"]  # build's Windows version of a command neither
+    assert "curl -s" in entry["text"]  # the command itself is searched
+    for stamped in ("Skip to content", "On this page", "Previous:", "Nothing is released"):
+        assert stamped not in entry["text"]  # only the page's own words
+    assert [e["path"] for e in index] == [
+        "index.html",
+        "how-to/index.html",
+        "how-to/calculate.html",
+        "reference/index.html",
+        "reference/glossary.html",
+    ]
 
 
 def test_on_this_page_lists_the_pages_h2s_by_their_ids(tmp_path: Path) -> None:

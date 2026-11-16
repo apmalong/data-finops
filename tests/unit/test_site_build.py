@@ -24,7 +24,7 @@ def test_the_nav_links_relative_to_each_page_and_marks_the_current_one(tmp_path:
     assert '<a href="../index.html">Home</a>' in nav  # the home entry's title
     assert '<a href="index.html">How-to guides</a>' in nav
     assert '<a href="calculate.html" aria-current="page">Calculate</a>' in nav
-    assert nav.count("aria-current") == 1
+    assert nav.count("aria-current") == 2  # the sidebar's link and the last breadcrumb
 
 
 def test_a_page_missing_a_shared_region_fails_the_build_naming_it(tmp_path: Path) -> None:
@@ -54,7 +54,7 @@ def test_every_page_links_the_stylesheet_and_gets_a_footer_that_claims_no_more_t
         },
     )
     built = build(repo)
-    footers = {region(text, "footer") for text in built.values()}
+    footers = {region(text, "footer") for path, text in built.items() if path.endswith(".html")}
     assert len(footers) == 1
     (footer,) = footers
     for path, stylesheet in [
@@ -97,7 +97,8 @@ def test_the_committed_site_is_what_the_build_writes() -> None:
     stale = [
         path
         for path, text in build(REPO).items()
-        if (REPO / "site" / path).read_text(encoding="utf-8") != text
+        if not (REPO / "site" / path).is_file()
+        or (REPO / "site" / path).read_text(encoding="utf-8") != text
     ]
     assert not stale, f"stale pages {stale}: run `python -m scripts.site build`"
 
@@ -139,7 +140,7 @@ def test_markers_on_one_line_are_stamped(tmp_path: Path) -> None:
         },
     )
     nav = region(build(repo)["index.html"], "nav")
-    assert '<a href="how-to/index.html">How-to guides</a>' in nav
+    assert '<a href="how-to/index.html">Overview</a>' in nav
 
 
 @pytest.mark.parametrize(
