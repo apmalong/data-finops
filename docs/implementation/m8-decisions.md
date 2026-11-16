@@ -109,6 +109,14 @@ Spec 10 found that "owner" in Q112 had no meaning in GLOSSARY. Q155–Q160 were 
 | Q160 | What a link Override can point to | **Owner:** a Model Execution or a Workload Run. The other option was a Model Execution only | Owner | spec 10 |
 | Q161 | How the owner dimension is marked | A key, `owner = true`, on at most one dimension in the Cost Dimensions TOML. Without it, `override dimension --owner` exits with 2 and says to mark one | Accepted recommendation | spec 10 |
 
+## Round 9: the tickets
+
+| # | Question | Decision | Source | Recorded in |
+|---|---|---|---|---|
+| Q162 | File the spec issue and 12 tickets, with blocked-by links and an M8 milestone | Yes: spec issue #287, tickets #288–#299, milestone "M8: control plane" | Accepted recommendation | #287, plan.md |
+| Q163 | The test seams of each ticket | Agreed for all 12, as each ticket lists them | Accepted recommendation | #288–#299 |
+| Q164 | Which tickets share a PR | #288 with #289 (the CLI), and #294 with #295 (Overrides). Every other ticket has its own PR, so 10 PRs | Accepted recommendation | plan.md |
+
 ## How these decisions relate to earlier ones
 
 - **Q72 ("dimension changes should be applied going forward"):** still true for the Cost Dimensions configuration. A new version applies only to Calculation Runs after it. An override (Q108, Q112) is a different thing: an explicit correction to an open period (Q113), which the owner chose in this session.
