@@ -32,7 +32,7 @@ INDEX = [
 ]
 
 
-def _search(query: str) -> list[dict[str, Any]]:
+def _search(query: str, index: list[dict[str, Any]] | None = None) -> list[dict[str, Any]]:
     node = shutil.which("node")
     assert node, "the site's search tests need Node, as the browser runs the same script"
     script = (
@@ -41,9 +41,9 @@ def _search(query: str) -> list[dict[str, Any]]:
         " process.argv[3])));"
     )
     ran = subprocess.run(
-        [node, "-e", script, str(SITE_JS), json.dumps(INDEX), query],
+        [node, "-e", script, str(SITE_JS), json.dumps(INDEX if index is None else index), query],
         capture_output=True,
-        text=True,
+        encoding="utf-8",
         check=True,
     )
     found: list[dict[str, Any]] = json.loads(ran.stdout)
@@ -81,6 +81,16 @@ def test_a_result_has_its_title_section_and_a_snippet_around_the_match() -> None
         "section": "Explanation",
         "snippet": "Only the demo workgroup's lines are published.",
     }
+
+
+def test_a_long_snippet_is_cut_at_spaces_around_a_word_found_in_the_text() -> None:
+    long_text = " ".join(["alpha"] * 40) + " the Billing Line splits " + " ".join(["omega"] * 40)
+    page = {"path": "a.html", "title": "Lines", "section": "S", "headings": [], "text": long_text}
+    (result,) = _search("lines billing", [page])  # "lines" is only in the title
+    snippet = result["snippet"]
+    assert "Billing Line" in snippet
+    assert snippet.startswith("… alpha ") and snippet.endswith(" omega …")
+    assert len(snippet) <= 170
 
 
 def test_special_characters_match_as_text() -> None:

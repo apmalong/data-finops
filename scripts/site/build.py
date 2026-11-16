@@ -146,18 +146,25 @@ def _link(current: str, entry_path: str, title: str) -> str:
 
 def _section_of(nav: tuple[Entry, ...], path: str) -> Entry | None:
     """The top-level entry that is `path` or lists it; None for the home page."""
+    _, *sections = nav
     return next(
-        (top for top in nav[1:] if top.path == path or any(p.path == path for p in top.pages)),
+        (top for top in sections if top.path == path or any(p.path == path for p in top.pages)),
         None,
     )
+
+
+def _root_prefix(current: str, home: str) -> str:
+    """The way from `current` back to the site root, such as "../" or "./"."""
+    return _relative(current, home)[: -len(home)] or "./"
 
 
 def _nav(nav: tuple[Entry, ...], current: str) -> str:
     """The top bar, the sidebar and the breadcrumbs (#274): every section in the sidebar, each
     in a `<details>` that is open only for the current section. No script is needed."""
+    home, *sections = nav
     here = _section_of(nav, current)
     items = []
-    for section in nav[1:]:
+    for section in sections:
         if not section.pages:
             items.append(f"<li>{_link(current, section.path, section.title)}</li>")
             continue
@@ -175,17 +182,17 @@ def _nav(nav: tuple[Entry, ...], current: str) -> str:
         + _top_bar(nav, current)
         + '\n<nav class="site-nav" id="site-nav" aria-label="Site">\n'
         + f"<ul>\n{sidebar}\n</ul>\n</nav>"
-        + _breadcrumbs(nav, current, here)
+        + _breadcrumbs(home, here, next(e for e in walk(nav) if e.path == current), current)
     )
 
 
 def _top_bar(nav: tuple[Entry, ...], current: str) -> str:
     """The site name, the search box (hidden until site.js shows it) and the outside links."""
     home = nav[0]
-    root = _relative(current, home.path)[: -len(home.path)] or "./"
-    links = ['<a class="menu-link" href="#site-nav">Menu</a>', f'<a href="{SOURCE}">GitHub</a>']
+    root = _root_prefix(current, home.path)
+    links = [f'<a href="{SOURCE}">GitHub</a>']
     if any(e.path == PUBLIC_DEMO for e in walk(nav)):
-        links.insert(1, _link(current, PUBLIC_DEMO, "Public Demo"))
+        links.insert(0, _link(current, PUBLIC_DEMO, "Public Demo"))
     search = (
         f'<form class="site-search" role="search" hidden '
         f'data-index="{html.escape(_relative(current, SEARCH_INDEX))}" '
@@ -193,26 +200,27 @@ def _top_bar(nav: tuple[Entry, ...], current: str) -> str:
         '<label for="site-search-query">Search the docs</label>\n'
         '<input id="site-search-query" type="search" autocomplete="off" '
         'placeholder="Search the docs">\n'
-        '<ul class="search-results" aria-live="polite"></ul>\n</form>'
+        '<p class="search-status" role="status"></p>\n'
+        '<ul class="search-results"></ul>\n</form>'
     )
     name = html.escape(_relative(current, home.path))
     return (
         '<header class="site-header">\n'
         f'<a class="site-name" href="{name}">{html.escape(home.title)}</a>\n'
         f"{search}\n"
+        '<a class="menu-link" href="#site-nav">Menu</a>\n'
         f'<nav class="site-links" aria-label="Elsewhere">{" ".join(links)}</nav>\n'
         "</header>"
     )
 
 
-def _breadcrumbs(nav: tuple[Entry, ...], current: str, section: Entry | None) -> str:
+def _breadcrumbs(home: Entry, section: Entry | None, page: Entry, current: str) -> str:
     """Home, then the section, then the page; nothing on the home page."""
     if section is None:
         return ""
-    trail = [nav[0]] + ([section] if section.path != current else [])
-    title = next(e.title for e in walk(nav) if e.path == current)
+    trail = [home] + ([section] if section is not page else [])
     crumbs = [f"<li>{_link(current, e.path, e.title)}</li>" for e in trail]
-    crumbs.append(f'<li aria-current="page">{html.escape(title)}</li>')
+    crumbs.append(f'<li aria-current="page">{html.escape(page.title)}</li>')
     items = "\n".join(crumbs)
     return f'\n<nav class="breadcrumbs" aria-label="Breadcrumb">\n<ol>\n{items}\n</ol>\n</nav>'
 
@@ -271,7 +279,8 @@ _MAIN = re.compile(r"<main\b[^>]*>(.*)</main>", re.DOTALL)
 _H1 = re.compile(r"<h1\b[^>]*>.*?</h1>", re.DOTALL)
 _TAG = re.compile(r"<[^>]+>")
 _INLINE_TAG = re.compile(r"</?(?:a|code|em|strong|span|abbr|kbd|b|i)\b[^>]*>")
-_OUTPUT = re.compile(r'<pre\b[^>]*class="output[^"]*"[^>]*>.*?</pre>', re.DOTALL)
+# Not searched: a command's output, and the Windows version that build adds beside a command.
+_OUTPUT = re.compile(r'<pre\b[^>]*class="(?:output|shell-windows)[^"]*"[^>]*>.*?</pre>', re.DOTALL)
 _STAMPED_IN_MAIN = ("onpage", "pager", "pages")
 
 

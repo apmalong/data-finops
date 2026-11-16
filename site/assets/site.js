@@ -26,11 +26,18 @@ var DataFinopsSearch = (function () {
     return total;
   }
 
-  function snippet(text, term) {
+  // About SNIPPET characters of the text around the first query word that it holds, cut at
+  // spaces so that no word is cut in two.
+  function snippet(text, terms) {
     if (text.length <= SNIPPET) return text;
-    var at = Math.max(0, text.toLowerCase().indexOf(term) - 60);
-    var part = text.slice(at, at + SNIPPET);
-    return (at > 0 ? "… " : "") + part + (at + SNIPPET < text.length ? " …" : "");
+    var lower = text.toLowerCase();
+    var found = terms.map(function (term) { return lower.indexOf(term); })
+      .filter(function (at) { return at !== -1; });
+    var at = found.length ? Math.max(0, Math.min.apply(null, found) - 60) : 0;
+    if (at > 0) at = text.indexOf(" ", at) + 1 || at;
+    var end = Math.min(text.length, at + SNIPPET);
+    if (end < text.length) end = text.lastIndexOf(" ", end) > at ? text.lastIndexOf(" ", end) : end;
+    return (at > 0 ? "… " : "") + text.slice(at, end) + (end < text.length ? " …" : "");
   }
 
   function search(index, query) {
@@ -47,7 +54,7 @@ var DataFinopsSearch = (function () {
         path: hit.entry.path,
         title: hit.entry.title,
         section: hit.entry.section,
-        snippet: snippet(hit.entry.text, terms[0]),
+        snippet: snippet(hit.entry.text, terms),
       };
     });
   }
@@ -68,6 +75,7 @@ if (typeof module !== "undefined" && module.exports) {
   if (!form) return;
   var input = form.querySelector("input");
   var list = form.querySelector(".search-results");
+  var status = form.querySelector(".search-status");
   var root = form.getAttribute("data-root") || "./";
   var loading = null;
 
@@ -82,6 +90,8 @@ if (typeof module !== "undefined" && module.exports) {
 
   function show(results, query) {
     list.replaceChildren();
+    status.textContent = !query.trim() ? "" : results.length === 1 ? "1 page found"
+      : results.length + " pages found";
     if (!query.trim()) return;
     if (!results.length) {
       var none = document.createElement("li");
@@ -115,6 +125,7 @@ if (typeof module !== "undefined" && module.exports) {
     if (event.key === "Escape") {
       input.value = "";
       list.replaceChildren();
+      status.textContent = "";
     }
   });
   form.addEventListener("submit", function (event) {

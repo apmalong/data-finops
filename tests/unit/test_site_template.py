@@ -79,6 +79,37 @@ def test_the_top_bar_holds_the_site_name_the_search_and_the_source(tmp_path: Pat
     assert 'data-index="../assets/search-index.json"' in header
     assert 'data-root="../"' in header
     assert '<a href="https://github.com/apmalong/data-finops">GitHub</a>' in header
+    assert '<a class="menu-link" href="#site-nav">Menu</a>' in header  # outside "Elsewhere"
+    assert "Public Demo" not in header  # the nav lists no such page
+
+
+def test_the_top_bar_links_the_public_demo_when_the_nav_lists_it(tmp_path: Path) -> None:
+    nav = [
+        *NAV,
+        {
+            "title": "Explanation",
+            "path": "explanation/index.html",
+            "pages": [{"title": "The Public Demo", "path": "explanation/public-demo.html"}],
+        },
+    ]
+    repo = make_repo(
+        tmp_path,
+        nav,
+        {
+            "index.html": page("Home"),
+            "how-to/index.html": page("How-to guides"),
+            "how-to/calculate.html": page("Calculate"),
+            "explanation/index.html": page("Explanation"),
+            "explanation/public-demo.html": page("The Public Demo"),
+        },
+    )
+    links = region(build(repo)["how-to/calculate.html"], "nav")
+    assert '<a href="../explanation/public-demo.html">Public Demo</a>' in links
+
+
+def test_a_section_index_is_marked_current_as_its_overview(tmp_path: Path) -> None:
+    nav = region(three_sections(tmp_path)["how-to/index.html"], "nav")
+    assert '<a href="index.html" aria-current="page">Overview</a>' in nav
 
 
 def test_the_search_index_holds_each_pages_own_text(tmp_path: Path) -> None:
@@ -86,6 +117,7 @@ def test_the_search_index_holds_each_pages_own_text(tmp_path: Path) -> None:
         '<h2 id="run">Run <code>it</code></h2>\n'
         '<p>Splits a Billing &amp; <a href="#x">Line</a>.</p>\n'
         '<pre class="output checked">{"calculation_run_id": "calc-1"}</pre>\n'
+        "<pre><code>curl -s http://127.0.0.1:8000/health</code></pre>\n"
     )
     built = three_sections(tmp_path, page("Calculate", body=body))
     index = json.loads(built["assets/search-index.json"])
@@ -95,6 +127,8 @@ def test_the_search_index_holds_each_pages_own_text(tmp_path: Path) -> None:
     assert entry["headings"] == ["Run it"]
     assert "Splits a Billing & Line." in entry["text"]  # an inline tag adds no space
     assert "calculation_run_id" not in entry["text"]  # a command's output is not searched
+    assert "curl.exe" not in entry["text"]  # build's Windows version of a command neither
+    assert "curl -s" in entry["text"]  # the command itself is searched
     for stamped in ("Skip to content", "On this page", "Previous:", "Nothing is released"):
         assert stamped not in entry["text"]  # only the page's own words
     assert [e["path"] for e in index] == [
