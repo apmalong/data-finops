@@ -77,6 +77,29 @@ Asked with options only. The owner chose each option, so no recommendation was g
 | Q83 | Whether the publisher's role reads the Cost Dimensions file | **Owner:** no. Each Allocation records whether a dimension is sensitive. The other option was the grant that spec 09 named | Owner | spec 09 §Cost Dimensions |
 | Q84 | Whether the publisher writes the lineage of runs that are not root runs | **Owner:** yes, for each run that published cost reaches (#271). Before, a task or model run opened from a Roll-up or a Cost Explanation showed "not in the public demo" | Owner | spec 09 §The publisher |
 
+## Triage (2026-11-16)
+
+The owner triaged the open issues, oldest first. The questions were asked with options only, so no recommendation was given.
+
+| # | Question | Decision | Source | Recorded in |
+|---|---|---|---|---|
+| Q85 | Policy 3 checks spec 08's absolute bounds for the timeout and the memory, not the values that each stack sets (#201) | **Owner:** confirmed. The pack cannot read a stack's settings | Owner | spec 08 §Policy pack |
+| Q86 | The deploy wizard checks retain-on-delete on the real state after `pulumi up`, and warns instead of stopping (#203) | **Owner:** confirmed. A preview cannot show it, and the stack already exists then | Owner | the deploy wizard |
+| Q87 | The Deployment's own policies are validated with IAM Access Analyzer only after `up`, from the real state (#203) | **Owner:** confirmed | Owner | spec 08 §IAM |
+| Q88 | Teardown records `deleteDataOnDestroy` with a `pulumi up`, which also deploys the code of the checkout, after a warning (#203) | **Owner:** confirmed | Owner | the teardown wizard |
+| Q89 | How a Deployment gets more `/tmp` than Lambda's 512 MB default (#206) | **Owner:** an `ephemeralStorageMb` setting, from 512 to 10,240 MB, default 10,240, and a policy pack check that it is set (#278). The other options were a fixed 10,240 MB, a smaller Inbox cap, and a documented limit | Owner | #278 |
+| Q90 | Whether to recompute `athena-billable-usage/1` at the function level is enough for spec 03's "cut a new version rather than changing the old one" (#206) | **Owner:** yes. A Calculation Run uses the current versions, and `/1` stays callable as a function. The other options were a Calculation Run that pins a method version, and to decide later | Owner | this log |
+| Q91 | Build the Collection Run warning for Inbox objects about to expire, or drop it from spec 08 (#211) | **Owner:** build it. The summary warns about each uncollected object that S3 expires in 7 days or fewer. The other option was to drop it | Owner | #211 |
+| Q92 | What happens when a loaded bill does not reconcile with its source (#212) | **Owner:** `ingest focus` and each Collection Run reconcile each imported Export Snapshot. On a difference, the snapshot is rejected (exit code 1), and a run does not calculate on it. The other options were a warning only, and to keep reconciliation in tests and scripts | Owner | #212 |
+| Q93 | Where `Ledger.ingest_focus(path)`, one entry point for FOCUS files, is built (#214) | **Owner:** in #212, which reconciles there. The other options were to build #214 first, and to keep both separate | Owner | #212, #214 |
+| Q94 | Whether local OpenLineage files get the 512 MiB whole-file cap of Inbox files and dbt artifacts (#214) | **Owner:** yes, the same cap. The other option was no cap for local files | Owner | #214 |
+| Q95 | Whether the Cost Summary takes `calculation_run_id` and `source`, as the other snapshot reads do (#215) | **Owner:** add both. The other option was to keep it current-only | Owner | #215 |
+| Q96 | The GLOSSARY term for the SQLite file that holds the Ledger and the workload store (#216) | **Owner:** Database. The Ledger's _Avoid_ narrows to "do not call the Ledger the database". The other options were Database File and Store | Owner | #216 |
+| Q97 | How to cut #242's property-based tests | **Owner:** split. #242 keeps the accounting invariants (owner-checked oracles), and reader fuzzing is a new ticket. The other option was one ticket | Owner | #242 |
+| Q98 | Where the mutation tool of #243 runs | **Owner:** a CI workflow, weekly and on request, against a stored baseline. The other options were on request only, and locally only | Owner | #243 |
+| Q99 | The test seams of #247 | **Owner:** build's stamped HTML, and a drift test. The other option was a drift test only | Owner | #247 |
+| Q100 | Which real bill the owner computes the oracle of #244 from | **Owner:** the Public Demo's first real create-new Delivery. The other options were the #91 reference bill, and both | Owner | #244 |
+
 ## Facts the decisions rest on
 
 From the research note `docs/research/m7-aws-finops-tools.md`, checked 2026-11-07:
