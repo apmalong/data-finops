@@ -1,6 +1,6 @@
 # ADR 0027: A Deployment receives OpenLineage events and dbt artifacts by scheduled pull from S3 Inboxes
 
-Status: Accepted (design, 2026-11-06). Decides OQ-5's production ingress and ADR 0024 point 6. Research: `docs/research/m6-openlineage-ingress.md`.
+Status: Accepted (design, 2026-11-06). Decides OQ-5's production ingress and ADR 0024 point 6. Amended 2026-11-16 by ADR 0032 (below). Research: `docs/research/m6-openlineage-ingress.md`.
 
 ## Context
 ADR 0024 left production ingress to M6: "a private API behind cloud IAM, or scheduled pull". In openlineage-python 1.54.0 (and 1.55.0), the auth types of the HTTP transport are `api_key`, `jwt`, `oauth2` or a custom token provider. A token provider can only set the `Authorization` header. SigV4 signs the body and more than one header. Thus no standard client (dbt-ol, the Airflow provider) can call an `AWS_IAM` Function URL without a custom transport.
@@ -26,3 +26,8 @@ Lineage gets to the Deployment at the next Collection Run, not in real time. Cos
 - Producers require lineage in near real time.
 - More than one team requires separate credentials, in addition to IAM principals.
 - A standard client gets SigV4 or an S3 transport.
+
+## Amendment (ADR 0032, 2026-11-16)
+Ingress does not change. Producers still write to the Inbox, and the Collection Run still pulls. There is still no public ingestion endpoint.
+
+M8 adds an endpoint that is reachable from the internet: the API Gateway of the control plane (Q110). It accepts Commands and reads, from callers with IAM or a valid OIDC token. It never accepts OpenLineage events or dbt artifacts. The rejected alternative "OAuth2 client credentials against an API Gateway JWT authorizer" stays rejected for ingress. The control plane uses that authorizer for people, not for producers.
