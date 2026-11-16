@@ -221,12 +221,28 @@ def test_the_demo_stage_deploys_it_writes_the_dataset_runs_it_and_opens_it(
     _nothing_secret(result.stdout, result.stderr, record)
 
 
-def test_an_owner_cost_dimensions_file_is_kept(tmp_path: Path) -> None:
-    result, calls, record = _dry_run(DEPLOY, DEMO_ANSWERS, tmp_path, STUB_DIMENSIONS="1")
+@pytest.mark.parametrize("replace", [False, True], ids=["kept", "replaced"])
+def test_the_owner_chooses_whether_their_cost_dimensions_file_stays(
+    replace: bool, tmp_path: Path
+) -> None:
+    start = len(DEPLOY_ANSWERS) - 2
+    answers = DEMO_ANSWERS[: start + 1] + ["y" if replace else "n"] + DEMO_ANSWERS[start + 1 :]
+    result, calls, record = _dry_run(DEPLOY, answers, tmp_path, STUB_DIMENSIONS="1")
     assert result.returncode == 0, result.stdout[-2000:] + result.stderr[-2000:]
     assert "pulumi config set publicDemo true" in calls
-    assert not any(c.startswith("pulumi config set costDimensions") for c in calls)
-    assert "costDimensions is already set: kept" in record
+    replaced = [c for c in calls if c.startswith("pulumi config set costDimensions")]
+    assert len(replaced) == (1 if replace else 0)
+    assert ("costDimensions is already set: kept" in record) is not replace
+
+
+def test_without_a_collection_run_the_demo_is_still_offered(tmp_path: Path) -> None:
+    answers = list(DEPLOY_ANSWERS)
+    answers[-5] = "n"  # no to the collector; its pause follows
+    result, calls, record = _dry_run(DEPLOY, answers, tmp_path)
+    assert result.returncode == 0, result.stdout[-2000:] + result.stderr[-2000:]
+    assert not any(c.startswith("aws lambda invoke") for c in calls)
+    assert "skipped: the Collection Run" in record
+    assert "skipped: the Public Demo" in record
 
 
 @pytest.mark.parametrize("no_at", [1, 2], ids=["no to the preview", "no to pulumi up"])
