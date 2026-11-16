@@ -216,6 +216,15 @@ hide() { [[ -n "$1" ]] && SENSITIVE+=("$1|$2"); return 0; }
 hide "$LOCAL" "<local>"
 hide "$REPO" "<repo>"
 
+# hide_prefix PREFIX: hide the export's S3 prefix only where it is that prefix: in a path, or
+# as the value of the setting. A prefix is often a plain word, such as "focus", which also
+# names a source in the collector's summary.
+hide_prefix() {
+  [[ -n "$1" ]] || return 0
+  hide "exportPrefix $1" "exportPrefix <export prefix>"
+  hide "/$1/" "/<export prefix>/"
+}
+
 # hide_saved KEY...: hide each value already saved in ENV_FILE, before any command runs.
 hide_saved() {
   local key value label
@@ -258,6 +267,11 @@ need() { command -v "$1" >/dev/null 2>&1 || { warn "$1 is not installed: $2"; ex
 # native_path DIR: DIR as the operating system names it. Git Bash's own pwd says /c/Users/...,
 # which Pulumi on Windows reads as C:\c\Users\...; `pwd -W` gives C:/Users/... there.
 native_path() { (cd "$1" && { pwd -W 2>/dev/null || pwd; }); }
+
+# file_url FILE: a file:// URL for FILE that a Windows program can open. Git Bash converts a
+# /c/Users/... argument for a Windows program, but not inside file://, so the AWS CLI would
+# look for /c/Users/... and fail.
+file_url() { printf 'file://%s/%s' "$(native_path "$(dirname "$1")")" "$(basename "$1")"; }
 
 state_check() { (cd "$STACK_DIR" && uv run --frozen python -m deployment.state_check "$@"); }
 
@@ -328,7 +342,14 @@ TOTAL_STAGES=$((13 + DEMO_STAGES))
 
 banner "Deploy data-finops to AWS and verify it"
 mkdir -p "$LOCAL/pulumi"
-hide_saved DEPLOYER_PROFILE EXPORT_BUCKET EXPORT_NAME EXPORT_PREFIX WORKGROUP ALERT_EMAIL
+hide_saved DEPLOYER_PROFILE EXPORT_BUCKET EXPORT_NAME WORKGROUP ALERT_EMAIL
+hide_prefix "$(_existing EXPORT_PREFIX || true)"
+hide "$(native_path "$LOCAL")" "<local>" # the Windows form, as file_url writes it
+hide "$(native_path "$REPO")" "<repo>"
+if command -v cygpath >/dev/null 2>&1; then # and with backslashes, as uv's warnings write it
+  hide "$(cygpath -w "$LOCAL")" "<local>"
+  hide "$(cygpath -w "$REPO")" "<repo>"
+fi
 : > "$RECORD"
 
 stage "Tools"
@@ -368,7 +389,7 @@ say "IAM Access Analyzer checks a policy's grammar and flags security warnings. 
 say "the document; nothing is created."
 if confirm "Validate the draft deployer policy now?"; then
   run aws accessanalyzer validate-policy --policy-type IDENTITY_POLICY \
-    --policy-document "file://$STACK_DIR/iam/deployer-policy.draft.json" \
+    --policy-document "$(file_url "$STACK_DIR/iam/deployer-policy.draft.json")" \
     --region "$AWS_REGION_NAME" --profile "$DEPLOYER_PROFILE" \
     --query 'findings[].[findingType,issueCode]' --output text
   note "No output means no findings. Fix any ERROR before you go on."
@@ -389,7 +410,7 @@ for key in EXPORT_BUCKET EXPORT_NAME EXPORT_PREFIX WORKGROUP BUDGET_USD ALERT_EM
 done
 hide "$EXPORT_BUCKET" "<export bucket>"
 hide "$EXPORT_NAME" "<export name>"
-hide "$EXPORT_PREFIX" "<export prefix>"
+hide_prefix "${EXPORT_PREFIX:-}"
 hide "$WORKGROUP" "<workgroup>"
 hide "$ALERT_EMAIL" "<alert email>"
 ask_secret PULUMI_CONFIG_PASSPHRASE "Passphrase for the stack's state (chosen now, needed every time; not saved):"
@@ -460,7 +481,7 @@ if confirm "Check the Deployment's IAM and bucket policies with IAM Access Analy
     else
       kind=(--policy-type IDENTITY_POLICY)
     fi
-    run aws accessanalyzer validate-policy "${kind[@]}" --policy-document "file://$document" \
+    run aws accessanalyzer validate-policy "${kind[@]}" --policy-document "$(file_url "$document")" \
       --region "$AWS_REGION_NAME" --profile "$DEPLOYER_PROFILE" \
       --query 'findings[].[findingType,issueCode]' --output text
   done

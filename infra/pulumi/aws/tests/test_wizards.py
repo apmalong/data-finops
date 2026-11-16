@@ -3,6 +3,7 @@ neither AWS nor Pulumi and shows nothing it must mask. The owner runs them; no t
 runs them for real."""
 
 import os
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -186,7 +187,27 @@ def test_the_deploy_wizard_dry_run_reaches_no_real_tool_and_masks_its_output(
     )
     assert "pulumi did stack in <account>" in record  # masked by its label, not only the pattern
     assert "<bucket>" in record and "<deployer profile>" in record
+    # The prefix "focus" is masked where it is the prefix, not where the word names a source.
+    assert "pulumi config set exportPrefix <export prefix>" in record
+    assert '"sources":{"focus":' in record
+    # uv's warnings name the repository with backslashes on Windows: masked too.
+    assert str(WIZARDS.parents[3]) not in record and "<repo>" in record
     _nothing_secret(result.stdout, result.stderr, record)
+
+
+def test_each_file_url_names_the_file_as_the_operating_system_does(tmp_path: Path) -> None:
+    # Git Bash converts /c/Users/... in an argument for a Windows program, but not inside
+    # file://. The AWS CLI on Windows then cannot open the file (found in the owner's run).
+    result, calls, record = _dry_run(DEPLOY, DEPLOY_ANSWERS, tmp_path)
+    assert result.returncode == 0, result.stdout[-2000:] + result.stderr[-2000:]
+    assert "file://<repo>/infra/pulumi/aws/iam/deployer-policy.draft.json" in record  # masked
+    urls = [arg for c in calls for arg in c.split() if arg.startswith("file://")]
+    assert len(urls) == 2  # the draft policy, and one deployed policy
+    native = r"[A-Za-z]:/" if os.name == "nt" else "/"  # C:/Users/..., never /c/ or /tmp/
+    for url in urls:
+        assert re.match(native, url.removeprefix("file://")), url
+    draft = next(u for u in urls if u.endswith("deployer-policy.draft.json"))
+    assert Path(draft.removeprefix("file://")).is_file()
 
 
 def test_without_a_yes_to_the_demo_the_wizard_sets_nothing_of_it(tmp_path: Path) -> None:

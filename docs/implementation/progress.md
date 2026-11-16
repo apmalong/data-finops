@@ -338,3 +338,20 @@ On the owner's instruction ("complete the remaining issues", with their AWS sess
 ## Architectural drift review and M7 design (2026-11-07 to 2026-11-09)
 - **Drift review (#207, PR #217):** every mismatch between the written architecture and the code is in `docs/research/architecture-drift-2026-11.md`, with how each was handled. Doc-only drift was fixed. Stricter import-boundary tests were added, and two tests that keep the boundaries document and AGENTS.md in step with `src/`. Code changes and decisions are #208–#216, and the Inbox cap's interplay with `/tmp` is on #206.
 - **M7 design (PRs #218, #219):** spec 09 and ADRs 0029–0031; the owner's decisions Q53–Q72 are in `m7-decisions.md`; research in `docs/research/m7-aws-finops-tools.md` and `m7-attribution-precedents.md`. Spec issue #220. Nothing is built or deployed yet.
+
+## M7: the owner's deploy of the Deployment and the Public Demo (2026-11-15, #231)
+The owner ran `deploy-and-verify.sh` against their account, in `us-east-1`. The masked record is `.local/deploy-and-verify-record.txt`, which is git-ignored. This is its summary, with the same masking: `<account>`, `<bucket>` and the profile are not shown.
+
+- **Pulumi 3.272.0.** IAM Access Analyzer gave one finding on the draft deployer policy: `SUGGESTION REDUNDANT_ACTION`. There were no findings on the deployed policies (the bucket policy, and the collector, API, producer, reader and scheduler policies).
+- **The Deployment:** the preview showed 25 to create, with only advisory policy notes ("can't be known during preview"). `pulumi up`: 25 created in 1m4s, policy pack ✅. The destroy check: `ok` (only the bucket and its settings are kept).
+- **The first Collection Run:** `exit_code 0`. All sources were read, and none failed. Two warnings: "billing_period=2026-10 / 2026-11: an overwrite-mode Delivery is refused". The owner's FOCUS export was in overwrite mode. The owner changed it to create new files, and the next Delivery is in that mode. The API answered `/health` with `{"status":"ok"}`, and `/v1/costs/summary` with no summaries yet.
+- **The Public Demo:** `publicDemo true`, and `costDimensions` set to `examples/public-demo/cost-dimensions.toml`.
+  - `pulumi up`: 38 created and 2 updated (the collector's policy and environment) in 2m48s, policy pack ✅. The CloudFront distribution took 159 s.
+  - The generator wrote 13 files, 382,087,367 bytes. The simulator ran 3 DAG runs, none failed, with 22 queries.
+  - A collector run then stored 14 dbt artifacts, 66 OpenLineage events and 22 Athena queries. It calculated nothing yet, because no create-new Delivery has arrived.
+  - `demoUrl`: https://d1qumy1toc5b1v.cloudfront.net/. It loads the dashboard, with no Allocation Snapshot yet.
+- **Found on the way, and fixed in the wizard:**
+  - Stage 3 failed on Windows. Git Bash does not convert `/c/Users/…` inside `file://`, so the AWS CLI could not open the draft policy. The wizard now builds `file://` URLs from the native path.
+  - The mask replaced the export prefix, a plain word, also where it named a source in the summary. It now masks the prefix only as a path or as the setting's value.
+  - `uv`'s warnings named the repository with backslashes, which the mask did not cover. It does now.
+- **Still open for #231's exit:** `demoUrl` must load a Demo Snapshot less than 48 hours old, after the first Collection Run that finds the demo's charges in a create-new Delivery.
