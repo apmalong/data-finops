@@ -259,6 +259,11 @@ need() { command -v "$1" >/dev/null 2>&1 || { warn "$1 is not installed: $2"; ex
 # which Pulumi on Windows reads as C:\c\Users\...; `pwd -W` gives C:/Users/... there.
 native_path() { (cd "$1" && { pwd -W 2>/dev/null || pwd; }); }
 
+# file_url FILE: a file:// URL for FILE that a Windows program can open. Git Bash converts a
+# /c/Users/... argument for a Windows program, but not inside file://, so the AWS CLI would
+# look for /c/Users/... and fail.
+file_url() { printf 'file://%s/%s' "$(native_path "$(dirname "$1")")" "$(basename "$1")"; }
+
 state_check() { (cd "$STACK_DIR" && uv run --frozen python -m deployment.state_check "$@"); }
 
 # with_state CHECK ARGS...: one deployment.state_check check on the current stack's exported
@@ -329,6 +334,8 @@ TOTAL_STAGES=$((13 + DEMO_STAGES))
 banner "Deploy data-finops to AWS and verify it"
 mkdir -p "$LOCAL/pulumi"
 hide_saved DEPLOYER_PROFILE EXPORT_BUCKET EXPORT_NAME EXPORT_PREFIX WORKGROUP ALERT_EMAIL
+hide "$(native_path "$LOCAL")" "<local>" # the Windows form, as file_url writes it
+hide "$(native_path "$REPO")" "<repo>"
 : > "$RECORD"
 
 stage "Tools"
@@ -368,7 +375,7 @@ say "IAM Access Analyzer checks a policy's grammar and flags security warnings. 
 say "the document; nothing is created."
 if confirm "Validate the draft deployer policy now?"; then
   run aws accessanalyzer validate-policy --policy-type IDENTITY_POLICY \
-    --policy-document "file://$STACK_DIR/iam/deployer-policy.draft.json" \
+    --policy-document "$(file_url "$STACK_DIR/iam/deployer-policy.draft.json")" \
     --region "$AWS_REGION_NAME" --profile "$DEPLOYER_PROFILE" \
     --query 'findings[].[findingType,issueCode]' --output text
   note "No output means no findings. Fix any ERROR before you go on."
@@ -460,7 +467,7 @@ if confirm "Check the Deployment's IAM and bucket policies with IAM Access Analy
     else
       kind=(--policy-type IDENTITY_POLICY)
     fi
-    run aws accessanalyzer validate-policy "${kind[@]}" --policy-document "file://$document" \
+    run aws accessanalyzer validate-policy "${kind[@]}" --policy-document "$(file_url "$document")" \
       --region "$AWS_REGION_NAME" --profile "$DEPLOYER_PROFILE" \
       --query 'findings[].[findingType,issueCode]' --output text
   done
