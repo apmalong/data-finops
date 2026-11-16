@@ -30,8 +30,10 @@ LOG_RETENTION_DAYS = frozenset(
      2922, 3288, 3653}
 )  # fmt: skip
 """The retention periods CloudWatch Logs accepts (PutRetentionPolicy)."""
-KMS_KEY_ARN = re.compile(r"arn:aws[a-z-]*:kms:")
-"""A KMS key ARN in any partition (aws, aws-us-gov, aws-cn)."""
+KMS_KEY_ARN = re.compile(r"arn:aws[a-z-]*:kms:[a-z0-9-]+:\d{12}:key/[A-Za-z0-9-]+")
+"""A KMS key ARN in any partition (aws, aws-us-gov, aws-cn), with no wildcard and no alias:
+IAM grants the use of a key only on its key ARN. The policy pack's `KMS_KEY` is the same
+pattern (#270)."""
 
 CONFIG_KEYS: dict[str, str] = {
     "region": "aws:region",
@@ -145,7 +147,9 @@ class Settings:
     """How long an object stays in the Inbox, in days, before S3 expires it."""
     kms_key_arn: str | None = None
     """An optional customer-managed KMS key ARN to encrypt the bucket with, at about $1 a
-    month. Unset, the bucket uses the S3-managed key."""
+    month. Use the key ARN, `arn:aws:kms:<region>:<account>:key/<key id>`. An alias ARN is
+    refused, because IAM gives the use of a key only on its key ARN. Unset, the bucket uses
+    the S3-managed key."""
     explanation_detail: str = DEFAULT_EXPLANATION_DETAIL
     """How much the API's Cost Explanations show: `minimal` or `full` (ADR 0028)."""
     budget: Budget | None = None
@@ -188,7 +192,7 @@ class Settings:
             raise SettingsError("apiReservedConcurrency must be a whole number, at least 0")
         if self.log_retention_days not in LOG_RETENTION_DAYS:
             raise SettingsError("logRetentionDays must be a retention CloudWatch Logs accepts")
-        if self.kms_key_arn is not None and not KMS_KEY_ARN.match(self.kms_key_arn):
+        if self.kms_key_arn is not None and not KMS_KEY_ARN.fullmatch(self.kms_key_arn):
             raise SettingsError("kmsKeyArn must be a KMS key ARN")
         if self.explanation_detail not in ("minimal", "full"):
             raise SettingsError("explanationDetail must be one of full, minimal")

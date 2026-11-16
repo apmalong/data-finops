@@ -11,6 +11,7 @@ state (spec 08 seam 7b).
 """
 
 import json
+import re
 from collections import Counter
 from collections.abc import Callable
 from typing import Any
@@ -72,7 +73,7 @@ POLICY_ACTIONS: dict[str, frozenset[str]] = {
     | LOGS,
     "api": frozenset({"s3:GetObject", "s3:ListBucket", "kms:Decrypt"}) | LOGS,
     "scheduler": frozenset({"lambda:InvokeFunction"}),
-    "producer": frozenset({"s3:PutObject"}),
+    "producer": frozenset({"s3:PutObject", "kms:GenerateDataKey"}),
     "reader": frozenset({"lambda:InvokeFunctionUrl", "lambda:InvokeFunction"}),
     "generator": frozenset({"s3:PutObject"}) | LOGS,
     "simulator": frozenset(
@@ -97,6 +98,9 @@ POLICY_ACTIONS: dict[str, frozenset[str]] = {
 """Each Deployment policy, by the suffix of its name (`deployment.compute`, `deployment.demo`),
 and every action spec 08 §IAM and spec 09 grant it. A policy named otherwise is a
 violation, so a rename fails closed."""
+KMS_KEY = re.compile(r"arn:aws[a-z-]*:kms:[a-z0-9-]+:\d{12}:key/[A-Za-z0-9-]+")
+"""A KMS key's ARN, in any partition, with no wildcard. A `kms:` action names only such keys.
+`deployment.settings.KMS_KEY_ARN` is the same pattern."""
 DEMO_WORKGROUP = "data-finops-demo"
 """The only workgroup the simulator may run queries in (spec 09; `deployment.settings`)."""
 RULED_OUT = (
@@ -227,6 +231,10 @@ def _least_privilege(args: ResourceValidationArgs, report: Report) -> None:
                 report(f"{action} is not an action the {kind} policy is granted (spec 08 §IAM)")
             elif any(_wildcard(resource) for resource in _strings(statement.get("Resource"))):
                 report(f"{action} is allowed on a wildcard resource")
+            elif action.startswith("kms:") and not all(
+                KMS_KEY.fullmatch(r) for r in _strings(statement.get("Resource"))
+            ):
+                report(f"{action} is allowed only on a KMS key")
             elif action.startswith("athena:") and kind == "simulator":
                 outside = [
                     r

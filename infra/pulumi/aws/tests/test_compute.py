@@ -76,6 +76,16 @@ def _policy_of(role_name: str) -> dict[str, Any]:
     return found
 
 
+def _managed_policy_of(suffix: str) -> dict[str, Any]:
+    (policy,) = [
+        json.loads(p.inputs["policy"])
+        for p in MOCKS.of_type("aws:iam/policy:Policy")
+        if p.name.endswith(suffix)
+    ]
+    found: dict[str, Any] = policy
+    return found
+
+
 def _actions(policy: dict[str, Any], effect: str = "Allow") -> dict[str, Any]:
     """Each allowed (or denied) action with the resources it is granted on."""
     granted: dict[str, Any] = {}
@@ -239,6 +249,11 @@ def test_a_customer_key_lets_both_functions_use_it() -> pulumi.Output[None]:
     def check() -> None:
         assert _actions(_policy_of("collector"))["kms:GenerateDataKey"] == [key]
         assert _actions(_policy_of("api"))["kms:Decrypt"] == [key]
+        # S3 needs kms:GenerateDataKey for each SSE-KMS write, so a producer gets it too (#270).
+        assert _actions(_managed_policy_of("producer")) == {
+            "s3:PutObject": ["arn:aws:s3:::mock-deployment-bucket/inbox/*"],
+            "kms:GenerateDataKey": [key],
+        }
 
     return _after(dataclasses.replace(SETTINGS, kms_key_arn=key), check)
 
@@ -248,12 +263,8 @@ def test_producers_may_only_put_into_the_inbox_and_readers_only_call_the_url() -
     None
 ]:
     def check() -> None:
-        policies = {
-            p.name: json.loads(p.inputs["policy"]) for p in MOCKS.of_type("aws:iam/policy:Policy")
-        }
-        producer = next(v for k, v in policies.items() if k.endswith("producer"))
-        reader = next(v for k, v in policies.items() if k.endswith("reader"))
-        assert _actions(producer) == {
+        reader = _managed_policy_of("reader")
+        assert _actions(_managed_policy_of("producer")) == {
             "s3:PutObject": ["arn:aws:s3:::mock-deployment-bucket/inbox/*"]
         }
         # Since October 2025 a function URL needs both actions (AWS, "Control access to Lambda
