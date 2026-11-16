@@ -74,7 +74,7 @@ The dbt comment at the very start of a query's text that names the dbt Node and 
 _Avoid_: query tag, query header
 
 **Link Outcome**:
-What became of an attempt to link a workload identity: linked (exactly one counterpart), no evidence, unmatched (Evidence names a counterpart nobody reported) or ambiguous (more than one candidate). Only linked makes an Identity Link.
+What became of an attempt to link a workload identity: linked (exactly one counterpart), override (a person recorded the link with an Override), no evidence, unmatched (Evidence names a counterpart nobody reported) or ambiguous (more than one candidate). Only linked and override make an Identity Link.
 _Avoid_: match status, correlation result
 
 ## Lineage
@@ -200,9 +200,33 @@ _Avoid_: cache, export
 The scheduled function that plays Airflow and dbt for the Public Demo. It runs believable DAGs whose models issue real Athena queries with real Trusted Query Comments. It writes their OpenLineage events and dbt artifacts to the Inbox (ADR 0030).
 _Avoid_: fake Airflow, mock workload
 
+## Control plane
+
+**Control Plane**:
+The CLI commands, API routes and Deployment Dashboard actions that configure, run, inspect and correct a local Database or a Deployment (ADR 0032).
+_Avoid_: admin panel, management API
+
+**Command**:
+One recorded request to change what data-finops holds or does, such as a run, a new Cost Dimensions version or an Override. The collector applies it, or rejects it with a reason. It is never changed after it is written.
+_Avoid_: job, request (alone), action (alone)
+
+**Override**:
+A recorded replacement of one input of a Calculation Run, a Cost Dimension value or an Identity Link, for one open Billing Period or from a period onward. It never changes a billed amount.
+_Avoid_: adjustment (that is a Billing Line), manual allocation, correction (alone)
+
+**Control Role**:
+What a person or principal can do in the Control Plane: reader, consumer or operator.
+_Avoid_: permission level, user type
+
+**Deployment Dashboard**:
+The dashboard of one Deployment, served behind a sign-in, with the actions of the viewer's Control Role. It is not the Public Demo.
+_Avoid_: hosted dashboard, admin console
+
 ## Flagged ambiguities
 
 - "Query cost" implies an exact per-query price that providers do not bill. Say "Allocation to a Query Execution" and state its Confidence.
+- "Consumer" is a Control Role. The Allocation Target _Avoid_ line uses "consumer" for a data consumer as a target, which is a different thing.
+- "Owner" is not a term (Q156). `override dimension --owner` names the Cost Dimension that the configuration marks as the owner.
 - "Unknown" is used in fixtures as a target name. The domain term is Unallocated.
 - `no_evidence` names two things: a Link Outcome (a Query Execution without a Trusted Query Comment) and an Unallocated reason (a shared pool with no positive weight, #86). They never meet: Link Outcomes describe Identity Links, Unallocated reasons describe money. Say which one you mean.
 - **Lineage Edge** was defined as a Workload Run's read or write of a Data Asset "or between two Data Assets". Only run-to-asset edges are stored (`contracts.workload.LineageEdge`), so the definition was narrowed to them (#207). Column-level lineage is the eventual goal (owner, 2026-11-07). It will require its own design and terms.

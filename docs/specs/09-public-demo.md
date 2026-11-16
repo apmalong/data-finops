@@ -47,7 +47,7 @@ The Deployment must not contain code that is not vetted. These tickets go first:
 - **Reads:** `GET /v1/rollups/dimensions/{name}` returns a page of values, with their amounts for each Cost Basis and how the source of each value splits.
   - The total of each dimension, which includes `unassigned`, is equal to the total of the snapshot.
   - The dashboard gets a dimension view, in both data sources.
-- **A Deployment:** the setting `costDimensions` holds the path of the file.
+- **A Deployment:** the setting `costDimensions` holds the path of the file. M8 replaces this with versioned objects that the CLI owns (spec 10).
   - The stack uploads the file to `config/cost-dimensions.toml` in the bucket of the Deployment. The reason is that the settings of the collector go in an environment variable, which is limited to 4 KB.
   - Only the role of the collector can read that object. The publisher does not need it, because each Allocation records whether a dimension is sensitive (Q83).
   - The collector reads the object before it collects anything. If the object cannot be read or used, the run stops, and the error names the key, never the content.

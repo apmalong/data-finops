@@ -1,6 +1,6 @@
 # ADR 0026: The AWS deployment is two Lambda functions without a VPC, which share one SQLite file in S3
 
-Status: Accepted (design, 2026-11-06). Decides OQ-5's topology for M6. Research: `docs/research/m6-aws-topology.md`, `docs/research/m6-pulumi-components-policies.md`. Amended 2026-11-07 by ADR 0029: the public demo's dashboard is hosted as a static snapshot.
+Status: Accepted (design, 2026-11-06). Decides OQ-5's topology for M6. Research: `docs/research/m6-aws-topology.md`, `docs/research/m6-pulumi-components-policies.md`. Amended 2026-11-07 by ADR 0029: the public demo's dashboard is hosted as a static snapshot. Amended 2026-11-16 by ADR 0032: the control plane (below).
 
 ## Context
 M6 deploys data-finops to one AWS account with Pulumi Python (ADR 0002): scheduled read-only ingestion, a private API, encrypted storage and cost limits. Spec 05 rules out a mandatory VPC, NAT, RDS, Marquez or Kubernetes. The store is one SQLite file in WAL mode with one writer (ADR 0018), and sqlite.org says WAL does not work over a network filesystem. EFS and S3 Files both require a VPC, and Mountpoint for S3 cannot modify files. App Runner closed to new customers on 2026-04-30.
@@ -33,3 +33,9 @@ Each Collection Run moves the whole database file in and out of S3. At about a m
 Point 2's "one Calculation Run": the collector runs one per Snapshot Scope (`collection.run`), as spec 08 says.
 
 The "10 GB `/tmp` ceiling" of the consequences is the Lambda maximum. No function sets ephemeral storage yet. Thus today `/tmp` is the Lambda default of 512 MB. It holds the database copy, and the Inbox file that the run collects at that time (each can be up to 512 MiB, ADR 0027). Thus the database must stay well below 512 MB (#206). A database over 5 GB, one `PutObject`, is a further revisit trigger (multipart upload, spec 08).
+
+## Amendment (ADR 0032, 2026-11-16)
+M8's control plane changes three points. Spec 10 has the details.
+- **Point 2:** the collector is still the only writer, and the conditional write stays. It now also applies Commands, and a Command starts a full Collection Run. The collector gets a reserved concurrency of 1, so Commands wait in turn (Q123). An account without the quota gets a debounce, and the deploy record warns (Q126).
+- **Point 3:** an API Gateway HTTP API replaces the Function URL (Q110, Q125). IAM authorizes the reader and operator routes, and a JWT authorizer authorizes the OIDC routes. The API can now write Commands, but never the Database. A Deployment Dashboard is served from CloudFront, with sign-in (Q127).
+- **Point 4:** the bucket also holds Commands under `commands/` and the versions of the Cost Dimensions under `config/`. Object Lock is turned on for it, with no default retention (Q144).

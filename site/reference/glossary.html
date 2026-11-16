@@ -100,6 +100,7 @@
 <li><a href="#area-allocation">Allocation</a></li>
 <li><a href="#area-reconciliation">Reconciliation</a></li>
 <li><a href="#area-deployment">Deployment</a></li>
+<li><a href="#area-control-plane">Control plane</a></li>
 <li><a href="#area-flagged-ambiguities">Flagged ambiguities</a></li>
 </ul>
 </nav>
@@ -163,7 +164,7 @@
 <dd>The dbt comment at the very start of a query&#x27;s text that names the dbt Node and invocation that issued it. A comment anywhere else in the text is not Evidence.</dd>
 <dd class="avoid">Avoid: query tag, query header</dd>
 <dt id="link-outcome">Link Outcome</dt>
-<dd>What became of an attempt to link a workload identity: linked (exactly one counterpart), no evidence, unmatched (Evidence names a counterpart nobody reported) or ambiguous (more than one candidate). Only linked makes an Identity Link.</dd>
+<dd>What became of an attempt to link a workload identity: linked (exactly one counterpart), override (a person recorded the link with an Override), no evidence, unmatched (Evidence names a counterpart nobody reported) or ambiguous (more than one candidate). Only linked and override make an Identity Link.</dd>
 <dd class="avoid">Avoid: match status, correlation result</dd>
 </dl>
 <h2 id="area-lineage">Lineage</h2>
@@ -264,9 +265,29 @@
 <dd>The scheduled function that plays Airflow and dbt for the Public Demo. It runs believable DAGs whose models issue real Athena queries with real Trusted Query Comments. It writes their OpenLineage events and dbt artifacts to the Inbox (ADR 0030).</dd>
 <dd class="avoid">Avoid: fake Airflow, mock workload</dd>
 </dl>
+<h2 id="area-control-plane">Control plane</h2>
+<dl>
+<dt id="control-plane">Control Plane</dt>
+<dd>The CLI commands, API routes and Deployment Dashboard actions that configure, run, inspect and correct a local Database or a Deployment (ADR 0032).</dd>
+<dd class="avoid">Avoid: admin panel, management API</dd>
+<dt id="command">Command</dt>
+<dd>One recorded request to change what data-finops holds or does, such as a run, a new Cost Dimensions version or an Override. The collector applies it, or rejects it with a reason. It is never changed after it is written.</dd>
+<dd class="avoid">Avoid: job, request (alone), action (alone)</dd>
+<dt id="override">Override</dt>
+<dd>A recorded replacement of one input of a Calculation Run, a Cost Dimension value or an Identity Link, for one open Billing Period or from a period onward. It never changes a billed amount.</dd>
+<dd class="avoid">Avoid: adjustment (that is a Billing Line), manual allocation, correction (alone)</dd>
+<dt id="control-role">Control Role</dt>
+<dd>What a person or principal can do in the Control Plane: reader, consumer or operator.</dd>
+<dd class="avoid">Avoid: permission level, user type</dd>
+<dt id="deployment-dashboard">Deployment Dashboard</dt>
+<dd>The dashboard of one Deployment, served behind a sign-in, with the actions of the viewer&#x27;s Control Role. It is not the Public Demo.</dd>
+<dd class="avoid">Avoid: hosted dashboard, admin console</dd>
+</dl>
 <h2 id="area-flagged-ambiguities">Flagged ambiguities</h2>
 <ul>
 <li>&quot;Query cost&quot; implies an exact per-query price that providers do not bill. Say &quot;Allocation to a Query Execution&quot; and state its Confidence.</li>
+<li>&quot;Consumer&quot; is a Control Role. The Allocation Target _Avoid_ line uses &quot;consumer&quot; for a data consumer as a target, which is a different thing.</li>
+<li>&quot;Owner&quot; is not a term (Q156). <code>override dimension --owner</code> names the Cost Dimension that the configuration marks as the owner.</li>
 <li>&quot;Unknown&quot; is used in fixtures as a target name. The domain term is Unallocated.</li>
 <li><code>no_evidence</code> names two things: a Link Outcome (a Query Execution without a Trusted Query Comment) and an Unallocated reason (a shared pool with no positive weight, #86). They never meet: Link Outcomes describe Identity Links, Unallocated reasons describe money. Say which one you mean.</li>
 <li>**Lineage Edge** was defined as a Workload Run&#x27;s read or write of a Data Asset &quot;or between two Data Assets&quot;. Only run-to-asset edges are stored (<code>contracts.workload.LineageEdge</code>), so the definition was narrowed to them (#207). Column-level lineage is the eventual goal (owner, 2026-11-07). It will require its own design and terms.</li>

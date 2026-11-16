@@ -1,6 +1,6 @@
 # ADR 0031: Cost Dimensions are organization-configured claims, recorded on Allocations
 
-Status: Accepted (design, 2026-11-09). Decides M7's attribution configuration (Q70, Q71). Applies OQ-11's "tenants … deferred as separately reconciled views". Keeps ADR 0006 and ADR 0016.
+Status: Accepted (design, 2026-11-09). Decides M7's attribution configuration (Q70, Q71). Applies OQ-11's "tenants … deferred as separately reconciled views". Keeps ADR 0006 and ADR 0016. Amended 2026-11-16 by ADR 0032 (below).
 
 ## Context
 Which attributes matter is different in every organization: team, tenant, cost center, DAG run. The practice is well established. Query tags on Snowflake, job labels on BigQuery and query comments on Athena carry those attributes from dbt and the orchestrator. No tool that we found takes them from the orchestrator, through the query, to the bill, and reconciles the result. Each tool covers a part (`docs/research/m7-attribution-precedents.md`).
@@ -33,3 +33,8 @@ Today, data-finops reads only `node_id` and `invocation_id` from a comment, and 
 - A second query engine requires comments at the end of a query, or job labels.
 - Organizations require a split of the cost of one query across more than one value.
 - Sensitive values must be hashed rather than withheld.
+
+## Amendment (ADR 0032, 2026-11-16)
+- **Point 1:** the TOML file stays the format. In a Deployment, each version of it is its own object, with a version number and a content hash. `deploy` seeds version 1 from the `costDimensions` setting one time, and `dimensions set` makes each later version (Q136). Each Allocation records the version it used.
+- **Point 5:** unchanged. A new version applies only to later snapshots, and is not, by itself, a reason to calculate (Q72).
+- **Overrides are a different thing.** An Override replaces a dimension value for an open Billing Period (Q112, Q113). Its id is part of the input digest, so it makes a new Allocation Snapshot for that period. It never reaches into a closed period.

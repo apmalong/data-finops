@@ -95,12 +95,27 @@ The owner's brief (2026-11-16): "i guess we need to think about what the control
 | Q153 | The default limit on waiting commands for each principal | 20, as a setting | Accepted recommendation | spec 10 |
 | Q154 | Where these decisions are recorded | This log, before spec 10 and the ADRs | Accepted recommendation | this log |
 
+## Round 8: what an Override of the owner changes (OQ-26)
+
+Spec 10 found that "owner" in Q112 had no meaning in GLOSSARY. Q155–Q160 were asked with options only. Q161 was asked with a recommendation.
+
+| # | Question | Decision | Source | Recorded in |
+|---|---|---|---|---|
+| Q155 | What `override owner` changes (OQ-26) | **Owner:** both: a Cost Dimension that the configuration marks as the owner, and an Identity Link. The other options were each one alone | Owner | spec 10, ADR 0006 amendment |
+| Q156 | The names of the two commands | **Owner:** `override dimension --owner`, a shortcut, and `override link`. "Owner" is not a GLOSSARY term. The other option was `override owner` and a defined term | Owner | spec 10 |
+| Q157 | Who can create a link Override | **Owner:** consumers too, as for a dimension Override (Q111). The other option was operators only | Owner | spec 10 |
+| Q158 | What a link Override can do to an existing link | **Owner:** replace any link, including one that a Trusted Query Comment makes. The other options were to fill gaps only, and to fill gaps by default with `--replace` for operators | Owner | spec 10, ADR 0006 amendment |
+| Q159 | How an Allocation shows a link Override | **Owner:** a new Link Outcome, `override`. The Allocation keeps its Confidence, and its Evidence names the Override id and its principal. The other option was a lower Confidence too | Owner | ADR 0006 amendment, GLOSSARY |
+| Q160 | What a link Override can point to | **Owner:** a Model Execution or a Workload Run. The other option was a Model Execution only | Owner | spec 10 |
+| Q161 | How the owner dimension is marked | A key, `owner = true`, on at most one dimension in the Cost Dimensions TOML. Without it, `override dimension --owner` exits with 2 and says to mark one | Accepted recommendation | spec 10 |
+
 ## How these decisions relate to earlier ones
 
 - **Q72 ("dimension changes should be applied going forward"):** still true for the Cost Dimensions configuration. A new version applies only to Calculation Runs after it. An override (Q108, Q112) is a different thing: an explicit correction to an open period (Q113), which the owner chose in this session.
 - **ADR 0027 and AGENTS.md §Security ("no public endpoint"):** Q110 and Q131 change this for a Deployment's API. The ADR 0027 amendment records it, and AGENTS.md changes with it.
 - **ADR 0029 and Q61 ("no public compute, no public API"):** unchanged for the Public Demo (Q128).
 - **plan.md, Deferred ("enterprise auth"):** Q105 and Q118 bring an OIDC sign-in into M8. Other enterprise auth stays deferred.
+- **ADR 0006 (explicit identity Evidence):** Q155–Q160 make an applied link Override a kind of Evidence. The ADR 0006 amendment records it. Time overlap is still never Evidence.
 - **ADR 0026 (the collector is the only writer, through a conditional write):** kept. Q109, Q114, Q123 and Q126 add commands, reserved concurrency and the debounce fallback.
 
 ## Facts the decisions rest on

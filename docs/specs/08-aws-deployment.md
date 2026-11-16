@@ -1,6 +1,6 @@
 # AWS deployment (M6)
 
-Decided in the M6 design session (2026-11-06). Each owner decision is logged in `docs/implementation/m6-decisions.md`. The topology is in ADR 0026, the ingress is in ADR 0027, and the deployed Cost Explanation is in ADR 0028. Research notes: `docs/research/m6-aws-topology.md`, `m6-openlineage-ingress.md`, `m6-collector-iam.md`, `m6-pulumi-components-policies.md`. The terms (Deployment, Collection Run, Inbox, Collection Watermark) are in GLOSSARY.md.
+Decided in the M6 design session (2026-11-06). Each owner decision is logged in `docs/implementation/m6-decisions.md`. The topology is in ADR 0026, the ingress is in ADR 0027, and the deployed Cost Explanation is in ADR 0028. Research notes: `docs/research/m6-aws-topology.md`, `m6-openlineage-ingress.md`, `m6-collector-iam.md`, `m6-pulumi-components-policies.md`. The terms (Deployment, Collection Run, Inbox, Collection Watermark) are in GLOSSARY.md. M8 changes the API, the bucket, IAM and the wizards: spec 10 and ADR 0032.
 
 ## Scope
 Reusable, customer-managed Pulumi Python components that deploy data-finops into **one** AWS account. That account holds the FOCUS export bucket, the Athena workgroups and the Deployment. There is one example stack. Cross-account reads, multi-account aggregation, a hosted dashboard and enterprise authentication are out of scope.

@@ -21,3 +21,9 @@ ADRs 0029–0031 record M7:
 - the public demo as a static snapshot of the read model behind CloudFront
 - a simulated orchestrator that drives it with real Athena queries
 - Cost Dimensions: configured claims recorded on Allocations
+
+ADR 0032 records M8's control plane:
+- Commands that the collector applies
+- an API Gateway with IAM and OIDC
+- Overrides and versioned Cost Dimensions
+- an audit trail under Object Lock
