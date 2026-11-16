@@ -233,6 +233,44 @@ def test_each_policy_may_allow_its_own_actions() -> None:
     )
     producer = _document(_allow("s3:PutObject", "arn:aws:s3:::b/inbox/*"))
     assert _iam(producer, "data-finops-producer", MANAGED_POLICY) == []
+    with_key = _document(
+        _allow("s3:PutObject", "arn:aws:s3:::b/inbox/*"),
+        _allow("kms:GenerateDataKey", KEY),
+    )
+    assert _iam(with_key, "data-finops-producer", MANAGED_POLICY) == []
+
+
+KEY = "arn:aws:kms:us-east-1:123456789012:key/example"
+
+
+@pytest.mark.parametrize(
+    ("name", "action"),
+    [
+        ("data-finops-producer", "kms:GenerateDataKey"),
+        ("data-finops-collector", "kms:Decrypt"),
+        ("data-finops-api", "kms:Decrypt"),
+    ],
+)
+def test_a_key_action_is_allowed_only_on_a_kms_key(name: str, action: str) -> None:
+    on_the_inbox = _document(_allow(action, ["arn:aws:s3:::b/inbox/*"]))
+    assert _iam(on_the_inbox, name) == [f"{action} is allowed only on a KMS key"]
+    assert _iam(_document(_allow(action, KEY)), name) == []
+
+
+@pytest.mark.parametrize(
+    "resource",
+    [
+        "arn:aws:kms:us-east-1:123456789012:key/*",  # every key in the account
+        "arn:aws:kms:us-east-1:123456789012:key/data-*",  # every key whose id starts so
+        # IAM does not grant key use through an alias:
+        "arn:aws:kms:us-east-1:123456789012:alias/data-finops",
+        [KEY, "arn:aws:s3:::b/inbox/*"],
+    ],
+)
+def test_a_key_action_names_one_key_and_nothing_else(resource: Any) -> None:
+    assert _iam(_document(_allow("kms:GenerateDataKey", resource)), "data-finops-producer") == [
+        "kms:GenerateDataKey is allowed only on a KMS key"
+    ]
 
 
 @pytest.mark.parametrize(

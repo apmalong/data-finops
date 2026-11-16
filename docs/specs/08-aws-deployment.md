@@ -133,6 +133,7 @@ The policies that `deployment/compute.py` grants supersede the research drafts i
 
 ### Other policies
 - **Producer policy** (output): `s3:PutObject` on `inbox/*` only.
+  - If `kmsKeyArn` is set, also `kms:GenerateDataKey` on that key. S3 requires it to write an SSE-KMS object (#270).
 - **Reader policy** (output): `lambda:InvokeFunctionUrl` on the API function (condition `lambda:FunctionUrlAuthType` `AWS_IAM`). It also gives `lambda:InvokeFunction` on the API function, but only through the URL (condition `lambda:InvokedViaFunctionUrl`). Function URLs created since October 2025 require both (AWS, "Control access to Lambda function URLs", checked 2026-11-07, #187).
 - **Scheduler role:** `lambda:InvokeFunction` on the collector function only. EventBridge Scheduler assumes this role to start the Collection Run (#187).
 - **Deployer:** the owner creates it, never the stack. A draft deployer policy with least privilege is `infra/pulumi/aws/iam/deployer-policy.draft.json`. It is not validated until the IAM Access Analyzer step of the deploy wizard (#192).
@@ -182,6 +183,7 @@ A small custom Python pack. The open-source AWS packs of Pulumi are TypeScript o
 4. The IAM policies of the collector and the API use only allowlisted actions.
    - No `*` action, and nothing that runs queries or reads results.
    - The API role is read-only on the bucket.
+   - A `kms:` action names only a KMS key, never another resource (#270).
 5. Stack level: no VPC, subnet, NAT gateway, EIP, RDS, EKS, ECS or EFS resource (spec 05).
 6. A configured Budget sends alerts on both forecast and actual spend.
 7. The public demo's CloudFront distribution: each origin uses origin access control, and each cache behavior redirects HTTP to HTTPS or allows HTTPS only (spec 09).

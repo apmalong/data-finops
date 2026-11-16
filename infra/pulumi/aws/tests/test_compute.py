@@ -239,6 +239,16 @@ def test_a_customer_key_lets_both_functions_use_it() -> pulumi.Output[None]:
     def check() -> None:
         assert _actions(_policy_of("collector"))["kms:GenerateDataKey"] == [key]
         assert _actions(_policy_of("api"))["kms:Decrypt"] == [key]
+        # S3 needs kms:GenerateDataKey for each SSE-KMS write, so a producer gets it too (#270).
+        (producer,) = [
+            json.loads(p.inputs["policy"])
+            for p in MOCKS.of_type("aws:iam/policy:Policy")
+            if p.name.endswith("producer")
+        ]
+        assert _actions(producer) == {
+            "s3:PutObject": ["arn:aws:s3:::mock-deployment-bucket/inbox/*"],
+            "kms:GenerateDataKey": [key],
+        }
 
     return _after(dataclasses.replace(SETTINGS, kms_key_arn=key), check)
 

@@ -212,7 +212,15 @@ class Compute(pulumi.ComponentResource):
             f"{name}-producer",
             description="data-finops: write OpenLineage events and dbt artifacts to the Inbox",
             policy=bucket.arn.apply(
-                lambda arn: json.dumps(allow([("s3:PutObject", [f"{arn}/{INBOX}*"])]))
+                lambda arn: json.dumps(
+                    allow(
+                        [
+                            ("s3:PutObject", [f"{arn}/{INBOX}*"]),
+                            # S3 needs it for each SSE-KMS write (#270).
+                            *key_grant(settings, ["kms:GenerateDataKey"]),
+                        ]
+                    )
+                )
             ),
             opts=child,
         )
