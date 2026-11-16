@@ -1,6 +1,6 @@
 # Control plane (M8)
 
-Decided in the M8 design session (2026-11-16). Each owner decision is logged in `docs/implementation/m8-decisions.md` (Q101–Q154). The design is ADR 0032. It amends ADRs 0026, 0027 and 0031. Spec 08 still applies where this spec does not change it.
+Decided in the M8 design session (2026-11-16). Each owner decision is logged in `docs/implementation/m8-decisions.md` (Q101–Q160). The design is ADR 0032. It amends ADRs 0026, 0027 and 0031. Spec 08 still applies where this spec does not change it.
 
 ## Scope
 One CLI controls a local Database or a Deployment: reads, runs, the Inbox, Cost Dimensions, Overrides, the audit trail, and deploy and teardown. Operators sign in with IAM. Consumers sign in with OIDC, in the CLI or in the Deployment Dashboard. The wizards retire.
@@ -53,7 +53,7 @@ Each command works against `--db` and `--deployment`, except where the table say
 | Runs | `run`, `runs`, `ingest …` (local only, as today) | `run` |
 | Inbox | `inbox list`, `inbox remove KEY`, `inbox retry KEY` (Deployment only) | `remove`, `retry` |
 | Cost Dimensions | `dimensions show [--version N]`, `dimensions set FILE`, `dimensions history`, `dimensions revert N` | `set`, `revert` |
-| Overrides | `override dimension …`, `override owner …` (OQ-26), `overrides list`, `override revert ID` | `override …`, `revert` |
+| Overrides | `override dimension …`, `override link …`, `overrides list`, `override revert ID` | `override …`, `revert` |
 | Audit | `commands list`, `command show ID` | no |
 | Lifecycle | `deploy`, `teardown`, `login`, `users …` | no |
 
@@ -77,7 +77,7 @@ A Command is one JSON object, `commands/<command_id>.json`. It never changes aft
 ```
 
 - **`command_id`:** the UTC time and 8 random hex characters, so a list in key order is in time order.
-- **`kind`:** `run`, `inbox.remove`, `inbox.retry`, `dimensions.set`, `dimensions.revert`, `override.dimension`, `override.owner` (OQ-26) or `override.revert`.
+- **`kind`:** `run`, `inbox.remove`, `inbox.retry`, `dimensions.set`, `dimensions.revert`, `override.dimension`, `override.link` or `override.revert`.
 - **`principal`:** the IAM principal ARN, or the OIDC `sub`. Never a name or an email (Q134).
 - **The limits:** 64 KiB for each object. Each principal can have 20 queued Commands (`maxQueuedCommands`, Q153). One more is refused with 429.
 - **On submit,** the API checks the schema, the kind, the arguments and the caller's role. It answers 400 or 403, or it writes the object and answers 202 with the id (Q139). The schema is generated into `schemas/` with the other contracts, and the OpenAPI document shows the routes.
@@ -109,8 +109,10 @@ A Command is one JSON object, `commands/<command_id>.json`. It never changes aft
 
 ## Overrides (Q108, Q112, Q113, Q121, Q135, Q149, Q151)
 - **What an Override changes:**
-  - `override dimension`: the value of one Cost Dimension for one Query Execution, or for each Query Execution of a Model Execution or a Workload Run.
-  - `override owner`: open, see OQ-26.
+  - `override dimension NAME VALUE`: the value of one Cost Dimension for one Query Execution, or for each Query Execution of a Model Execution or a Workload Run.
+  - `override dimension --owner VALUE`: the same, for the dimension that the configuration marks with `owner = true` (Q156, Q161). At most one dimension has the mark. Without it, the command exits with 2 and says to mark one.
+  - `override link QUERY_EXECUTION --to REF`: the Identity Link of one Query Execution, to a Model Execution or a Workload Run (Q155, Q160). It replaces any other link of that Query Execution, also a link from a Trusted Query Comment (Q158). The link has the Link Outcome `override`. Its Evidence names the Override id and the principal (Q159, ADR 0006 amendment). The Allocation keeps the Confidence of its method.
+  - A consumer or an operator can create either kind (Q111, Q157).
   - An Override never changes a billed amount. Reconciliation still holds.
 - **Reach:** `--period YYYY-MM` (the default) covers one open Billing Period. `--from YYYY-MM` covers that period and each later one, until it is reverted.
 - **Open periods:** the current Billing Period, and the one before it until its bill is final. A Command that names a closed period is rejected.
@@ -170,9 +172,6 @@ A Command is one JSON object, `commands/<command_id>.json`. It never changes aft
 
 `costDimensions` seeds `v1` only. `apiReservedConcurrency` stays.
 
-## Open questions
-- **OQ-26, `override owner`:** GLOSSARY has no "owner", and lists it under _Avoid_ for an Allocation Target. The command waits for this decision (`docs/implementation/open-questions.md`).
-
 ## Documentation (spec 07)
 - **How-to pages, in place of the wizard pages:**
   - use the CLI against a Deployment
@@ -185,7 +184,7 @@ A Command is one JSON object, `commands/<command_id>.json`. It never changes aft
   - a new page: the control plane and its trust boundaries
   - the security model page
   - the deployment architecture page, and `deployment.d2`
-- **Specs, as each part lands:** spec 05 (the CLI and the endpoint), spec 06 (the routes and the third dashboard mode), and spec 08 (the API, the bucket and IAM).
+- **Specs, as each part lands:** spec 02 (the Link Outcome `override`, and the Override ids on an Allocation), spec 03 (link Overrides), spec 05 (the CLI and the endpoint), spec 06 (the routes and the third dashboard mode), and spec 08 (the API, the bucket and IAM).
 
 ## Tests
 Each seam is test-first, with hand-made mutation checks recorded in the PR. No test touches a real account. The seams of each ticket are agreed with the owner before it is built (AGENTS.md).
