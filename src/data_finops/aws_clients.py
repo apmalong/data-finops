@@ -51,12 +51,11 @@ def _aws_session(profile: str | None, region: str) -> tuple[Any, Any]:
     return session, Config(retries={"mode": "standard", "total_max_attempts": 5})
 
 
-def signed_headers(
-    url: str, *, region: str, profile: str, service: str = "lambda"
-) -> dict[str, str]:
+def signed_headers(url: str, *, region: str, profile: str) -> dict[str, str]:
     """The headers that sign a GET of `url` with SigV4, for the profile's credentials. The
-    Deployment's API is a Lambda Function URL with IAM auth (ADR 0026): service `lambda`.
-    Signing calls nothing; an expired or missing login fails here, without naming the profile."""
+    Deployment's API is a Lambda Function URL with IAM auth (ADR 0026), so the service is
+    `lambda`. When API Gateway replaces it (#290), the service becomes `execute-api`. Signing
+    calls nothing. An expired or missing login fails here, without naming the profile."""
     session, _ = _aws_session(profile, region)
     from botocore.auth import SigV4Auth
     from botocore.awsrequest import AWSRequest
@@ -72,5 +71,5 @@ def signed_headers(
     if frozen is None:
         raise ClientsUnavailable("the profile has no AWS credentials")
     request = AWSRequest(method="GET", url=url)
-    SigV4Auth(frozen, service, region).add_auth(request)
+    SigV4Auth(frozen, "lambda", region).add_auth(request)
     return dict(request.headers.items())

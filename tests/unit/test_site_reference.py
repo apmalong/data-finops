@@ -28,6 +28,10 @@ def toy_parser() -> argparse.ArgumentParser:
     serve = commands.add_parser("serve", help="serve the API")
     serve.add_argument("-p", "--port", type=int, default=8000, help="the port")
     serve.add_argument("--secret", help=argparse.SUPPRESS)
+    serve.add_argument("--offset", type=int, default=0, help="skip this many")
+    target = serve.add_mutually_exclusive_group(required=True)
+    target.add_argument("--db", help="a database")
+    target.add_argument("--remote", metavar="NAME", help="a remote")
     return parser
 
 
@@ -43,6 +47,11 @@ def test_the_cli_reference_lists_every_command_with_its_arguments() -> None:
     assert "<td><code>--data-dir DIR</code></td><td>optional</td><td></td>" in focus
     serve = html[html.index('id="serve"') :]
     assert "<td><code>--port PORT</code></td><td>optional</td><td>8000</td>" in serve
+    assert "<td><code>--offset OFFSET</code></td><td>optional</td><td>0</td>" in serve
+    # A required group: exactly one of its options is required.
+    one_of = "<td>one of <code>--db</code>, <code>--remote</code></td>"
+    assert f"<td><code>--db DB</code></td>{one_of}" in serve
+    assert f"<td><code>--remote NAME</code></td>{one_of}" in serve
     assert "--secret" not in html  # hidden options are not documented
     assert "--help" not in focus.split("usage:")[1].split("</pre>")[1]  # -h is not a row
 

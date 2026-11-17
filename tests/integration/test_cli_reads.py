@@ -200,3 +200,11 @@ def test_a_read_prints_a_table_by_default(
     assert not out.lstrip().startswith("{")
     assert run_id in out
     assert len([line for line in out.splitlines() if f"{run_id}#" in line]) == 3
+
+
+@pytest.mark.parametrize("page", [["--limit", "0"], ["--limit", "1001"], ["--offset", "-1"]])
+def test_a_page_outside_the_route_limits_exits_with_2(
+    database: Path, page: list[str], capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert main(["allocations", "--db", str(database), *page]) == 2
+    assert page[0] in capsys.readouterr().err

@@ -32,7 +32,8 @@
 - `api`: the HTTP adapter (FastAPI, optional `api` extra) and the static dashboard.
   - It reads only through `reporting`. Its one write gives OpenLineage events to `WorkloadStore` (ADR 0024).
   - No SQL.
-- `cli`: the `data-finops` command line (stdlib `argparse`): `demo`, `serve`, `ingest`, `calculate`, `collect`.
+- `cli`: the `data-finops` command line (stdlib `argparse`): `demo`, `serve`, `ingest`, `calculate`, `collect`, and the reads of spec 10 (`summary`, `allocations`, `rollups`, `reconciliation`, `provenance`, `lineage`, `explain`).
+  - A read against `--db` calls `reporting`. A read against `--deployment` sends a GET to the API of the Deployment, signed by `aws_clients` (`cli/deployments.py`). Both give the JSON of the HTTP route.
   - It is an entry point. It opens the stores and calls their public functions, and it joins nothing itself.
   - It can import both stores only together with `calculation`, to give them to the Calculation Run (#115). The import-boundary test enforces this.
   - For a FOCUS file, it calls the `billing` readers itself. The reason is that `Ledger.import_snapshot` takes a parsed export, but the ingest functions of the workload store take paths.

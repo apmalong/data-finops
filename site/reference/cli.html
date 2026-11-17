@@ -240,11 +240,11 @@
 <table>
 <thead><tr><th>Argument</th><th>Required</th><th>Default</th><th>Meaning</th></tr></thead>
 <tbody>
-<tr><td><code>--cost-basis COST_BASIS</code></td><td>optional</td><td>BilledCost</td><td>default: BilledCost One of <code>BilledCost</code>, <code>EffectiveCost</code>, <code>ListCost</code>, <code>ContractedCost</code>.</td></tr>
+<tr><td><code>--cost-basis COST_BASIS</code></td><td>optional</td><td>BilledCost</td><td>One of <code>BilledCost</code>, <code>EffectiveCost</code>, <code>ListCost</code>, <code>ContractedCost</code>.</td></tr>
 <tr><td><code>--billing-account-id BILLING_ACCOUNT_ID</code></td><td>optional</td><td></td><td></td></tr>
 <tr><td><code>--billing-period BILLING_PERIOD</code></td><td>optional</td><td></td><td>the first day of the period (YYYY-MM-DD)</td></tr>
-<tr><td><code>--db DB</code></td><td>optional</td><td></td><td>a local database file</td></tr>
-<tr><td><code>--deployment NAME</code></td><td>optional</td><td></td><td>a Deployment: the table [NAME] in ~/.data-finops/deployments.toml, with api_url, region and profile</td></tr>
+<tr><td><code>--db DB</code></td><td>one of <code>--db</code>, <code>--deployment</code></td><td></td><td>a local database file</td></tr>
+<tr><td><code>--deployment NAME</code></td><td>one of <code>--db</code>, <code>--deployment</code></td><td></td><td>a Deployment: the table [NAME] in ~/.data-finops/deployments.toml, with api_url, region and profile</td></tr>
 <tr><td><code>--format FORMAT</code></td><td>optional</td><td>table</td><td>default: table One of <code>table</code>, <code>json</code>.</td></tr>
 </tbody>
 </table>
@@ -272,17 +272,17 @@
 <tr><td><code>--target-id TARGET_ID</code></td><td>optional</td><td></td><td></td></tr>
 <tr><td><code>--category CATEGORY</code></td><td>optional</td><td></td><td>One of <code>direct</code>, <code>shared</code>, <code>idle</code>, <code>unallocated</code>.</td></tr>
 <tr><td><code>--billing-line-ref BILLING_LINE_REF</code></td><td>optional</td><td></td><td></td></tr>
-<tr><td><code>--cost-basis COST_BASIS</code></td><td>optional</td><td></td><td>default: every Cost Basis One of <code>BilledCost</code>, <code>EffectiveCost</code>, <code>ListCost</code>, <code>ContractedCost</code>.</td></tr>
+<tr><td><code>--cost-basis COST_BASIS</code></td><td>optional</td><td></td><td>default: each Cost Basis One of <code>BilledCost</code>, <code>EffectiveCost</code>, <code>ListCost</code>, <code>ContractedCost</code>.</td></tr>
 <tr><td><code>--limit LIMIT</code></td><td>optional</td><td>100</td><td>1 to 1000</td></tr>
-<tr><td><code>--offset OFFSET</code></td><td>optional</td><td></td><td></td></tr>
-<tr><td><code>--db DB</code></td><td>optional</td><td></td><td>a local database file</td></tr>
-<tr><td><code>--deployment NAME</code></td><td>optional</td><td></td><td>a Deployment: the table [NAME] in ~/.data-finops/deployments.toml, with api_url, region and profile</td></tr>
+<tr><td><code>--offset OFFSET</code></td><td>optional</td><td>0</td><td></td></tr>
+<tr><td><code>--db DB</code></td><td>one of <code>--db</code>, <code>--deployment</code></td><td></td><td>a local database file</td></tr>
+<tr><td><code>--deployment NAME</code></td><td>one of <code>--db</code>, <code>--deployment</code></td><td></td><td>a Deployment: the table [NAME] in ~/.data-finops/deployments.toml, with api_url, region and profile</td></tr>
 <tr><td><code>--format FORMAT</code></td><td>optional</td><td>table</td><td>default: table One of <code>table</code>, <code>json</code>.</td></tr>
 </tbody>
 </table>
 </div>
 <h2 id="rollups"><code>data-finops rollups</code></h2>
-<p>what each Model Execution, Workload Run or dimension value cost (GET /v1/rollups)</p>
+<p>what each Model Execution, Workload Run or Cost Dimension value cost (GET /v1/rollups)</p>
 <pre class="usage"><code><span class="line">usage: data-finops rollups [-h]
 </span><span class="line">                           (--level {model_execution,workload_run} | --dimension NAME)
 </span><span class="line">                           [--calculation-run-id CALCULATION_RUN_ID]
@@ -295,16 +295,16 @@
 <table>
 <thead><tr><th>Argument</th><th>Required</th><th>Default</th><th>Meaning</th></tr></thead>
 <tbody>
-<tr><td><code>--level LEVEL</code></td><td>optional</td><td></td><td>One of <code>model_execution</code>, <code>workload_run</code>.</td></tr>
-<tr><td><code>--dimension NAME</code></td><td>optional</td><td></td><td>the Roll-ups of one Cost Dimension</td></tr>
+<tr><td><code>--level LEVEL</code></td><td>one of <code>--level</code>, <code>--dimension</code></td><td></td><td>One of <code>model_execution</code>, <code>workload_run</code>.</td></tr>
+<tr><td><code>--dimension NAME</code></td><td>one of <code>--level</code>, <code>--dimension</code></td><td></td><td>the Roll-ups of one Cost Dimension</td></tr>
 <tr><td><code>--calculation-run-id CALCULATION_RUN_ID</code></td><td>optional</td><td></td><td>the snapshot of this Calculation Run</td></tr>
 <tr><td><code>--billing-account-id BILLING_ACCOUNT_ID</code></td><td>optional</td><td></td><td></td></tr>
 <tr><td><code>--billing-period BILLING_PERIOD</code></td><td>optional</td><td></td><td>the first day of the period (YYYY-MM-DD)</td></tr>
 <tr><td><code>--source SOURCE</code></td><td>optional</td><td></td><td>the source of the Export Snapshot</td></tr>
 <tr><td><code>--limit LIMIT</code></td><td>optional</td><td>100</td><td>1 to 1000</td></tr>
-<tr><td><code>--offset OFFSET</code></td><td>optional</td><td></td><td></td></tr>
-<tr><td><code>--db DB</code></td><td>optional</td><td></td><td>a local database file</td></tr>
-<tr><td><code>--deployment NAME</code></td><td>optional</td><td></td><td>a Deployment: the table [NAME] in ~/.data-finops/deployments.toml, with api_url, region and profile</td></tr>
+<tr><td><code>--offset OFFSET</code></td><td>optional</td><td>0</td><td></td></tr>
+<tr><td><code>--db DB</code></td><td>one of <code>--db</code>, <code>--deployment</code></td><td></td><td>a local database file</td></tr>
+<tr><td><code>--deployment NAME</code></td><td>one of <code>--db</code>, <code>--deployment</code></td><td></td><td>a Deployment: the table [NAME] in ~/.data-finops/deployments.toml, with api_url, region and profile</td></tr>
 <tr><td><code>--format FORMAT</code></td><td>optional</td><td>table</td><td>default: table One of <code>table</code>, <code>json</code>.</td></tr>
 </tbody>
 </table>
@@ -328,11 +328,11 @@
 <tr><td><code>--billing-account-id BILLING_ACCOUNT_ID</code></td><td>optional</td><td></td><td></td></tr>
 <tr><td><code>--billing-period BILLING_PERIOD</code></td><td>optional</td><td></td><td>the first day of the period (YYYY-MM-DD)</td></tr>
 <tr><td><code>--source SOURCE</code></td><td>optional</td><td></td><td>the source of the Export Snapshot</td></tr>
-<tr><td><code>--cost-basis COST_BASIS</code></td><td>optional</td><td></td><td>default: every Cost Basis One of <code>BilledCost</code>, <code>EffectiveCost</code>, <code>ListCost</code>, <code>ContractedCost</code>.</td></tr>
+<tr><td><code>--cost-basis COST_BASIS</code></td><td>optional</td><td></td><td>default: each Cost Basis One of <code>BilledCost</code>, <code>EffectiveCost</code>, <code>ListCost</code>, <code>ContractedCost</code>.</td></tr>
 <tr><td><code>--limit LIMIT</code></td><td>optional</td><td>100</td><td>1 to 1000</td></tr>
-<tr><td><code>--offset OFFSET</code></td><td>optional</td><td></td><td></td></tr>
-<tr><td><code>--db DB</code></td><td>optional</td><td></td><td>a local database file</td></tr>
-<tr><td><code>--deployment NAME</code></td><td>optional</td><td></td><td>a Deployment: the table [NAME] in ~/.data-finops/deployments.toml, with api_url, region and profile</td></tr>
+<tr><td><code>--offset OFFSET</code></td><td>optional</td><td>0</td><td></td></tr>
+<tr><td><code>--db DB</code></td><td>one of <code>--db</code>, <code>--deployment</code></td><td></td><td>a local database file</td></tr>
+<tr><td><code>--deployment NAME</code></td><td>one of <code>--db</code>, <code>--deployment</code></td><td></td><td>a Deployment: the table [NAME] in ~/.data-finops/deployments.toml, with api_url, region and profile</td></tr>
 <tr><td><code>--format FORMAT</code></td><td>optional</td><td>table</td><td>default: table One of <code>table</code>, <code>json</code>.</td></tr>
 </tbody>
 </table>
@@ -352,14 +352,14 @@
 <tr><td><code>--billing-account-id BILLING_ACCOUNT_ID</code></td><td>optional</td><td></td><td></td></tr>
 <tr><td><code>--billing-period BILLING_PERIOD</code></td><td>optional</td><td></td><td>the first day of the period (YYYY-MM-DD)</td></tr>
 <tr><td><code>--source SOURCE</code></td><td>optional</td><td></td><td>the source of the Export Snapshot</td></tr>
-<tr><td><code>--db DB</code></td><td>optional</td><td></td><td>a local database file</td></tr>
-<tr><td><code>--deployment NAME</code></td><td>optional</td><td></td><td>a Deployment: the table [NAME] in ~/.data-finops/deployments.toml, with api_url, region and profile</td></tr>
+<tr><td><code>--db DB</code></td><td>one of <code>--db</code>, <code>--deployment</code></td><td></td><td>a local database file</td></tr>
+<tr><td><code>--deployment NAME</code></td><td>one of <code>--db</code>, <code>--deployment</code></td><td></td><td>a Deployment: the table [NAME] in ~/.data-finops/deployments.toml, with api_url, region and profile</td></tr>
 <tr><td><code>--format FORMAT</code></td><td>optional</td><td>table</td><td>default: table One of <code>table</code>, <code>json</code>.</td></tr>
 </tbody>
 </table>
 </div>
 <h2 id="lineage"><code>data-finops lineage</code></h2>
-<p>the topmost Workload Runs, or one run&#x27;s lineage (GET /v1/lineage)</p>
+<p>the topmost Workload Runs, or the lineage of one run (GET /v1/lineage)</p>
 <pre class="usage"><code><span class="line">usage: data-finops lineage [-h] [--run-id RUN_ID] [--limit LIMIT]
 </span><span class="line">                           [--offset OFFSET] (--db DB | --deployment NAME)
 </span><span class="line">                           [--format {table,json}]</span></code></pre>
@@ -367,11 +367,11 @@
 <table>
 <thead><tr><th>Argument</th><th>Required</th><th>Default</th><th>Meaning</th></tr></thead>
 <tbody>
-<tr><td><code>--run-id RUN_ID</code></td><td>optional</td><td></td><td>the lineage of this Workload Run. Without it, the topmost runs.</td></tr>
+<tr><td><code>--run-id RUN_ID</code></td><td>optional</td><td></td><td>the Workload Run whose lineage to show. If not given, the topmost runs are shown.</td></tr>
 <tr><td><code>--limit LIMIT</code></td><td>optional</td><td>100</td><td>1 to 1000</td></tr>
-<tr><td><code>--offset OFFSET</code></td><td>optional</td><td></td><td></td></tr>
-<tr><td><code>--db DB</code></td><td>optional</td><td></td><td>a local database file</td></tr>
-<tr><td><code>--deployment NAME</code></td><td>optional</td><td></td><td>a Deployment: the table [NAME] in ~/.data-finops/deployments.toml, with api_url, region and profile</td></tr>
+<tr><td><code>--offset OFFSET</code></td><td>optional</td><td>0</td><td></td></tr>
+<tr><td><code>--db DB</code></td><td>one of <code>--db</code>, <code>--deployment</code></td><td></td><td>a local database file</td></tr>
+<tr><td><code>--deployment NAME</code></td><td>one of <code>--db</code>, <code>--deployment</code></td><td></td><td>a Deployment: the table [NAME] in ~/.data-finops/deployments.toml, with api_url, region and profile</td></tr>
 <tr><td><code>--format FORMAT</code></td><td>optional</td><td>table</td><td>default: table One of <code>table</code>, <code>json</code>.</td></tr>
 </tbody>
 </table>
@@ -386,8 +386,8 @@
 <thead><tr><th>Argument</th><th>Required</th><th>Default</th><th>Meaning</th></tr></thead>
 <tbody>
 <tr><td><code>ref</code></td><td>required</td><td></td><td>the Allocation, as &lt;calculation_run_id&gt;#&lt;position&gt;</td></tr>
-<tr><td><code>--db DB</code></td><td>optional</td><td></td><td>a local database file</td></tr>
-<tr><td><code>--deployment NAME</code></td><td>optional</td><td></td><td>a Deployment: the table [NAME] in ~/.data-finops/deployments.toml, with api_url, region and profile</td></tr>
+<tr><td><code>--db DB</code></td><td>one of <code>--db</code>, <code>--deployment</code></td><td></td><td>a local database file</td></tr>
+<tr><td><code>--deployment NAME</code></td><td>one of <code>--db</code>, <code>--deployment</code></td><td></td><td>a Deployment: the table [NAME] in ~/.data-finops/deployments.toml, with api_url, region and profile</td></tr>
 <tr><td><code>--format FORMAT</code></td><td>optional</td><td>table</td><td>default: table One of <code>table</code>, <code>json</code>.</td></tr>
 </tbody>
 </table>
