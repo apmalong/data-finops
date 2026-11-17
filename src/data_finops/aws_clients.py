@@ -49,3 +49,28 @@ def _aws_session(profile: str | None, region: str) -> tuple[Any, Any]:
     # botocore's standard retries: throttling and transient errors backed off with jitter,
     # at most 5 attempts; then the source fails and the scheduler retries the run (Q44).
     return session, Config(retries={"mode": "standard", "total_max_attempts": 5})
+
+
+def signed_headers(
+    url: str, *, region: str, profile: str, service: str = "lambda"
+) -> dict[str, str]:
+    """The headers that sign a GET of `url` with SigV4, for the profile's credentials. The
+    Deployment's API is a Lambda Function URL with IAM auth (ADR 0026): service `lambda`.
+    Signing calls nothing; an expired or missing login fails here, without naming the profile."""
+    session, _ = _aws_session(profile, region)
+    from botocore.auth import SigV4Auth
+    from botocore.awsrequest import AWSRequest
+    from botocore.exceptions import BotoCoreError
+
+    try:
+        credentials = session.get_credentials()
+        frozen = None if credentials is None else credentials.get_frozen_credentials()
+    except BotoCoreError as error:
+        raise ClientsUnavailable(
+            f"cannot get AWS credentials ({type(error).__name__}): sign in to the profile again"
+        ) from None
+    if frozen is None:
+        raise ClientsUnavailable("the profile has no AWS credentials")
+    request = AWSRequest(method="GET", url=url)
+    SigV4Auth(frozen, service, region).add_auth(request)
+    return dict(request.headers.items())

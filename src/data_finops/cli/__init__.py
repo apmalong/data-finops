@@ -25,6 +25,7 @@ from data_finops import aws_clients
 from data_finops.billing.aws_data_exports import DeliveryError, is_manifest, load_delivery
 from data_finops.billing.focus import load_export
 from data_finops.calculation import run_calculation
+from data_finops.cli.reads import ReadFailed, add_reads
 from data_finops.collection import AwsClients, CollectionSettings, run_collection
 from data_finops.collection.run import DimensionsUnavailable
 from data_finops.contracts.dimensions import NO_DIMENSIONS, CostDimensions
@@ -75,7 +76,7 @@ def main(
     args.aws_clients = aws_clients or make_aws_clients
     try:
         code: int = args.run(args)
-    except _Failure as failure:
+    except (_Failure, ReadFailed) as failure:
         return _fail(str(failure))
     except OSError as error:
         return _fail(f"cannot read or write {error.filename or 'a file'}: {error.strerror}")
@@ -167,6 +168,8 @@ def build_parser() -> argparse.ArgumentParser:
     demo.add_argument("--port", type=int, default=DEFAULT_PORT)
     demo.add_argument("--fixtures", type=Path, default=FIXTURES, help=argparse.SUPPRESS)
     demo.set_defaults(run=_demo)
+
+    add_reads(commands)
     return parser
 
 

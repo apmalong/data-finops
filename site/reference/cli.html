@@ -103,6 +103,13 @@
 <li><a href="#collect"><code>data-finops collect</code></a></li>
 <li><a href="#serve"><code>data-finops serve</code></a></li>
 <li><a href="#demo"><code>data-finops demo</code></a></li>
+<li><a href="#summary"><code>data-finops summary</code></a></li>
+<li><a href="#allocations"><code>data-finops allocations</code></a></li>
+<li><a href="#rollups"><code>data-finops rollups</code></a></li>
+<li><a href="#reconciliation"><code>data-finops reconciliation</code></a></li>
+<li><a href="#provenance"><code>data-finops provenance</code></a></li>
+<li><a href="#lineage"><code>data-finops lineage</code></a></li>
+<li><a href="#explain"><code>data-finops explain</code></a></li>
 </ul>
 </nav>
 <!-- onpage:end -->
@@ -218,6 +225,170 @@
 <thead><tr><th>Argument</th><th>Required</th><th>Default</th><th>Meaning</th></tr></thead>
 <tbody>
 <tr><td><code>--port PORT</code></td><td>optional</td><td>8000</td><td></td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="summary"><code>data-finops summary</code></h2>
+<p>the Cost Summary of each Snapshot Scope (GET /v1/costs/summary)</p>
+<pre class="usage"><code><span class="line">usage: data-finops summary [-h]
+</span><span class="line">                           [--cost-basis {BilledCost,EffectiveCost,ListCost,ContractedCost}]
+</span><span class="line">                           [--billing-account-id BILLING_ACCOUNT_ID]
+</span><span class="line">                           [--billing-period BILLING_PERIOD]
+</span><span class="line">                           (--db DB | --deployment NAME)
+</span><span class="line">                           [--format {table,json}]</span></code></pre>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
+<table>
+<thead><tr><th>Argument</th><th>Required</th><th>Default</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>--cost-basis COST_BASIS</code></td><td>optional</td><td>BilledCost</td><td>default: BilledCost One of <code>BilledCost</code>, <code>EffectiveCost</code>, <code>ListCost</code>, <code>ContractedCost</code>.</td></tr>
+<tr><td><code>--billing-account-id BILLING_ACCOUNT_ID</code></td><td>optional</td><td></td><td></td></tr>
+<tr><td><code>--billing-period BILLING_PERIOD</code></td><td>optional</td><td></td><td>the first day of the period (YYYY-MM-DD)</td></tr>
+<tr><td><code>--db DB</code></td><td>optional</td><td></td><td>a local database file</td></tr>
+<tr><td><code>--deployment NAME</code></td><td>optional</td><td></td><td>a Deployment: the table [NAME] in ~/.data-finops/deployments.toml, with api_url, region and profile</td></tr>
+<tr><td><code>--format FORMAT</code></td><td>optional</td><td>table</td><td>default: table One of <code>table</code>, <code>json</code>.</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="allocations"><code>data-finops allocations</code></h2>
+<p>one page of one Allocation Snapshot (GET /v1/allocations)</p>
+<pre class="usage"><code><span class="line">usage: data-finops allocations [-h] [--calculation-run-id CALCULATION_RUN_ID]
+</span><span class="line">                               [--billing-account-id BILLING_ACCOUNT_ID]
+</span><span class="line">                               [--billing-period BILLING_PERIOD]
+</span><span class="line">                               [--source SOURCE] [--target-id TARGET_ID]
+</span><span class="line">                               [--category {direct,shared,idle,unallocated}]
+</span><span class="line">                               [--billing-line-ref BILLING_LINE_REF]
+</span><span class="line">                               [--cost-basis {BilledCost,EffectiveCost,ListCost,ContractedCost}]
+</span><span class="line">                               [--limit LIMIT] [--offset OFFSET]
+</span><span class="line">                               (--db DB | --deployment NAME)
+</span><span class="line">                               [--format {table,json}]</span></code></pre>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
+<table>
+<thead><tr><th>Argument</th><th>Required</th><th>Default</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>--calculation-run-id CALCULATION_RUN_ID</code></td><td>optional</td><td></td><td>the snapshot of this Calculation Run</td></tr>
+<tr><td><code>--billing-account-id BILLING_ACCOUNT_ID</code></td><td>optional</td><td></td><td></td></tr>
+<tr><td><code>--billing-period BILLING_PERIOD</code></td><td>optional</td><td></td><td>the first day of the period (YYYY-MM-DD)</td></tr>
+<tr><td><code>--source SOURCE</code></td><td>optional</td><td></td><td>the source of the Export Snapshot</td></tr>
+<tr><td><code>--target-id TARGET_ID</code></td><td>optional</td><td></td><td></td></tr>
+<tr><td><code>--category CATEGORY</code></td><td>optional</td><td></td><td>One of <code>direct</code>, <code>shared</code>, <code>idle</code>, <code>unallocated</code>.</td></tr>
+<tr><td><code>--billing-line-ref BILLING_LINE_REF</code></td><td>optional</td><td></td><td></td></tr>
+<tr><td><code>--cost-basis COST_BASIS</code></td><td>optional</td><td></td><td>default: every Cost Basis One of <code>BilledCost</code>, <code>EffectiveCost</code>, <code>ListCost</code>, <code>ContractedCost</code>.</td></tr>
+<tr><td><code>--limit LIMIT</code></td><td>optional</td><td>100</td><td>1 to 1000</td></tr>
+<tr><td><code>--offset OFFSET</code></td><td>optional</td><td></td><td></td></tr>
+<tr><td><code>--db DB</code></td><td>optional</td><td></td><td>a local database file</td></tr>
+<tr><td><code>--deployment NAME</code></td><td>optional</td><td></td><td>a Deployment: the table [NAME] in ~/.data-finops/deployments.toml, with api_url, region and profile</td></tr>
+<tr><td><code>--format FORMAT</code></td><td>optional</td><td>table</td><td>default: table One of <code>table</code>, <code>json</code>.</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="rollups"><code>data-finops rollups</code></h2>
+<p>what each Model Execution, Workload Run or dimension value cost (GET /v1/rollups)</p>
+<pre class="usage"><code><span class="line">usage: data-finops rollups [-h]
+</span><span class="line">                           (--level {model_execution,workload_run} | --dimension NAME)
+</span><span class="line">                           [--calculation-run-id CALCULATION_RUN_ID]
+</span><span class="line">                           [--billing-account-id BILLING_ACCOUNT_ID]
+</span><span class="line">                           [--billing-period BILLING_PERIOD] [--source SOURCE]
+</span><span class="line">                           [--limit LIMIT] [--offset OFFSET]
+</span><span class="line">                           (--db DB | --deployment NAME)
+</span><span class="line">                           [--format {table,json}]</span></code></pre>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
+<table>
+<thead><tr><th>Argument</th><th>Required</th><th>Default</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>--level LEVEL</code></td><td>optional</td><td></td><td>One of <code>model_execution</code>, <code>workload_run</code>.</td></tr>
+<tr><td><code>--dimension NAME</code></td><td>optional</td><td></td><td>the Roll-ups of one Cost Dimension</td></tr>
+<tr><td><code>--calculation-run-id CALCULATION_RUN_ID</code></td><td>optional</td><td></td><td>the snapshot of this Calculation Run</td></tr>
+<tr><td><code>--billing-account-id BILLING_ACCOUNT_ID</code></td><td>optional</td><td></td><td></td></tr>
+<tr><td><code>--billing-period BILLING_PERIOD</code></td><td>optional</td><td></td><td>the first day of the period (YYYY-MM-DD)</td></tr>
+<tr><td><code>--source SOURCE</code></td><td>optional</td><td></td><td>the source of the Export Snapshot</td></tr>
+<tr><td><code>--limit LIMIT</code></td><td>optional</td><td>100</td><td>1 to 1000</td></tr>
+<tr><td><code>--offset OFFSET</code></td><td>optional</td><td></td><td></td></tr>
+<tr><td><code>--db DB</code></td><td>optional</td><td></td><td>a local database file</td></tr>
+<tr><td><code>--deployment NAME</code></td><td>optional</td><td></td><td>a Deployment: the table [NAME] in ~/.data-finops/deployments.toml, with api_url, region and profile</td></tr>
+<tr><td><code>--format FORMAT</code></td><td>optional</td><td>table</td><td>default: table One of <code>table</code>, <code>json</code>.</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="reconciliation"><code>data-finops reconciliation</code></h2>
+<p>one Allocation Snapshot against the bill (GET /v1/reconciliation)</p>
+<pre class="usage"><code><span class="line">usage: data-finops reconciliation [-h]
+</span><span class="line">                                  [--calculation-run-id CALCULATION_RUN_ID]
+</span><span class="line">                                  [--billing-account-id BILLING_ACCOUNT_ID]
+</span><span class="line">                                  [--billing-period BILLING_PERIOD]
+</span><span class="line">                                  [--source SOURCE]
+</span><span class="line">                                  [--cost-basis {BilledCost,EffectiveCost,ListCost,ContractedCost}]
+</span><span class="line">                                  [--limit LIMIT] [--offset OFFSET]
+</span><span class="line">                                  (--db DB | --deployment NAME)
+</span><span class="line">                                  [--format {table,json}]</span></code></pre>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
+<table>
+<thead><tr><th>Argument</th><th>Required</th><th>Default</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>--calculation-run-id CALCULATION_RUN_ID</code></td><td>optional</td><td></td><td>the snapshot of this Calculation Run</td></tr>
+<tr><td><code>--billing-account-id BILLING_ACCOUNT_ID</code></td><td>optional</td><td></td><td></td></tr>
+<tr><td><code>--billing-period BILLING_PERIOD</code></td><td>optional</td><td></td><td>the first day of the period (YYYY-MM-DD)</td></tr>
+<tr><td><code>--source SOURCE</code></td><td>optional</td><td></td><td>the source of the Export Snapshot</td></tr>
+<tr><td><code>--cost-basis COST_BASIS</code></td><td>optional</td><td></td><td>default: every Cost Basis One of <code>BilledCost</code>, <code>EffectiveCost</code>, <code>ListCost</code>, <code>ContractedCost</code>.</td></tr>
+<tr><td><code>--limit LIMIT</code></td><td>optional</td><td>100</td><td>1 to 1000</td></tr>
+<tr><td><code>--offset OFFSET</code></td><td>optional</td><td></td><td></td></tr>
+<tr><td><code>--db DB</code></td><td>optional</td><td></td><td>a local database file</td></tr>
+<tr><td><code>--deployment NAME</code></td><td>optional</td><td></td><td>a Deployment: the table [NAME] in ~/.data-finops/deployments.toml, with api_url, region and profile</td></tr>
+<tr><td><code>--format FORMAT</code></td><td>optional</td><td>table</td><td>default: table One of <code>table</code>, <code>json</code>.</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="provenance"><code>data-finops provenance</code></h2>
+<p>how one Allocation Snapshot was made (GET /v1/provenance)</p>
+<pre class="usage"><code><span class="line">usage: data-finops provenance [-h] [--calculation-run-id CALCULATION_RUN_ID]
+</span><span class="line">                              [--billing-account-id BILLING_ACCOUNT_ID]
+</span><span class="line">                              [--billing-period BILLING_PERIOD]
+</span><span class="line">                              [--source SOURCE] (--db DB | --deployment NAME)
+</span><span class="line">                              [--format {table,json}]</span></code></pre>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
+<table>
+<thead><tr><th>Argument</th><th>Required</th><th>Default</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>--calculation-run-id CALCULATION_RUN_ID</code></td><td>optional</td><td></td><td>the snapshot of this Calculation Run</td></tr>
+<tr><td><code>--billing-account-id BILLING_ACCOUNT_ID</code></td><td>optional</td><td></td><td></td></tr>
+<tr><td><code>--billing-period BILLING_PERIOD</code></td><td>optional</td><td></td><td>the first day of the period (YYYY-MM-DD)</td></tr>
+<tr><td><code>--source SOURCE</code></td><td>optional</td><td></td><td>the source of the Export Snapshot</td></tr>
+<tr><td><code>--db DB</code></td><td>optional</td><td></td><td>a local database file</td></tr>
+<tr><td><code>--deployment NAME</code></td><td>optional</td><td></td><td>a Deployment: the table [NAME] in ~/.data-finops/deployments.toml, with api_url, region and profile</td></tr>
+<tr><td><code>--format FORMAT</code></td><td>optional</td><td>table</td><td>default: table One of <code>table</code>, <code>json</code>.</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="lineage"><code>data-finops lineage</code></h2>
+<p>the topmost Workload Runs, or one run&#x27;s lineage (GET /v1/lineage)</p>
+<pre class="usage"><code><span class="line">usage: data-finops lineage [-h] [--run-id RUN_ID] [--limit LIMIT]
+</span><span class="line">                           [--offset OFFSET] (--db DB | --deployment NAME)
+</span><span class="line">                           [--format {table,json}]</span></code></pre>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
+<table>
+<thead><tr><th>Argument</th><th>Required</th><th>Default</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>--run-id RUN_ID</code></td><td>optional</td><td></td><td>the lineage of this Workload Run. Without it, the topmost runs.</td></tr>
+<tr><td><code>--limit LIMIT</code></td><td>optional</td><td>100</td><td>1 to 1000</td></tr>
+<tr><td><code>--offset OFFSET</code></td><td>optional</td><td></td><td></td></tr>
+<tr><td><code>--db DB</code></td><td>optional</td><td></td><td>a local database file</td></tr>
+<tr><td><code>--deployment NAME</code></td><td>optional</td><td></td><td>a Deployment: the table [NAME] in ~/.data-finops/deployments.toml, with api_url, region and profile</td></tr>
+<tr><td><code>--format FORMAT</code></td><td>optional</td><td>table</td><td>default: table One of <code>table</code>, <code>json</code>.</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="explain"><code>data-finops explain</code></h2>
+<p>the Cost Explanation of one Allocation (GET /v1/allocations/{ref}/explanation)</p>
+<pre class="usage"><code><span class="line">usage: data-finops explain [-h] (--db DB | --deployment NAME)
+</span><span class="line">                           [--format {table,json}]
+</span><span class="line">                           ref</span></code></pre>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
+<table>
+<thead><tr><th>Argument</th><th>Required</th><th>Default</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>ref</code></td><td>required</td><td></td><td>the Allocation, as &lt;calculation_run_id&gt;#&lt;position&gt;</td></tr>
+<tr><td><code>--db DB</code></td><td>optional</td><td></td><td>a local database file</td></tr>
+<tr><td><code>--deployment NAME</code></td><td>optional</td><td></td><td>a Deployment: the table [NAME] in ~/.data-finops/deployments.toml, with api_url, region and profile</td></tr>
+<tr><td><code>--format FORMAT</code></td><td>optional</td><td>table</td><td>default: table One of <code>table</code>, <code>json</code>.</td></tr>
 </tbody>
 </table>
 </div>
