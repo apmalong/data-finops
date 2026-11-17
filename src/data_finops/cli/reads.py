@@ -232,7 +232,8 @@ def add_reads(commands: Any) -> None:
     for read in READS:
         command = commands.add_parser(read.name, help=read.help_text)
         read.add_options(command)
-        own = frozenset(action.dest for action in command._actions) - {"help"}
+        # In the parser's order, so the query string is the same on every run.
+        own = tuple(action.dest for action in command._actions if action.dest != "help")
         target = command.add_mutually_exclusive_group(required=True)
         target.add_argument("--db", type=Path, help="a local database file")
         target.add_argument(
@@ -247,7 +248,7 @@ def add_reads(commands: Any) -> None:
         command.set_defaults(run=lambda args, read=read, own=own: _run(read, own, args))
 
 
-def _run(read: _Read, own: frozenset[str], args: argparse.Namespace) -> int:
+def _run(read: _Read, own: tuple[str, ...], args: argparse.Namespace) -> int:
     options = {name: getattr(args, name) for name in own}
     if args.db is not None:
         data = _local(read, args.db, options)
