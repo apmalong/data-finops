@@ -37,7 +37,8 @@ def render_cli(parser: argparse.ArgumentParser) -> str:
             parts.append(
                 f'<pre class="usage"><code>{escape(command.format_usage().strip())}</code></pre>'
             )
-            rows = [_argument_row(a) for a in _documented(command)]
+            one_of = _required_groups(command)
+            rows = [_argument_row(a, one_of.get(a)) for a in _documented(command)]
             parts.append(_table(["Argument", "Required", "Default", "Meaning"], rows))
         sections.append("\n".join(p for p in parts if p))
     return "\n".join(sections)
@@ -71,23 +72,38 @@ def _documented(command: argparse.ArgumentParser) -> list[argparse.Action]:
     ]
 
 
-def _argument_row(action: argparse.Action) -> str:
+def _required_groups(command: argparse.ArgumentParser) -> dict[argparse.Action, str]:
+    """For each option in a required group, the Required cell: "one of" the group's flags."""
+    cells = {}
+    for group in command._mutually_exclusive_groups:
+        if group.required:
+            flags = ", ".join(f"<code>{escape(_flag(a))}</code>" for a in group._group_actions)
+            cells.update({action: f"one of {flags}" for action in group._group_actions})
+    return cells
+
+
+def _flag(action: argparse.Action) -> str:
+    return max(action.option_strings, key=len)
+
+
+def _argument_row(action: argparse.Action, one_of: str | None = None) -> str:
     if action.option_strings:
-        flag = max(action.option_strings, key=len)
+        flag = _flag(action)
         metavar = action.metavar or action.dest.upper()
         name = flag if action.nargs == 0 else f"{flag} {metavar}"
-        required = action.required
+        required = "required" if action.required else "optional"
     else:
         name = str(action.metavar or action.dest)
-        required = action.nargs not in ("?", "*")
+        required = "optional" if action.nargs in ("?", "*") else "required"
     default = action.default
-    shown = "" if default in (None, False, argparse.SUPPRESS) else escape(str(default))
+    hidden = default is None or default is False or default == argparse.SUPPRESS
+    shown = "" if hidden else escape(str(default))
     meaning = action.help or ""
     if action.choices is not None:
         meaning += " One of " + _code_list(action.choices) + "."
     return (
         f"<tr><td><code>{escape(name)}</code></td>"
-        f"<td>{'required' if required else 'optional'}</td>"
+        f"<td>{one_of or required}</td>"
         f"<td>{shown}</td><td>{_inline(meaning)}</td></tr>"
     )
 
