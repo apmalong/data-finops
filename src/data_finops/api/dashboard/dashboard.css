@@ -73,15 +73,16 @@ h3 { font-size: 0.95rem; margin: 0 0 8px; font-weight: 600; }
 .delta.attention::before { content: "⚠ "; color: var(--attention); }
 
 /* Bars: one zero baseline per chart, sorted, labelled directly; <= 24px thick. */
-.bars { list-style: none; margin: 12px 0; padding: 0; }
+.bars { list-style: none; margin: 12px 0; padding: 0; display: grid; gap: 12px; }
 .bar-row {
   display: grid; grid-template-columns: minmax(96px, 32%) 1fr; align-items: center;
   gap: 10px; min-height: 30px;
 }
 /* A label keeps its name on one line and its detail on the next, each cut with an ellipsis,
    never broken inside a word (#313); the title and the table keep the full name. */
-.bar-label { color: var(--ink-2); font-size: 0.85rem; display: flex; flex-direction: column; min-width: 0; }
+.bar-label { color: var(--ink-2); font-size: 0.85rem; line-height: 1.3; display: flex; flex-direction: column; min-width: 0; }
 .bar-label > * { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.bar-label .detail { margin-top: 0; } /* not the detail panel's spacing */
 .bar-label strong { color: var(--ink); font-weight: 500; }
 .bar-label strong.mono { font-weight: 400; }
 .detail { color: var(--ink-3); font-size: 0.75rem; }
