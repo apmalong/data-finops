@@ -38,7 +38,7 @@ class QueryExecution(BaseModel):
     """As reported; absent when the provider reported no statistics."""
     billable_bytes: int | None = Field(default=None, ge=0)
     """Set only from the versioned provider policy (ADR 0017); for Athena,
-    `providers.athena_billing.billable_bytes`. The Calculation Run (#88) applies the
+    `providers.athena_billing.billable_quantities`. The Calculation Run (#88) applies the
     policy without storing the result on the query; it reaches Allocations as weights."""
     correlation: QueryCorrelation | None = None
     claims: dict[str, str] = Field(default_factory=dict)

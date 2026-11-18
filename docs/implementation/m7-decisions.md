@@ -100,6 +100,17 @@ The owner triaged the open issues, oldest first. The questions were asked with o
 | Q99 | The test seams of #247 | **Owner:** build's stamped HTML, and a drift test. The other option was a drift test only | Owner | #247 |
 | Q100 | Which real bill the owner computes the oracle of #244 from | **Owner:** the Public Demo's first real create-new Delivery. The other options were the #91 reference bill, and both | Owner | #244 |
 
+## After M7: the units of Athena's billed quantity (#310, 2026-11-18)
+
+Research: `docs/research/m7-athena-billing-units.md`. Two independent answers were asked for each recommendation (ask twice).
+
+| # | Decision | Answer | Source | Recorded in |
+|---|---|---|---|---|
+| Q165 | How to read Athena's billed `TB`, and what each query bills | **Owner:** `athena-billable-usage/3`. `TB` is 2^40 bytes. Each query is its raw scan, at least 10^-5 TB. Each UTC hour's sum is rounded down to a multiple of 5 × 10^-6 TB. The other options were to keep decimal units, a binary unit with MiB rounding, and to ask AWS Support first. The owner first chose the binary unit without the hourly step. That alone gave Coverage 1.003 on the demo lines, and the owner then chose the full pattern | Owner | spec 03 item 8, ADR 0017 |
+| Q166 | Whether the Coverage tolerance grows to one 5 × 10^-6 TB step | **Owner:** no. Add it only if lines land just over 1. One of the two answers recommended it | Owner | ADR 0017 |
+| Q167 | How an hour's queries share the rounded-down sum | **Owner:** in proportion to their raw quantities. Both answers agreed. The other options were raw weights (then Coverage exceeds 1) and a rounding of each query | Owner | spec 03 item 8 |
+| Q168 | Which hour a query belongs to | **Owner:** the UTC hour of its completion. The other option was the hour of submission | Owner | spec 03 item 8 |
+
 ## Facts the decisions rest on
 
 From the research note `docs/research/m7-aws-finops-tools.md`, checked 2026-11-07:

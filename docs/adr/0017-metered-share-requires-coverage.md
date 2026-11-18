@@ -17,11 +17,15 @@ Athena on-demand charges arrive as aggregated Billing Lines, not one line for ea
 ## Consequences
 An operator never has to declare that the history is complete. The history is measured from standard FOCUS fields. Partial history still gives useful Allocations with honest limits. The golden oracle gives the $6 line to `q-001` as a Metered Share. It states the assumption that the billed quantity of the line equals the Billable Usage of `q-001`. The M0 fixture rebuild must encode that quantity in FOCUS form.
 
+## Amendment (2026-11-18, #310)
+The units of Athena's billed quantity were an assumption, not a fact. The owner's demo lines of 2026-11 came out at Coverage 1.11 in decimal units, so each line was Unallocated as `coverage_exceeded`. AWS does not state the units. `athena-billable-usage/3` reads `TB` as 2^40 bytes, with an hourly rounding fitted to the owner's lines (spec 03, item 8). The Coverage tolerance does not change (Q166). Decisions Q165 to Q168 are in `docs/implementation/m7-decisions.md`.
+
 ## Alternatives rejected
 - Never meter without billing-level linkage: Athena never provides it, so nothing would ever be allocated.
 - Always meter among known queries: silently inflates their cost when history is partial.
 - Operator-declared completeness: unverifiable.
 
 ## Revisit triggers
-- The billed quantity of the provider is not available, or it cannot be compared to query-level usage. This was checked for the AWS FOCUS export: ConsumedQuantity equals PricingQuantity, in decimal TB, and real lines get to Coverage 1 (OQ-3, #91).
+- The billed quantity of the provider is not available, or it cannot be compared to query-level usage. This was checked for the AWS FOCUS export: ConsumedQuantity equals PricingQuantity, in TB, and real lines get to Coverage 1 (OQ-3, #91, #310).
+- Real Athena lines are `coverage_exceeded` or have a `coverage_remainder` under `athena-billable-usage/3`. Then fit the policy again, or ask AWS Support (#310).
 - A provider shows billing for each query.
