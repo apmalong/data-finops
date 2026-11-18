@@ -1,7 +1,7 @@
-"""The Deployment's mandatory policies (spec 08 §Policy pack): 1 S3, 2 Function URLs, 3 functions
-bounded and logged, 4 IAM least privilege, 5 nothing spec 05 rules out, 6 the Budget, 7 the
-public demo's CloudFront (spec 09). A plain module: only `__main__.py` builds the pack, because
-constructing `PolicyPack` starts its server and blocks.
+"""The Deployment's mandatory policies (spec 08 §Policy pack): 1 S3, 2 the API (spec 10), 3
+functions bounded and logged, 4 IAM least privilege, 5 nothing spec 05 rules out, 6 the Budget,
+7 the public demo's CloudFront (spec 09). A plain module: only `__main__.py` builds the pack,
+because constructing `PolicyPack` starts its server and blocks.
 
 Each policy reads inputs a program sets as literals. A value unknown at preview (computed from
 another resource's outputs) only yields Pulumi's advisory "can't run policy during preview".
@@ -49,6 +49,8 @@ PUBLIC_ACCESS_FLAGS = (
 FUNCTION = "aws:lambda/function:Function"
 LOG_GROUP = "aws:cloudwatch/logGroup:LogGroup"
 FUNCTION_URL = "aws:lambda/functionUrl:FunctionUrl"
+ROUTE = "aws:apigatewayv2/route:Route"
+STAGE = "aws:apigatewayv2/stage:Stage"
 IAM_DOCUMENTS = ("aws:iam/rolePolicy:RolePolicy", "aws:iam/policy:Policy")
 BUDGET = "aws:budgets/budget:Budget"
 DISTRIBUTION = "aws:cloudfront/distribution:Distribution"
@@ -74,7 +76,9 @@ POLICY_ACTIONS: dict[str, frozenset[str]] = {
     "api": frozenset({"s3:GetObject", "s3:ListBucket", "kms:Decrypt"}) | LOGS,
     "scheduler": frozenset({"lambda:InvokeFunction"}),
     "producer": frozenset({"s3:PutObject", "kms:GenerateDataKey"}),
-    "reader": frozenset({"lambda:InvokeFunctionUrl", "lambda:InvokeFunction"}),
+    "reader": frozenset({"execute-api:Invoke"}),
+    "consumer": frozenset({"execute-api:Invoke"}),
+    "operator": frozenset({"execute-api:Invoke"}),
     "generator": frozenset({"s3:PutObject"}) | LOGS,
     "simulator": frozenset(
         {
@@ -174,9 +178,22 @@ def _guarded(args: StackValidationArgs, report: Report) -> None:
             report(f"each bucket needs a {name}; {buckets} bucket(s), {counts[typ]} found")
 
 
-def _url_iam_only(props: dict[str, Any], report: Report) -> None:
-    if props.get("authorizationType") != "AWS_IAM":
-        report("a function URL must use AWS_IAM authorization, never NONE")
+def _api_iam_only(args: ResourceValidationArgs, report: Report) -> None:
+    """Each route of the API checks IAM, and no function URL goes around the gateway."""
+    if args.resource_type == FUNCTION_URL:
+        report("the API is reached through API Gateway only, never a function URL (spec 10)")
+    elif args.resource_type == ROUTE and args.props.get("authorizationType") != "AWS_IAM":
+        report(f"the route {args.props.get('routeKey')} must use AWS_IAM authorization")
+
+
+def _throttled(props: dict[str, Any], report: Report) -> None:
+    """The stage's limits are the API's only bound on requests (spec 10, Q137)."""
+    limits = props.get("defaultRouteSettings") or {}
+    if not all(
+        isinstance(value, int | float) and value >= 0
+        for value in (limits.get("throttlingRateLimit"), limits.get("throttlingBurstLimit"))
+    ):
+        report("the stage must set a rate limit and a burst limit of 0 or more")
 
 
 def _bounded(props: dict[str, Any], report: Report) -> None:
@@ -324,10 +341,17 @@ NO_RULED_OUT_RESOURCES = ResourceValidationPolicy(
     enforcement_level=MANDATORY,
 )
 
-URL_IAM_ONLY = ResourceValidationPolicy(
-    "url-iam-only",
-    "Every Lambda function URL uses AWS_IAM authorization (ADR 0026).",
-    _for(FUNCTION_URL, _url_iam_only),
+API_IAM_ONLY = ResourceValidationPolicy(
+    "api-iam-only",
+    "Every API Gateway route uses AWS_IAM authorization, and no Lambda function has a URL"
+    " (spec 10).",
+    _api_iam_only,
+    enforcement_level=MANDATORY,
+)
+API_THROTTLED = ResourceValidationPolicy(
+    "api-throttled",
+    "Every API Gateway stage sets a rate limit and a burst limit (spec 10).",
+    _for(STAGE, _throttled),
     enforcement_level=MANDATORY,
 )
 FUNCTION_BOUNDED = ResourceValidationPolicy(
@@ -368,7 +392,8 @@ POLICIES = [
     S3_VERSIONED,
     S3_TLS_ONLY,
     S3_GUARDED,
-    URL_IAM_ONLY,
+    API_IAM_ONLY,
+    API_THROTTLED,
     FUNCTION_BOUNDED,
     FUNCTION_LOGGED,
     IAM_LEAST_PRIVILEGE,

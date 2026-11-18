@@ -39,7 +39,7 @@ def test_the_program_outputs_what_the_reference_lists(tmp_path: Path) -> pulumi.
             {k: values[k] for k in ("bucket", "apiUrl")},
             {
                 "bucket": "mock-deployment-bucket",
-                "apiUrl": "https://mock.lambda-url.us-east-1.on.aws/",
+                "apiUrl": "https://mockapi123.execute-api.us-east-1.amazonaws.com/",
             },
         )
     )

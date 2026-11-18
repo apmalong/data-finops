@@ -27,7 +27,7 @@ SECRETS = {
     "export bucket": "owner-export-bucket-9c1d",
     "export name": "owner-focus-export",
     "email": "owner@example.org",
-    "url": "abcdefghij.lambda-url",
+    "url": "abcdefghij.execute-api",
     "auto-named bucket": "data-finops-1a2b3c4",
     "passphrase": "correct-horse-staple",
     "demo bucket": "owner-demo-bucket-7a8b",
@@ -179,7 +179,7 @@ def test_the_deploy_wizard_dry_run_reaches_no_real_tool_and_masks_its_output(
         "pulumi up --yes",
         "pulumi stack export",
         "aws lambda invoke",
-        "awscurl --service lambda",
+        "awscurl --service execute-api",
     ):
         assert expected in commands, f"{expected} was never called"
     assert calls.index(next(c for c in calls if c.startswith("pulumi preview"))) < calls.index(

@@ -104,7 +104,7 @@
 </ul>
 </nav>
 <!-- onpage:end -->
-<p>A Deployment runs data-finops in one AWS account (<a href="https://github.com/apmalong/data-finops/blob/main/docs/adr/0026-aws-deployment-two-lambdas-without-vpc.md">ADR 0026</a>). It has a collector function that runs a Collection Run one time each day. It also has a read-only API behind a Function URL that IAM authorizes. This guide builds the functions' package, configures the Pulumi stack, checks it with the policy pack, deploys it and runs a first Collection Run. <a href="../explanation/deployment-architecture.html">Deployment architecture</a> explains what it creates and what it costs.</p>
+<p>A Deployment runs data-finops in one AWS account (<a href="https://github.com/apmalong/data-finops/blob/main/docs/adr/0026-aws-deployment-two-lambdas-without-vpc.md">ADR 0026</a>). It has a collector function that runs a Collection Run one time each day. It also has a read-only API behind an API Gateway HTTP API that IAM authorizes. This guide builds the functions' package, configures the Pulumi stack, checks it with the policy pack, deploys it and runs a first Collection Run. <a href="../explanation/deployment-architecture.html">Deployment architecture</a> explains what it creates and what it costs.</p>
 <p class="notice">Owner-run: not run on this page. Every command here reaches a real AWS account, and the deploy creates resources that cost money. Only the account owner runs <code>pulumi preview</code>, <code>pulumi up</code> and <code>pulumi destroy</code> against a real account.</p>
 <p>The owner can follow this page by hand, or run it as one wizard: <a href="https://github.com/apmalong/data-finops/blob/main/infra/pulumi/aws/wizards/deploy-and-verify.sh"><code>deploy-and-verify.sh</code></a>. The wizard does these things:</p>
 <ul>
@@ -189,7 +189,7 @@
 <p>The policy pack holds the mandatory rules of the Deployment:</p>
 <ul>
 <li>a private, encrypted, versioned bucket that accepts only TLS</li>
-<li>a Function URL that accepts only IAM authorization</li>
+<li>an API whose routes accept only IAM authorization, with rate limits</li>
 <li>functions with limits and logs</li>
 <li>least-privilege IAM</li>
 <li>no VPC and no database servers</li>

@@ -10,6 +10,7 @@ from typing import Any
 import pulumi
 import pulumi_aws as aws
 
+from deployment.gateway import Gateway, gateway
 from deployment.package import ARCHITECTURE, PYTHON
 from deployment.settings import Settings
 from deployment.storage import INBOX, Storage
@@ -52,12 +53,11 @@ def trust_policy(service: str) -> str:
 class Compute(pulumi.ComponentResource):
     collector: aws.lambda_.Function
     api: aws.lambda_.Function
-    url: aws.lambda_.FunctionUrl
+    gateway: Gateway
     code: dict[str, Any]
     """Where every function's code is: the package object and its hash, the runtime and the
     architecture. The demo's functions use it too."""
     producer_policy: aws.iam.Policy
-    reader_policy: aws.iam.Policy
     ready: pulumi.Output[list[Any]]
     """Settles once every resource of the component is registered."""
 
@@ -173,12 +173,7 @@ class Compute(pulumi.ComponentResource):
             **common,
             **api_options,
         )
-        self.url = aws.lambda_.FunctionUrl(
-            f"{name}-api",
-            function_name=self.api.name,
-            authorization_type="AWS_IAM",
-            opts=child,
-        )
+        self.gateway = gateway(name, settings, self.api, child)
         scheduler_role = aws.iam.Role(
             f"{name}-scheduler",
             assume_role_policy=trust_policy("scheduler.amazonaws.com"),
@@ -214,14 +209,8 @@ class Compute(pulumi.ComponentResource):
             policy=bucket.arn.apply(lambda arn: _producer_policy(settings, arn)),
             opts=child,
         )
-        self.reader_policy = aws.iam.Policy(
-            f"{name}-reader",
-            description="data-finops: call the Deployment's read-only API",
-            policy=self.api.arn.apply(_reader_policy),
-            opts=child,
-        )
-        resources += [scheduler_role, self.collector, self.api, self.url]
-        resources += [self.producer_policy, self.reader_policy]
+        resources += [scheduler_role, self.collector, self.api, *self.gateway.resources]
+        resources.append(self.producer_policy)
         resources += _alerts(name, settings, self.collector, child)
         self.ready = pulumi.Output.all(*[r.urn for r in resources])
         self.register_outputs(self.outputs())
@@ -229,9 +218,9 @@ class Compute(pulumi.ComponentResource):
     def outputs(self) -> dict[str, pulumi.Output[str]]:
         """The component's stack outputs (spec 08 §Settings, Outputs)."""
         return {
-            "apiUrl": self.url.function_url,
+            "apiUrl": self.gateway.url,
             "producerPolicyArn": self.producer_policy.arn,
-            "readerPolicyArn": self.reader_policy.arn,
+            **{f"{role}PolicyArn": p.arn for role, p in self.gateway.policies.items()},
             "collectorFunction": self.collector.name,
             "apiFunction": self.api.name,
         }
@@ -338,31 +327,6 @@ def _producer_policy(settings: Settings, bucket_arn: str) -> str:
                 *key_grant(settings, ["kms:GenerateDataKey"]),
             ]
         )
-    )
-
-
-def _reader_policy(function_arn: str) -> str:
-    """Call the API through its URL and no other way. Since October 2025 a function URL needs
-    `lambda:InvokeFunction` as well as `lambda:InvokeFunctionUrl`; `lambda:InvokedViaFunctionUrl`
-    limits the former to URL calls (AWS, "Control access to Lambda function URLs")."""
-    return json.dumps(
-        {
-            "Version": "2012-10-17",
-            "Statement": [
-                {
-                    "Effect": "Allow",
-                    "Action": ["lambda:InvokeFunctionUrl"],
-                    "Resource": [function_arn],
-                    "Condition": {"StringEquals": {"lambda:FunctionUrlAuthType": "AWS_IAM"}},
-                },
-                {
-                    "Effect": "Allow",
-                    "Action": ["lambda:InvokeFunction"],
-                    "Resource": [function_arn],
-                    "Condition": {"Bool": {"lambda:InvokedViaFunctionUrl": "true"}},
-                },
-            ],
-        }
     )
 
 

@@ -31,8 +31,9 @@ The collector is the only writer.
 - One `PutObject` holds up to 5 GB. Multipart upload is a revisit trigger.
 
 ### API function
-- A Function URL with `AWS_IAM` authorization. It is read-only.
-- It serves the `/health` and `/v1/*` read endpoints from the current database object. It keeps the object in `/tmp` by ETag.
+- An API Gateway HTTP API in front of it, with an `AWS_IAM` route for each read under `/v1/` (spec 10 §The API, #290). It is read-only. The Function URL is removed.
+- The `$default` stage limits the requests to `apiRateLimit` and `apiBurstLimit`.
+- It serves the `/v1/*` read endpoints from the current database object. It keeps the object in `/tmp` by ETag. `/health` has no route.
 - The OpenLineage receiver and the static dashboard are not mounted.
 - Cost Explanations use `explanationDetail` (ADR 0028).
 - Its handler is `data_finops.lambda_handlers.api`, which serves the app through Mangum 0.22.0 (#184).
@@ -107,9 +108,9 @@ The bucket holds the database object, `inbox/openlineage/`, `inbox/dbt/<invocati
    - Its exit codes follow the CLI (0, 1, 2).
 
 ## Read a Deployment
-- JSON only. Each request is signed with SigV4 by an IAM principal that has `lambda:InvokeFunctionUrl`. Examples: `curl --aws-sigv4` from curl 7.75, or awscurl. The stack outputs a reader policy that gives this permission.
+- JSON only. Each request is signed with SigV4 (service `execute-api`) by an IAM principal that has `execute-api:Invoke` on the route. Examples: `data-finops <read> --deployment NAME`, `curl --aws-sigv4` from curl 7.75, or awscurl. The stack outputs a reader policy that gives this permission.
 - The dashboard: download the current database object, and run `data-finops serve --db` locally.
-- Kill switch: set the reserved concurrency of the API function to 0. This deactivates the Function URL.
+- Kill switch: set `apiRateLimit` and `apiBurstLimit` to 0. API Gateway then answers 429 to each request (spec 10).
 
 ## IAM
 The policies that `deployment/compute.py` grants supersede the research drafts in `docs/research/m6-collector-iam.md`. After `pulumi up`, the deploy wizard (#192) validates these policies and the bucket policy with IAM Access Analyzer. It reads them from the real state. Until the owner runs the wizard, they are not validated.
@@ -134,7 +135,8 @@ The policies that `deployment/compute.py` grants supersede the research drafts i
 ### Other policies
 - **Producer policy** (output): `s3:PutObject` on `inbox/*` only.
   - If `kmsKeyArn` is set, also `kms:GenerateDataKey` on that key. S3 requires it to write an SSE-KMS object (#270).
-- **Reader policy** (output): `lambda:InvokeFunctionUrl` on the API function (condition `lambda:FunctionUrlAuthType` `AWS_IAM`). It also gives `lambda:InvokeFunction` on the API function, but only through the URL (condition `lambda:InvokedViaFunctionUrl`). Function URLs created since October 2025 require both (AWS, "Control access to Lambda function URLs", checked 2026-11-07, #187).
+- **Reader, consumer and operator policies** (outputs): `execute-api:Invoke` on the routes of the role (spec 10). Until the Command routes come (#291), each of the three gives the read routes only. A path parameter is `*` in the ARN, and so is the stage.
+- **API Gateway:** a Lambda permission lets `apigateway.amazonaws.com` invoke the API function, for `GET /v1/*` of this API only.
 - **Scheduler role:** `lambda:InvokeFunction` on the collector function only. EventBridge Scheduler assumes this role to start the Collection Run (#187).
 - **Deployer:** the owner creates it, never the stack. A draft deployer policy with least privilege is `infra/pulumi/aws/iam/deployer-policy.draft.json`. It is not validated until the IAM Access Analyzer step of the deploy wizard (#192).
 
@@ -153,6 +155,7 @@ The TOML file of `data-finops collect` names the same settings in snake case (`a
 | `collectorTimeoutSeconds`, `collectorMemoryMb` | 900, 2048 | Collector limits |
 | `apiTimeoutSeconds`, `apiMemoryMb` | 30, 1024 | API limits |
 | `apiReservedConcurrency` | unset | An optional limit on the API. New accounts can lack the quota. |
+| `apiRateLimit`, `apiBurstLimit` | 10, 20 | The rate limits of the API stage (0 to 10,000, and 0 to 5,000). Both at 0 is the kill switch (spec 10) |
 | `logRetentionDays` | 30 | Both log groups, which the stack creates |
 | `noncurrentVersionDays` | 30 | Expiry of old database object versions |
 | `inboxRetentionDays` | 30 | Expiry of Inbox objects |
@@ -163,7 +166,7 @@ The TOML file of `data-finops collect` names the same settings in snake case (`a
 | `deleteDataOnDestroy` | false | Whether `destroy` deletes the bucket. By default, the bucket is kept. |
 | `costDimensions` | unset | An optional path to a Cost Dimensions file (spec 09). The stack uploads it to `config/cost-dimensions.toml`, and the collector applies it. |
 
-Outputs: the bucket name, the API URL, the ARNs of the producer and reader policies, and the two function names.
+Outputs: the bucket name, the API URL, the ARNs of the producer, reader, consumer and operator policies, and the two function names.
 
 ## Cost limits
 AWS has no hard limit on spend, and Budget actions cannot stop Lambda. Thus the cost limits are these:
@@ -176,7 +179,7 @@ The deployment explanation page gives the researched monthly estimates. The cost
 ## Policy pack
 A small custom Python pack. The open-source AWS packs of Pulumi are TypeScript only, and they are stale. All policies are mandatory. Each policy checks only literal inputs. A value that is unknown at preview gives only an advisory.
 1. S3: all four public access blocks, default encryption, a TLS-only bucket policy, and versioning on.
-2. Each Function URL is `AWS_IAM`.
+2. Each API Gateway route is `AWS_IAM`, and no function has a Function URL. Each stage sets a rate limit and a burst limit of 0 or more (spec 10).
 3. Each Lambda function has its log group, `/aws/lambda/<name>`, with retention set. It sets its timeout and memory explicitly.
    - The timeout and memory must be in the limits of spec 08 (1–900 s, 128–10,240 MB).
    - The pack cannot read the settings of the stack. Thus it checks these limits, not the configured values (#189).

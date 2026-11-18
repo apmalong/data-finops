@@ -148,11 +148,97 @@ def test_the_api_reads_the_bucket_at_its_detail_behind_iam() -> pulumi.Output[No
             "DATA_FINOPS_EXPLANATION_DETAIL": "full",
         }
         assert api["reservedConcurrentExecutions"] == 3
-        (url,) = MOCKS.of_type("aws:lambda/functionUrl:FunctionUrl")
-        assert url.inputs["authorizationType"] == "AWS_IAM"
 
     settings = dataclasses.replace(SETTINGS, explanation_detail="full", api_reserved_concurrency=3)
     return _after(settings, check)
+
+
+READ_ROUTES = [
+    "GET /v1/costs/summary",
+    "GET /v1/allocations",
+    "GET /v1/allocations/{ref}/explanation",
+    "GET /v1/rollups",
+    "GET /v1/rollups/dimensions/{name}",
+    "GET /v1/reconciliation",
+    "GET /v1/provenance",
+    "GET /v1/lineage",
+]
+"""The read routes of the app (`data_finops.api.app`, spec 06), written out by hand."""
+EXECUTION_ARN = f"arn:aws:execute-api:us-east-1:{ACCOUNT}:mockapi123"
+"""The API's execution ARN, as `tests.mocks` gives it."""
+READ_ARNS = sorted(
+    f"{EXECUTION_ARN}/*/GET{path}"
+    for path in (
+        "/v1/costs/summary",
+        "/v1/allocations",
+        "/v1/allocations/*/explanation",
+        "/v1/rollups",
+        "/v1/rollups/dimensions/*",
+        "/v1/reconciliation",
+        "/v1/provenance",
+        "/v1/lineage",
+    )
+)
+
+
+@pulumi.runtime.test
+def test_the_api_is_an_http_api_with_an_iam_route_for_each_read() -> pulumi.Output[None]:
+    def check() -> None:
+        assert MOCKS.of_type("aws:lambda/functionUrl:FunctionUrl") == []
+        api = MOCKS.one("aws:apigatewayv2/api:Api").inputs
+        assert api["protocolType"] == "HTTP"
+        integration = MOCKS.one("aws:apigatewayv2/integration:Integration")
+        assert integration.inputs["integrationType"] == "AWS_PROXY"
+        assert integration.inputs["payloadFormatVersion"] == "2.0"
+        assert integration.inputs["integrationUri"] == (
+            f"arn:aws:lambda:us-east-1:{ACCOUNT}:function:data-finops-test-api"
+        )
+        routes = [r.inputs for r in MOCKS.of_type("aws:apigatewayv2/route:Route")]
+        assert sorted(r["routeKey"] for r in routes) == sorted(READ_ROUTES)
+        assert {r["authorizationType"] for r in routes} == {"AWS_IAM"}
+        assert {r["target"] for r in routes} == {f"integrations/{integration.name}-id"}
+        permission = MOCKS.one("aws:lambda/permission:Permission").inputs
+        assert permission["action"] == "lambda:InvokeFunction"
+        assert permission["principal"] == "apigateway.amazonaws.com"
+        assert permission["function"] == "data-finops-test-api"
+        assert permission["sourceArn"] == f"{EXECUTION_ARN}/*/GET/v1/*"
+
+    return _after(SETTINGS, check)
+
+
+@pulumi.runtime.test
+def test_the_stage_is_limited_to_the_default_rates() -> pulumi.Output[None]:
+    def check() -> None:
+        stage = MOCKS.one("aws:apigatewayv2/stage:Stage").inputs
+        assert (stage["name"], stage["autoDeploy"]) == ("$default", True)
+        assert stage["defaultRouteSettings"] == {
+            "throttlingRateLimit": 10,
+            "throttlingBurstLimit": 20,
+        }
+
+    return _after(SETTINGS, check)
+
+
+@pulumi.runtime.test
+def test_the_kill_switch_sets_the_stage_limits_to_0() -> pulumi.Output[None]:
+    def check() -> None:
+        stage = MOCKS.one("aws:apigatewayv2/stage:Stage").inputs
+        assert stage["defaultRouteSettings"] == {
+            "throttlingRateLimit": 0,
+            "throttlingBurstLimit": 0,
+        }
+
+    return _after(dataclasses.replace(SETTINGS, api_rate_limit=0, api_burst_limit=0), check)
+
+
+@pulumi.runtime.test
+def test_each_role_may_only_invoke_the_read_routes() -> pulumi.Output[None]:
+    def check() -> None:
+        # Until the Command routes come (#291), each role has the reads only.
+        for role in ("reader", "consumer", "operator"):
+            assert _actions(_managed_policy_of(role)) == {"execute-api:Invoke": READ_ARNS}, role
+
+    return _after(SETTINGS, check)
 
 
 @pulumi.runtime.test
@@ -259,23 +345,11 @@ def test_a_customer_key_lets_both_functions_use_it() -> pulumi.Output[None]:
 
 
 @pulumi.runtime.test
-def test_producers_may_only_put_into_the_inbox_and_readers_only_call_the_url() -> pulumi.Output[
-    None
-]:
+def test_producers_may_only_put_into_the_inbox() -> pulumi.Output[None]:
     def check() -> None:
-        reader = _managed_policy_of("reader")
         assert _actions(_managed_policy_of("producer")) == {
             "s3:PutObject": ["arn:aws:s3:::mock-deployment-bucket/inbox/*"]
         }
-        # Since October 2025 a function URL needs both actions (AWS, "Control access to Lambda
-        # function URLs"); InvokeFunction is limited to calls made through the URL.
-        url_statement, invoke_statement = reader["Statement"]
-        assert url_statement["Action"] == ["lambda:InvokeFunctionUrl"]
-        assert url_statement["Condition"] == {
-            "StringEquals": {"lambda:FunctionUrlAuthType": "AWS_IAM"}
-        }
-        assert invoke_statement["Action"] == ["lambda:InvokeFunction"]
-        assert invoke_statement["Condition"] == {"Bool": {"lambda:InvokedViaFunctionUrl": "true"}}
 
     return _after(SETTINGS, check)
 
@@ -328,10 +402,13 @@ def test_the_compute_is_one_component_with_its_outputs() -> pulumi.Output[None]:
             "apiUrl",
             "producerPolicyArn",
             "readerPolicyArn",
+            "consumerPolicyArn",
+            "operatorPolicyArn",
             "collectorFunction",
             "apiFunction",
         }
-        assert values["apiUrl"].startswith("https://")
+        # The $default stage serves at the API's own endpoint, with no stage in the path.
+        assert values["apiUrl"] == "https://mockapi123.execute-api.us-east-1.amazonaws.com/"
 
     return pulumi.Output.all(**compute.outputs()).apply(check)
 

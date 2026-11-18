@@ -108,7 +108,7 @@
 <li>It runs each step below.</li>
 <li>It also tears down the reference workload.</li>
 <li>It checks that the state of each stack is empty.</li>
-<li>It checks that the main resources are gone in AWS. These are the functions, the producer and reader policies, and the bucket if you chose to delete it. They also include the bucket, Glue database, workgroup and Budget of the reference workload.</li>
+<li>It checks that the main resources are gone in AWS. These are the functions, the producer, reader, consumer and operator policies, and the bucket if you chose to delete it. They also include the bucket, Glue database, workgroup and Budget of the reference workload.</li>
 <li>It asks before each step that changes something.</li>
 <li>It masks account IDs, buckets, profiles and the URL of the API in all that it shows and records.</li>
 </ul>
@@ -120,13 +120,17 @@
 <p>On Windows, it requires Git Bash, not the <code>bash</code> of WSL. Its masked record is written to <code>.local/</code>.</p>
 
 <h2 id="before">Before you destroy</h2>
-<p>Detach the producer and reader policies from every identity they were attached to. IAM refuses to delete a managed policy that is still attached, and the destroy stops there:</p>
+<p>Detach the producer, reader, consumer and operator policies from every identity they were attached to. IAM refuses to delete a managed policy that is still attached, and the destroy stops there:</p>
 <div class="shell-tabs">
 <pre class="shell-posix"><code><span class="line">aws iam list-entities-for-policy --policy-arn &lt;producerPolicyArn&gt; --profile &lt;admin profile&gt;
 </span><span class="line">aws iam list-entities-for-policy --policy-arn &lt;readerPolicyArn&gt; --profile &lt;admin profile&gt;
+</span><span class="line">aws iam list-entities-for-policy --policy-arn &lt;consumerPolicyArn&gt; --profile &lt;admin profile&gt;
+</span><span class="line">aws iam list-entities-for-policy --policy-arn &lt;operatorPolicyArn&gt; --profile &lt;admin profile&gt;
 </span><span class="line">aws iam detach-role-policy --role-name &lt;role&gt; --policy-arn &lt;policy arn&gt; --profile &lt;admin profile&gt;</span></code></pre>
 <pre class="shell-windows" data-derived=""><code><span class="line">aws iam list-entities-for-policy --policy-arn &lt;producerPolicyArn&gt; --profile &lt;admin profile&gt;
 </span><span class="line">aws iam list-entities-for-policy --policy-arn &lt;readerPolicyArn&gt; --profile &lt;admin profile&gt;
+</span><span class="line">aws iam list-entities-for-policy --policy-arn &lt;consumerPolicyArn&gt; --profile &lt;admin profile&gt;
+</span><span class="line">aws iam list-entities-for-policy --policy-arn &lt;operatorPolicyArn&gt; --profile &lt;admin profile&gt;
 </span><span class="line">aws iam detach-role-policy --role-name &lt;role&gt; --policy-arn &lt;policy arn&gt; --profile &lt;admin profile&gt;</span></code></pre>
 </div>
 <p>Run every command below from <code>infra/pulumi/aws</code>, with <code>PULUMI_BACKEND_URL</code> and <code>PULUMI_CONFIG_PASSPHRASE</code> set as in <a href="deploy-to-aws.html#configure">Deploy to AWS</a>.</p>
@@ -136,7 +140,7 @@
 <pre class="shell-posix"><code><span class="line">pulumi destroy</span></code></pre>
 <pre class="shell-windows" data-derived=""><code><span class="line">pulumi destroy</span></code></pre>
 </div>
-<p>This command deletes the functions, their log groups and roles, the schedule and the Function URL. It also deletes the producer and reader policies, the alarm and its topic, the Budget, and the Lambda package object. S3 Versioning keeps the last version of the package, about 66 MB, until it expires after <code>noncurrentVersionDays</code>. The command keeps the bucket and each setting on it: the public access blocks, encryption, versioning, the expiry rules and the TLS-only policy. The bucket leaves the state of the stack. Thus a later <code>pulumi up</code> tries to create a new bucket with a new name, and does not adopt this bucket.</p>
+<p>This command deletes the functions, their log groups and roles, the schedule and the API Gateway API. It also deletes the producer, reader, consumer and operator policies, the alarm and its topic, the Budget, and the Lambda package object. S3 Versioning keeps the last version of the package, about 66 MB, until it expires after <code>noncurrentVersionDays</code>. The command keeps the bucket and each setting on it: the public access blocks, encryption, versioning, the expiry rules and the TLS-only policy. The bucket leaves the state of the stack. Thus a later <code>pulumi up</code> tries to create a new bucket with a new name, and does not adopt this bucket.</p>
 <p>While the bucket is kept, AWS bills its storage, and its expiry rules continue to operate. Inbox objects expire after <code>inboxRetentionDays</code>, and old object versions expire after <code>noncurrentVersionDays</code>. To delete the bucket later, empty it in the S3 console, which deletes each version. Then delete the bucket.</p>
 
 <h2 id="delete">Destroy and delete the data</h2>

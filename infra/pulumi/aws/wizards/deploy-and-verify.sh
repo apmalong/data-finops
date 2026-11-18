@@ -501,8 +501,7 @@ pause
 
 stage "Read it back through the API"
 if command -v awscurl >/dev/null 2>&1; then
-  run awscurl --service lambda --region "$AWS_REGION_NAME" --profile "$DEPLOYER_PROFILE" "${API_URL}health"
-  run awscurl --service lambda --region "$AWS_REGION_NAME" --profile "$DEPLOYER_PROFILE" "${API_URL}v1/costs/summary"
+  run awscurl --service execute-api --region "$AWS_REGION_NAME" --profile "$DEPLOYER_PROFILE" "${API_URL}v1/costs/summary"
 else
   SKIPPED+=("reading the API back: install awscurl and see the Read a Deployment page")
   show "skipped: reading the API back (awscurl is not installed)"

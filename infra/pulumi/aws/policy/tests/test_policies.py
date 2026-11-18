@@ -17,6 +17,7 @@ VERSIONING, POLICY = policies.VERSIONING, policies.BUCKET_POLICY
 FUNCTION, LOG_GROUP, URL = policies.FUNCTION, policies.LOG_GROUP, policies.FUNCTION_URL
 ROLE_POLICY, MANAGED_POLICY = policies.IAM_DOCUMENTS
 BUDGET = policies.BUDGET
+ROUTE, STAGE = policies.ROUTE, policies.STAGE
 
 
 def _options() -> PolicyResourceOptions:
@@ -156,13 +157,56 @@ def test_every_policy_is_mandatory() -> None:
     assert {p.enforcement_level for p in policies.POLICIES} == {policies.MANDATORY}
 
 
-# Policy 2: Function URLs
+# Policy 2: the API (spec 10 §The API)
 
 
-@pytest.mark.parametrize(("auth", "violations"), [("AWS_IAM", 0), ("NONE", 1)])
-def test_a_function_url_must_use_iam(auth: str, violations: int) -> None:
-    found = _violations_of(policies.URL_IAM_ONLY, URL, {"authorizationType": auth})
-    assert len(found) == violations
+@pytest.mark.parametrize(
+    ("auth", "violations"),
+    [
+        ("AWS_IAM", []),
+        ("NONE", ["the route GET /v1/lineage must use AWS_IAM authorization"]),
+        (None, ["the route GET /v1/lineage must use AWS_IAM authorization"]),
+    ],
+)
+def test_an_api_route_must_use_iam(auth: str | None, violations: list[str]) -> None:
+    route = {"routeKey": "GET /v1/lineage", "authorizationType": auth}
+    assert _violations_of(policies.API_IAM_ONLY, ROUTE, route) == violations
+
+
+def test_a_function_url_is_refused() -> None:
+    assert _violations_of(policies.API_IAM_ONLY, URL, {"authorizationType": "AWS_IAM"}) == [
+        "the API is reached through API Gateway only, never a function URL (spec 10)"
+    ]
+
+
+@pytest.mark.parametrize(
+    "limits",
+    [
+        {"throttlingRateLimit": 10, "throttlingBurstLimit": 20},
+        {"throttlingRateLimit": 0, "throttlingBurstLimit": 0},  # the kill switch
+    ],
+)
+def test_a_stage_with_both_limits_passes(limits: dict[str, Any]) -> None:
+    stage = {"name": "$default", "defaultRouteSettings": limits}
+    assert _violations_of(policies.API_THROTTLED, STAGE, stage) == []
+
+
+@pytest.mark.parametrize(
+    "settings",
+    [
+        None,
+        {},
+        {"throttlingRateLimit": 10},
+        {"throttlingBurstLimit": 20},
+        {"throttlingRateLimit": 10, "throttlingBurstLimit": None},
+        {"throttlingRateLimit": -1, "throttlingBurstLimit": 20},
+    ],
+)
+def test_a_stage_without_both_limits_is_refused(settings: dict[str, Any] | None) -> None:
+    stage = {"name": "$default", "defaultRouteSettings": settings}
+    assert _violations_of(policies.API_THROTTLED, STAGE, stage) == [
+        "the stage must set a rate limit and a burst limit of 0 or more"
+    ]
 
 
 # Policy 3: functions bounded and logged
@@ -239,6 +283,10 @@ def test_each_policy_may_allow_its_own_actions() -> None:
         _allow("kms:GenerateDataKey", KEY),
     )
     assert _iam(with_key, "data-finops-producer", MANAGED_POLICY) == []
+    route = "arn:aws:execute-api:us-east-1:123456789012:abc123/*/GET/v1/lineage"
+    for role in ("reader", "consumer", "operator"):
+        invoke = _document(_allow("execute-api:Invoke", [route]))
+        assert _iam(invoke, f"data-finops-{role}", MANAGED_POLICY) == [], role
 
 
 @pytest.mark.parametrize(
@@ -287,6 +335,10 @@ def test_a_key_action_names_one_key_and_nothing_else(resource: Any) -> None:
         ("data-finops-scheduler", "s3:GetObject"),
         ("data-finops-producer", "s3:GetObject"),
         ("data-finops-reader", "s3:GetObject"),
+        # The Function URL is gone (spec 10): its actions are no role's.
+        ("data-finops-reader", "lambda:InvokeFunctionUrl"),
+        ("data-finops-consumer", "lambda:InvokeFunction"),
+        ("data-finops-operator", "s3:PutObject"),
     ],
 )
 def test_a_policy_may_not_allow_another_policys_actions(name: str, action: str) -> None:
