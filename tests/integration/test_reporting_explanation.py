@@ -167,6 +167,43 @@ def test_an_unlinked_query_executions_allocation_rolls_up_to_nothing(tmp_path: P
     )
 
 
+def test_an_unallocated_amount_with_linked_evidence_rolls_up_to_nothing(tmp_path: Path) -> None:
+    # Coverage that exceeds the bill leaves the line Unallocated, and its Allocation keeps the
+    # query's Evidence: a Model Execution and Workload Runs. Roll-ups sum only Allocations to
+    # Query Executions (#307).
+    path = tmp_path / "data-finops.sqlite"
+    first = fill(path)
+    with Ledger(path) as ledger:
+        stored = ledger.allocation_snapshot(first)
+        assert stored is not None
+        exceeded = [
+            a.model_copy(
+                update={
+                    "calculation_run_id": "calc-exceeded",
+                    "method": "coverage_exceeded",
+                    "evidence_refs": METERED["evidence_refs"],
+                }
+            )
+            if a.target_id == "unallocated"
+            else a.model_copy(update={"calculation_run_id": "calc-exceeded"})
+            for a in stored.allocations
+        ]
+        ledger.store_allocations(
+            EXPORT.snapshot.scope,
+            calculation_run_id="calc-exceeded",
+            policy_version=stored.snapshot.policy_version,
+            input_digest="exceeded",
+            export_snapshot_id=EXPORT.snapshot.snapshot_id,
+            allocations=exceeded,
+        )
+    with Reporting(path) as reporting:
+        explanation = reporting.explanation(_ref(reporting, "unallocated"))
+    assert explanation.unallocated_reason == "coverage_exceeded"
+    assert explanation.model_execution is not None
+    assert [run.run_id for run in explanation.workload_runs] == RUNS
+    assert explanation.rollups == []
+
+
 def test_the_query_execution_is_looked_up_in_the_lines_usage_account(tmp_path: Path) -> None:
     # A member account's usage billed to the payer: the query history is the member's
     # (spec 03: the usage account is SubAccountId, not the paying BillingAccountId).
