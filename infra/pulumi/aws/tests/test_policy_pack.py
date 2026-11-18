@@ -285,6 +285,33 @@ def _with_an_actual_only_budget(resources: list[dict[str, Any]]) -> list[dict[st
     return [*resources, budget]
 
 
+URL_READER = json.dumps(
+    {
+        "Version": "2012-10-17",
+        "Statement": [
+            {
+                "Effect": "Allow",
+                "Action": "lambda:InvokeFunctionUrl",
+                "Resource": "arn:aws:lambda:us-east-1:123456789012:function:data-finops-test-api",
+            }
+        ],
+    }
+)
+"""The reader policy of the Function URL, which spec 10 retires."""
+
+
+def _with_a_function_url(resources: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    url = {
+        "urn": "urn:pulumi:test::data-finops::aws:lambda/functionUrl:FunctionUrl::data-finops-api",
+        "custom": True,
+        "type": "aws:lambda/functionUrl:FunctionUrl",
+        "inputs": {"functionName": "data-finops-test-api", "authorizationType": "AWS_IAM"},
+        "outputs": {},
+        "parent": STACK,
+    }
+    return [*resources, url]
+
+
 def _with_a_vpc(resources: list[dict[str, Any]]) -> list[dict[str, Any]]:
     vpc = {
         "urn": "urn:pulumi:test::data-finops::aws:ec2/vpc:Vpc::network",
@@ -308,7 +335,10 @@ def _with_a_vpc(resources: list[dict[str, Any]]) -> list[dict[str, Any]]:
         (_changed(":BucketServerSideEncryptionConfiguration", {"rules": [{}]}), "s3-encrypted"),
         (_changed(":BucketPolicy", {"policy": PLAIN_HTTP}), "s3-tls-only"),
         (_with_a_vpc, "no-ruled-out-resources"),
-        (_changed(":FunctionUrl", {"authorizationType": "NONE"}), "url-iam-only"),
+        (_changed(":Route", {"authorizationType": "NONE"}), "api-iam-only"),
+        (_with_a_function_url, "api-iam-only"),
+        (_changed(":Stage", {"defaultRouteSettings": None}), "api-throttled"),
+        (_changed(":Policy", {"policy": URL_READER}, "-reader"), "iam-least-privilege"),
         (_changed(":Function", {"memorySize": None}), "function-bounded"),
         (_changed(":LogGroup", {"retentionInDays": None}), "function-logged"),
         (

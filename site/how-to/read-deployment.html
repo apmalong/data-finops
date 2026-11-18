@@ -101,31 +101,31 @@
 </ul>
 </nav>
 <!-- onpage:end -->
-<p>A Deployment's API serves the same read endpoints as <code>data-finops serve</code>, from the database the last Collection Run wrote. It sits behind a Function URL that accepts only requests signed with AWS Signature Version 4 (SigV4) by an IAM principal allowed to call it. There is no token. This guide grants that access, calls the API, opens the dashboard on a local copy and switches the API off when necessary.</p>
+<p>A Deployment's API serves the same read endpoints as <code>data-finops serve</code>, from the database the last Collection Run wrote. It sits behind an API Gateway HTTP API. The API accepts only requests signed with AWS Signature Version 4 (SigV4) by an IAM principal that can call it. There is no token. This guide grants that access, calls the API, opens the dashboard on a local copy and switches the API off when necessary.</p>
 <p class="notice">Not run on this page. These commands reach a real Deployment with your own AWS credentials. Only an administrator can attach a policy. Only the owner runs the <code>pulumi up</code> of the kill switch.</p>
 
 <h2 id="grant">Grant a reader access</h2>
-<p>The stack outputs <code>readerPolicyArn</code>, a managed policy that permits calls to the Function URL of the API and nothing else. Attach it to the role or user that will read, for example:</p>
+<p>The stack outputs <code>readerPolicyArn</code>, a managed policy that permits calls to the read routes of the API and nothing else. Attach it to the role or user that will read, for example:</p>
 <div class="shell-tabs">
 <pre class="shell-posix"><code><span class="line">aws iam attach-role-policy --role-name &lt;reader role&gt; --policy-arn &lt;readerPolicyArn&gt; --profile &lt;admin profile&gt;</span></code></pre>
 <pre class="shell-windows" data-derived=""><code><span class="line">aws iam attach-role-policy --role-name &lt;reader role&gt; --policy-arn &lt;readerPolicyArn&gt; --profile &lt;admin profile&gt;</span></code></pre>
 </div>
-<p>The policy allows both <code>lambda:InvokeFunctionUrl</code> and <code>lambda:InvokeFunction</code>, the second only through the Function URL. Function URLs created since October 2025 require both.</p>
+<p>The policy allows <code>execute-api:Invoke</code> on each read route, for example <code>GET /v1/costs/summary</code>. The stack also outputs <code>consumerPolicyArn</code> and <code>operatorPolicyArn</code>. At the moment, they allow the same read routes.</p>
 
 <h2 id="call">Call the API</h2>
 <p>A browser cannot sign SigV4, so use a client that can. <a href="https://github.com/okigan/awscurl">awscurl</a> signs with a named profile:</p>
 <div class="shell-tabs">
 <pre class="shell-posix"><code><span class="line">uv tool install awscurl
-</span><span class="line">awscurl --service lambda --region &lt;region&gt; --profile &lt;reader profile&gt; "&lt;apiUrl&gt;health"
-</span><span class="line">awscurl --service lambda --region &lt;region&gt; --profile &lt;reader profile&gt; "&lt;apiUrl&gt;v1/costs/summary"</span></code></pre>
+</span><span class="line">awscurl --service execute-api --region &lt;region&gt; --profile &lt;reader profile&gt; "&lt;apiUrl&gt;v1/costs/summary"</span></code></pre>
 <pre class="shell-windows" data-derived=""><code><span class="line">uv tool install awscurl
-</span><span class="line">awscurl --service lambda --region &lt;region&gt; --profile &lt;reader profile&gt; "&lt;apiUrl&gt;health"
-</span><span class="line">awscurl --service lambda --region &lt;region&gt; --profile &lt;reader profile&gt; "&lt;apiUrl&gt;v1/costs/summary"</span></code></pre>
+</span><span class="line">awscurl --service execute-api --region &lt;region&gt; --profile &lt;reader profile&gt; "&lt;apiUrl&gt;v1/costs/summary"</span></code></pre>
 </div>
-<p><code>&lt;apiUrl&gt;</code> is the stack output, which ends in <code>/</code>. curl 7.75 and later can sign too, with <code>--aws-sigv4 "aws:amz:&lt;region&gt;:lambda"</code> and the principal's keys. Every endpoint, parameter and response is in <a href="../reference/http-api.html">HTTP API</a>, apart from <code>POST /api/v1/lineage</code>: a Deployment receives lineage through its Inbox, not over HTTP (<a href="send-to-inbox.html">Send workload metadata to the Inbox</a>).</p>
+<p><code>&lt;apiUrl&gt;</code> is the stack output, which ends in <code>/</code>. curl 7.75 and later can sign too, with <code>--aws-sigv4 "aws:amz:&lt;region&gt;:execute-api"</code> and the principal's keys. Every endpoint, parameter and response is in <a href="../reference/http-api.html">HTTP API</a>, apart from <code>POST /api/v1/lineage</code>: a Deployment receives lineage through its Inbox, not over HTTP (<a href="send-to-inbox.html">Send workload metadata to the Inbox</a>).</p>
 <ul>
-<li>An unsigned request, or one from a principal not allowed to invoke the URL, gets <code>403</code> from AWS before data-finops sees it. The reader policy is one way to give this permission. A principal with broader Lambda permissions, for example an administrator, also has permission.</li>
-<li>Before the first Collection Run there is no database yet, and every endpoint, <code>/health</code> included, answers <code>503</code>.</li>
+<li>An unsigned request, or one from a principal not allowed to invoke the route, gets <code>403</code> from AWS before data-finops sees it. The reader policy is one way to give this permission. A principal with broader permissions, for example an administrator, also has permission.</li>
+<li>Only the read routes under <code>/v1/</code> are on the API. Any other path, <code>/health</code> included, gets <code>404</code> from AWS.</li>
+<li>More than <code>apiRateLimit</code> requests a second (default 10), or a burst of more than <code>apiBurstLimit</code> (default 20), gets <code>429</code>.</li>
+<li>Before the first Collection Run there is no database yet, and every route answers <code>503</code>.</li>
 <li>A Cost Explanation shows the minimal Billing Line by default: its tags, free-text names and provider extension columns are withheld, and <code>billing_line_detail</code> says <code>minimal</code> (<a href="https://github.com/apmalong/data-finops/blob/main/docs/adr/0028-deployed-cost-explanation-is-minimal-by-default.md">ADR 0028</a>). Set <code>explanationDetail</code> to <code>full</code> to show the whole line. See <a href="read-cost-explanation.html#minimal">Read a Cost Explanation</a>.</li>
 </ul>
 
@@ -140,17 +140,16 @@
 <p>The copy is a snapshot. To get the data of a later run, download it again. The download requires <code>s3:GetObject</code> on the database object, which neither output policy gives. If <code>kmsKeyArn</code> is set, it also requires <code>kms:Decrypt</code> on the key. <code>serve</code> shows the full Billing Line unless you pass <code>--explanation-detail minimal</code>.</p>
 
 <h2 id="kill-switch">Switch the API off</h2>
-<p>If you set the reserved concurrency of the API function to 0, all requests stop at once. The data does not change:</p>
+<p>If you set both rate limits of the API to 0, API Gateway answers <code>429</code> to each request, and the API function does not run. The data does not change. Record the limits in the stack, then run <code>pulumi up</code>:</p>
 <div class="shell-tabs">
-<pre class="shell-posix"><code><span class="line">aws lambda put-function-concurrency --function-name &lt;apiFunction&gt; --reserved-concurrent-executions 0 --profile &lt;your profile&gt;</span></code></pre>
-<pre class="shell-windows" data-derived=""><code><span class="line">aws lambda put-function-concurrency --function-name &lt;apiFunction&gt; --reserved-concurrent-executions 0 --profile &lt;your profile&gt;</span></code></pre>
+<pre class="shell-posix"><code><span class="line">pulumi config set apiRateLimit 0
+</span><span class="line">pulumi config set apiBurstLimit 0
+</span><span class="line">pulumi up --policy-pack policy</span></code></pre>
+<pre class="shell-windows" data-derived=""><code><span class="line">pulumi config set apiRateLimit 0
+</span><span class="line">pulumi config set apiBurstLimit 0
+</span><span class="line">pulumi up --policy-pack policy</span></code></pre>
 </div>
-<p>To keep it off through later deployments, record it in the stack too, then run <code>pulumi up</code>:</p>
-<div class="shell-tabs">
-<pre class="shell-posix"><code><span class="line">pulumi config set apiReservedConcurrency 0</span></code></pre>
-<pre class="shell-windows" data-derived=""><code><span class="line">pulumi config set apiReservedConcurrency 0</span></code></pre>
-</div>
-<p>To switch the API back on, remove the setting with <code>pulumi config rm apiReservedConcurrency</code> and run <code>pulumi up</code>, or remove the reserved concurrency with <code>aws lambda delete-function-concurrency</code>.</p>
+<p>To switch the API back on, remove the two settings with <code>pulumi config rm</code> and run <code>pulumi up</code> again. A reserved concurrency of 0 (<code>apiReservedConcurrency</code>) also stops the API function, but API Gateway then answers each request with an error.</p>
 <!-- pager:start -->
 <nav class="pager" aria-label="Previous and next">
 <a rel="prev" href="deploy-to-aws.html">Previous: Deploy to AWS</a>

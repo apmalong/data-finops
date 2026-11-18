@@ -402,7 +402,11 @@ def test_the_database_object_starts_the_publisher(tmp_path: Path) -> pulumi.Outp
         assert target["events"] == ["s3:ObjectCreated:*"]
         assert target["filterPrefix"] == "database/data-finops.sqlite"
         assert target["filterSuffix"] == ".sqlite"
-        permission = MOCKS.one("aws:lambda/permission:Permission").inputs
+        (permission,) = [
+            p.inputs
+            for p in MOCKS.of_type("aws:lambda/permission:Permission")
+            if p.inputs["principal"] == "s3.amazonaws.com"
+        ]
         assert (permission["principal"], permission["sourceArn"]) == (
             "s3.amazonaws.com",
             f"arn:aws:s3:::{DEPLOYMENT_BUCKET}",

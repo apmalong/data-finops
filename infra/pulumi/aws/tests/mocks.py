@@ -27,8 +27,9 @@ class RecordingMocks(pulumi.runtime.Mocks):
             outputs["bucketRegionalDomainName"] = f"{outputs['bucket']}.s3.us-east-1.amazonaws.com"
         if args.typ == "aws:cloudfront/distribution:Distribution":
             outputs["domainName"] = "d111111abcdef8.cloudfront.net"
-        if args.typ == "aws:lambda/functionUrl:FunctionUrl":
-            outputs["functionUrl"] = "https://mock.lambda-url.us-east-1.on.aws/"
+        if args.typ == "aws:apigatewayv2/api:Api":
+            outputs["apiEndpoint"] = "https://mockapi123.execute-api.us-east-1.amazonaws.com"
+            outputs["executionArn"] = "arn:aws:execute-api:us-east-1:123456789012:mockapi123"
         outputs.setdefault("arn", f"arn:mock:{args.typ}:{args.name}")
         return f"{args.name}-id", outputs
 

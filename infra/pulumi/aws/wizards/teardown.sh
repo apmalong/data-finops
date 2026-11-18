@@ -337,20 +337,22 @@ BUCKET=$(quietly pulumi stack output bucket); hide "$BUCKET" "<bucket>"
 API_URL=$(quietly pulumi stack output apiUrl); hide "$API_URL" "<apiUrl>/"
 PRODUCER_POLICY=$(quietly pulumi stack output producerPolicyArn)
 READER_POLICY=$(quietly pulumi stack output readerPolicyArn)
+CONSUMER_POLICY=$(quietly pulumi stack output consumerPolicyArn)
+OPERATOR_POLICY=$(quietly pulumi stack output operatorPolicyArn)
 COLLECTOR=$(quietly pulumi stack output collectorFunction)
 API=$(quietly pulumi stack output apiFunction)
 pause
 
-stage "Detach the producer and reader policies"
+stage "Detach the producer, reader, consumer and operator policies"
 say "IAM refuses to delete a policy still attached to an identity, and the destroy stops there."
 while :; do
-  for policy in "$PRODUCER_POLICY" "$READER_POLICY"; do
+  for policy in "$PRODUCER_POLICY" "$READER_POLICY" "$CONSUMER_POLICY" "$OPERATOR_POLICY"; do
     run aws iam list-entities-for-policy --policy-arn "$policy" --profile "$DEPLOYER_PROFILE" \
       --query '[length(PolicyRoles), length(PolicyUsers), length(PolicyGroups)]' --output text
   done
   note "Each line is the roles, users and groups the policy is attached to; all must be 0."
   step "Detach any that are not: aws iam detach-role-policy (or -user-, -group-) --policy-arn ..."
-  confirm "Are all six counts 0?" && break
+  confirm "Are all twelve counts 0?" && break
 done
 
 stage "Choose what happens to the data"
@@ -383,6 +385,8 @@ gone "collector function" "$COLLECTOR" "$LAMBDA_GONE" aws lambda get-function --
 gone "API function" "$API" "$LAMBDA_GONE" aws lambda get-function --function-name "$API" --region "$AWS_REGION_NAME" --profile "$DEPLOYER_PROFILE"
 gone "producer policy" "$PRODUCER_POLICY" "$IAM_GONE" aws iam get-policy --policy-arn "$PRODUCER_POLICY" --profile "$DEPLOYER_PROFILE"
 gone "reader policy" "$READER_POLICY" "$IAM_GONE" aws iam get-policy --policy-arn "$READER_POLICY" --profile "$DEPLOYER_PROFILE"
+gone "consumer policy" "$CONSUMER_POLICY" "$IAM_GONE" aws iam get-policy --policy-arn "$CONSUMER_POLICY" --profile "$DEPLOYER_PROFILE"
+gone "operator policy" "$OPERATOR_POLICY" "$IAM_GONE" aws iam get-policy --policy-arn "$OPERATOR_POLICY" --profile "$DEPLOYER_PROFILE"
 if [[ "$DELETE_DATA" == true ]]; then
   gone "bucket" "$BUCKET" "$S3_GONE" aws s3api head-bucket --bucket "$BUCKET" --profile "$DEPLOYER_PROFILE"
 elif aws s3api head-bucket --bucket "$BUCKET" --profile "$DEPLOYER_PROFILE" >/dev/null 2>&1; then

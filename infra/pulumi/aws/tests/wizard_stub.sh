@@ -8,7 +8,7 @@ last="${!#}"
 case "$name $*" in
   "pulumi version") echo v3.272.0 ;;
   "pulumi stack output bucket") if [[ "$PWD" == *reference-workload ]]; then echo owner-reference-bucket-5e6f; else echo owner-secret-bucket-1a2b; fi ;;
-  "pulumi stack output apiUrl") echo https://abcdefghij.lambda-url.us-east-1.on.aws/ ;;
+  "pulumi stack output apiUrl") echo https://abcdefghij.execute-api.us-east-1.amazonaws.com/ ;;
   "pulumi stack output collectorFunction") echo data-finops-dev-collector ;;
   "pulumi stack output apiFunction") echo data-finops-dev-api ;;
   "pulumi stack output demoUrl") echo https://d111111abcdef8.cloudfront.net ;;
@@ -17,10 +17,12 @@ case "$name $*" in
   "pulumi stack output demoSimulatorFunction") echo data-finops-dev-demo-simulator ;;
   "pulumi stack output producerPolicyArn") echo arn:aws:iam::${ACCOUNT}:policy/data-finops-producer-1 ;;
   "pulumi stack output readerPolicyArn") echo arn:aws:iam::${ACCOUNT}:policy/data-finops-reader-1 ;;
+  "pulumi stack output consumerPolicyArn") echo arn:aws:iam::${ACCOUNT}:policy/data-finops-consumer-1 ;;
+  "pulumi stack output operatorPolicyArn") echo arn:aws:iam::${ACCOUNT}:policy/data-finops-operator-1 ;;
   "pulumi stack output database") echo reference_workload ;;
   "pulumi stack output workgroup") echo data-finops-reference ;;
   "pulumi stack output") if [[ "$PWD" == *reference-workload ]]; then echo "bucket owner-reference-bucket-5e6f"
-    else echo "bucket owner-secret-bucket-1a2b"; echo "apiUrl https://abcdefghij.lambda-url.us-east-1.on.aws/"
+    else echo "bucket owner-secret-bucket-1a2b"; echo "apiUrl https://abcdefghij.execute-api.us-east-1.amazonaws.com/"
       echo "demoBucket owner-demo-bucket-7a8b"; fi ;;
   "pulumi stack export"*) echo '{}' > "$last" ;;
   "pulumi stack select"*) echo "PULUMI_BACKEND_URL=$PULUMI_BACKEND_URL" >> "$STUB_LOG"; echo "pulumi did stack in ${ACCOUNT}" ;;
@@ -52,5 +54,5 @@ case "$name $*" in
   "uv run --frozen python -m deployment.state_check policies"*) mkdir -p "$last"; echo '{}' > "$last/data-finops-collector.json"; echo data-finops-collector.json ;;
   "uv run --frozen python -m deployment.state_check"*) echo ok ;;
   "uv "*) echo "uv ok in $(cygpath -w "$PWD" 2>/dev/null || pwd)" ;;
-  "awscurl "*) echo '{"status":"ok","from":"https://abcdefghij.lambda-url.us-east-1.on.aws/"}' ;;
+  "awscurl "*) echo '{"status":"ok","from":"https://abcdefghij.execute-api.us-east-1.amazonaws.com/"}' ;;
 esac

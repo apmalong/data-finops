@@ -118,10 +118,10 @@ def test_summary_against_a_deployment_is_signed_and_prints_the_response(
         endpoint.close()
     ((path, headers),) = endpoint.requests
     assert path == "/v1/costs/summary?cost_basis=BilledCost&billing_account_id=123456789012"
-    # SigV4 for the Function URL of the Deployment (ADR 0026): service `lambda`, its region.
+    # SigV4 for the Deployment's API Gateway (spec 10 §The API): service `execute-api`.
     authorization = headers["Authorization"]
     assert authorization.startswith("AWS4-HMAC-SHA256 Credential=AKIDEXAMPLE/")
-    assert "/us-east-1/lambda/aws4_request" in authorization
+    assert "/us-east-1/execute-api/aws4_request" in authorization
     assert "SignedHeaders=" in authorization and "Signature=" in authorization
     assert "X-Amz-Date" in headers
 
@@ -208,3 +208,15 @@ def test_a_page_outside_the_route_limits_exits_with_2(
 ) -> None:
     assert main(["allocations", "--db", str(database), *page]) == 2
     assert page[0] in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(
+    "api_url", ["http://example.com/", "http://localhost/", "ftp://127.0.0.1/"]
+)
+def test_a_deployment_must_use_https_off_loopback(
+    home: Path, api_url: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # `localhost` is a name, not a loopback address: it could resolve anywhere (ADR 0024).
+    _deployment(home, api_url)
+    assert main(["summary", "--deployment", "prod"]) == 2
+    assert "api_url must use https" in capsys.readouterr().err

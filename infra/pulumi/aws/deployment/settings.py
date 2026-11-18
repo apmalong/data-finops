@@ -49,6 +49,8 @@ CONFIG_KEYS: dict[str, str] = {
     "api_timeout_seconds": "apiTimeoutSeconds",
     "api_memory_mb": "apiMemoryMb",
     "api_reserved_concurrency": "apiReservedConcurrency",
+    "api_rate_limit": "apiRateLimit",
+    "api_burst_limit": "apiBurstLimit",
     "log_retention_days": "logRetentionDays",
     "noncurrent_version_days": "noncurrentVersionDays",
     "inbox_retention_days": "inboxRetentionDays",
@@ -72,6 +74,8 @@ BOUNDS: dict[str, tuple[int, int]] = {
     "collector_memory_mb": (128, 10240),
     "api_timeout_seconds": (1, 900),
     "api_memory_mb": (128, 10240),
+    "api_rate_limit": (0, 10_000),
+    "api_burst_limit": (0, 5_000),
     "noncurrent_version_days": (1, 3650),
     "inbox_retention_days": (1, 3650),
     "demo_scan_cutoff_bytes": (10_000_000, 1_000_000_000_000),
@@ -130,13 +134,20 @@ class Settings:
     collector_memory_mb: int = 2048
     """The collector function's memory, in MB."""
     api_timeout_seconds: int = 30
-    """The API function's timeout, in seconds."""
+    """The API function's timeout, in seconds. API Gateway stops a request after 30 seconds, so a
+    longer timeout does not give a request more time."""
     api_memory_mb: int = 1024
     """The API function's memory, in MB."""
     api_reserved_concurrency: int | None = None
     """An optional limit on the concurrent requests of the API function, a whole number of at
     least 0. 0 switches the API off. New accounts can lack the concurrency quota to reserve
     any."""
+    api_rate_limit: int = 10
+    """The most requests a second that the API accepts, from all callers together. API Gateway
+    answers 429 to more. Set it and `apiBurstLimit` to 0 to switch the API off (the kill
+    switch)."""
+    api_burst_limit: int = 20
+    """The most requests that the API accepts in one short burst, from all callers together."""
     log_retention_days: int = 30
     """How long both functions' logs are kept, in days: a period CloudWatch Logs accepts,
     such as 1, 7, 14, 30, 90 or 365."""

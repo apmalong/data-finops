@@ -121,7 +121,7 @@ class _CachedDatabase:
 def make_api_handler(
     s3: Callable[[], S3Reader], environ: Mapping[str, str], cache: Path
 ) -> Handler:
-    """The read-only API behind the Function URL (ADR 0026): the JSON reads of the existing
+    """The read-only API behind API Gateway (spec 10): the JSON reads of the existing
     app over a cached copy of the database object. No receiver and no dashboard are mounted.
     ApiMisconfigured names a missing or wrong environment variable."""
     import asyncio

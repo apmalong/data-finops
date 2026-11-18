@@ -73,7 +73,7 @@
       }
     },
     {
-      "Sid": "ProducerAndReaderPolicies",
+      "Sid": "ManagedPolicies",
       "Effect": "Allow",
       "Action": [
         "iam:CreatePolicy",
@@ -103,9 +103,7 @@
         "lambda:GetFunctionConcurrency",
         "lambda:PutFunctionConcurrency",
         "lambda:DeleteFunctionConcurrency",
-        "lambda:CreateFunctionUrlConfig",
         "lambda:GetFunctionUrlConfig",
-        "lambda:UpdateFunctionUrlConfig",
         "lambda:DeleteFunctionUrlConfig",
         "lambda:PutFunctionEventInvokeConfig",
         "lambda:GetFunctionEventInvokeConfig",
@@ -116,10 +114,31 @@
         "lambda:GetPolicy",
         "lambda:TagResource",
         "lambda:ListTags",
-        "lambda:InvokeFunction",
-        "lambda:InvokeFunctionUrl"
+        "lambda:InvokeFunction"
       ],
       "Resource": "arn:aws:lambda:*:${aws:PrincipalAccount}:function:data-finops-*"
+    },
+    {
+      "Sid": "Api",
+      "Effect": "Allow",
+      "Action": [
+        "apigateway:GET",
+        "apigateway:POST",
+        "apigateway:PATCH",
+        "apigateway:PUT",
+        "apigateway:DELETE"
+      ],
+      "Resource": [
+        "arn:aws:apigateway:*::/apis",
+        "arn:aws:apigateway:*::/apis/*",
+        "arn:aws:apigateway:*::/tags/*"
+      ]
+    },
+    {
+      "Sid": "ReadTheApi",
+      "Effect": "Allow",
+      "Action": "execute-api:Invoke",
+      "Resource": "arn:aws:execute-api:*:${aws:PrincipalAccount}:*/*/GET/v1/*"
     },
     {
       "Sid": "LogGroups",

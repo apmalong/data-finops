@@ -17,11 +17,15 @@ from deployment.storage import Storage
 NAME = "data-finops"
 OUTPUTS: dict[str, str] = {
     "bucket": "The Deployment's S3 bucket: the database, the Inboxes and the Lambda package.",
-    "apiUrl": "The read-only API's Function URL. Requests must be signed with AWS SigV4 "
-    "by a principal with the reader policy.",
+    "apiUrl": "The API's address, on API Gateway. Requests must be signed with AWS SigV4 "
+    "(service execute-api) by a principal with the reader, consumer or operator policy.",
     "producerPolicyArn": "The managed policy that lets a producer write to the Inboxes and "
     "nothing else. Attach it to whatever sends OpenLineage events or dbt artifacts.",
-    "readerPolicyArn": "The managed policy that lets a principal call the API's Function URL.",
+    "readerPolicyArn": "The managed policy that lets a principal call the API's read routes.",
+    "consumerPolicyArn": "The managed policy of the consumer Control Role. For now, it lets a "
+    "principal call the read routes only.",
+    "operatorPolicyArn": "The managed policy of the operator Control Role. For now, it lets a "
+    "principal call the read routes only.",
     "collectorFunction": "The collector function's name, for its logs or to invoke a "
     "Collection Run by hand.",
     "apiFunction": "The API function's name, for its logs.",

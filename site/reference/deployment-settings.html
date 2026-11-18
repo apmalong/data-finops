@@ -117,9 +117,11 @@
 <tr><td><code>schedule</code></td><td><code>cron(0 6 * * ? *)</code></td><td>When the Collection Run starts, as an EventBridge Scheduler expression, in UTC.</td></tr>
 <tr><td><code>collectorTimeoutSeconds</code></td><td><code>900</code></td><td>The collector function&#x27;s timeout, in seconds. A whole number from 1 to 900.</td></tr>
 <tr><td><code>collectorMemoryMb</code></td><td><code>2048</code></td><td>The collector function&#x27;s memory, in MB. A whole number from 128 to 10240.</td></tr>
-<tr><td><code>apiTimeoutSeconds</code></td><td><code>30</code></td><td>The API function&#x27;s timeout, in seconds. A whole number from 1 to 900.</td></tr>
+<tr><td><code>apiTimeoutSeconds</code></td><td><code>30</code></td><td>The API function&#x27;s timeout, in seconds. API Gateway stops a request after 30 seconds, so a longer timeout does not give a request more time. A whole number from 1 to 900.</td></tr>
 <tr><td><code>apiMemoryMb</code></td><td><code>1024</code></td><td>The API function&#x27;s memory, in MB. A whole number from 128 to 10240.</td></tr>
 <tr><td><code>apiReservedConcurrency</code></td><td>unset</td><td>An optional limit on the concurrent requests of the API function, a whole number of at least 0. 0 switches the API off. New accounts can lack the concurrency quota to reserve any.</td></tr>
+<tr><td><code>apiRateLimit</code></td><td><code>10</code></td><td>The most requests a second that the API accepts, from all callers together. API Gateway answers 429 to more. Set it and <code>apiBurstLimit</code> to 0 to switch the API off (the kill switch). A whole number from 0 to 10000.</td></tr>
+<tr><td><code>apiBurstLimit</code></td><td><code>20</code></td><td>The most requests that the API accepts in one short burst, from all callers together. A whole number from 0 to 5000.</td></tr>
 <tr><td><code>logRetentionDays</code></td><td><code>30</code></td><td>How long both functions&#x27; logs are kept, in days: a period CloudWatch Logs accepts, such as 1, 7, 14, 30, 90 or 365.</td></tr>
 <tr><td><code>noncurrentVersionDays</code></td><td><code>30</code></td><td>How long an old version of the database object is kept, in days, before S3 expires it. A whole number from 1 to 3650.</td></tr>
 <tr><td><code>inboxRetentionDays</code></td><td><code>30</code></td><td>How long an object stays in the Inbox, in days, before S3 expires it. A whole number from 1 to 3650.</td></tr>
@@ -142,9 +144,11 @@
 <thead><tr><th>Output</th><th>Meaning</th></tr></thead>
 <tbody>
 <tr><td><code>bucket</code></td><td>The Deployment&#x27;s S3 bucket: the database, the Inboxes and the Lambda package.</td></tr>
-<tr><td><code>apiUrl</code></td><td>The read-only API&#x27;s Function URL. Requests must be signed with AWS SigV4 by a principal with the reader policy.</td></tr>
+<tr><td><code>apiUrl</code></td><td>The API&#x27;s address, on API Gateway. Requests must be signed with AWS SigV4 (service execute-api) by a principal with the reader, consumer or operator policy.</td></tr>
 <tr><td><code>producerPolicyArn</code></td><td>The managed policy that lets a producer write to the Inboxes and nothing else. Attach it to whatever sends OpenLineage events or dbt artifacts.</td></tr>
-<tr><td><code>readerPolicyArn</code></td><td>The managed policy that lets a principal call the API&#x27;s Function URL.</td></tr>
+<tr><td><code>readerPolicyArn</code></td><td>The managed policy that lets a principal call the API&#x27;s read routes.</td></tr>
+<tr><td><code>consumerPolicyArn</code></td><td>The managed policy of the consumer Control Role. For now, it lets a principal call the read routes only.</td></tr>
+<tr><td><code>operatorPolicyArn</code></td><td>The managed policy of the operator Control Role. For now, it lets a principal call the read routes only.</td></tr>
 <tr><td><code>collectorFunction</code></td><td>The collector function&#x27;s name, for its logs or to invoke a Collection Run by hand.</td></tr>
 <tr><td><code>apiFunction</code></td><td>The API function&#x27;s name, for its logs.</td></tr>
 <tr><td><code>demoUrl</code></td><td>Only with publicDemo: the public demo&#x27;s address, on CloudFront.</td></tr>

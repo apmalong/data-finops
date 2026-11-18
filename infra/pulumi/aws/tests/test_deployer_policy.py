@@ -27,6 +27,7 @@ SERVICE = {
     "athena": "athena",
     "glue": "glue",
     "cloudfront": "cloudfront",
+    "apigatewayv2": "apigateway",
 }
 NEEDS_EVERY_RESOURCE = {"sts:GetCallerIdentity", "access-analyzer:ValidatePolicy"}
 
@@ -56,12 +57,12 @@ def test_the_draft_allows_named_actions_on_named_resources_only() -> None:
         for resource in [resources] if isinstance(resources, str) else resources:
             # Glue checks its catalog, which has no name, with each database and table; Glue
             # names take `_`, not `-` (#225); CloudFront names a resource by an ID it makes, so
-            # only the account narrows it (#229).
+            # only the account narrows it (#229), and so does API Gateway (#290).
             assert (
                 "data-finops-" in resource
                 or "data_finops_demo" in resource
                 or resource.endswith(":catalog")
-                or statement["Sid"] in ("DescribeLogGroups", "DemoSite")
+                or statement["Sid"] in ("DescribeLogGroups", "DemoSite", "Api", "ReadTheApi")
             ), statement["Sid"]
 
 
