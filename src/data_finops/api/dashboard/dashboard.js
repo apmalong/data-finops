@@ -100,10 +100,14 @@ function bySize(a, b) {
   return Math.abs(b.size) - Math.abs(a.size);
 }
 
-// One chart: rows on a common zero baseline, sorted by size, each labelled directly. The
-// panel states the currency once; a row's label carries its exact amount and its detail.
-function barChart(rows) {
-  const sized = rows.map((row) => ({ ...row, size: Number(row.amount) })).sort(bySize);
+// One chart: rows on a common zero baseline, sorted by size, each labelled directly. A bar's
+// value is its exact amount with the currency, padded to the chart's number of decimals
+// (#313); a row's label carries its detail, and its title the full name.
+function barChart(rows, currency) {
+  const aligned = DataFinopsFormat.alignAmounts(rows.map((row) => row.amount));
+  const sized = rows
+    .map((row, i) => ({ ...row, size: Number(row.amount), shown: DataFinopsFormat.money(aligned[i], currency) }))
+    .sort(bySize);
   const highest = Math.max(0, ...sized.map((r) => r.size));
   const lowest = Math.min(0, ...sized.map((r) => r.size));
   const reach = lowest < 0 ? MIXED_REACH : BAR_REACH;
@@ -124,18 +128,19 @@ function barRow(row, zero, range) {
   });
   const value = element("span", {
     class: "bar-value",
-    text: row.amount,
+    text: row.shown,
     style: negative ? `right:${100 - start}%` : `left:${zero + width}%`,
   });
   const track = element("span", { class: "bar-track", "aria-hidden": "true" },
     element("span", { class: "zero", style: `left:${zero}%` }), bar, value);
-  const description = `${row.amount}: ${row.name}${row.detail ? `, ${row.detail}` : ""}`;
+  const description = `${row.amount}: ${row.title || row.name}${row.detail ? `, ${row.detail}` : ""}`;
   const name = row.open
     ? opener(row.name, row.open, row.mono)
     : element("strong", { class: row.mono ? "mono" : "", text: row.name });
   name.setAttribute("aria-label", description);
+  name.setAttribute("title", row.title || row.name);
   const label = element("span", { class: "bar-label" }, name);
-  if (row.detail) label.append(element("span", { class: "detail", text: ` · ${row.detail}` }));
+  if (row.detail) label.append(element("span", { class: "detail", text: row.detail }));
   const item = element("li", { class: "bar-row" }, label, track);
   if (!row.open) {
     item.setAttribute("tabindex", "0");
@@ -215,7 +220,7 @@ function currencyPanel(summary) {
       element("div", {}, element("h3", { text: `${state.basis} total, ${currency}` }),
         element("p", { class: "hero", text: summary.billed })),
       element("p", { class: `delta${balanced ? "" : " attention"}`, text: deltaText })),
-    charted.length ? barChart(charted) : element("p", { class: "meta", text: "Nothing billed." }),
+    charted.length ? barChart(charted, currency) : element("p", { class: "meta", text: "Nothing billed." }),
     amountTable(`Amount, ${currency}`, rows, [
       { kind: "total", cells: [`${state.basis} total`, "", summary.billed] },
       { kind: "group", cells: ["Reconciliation Delta", "total − every Allocation", summary.reconciliation_delta] },
@@ -223,8 +228,11 @@ function currencyPanel(summary) {
 }
 
 function modelExecutionName(key) {
-  const [invocation, node] = JSON.parse(key); // the API's Model Execution key (spec 02)
-  return { name: node, detail: `invocation ${invocation}` };
+  return DataFinopsFormat.modelLabel(key);
+}
+
+function workloadRunName(key, item) {
+  return { ...DataFinopsFormat.runLabel(key, item.run), open: () => openLineage(key) };
 }
 
 function rollupPanel(title, page, describe) {
@@ -234,7 +242,7 @@ function rollupPanel(title, page, describe) {
     for (const total of item.totals) {
       if (total.cost_basis !== state.basis) continue;
       if (!byCurrency.has(total.currency)) byCurrency.set(total.currency, []);
-      byCurrency.get(total.currency).push({ ...describe(item.key), amount: total.amount });
+      byCurrency.get(total.currency).push({ ...describe(item.key, item), amount: total.amount });
     }
   }
   if (byCurrency.size === 0) {
@@ -243,7 +251,7 @@ function rollupPanel(title, page, describe) {
   }
   for (const [currency, rows] of byCurrency) {
     panel.append(element("p", { class: "meta", text: `${state.basis}, ${currency}` }),
-      barChart(rows), amountTable(`Amount, ${currency}`, rows));
+      barChart(rows, currency), amountTable(`Amount, ${currency}`, rows.map((r) => ({ ...r, name: r.title || r.name, detail: "" }))));
   }
   if (page.total > page.items.length) {
     panel.append(element("p", { class: "meta", text: `Showing ${page.items.length} of ${page.total}.` }));
@@ -300,7 +308,7 @@ function dimensionPanels(page) {
     const charted = rows.filter((r) => Number(r.amount) !== 0);
     return element("article", { class: "panel" },
       element("h3", { text: `${page.dimension}, ${state.basis}, ${currency}` }),
-      charted.length ? barChart(charted) : element("p", { class: "meta", text: "Nothing billed." }),
+      charted.length ? barChart(charted, currency) : element("p", { class: "meta", text: "Nothing billed." }),
       amountTable(`Amount, ${currency}`, rows, total
         ? [{ kind: "total", cells: [`${state.basis} total`, "every value, unassigned included", total.amount] }]
         : []));
@@ -371,8 +379,7 @@ async function render() {
   ]);
   if (!current()) return;
   byId("rollups-model").replaceChildren(rollupPanel("Model Executions", models, modelExecutionName));
-  byId("rollups-run").replaceChildren(rollupPanel("Workload Runs", runs,
-    (key) => ({ name: key, detail: "", mono: true, open: () => openLineage(key) })));
+  byId("rollups-run").replaceChildren(rollupPanel("Workload Runs", runs, workloadRunName));
   byId("runs").replaceChildren(rootRunsPanel(roots));
   await renderDimensions(scopeParams(summary.scope), current);
 }
@@ -586,7 +593,30 @@ async function openLineage(runId) {
 }
 
 /** Open what the address names; a malformed one is reported, not thrown away silently. */
+function selectTab(name, { address = false } = {}) {
+  for (const tab of document.querySelectorAll('[role="tab"]')) {
+    const chosen = tab.dataset.tab === name;
+    tab.setAttribute("aria-selected", String(chosen));
+    tab.tabIndex = chosen ? 0 : -1;
+    byId(tab.getAttribute("aria-controls")).hidden = !chosen;
+  }
+  if (address) history.replaceState(null, "", `#tab=${name}`);
+}
+
+function tabKeys(e) {
+  const tabs = [...document.querySelectorAll('[role="tab"]')];
+  const at = tabs.indexOf(e.target);
+  const to = { ArrowRight: at + 1, ArrowLeft: at - 1, Home: 0, End: tabs.length - 1 }[e.key];
+  if (to === undefined) return;
+  e.preventDefault();
+  const tab = tabs[(to + tabs.length) % tabs.length];
+  tab.focus();
+  tab.click();
+}
+
 async function openFromHash() {
+  const tab = DataFinopsFormat.tabFromHash(location.hash);
+  if (tab) selectTab(tab);
   let fragment;
   try {
     fragment = decodeURIComponent(location.hash.slice(1));
@@ -611,5 +641,12 @@ function change(update) {
 byId("basis").addEventListener("change", change((value) => (state.basis = value)));
 byId("scope").addEventListener("change", change((value) => (state.scope = Number(value))));
 byId("dimension").addEventListener("change", change((value) => (state.dimension = value)));
+for (const tab of document.querySelectorAll('[role="tab"]')) {
+  tab.addEventListener("click", () => {
+    closeDetail(); // a detail belongs to the tab it was opened under
+    selectTab(tab.dataset.tab, { address: true });
+  });
+  tab.addEventListener("keydown", tabKeys);
+}
 window.addEventListener("hashchange", () => openFromHash().catch(fail));
 render().then(openFromHash).catch(fail);

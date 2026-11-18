@@ -182,6 +182,10 @@ class RollupEntry(_Response):
     key: str
     """The Model Execution as `["<invocation>","<node>"]`, or the Workload Run's ID."""
     totals: list[RollupAmount]
+    run: WorkloadRun | None = None
+    """At the `workload_run` level, the run as its events describe it, so a reader sees its
+    job (#313). None for a Model Execution, and for a run with no event of its own (one
+    known only as another run's parent or root)."""
 
 
 class RollupPage(_Response):

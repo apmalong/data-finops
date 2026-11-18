@@ -4716,6 +4716,16 @@
             },
             "type": "array",
             "title": "Totals"
+          },
+          "run": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WorkloadRun"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false,

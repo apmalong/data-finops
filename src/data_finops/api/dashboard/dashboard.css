@@ -78,7 +78,10 @@ h3 { font-size: 0.95rem; margin: 0 0 8px; font-weight: 600; }
   display: grid; grid-template-columns: minmax(96px, 32%) 1fr; align-items: center;
   gap: 10px; min-height: 30px;
 }
-.bar-label { color: var(--ink-2); font-size: 0.85rem; overflow-wrap: anywhere; }
+/* A label keeps its name on one line and its detail on the next, each cut with an ellipsis,
+   never broken inside a word (#313); the title and the table keep the full name. */
+.bar-label { color: var(--ink-2); font-size: 0.85rem; display: flex; flex-direction: column; min-width: 0; }
+.bar-label > * { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 .bar-label strong { color: var(--ink); font-weight: 500; }
 .bar-label strong.mono { font-weight: 400; }
 .detail { color: var(--ink-3); font-size: 0.75rem; }
@@ -94,6 +97,15 @@ h3 { font-size: 0.95rem; margin: 0 0 8px; font-weight: 600; }
   position: absolute; top: 0; line-height: 20px; font-size: 0.8rem; color: var(--ink);
   font-variant-numeric: tabular-nums; white-space: nowrap; padding: 0 6px;
 }
+
+/* Tabs (#313): one section at a time, chosen by a click, the arrow keys or #tab=. */
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--rule); margin: 16px 0; overflow-x: auto; }
+.tabs [role="tab"] {
+  font: inherit; color: var(--ink-2); background: none; border: 0; border-bottom: 2px solid transparent;
+  padding: 8px 12px; cursor: pointer; white-space: nowrap;
+}
+.tabs [role="tab"][aria-selected="true"] { color: var(--ink); border-bottom-color: var(--allocated); font-weight: 600; }
+.tabs [role="tab"]:focus-visible { outline: 2px solid var(--allocated); outline-offset: 2px; }
 
 /* Tables: exact amounts, right-aligned tabular figures, light rules between groups. */
 table { width: 100%; border-collapse: collapse; font-size: 0.85rem; margin-top: 8px; }

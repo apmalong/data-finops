@@ -309,7 +309,7 @@ def test_old_demo_snapshots_and_query_results_expire(tmp_path: Path) -> pulumi.O
 
 
 DISTRIBUTION = "aws:cloudfront/distribution:Distribution"
-SITE_KEYS = ["index.html", "dashboard.css", "dashboard.js", "static.js", "current.json"]
+SITE_KEYS = ["index.html", "dashboard.css", "dashboard.js", "static.js", "format.js", "current.json"]
 
 
 @pulumi.runtime.test
@@ -377,7 +377,7 @@ def test_the_site_is_the_packaged_dashboard_reading_the_snapshot(
             for o in MOCKS.of_type("aws:s3/bucketObjectv2:BucketObjectv2")
             if o.name.startswith("data-finops-site-")
         }
-        assert set(objects) == {"index.html", "dashboard.css", "dashboard.js", "static.js"}
+        assert set(objects) == {"index.html", "dashboard.css", "dashboard.js", "static.js", "format.js"}
         page = objects["index.html"]
         assert '<meta name="data-finops-source" content="static">' in page["content"]
         assert 'content="api"' not in page["content"]
