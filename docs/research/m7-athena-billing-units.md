@@ -151,6 +151,7 @@ Options for the owner:
 - **A.** Keep `athena-billable-usage/2` and the decimal units. The demo lines stay `coverage_exceeded`.
 - **B.** A new policy version with `TB` = 2^40 bytes and MiB rounding. The demo lines have Coverage of about 1.01, which still exceeds 1.
 - **C.** A new policy version with `TB` = 2^40 bytes, raw bytes, and a minimum of 1 × 10^-5 TB. The demo lines have Coverage of about 0.99 to 1.0. The pattern above is the only support for it.
+  - *Correction (2026-11-18): that Coverage needs the hourly step of the pattern too. Without it, the demo lines come out at 1.0032 to 1.0038. With it, they come out at exactly 1. The owner chose the full pattern (Q165).*
 - **D.** Any binary version together with a tolerance for the 5 × 10^-6 TB step in Coverage (ADR 0017). This changes how Coverage is compared, not only the units.
 - **E.** Ask AWS Support for the units and the rounding before any change.
 

@@ -189,14 +189,13 @@ def _pool(
         if line.SubAccountId and line.RegionId
         else []
     )
-    for query in queries:
-        if not athena_billing.in_billing_scope(query, line):
-            continue
-        billable = athena_billing.billable_bytes(query)
-        if billable is None:
+    scoped = [query for query in queries if athena_billing.in_billing_scope(query, line)]
+    for query, quantity in zip(
+        scoped, athena_billing.billable_quantities(scoped, unit), strict=True
+    ):
+        if quantity is None:
             unknown.add(query.query_execution_id)
             continue
-        quantity = athena_billing.bytes_in_consumed_unit(billable, unit)
         usages.append(MeteredUsage(query.query_execution_id, quantity, _evidence(query, store)))
     return MeteredCostPool(athena_billing.pool_id(line), tuple(usages))
 

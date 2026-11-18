@@ -150,10 +150,11 @@ def test_new_query_history_in_scope_yields_a_new_snapshot(
 ) -> None:
     ledger, store = stores
     first = run_calculation(ledger, store, SCOPE)
-    # Another 600 MB in workgroup demo the same day: 0.0016 TB known against 0.001 TB billed,
-    # beyond the export's half-unit tolerance (0.0005 TB).
+    # Another 700 MB in workgroup demo in the same hour: 1.7 x 10^9 bytes is 0.0015461 TB of
+    # 2^40 bytes, rounded down to 0.001545 TB, against 0.001 TB billed. That is beyond the
+    # export's half-unit tolerance (0.0005 TB).
     store.ingest_query_history(
-        _query_history(tmp_path, "q-005", Statistics__DataScannedInBytes=600_000_000),
+        _query_history(tmp_path, "q-005", Statistics__DataScannedInBytes=700_000_000),
         account_id=ACCOUNT,
         region=REGION,
     )
@@ -165,8 +166,8 @@ def test_new_query_history_in_scope_yields_a_new_snapshot(
         for a in _billed(ledger, second.calculation_run_id)
         if a["billing_line_ref"].endswith("#0")
     ]
-    assert [(a["target_id"], a["method"], a["coverage"]) for a in athena] == [
-        ("unallocated", "coverage_exceeded", "1.6")
+    assert [(a["target_id"], a["method"], Decimal(a["coverage"])) for a in athena] == [
+        ("unallocated", "coverage_exceeded", Decimal("1.545"))
     ]
 
 
@@ -341,7 +342,7 @@ def test_allocations_record_every_rule_version_that_shaped_them(
     stored = ledger.allocation_snapshot(result.calculation_run_id)
     assert stored is not None
     assert stored.snapshot.policy_version == (
-        "allocation-engine/1+line-classification/1+athena-billable-usage/2+athena-billing-scope/2"
+        "allocation-engine/1+line-classification/1+athena-billable-usage/3+athena-billing-scope/2"
         "+cost-dimensions/1"
     )
 
@@ -356,3 +357,56 @@ def test_a_restatement_to_no_lines_yields_a_new_empty_snapshot(
     assert result.outcome == AllocationStoreOutcome.NEW
     stored = ledger.allocation_snapshot(result.calculation_run_id)
     assert stored is not None and stored.allocations == []
+
+
+# The owner's Athena line of 2026-11-16 04:00-19:00 (#310), moved to the fixture's period:
+# each UTC hour of completion and the raw scans of its queries.
+DEMO_LINE_HOURS = {
+    4: [
+        156_840, 14_951_491, 20_134_292, 18_616_756, 5_943_691, 15_939_340, 14_715_050,
+        11_400_896, 74_759_569, 244_349_213, 169_589_644, 59_027_597, 74_752_338, 14_951_491,
+        20_134_292, 156_840, 20_134_268, 20_134_268, 15_838_349, 51_432_103, 5_943_691,
+        18_616_756,
+    ],
+    **{
+        hour: [11_400_896, 74_759_569, 244_349_213, 169_589_644, 59_027_597, 74_752_338]
+        for hour in (6, 12, 18)
+    },
+}  # fmt: skip
+
+
+def test_the_owners_demo_line_is_covered_exactly_in_binary_terabytes(
+    stores: tuple[Ledger, WorkloadStore], tmp_path: Path
+) -> None:
+    # Under /2 (decimal units, MB rounding) these 40 queries cover 1.109 of the line, and
+    # the whole line was coverage_exceeded. The export billed 0.00256 TB.
+    ledger, store = stores
+    template = json.loads((FIXTURES / "athena" / "query-executions.json").read_text())
+    first = template["QueryExecutions"][0]
+    queries = [
+        first
+        | {"QueryExecutionId": f"demo-{hour:02}-{i:02}"}
+        | {"Status": first["Status"] | {"CompletionDateTime": f"2026-10-01T{hour:02}:25:{i:02}Z"}}
+        | {"Statistics": first["Statistics"] | {"DataScannedInBytes": scan}}
+        for hour, scans in DEMO_LINE_HOURS.items()
+        for i, scan in enumerate(scans)
+    ]
+    history = tmp_path / "demo-line.json"
+    history.write_text(json.dumps(template | {"QueryExecutions": queries}), encoding="utf-8")
+    store.ingest_query_history(history, account_id=ACCOUNT, region=REGION)
+    ledger.import_snapshot(
+        _export(
+            ChargePeriodStart="2026-10-01T04:00:00Z",
+            ChargePeriodEnd="2026-10-01T19:00:00Z",
+            ConsumedQuantity="0.00256",
+        )
+    )
+    result = run_calculation(ledger, store, SCOPE)
+    athena = [
+        a
+        for a in _billed(ledger, result.calculation_run_id)
+        if a["billing_line_ref"].endswith("#0")
+    ]
+    assert {(a["method"], a["coverage"]) for a in athena} == {("estimated_metered_share", "1")}
+    assert {a["target_id"] for a in athena} == {q["QueryExecutionId"] for q in queries}
+    assert sum(Decimal(a["amount"]) for a in athena) == Decimal("6.00")

@@ -111,14 +111,20 @@
 
 7. **Test seams.** The pure engine (golden scenarios and accounting invariants), and the Calculation Run on a temporary SQLite file.
 
-8. **Athena Billable Usage (`athena-billable-usage/2`, #91).**
+8. **Athena Billable Usage (`athena-billable-usage/3`, #310).**
+   - The bill's `TB` is 2^40 bytes. No AWS source states the unit. `/3` is fitted to the owner's real lines (`docs/research/m7-athena-billing-units.md`).
+   - Each query that succeeded or was canceled and scanned bytes: its raw `DataScannedInBytes` / 2^40, with a minimum of 10^-5 TB.
+   - The queries of each UTC hour of completion are added. That sum is rounded down to a multiple of 5 × 10^-6 TB.
+   - Each query of the hour gets a part of the rounded sum, in proportion to its raw quantity. The last query of the hour gets the remainder, so the hour adds up exactly.
+   - The rules below for failed, 0-byte, queued and unknown queries stay as in `/2`.
+   - `/2` (#91) read `TB` as 10^12 bytes. It rounded each query up to the next MB (10^6 bytes), with a minimum of 10 MB. It stays callable, as `/1` does.
    - Failed queries: 0.
    - A query that scanned 0 bytes: 0, for each statement type. The real export billed nothing for 0-byte SELECTs, an INSERT, a VACUUM and a reused result. The AWS documentation says that a reused result always reports 0 bytes. This was observed only for a 0-byte original.
-   - Each other query that succeeded or was canceled: `DataScannedInBytes` rounded up to the next MB, with a minimum of 10 MB. The export billed 10 MB each for a CTAS, an INSERT and an OPTIMIZE that scanned a few hundred bytes.
-   - `/1` charged the minimum for each 0-byte query except DDL (OQ-24). It stays callable (`billable_bytes(query, version)`), so you can compute again what a `/1` Calculation Run recorded. A Calculation Run always uses the current versions.
+   - Under `/2`, each other query that succeeded or was canceled: `DataScannedInBytes` rounded up to the next MB, with a minimum of 10 MB. The export billed the minimum each for a CTAS, an INSERT and an OPTIMIZE that scanned a few hundred bytes.
+   - `/1` charged the minimum for each 0-byte query except DDL (OQ-24). `/1` and `/2` stay callable (`billable_bytes(query, version)`), so you can compute again what such a Calculation Run recorded. A Calculation Run always uses the current versions.
    - StatementType alone never decides, because Athena labels CTAS as `DDL`.
    - Queued queries and queries in progress bill 0 in that observation. A billed query that reported no scan has unknown Billable Usage (`providers.athena_billing`, #82).
-   - Units are decimal (MB = 10^6, TB = 10^12), as the real export confirms (#91).
+   - The minimum-only lines of #91 fit decimal and binary units alike. The owner's demo lines of 2026-11 fit only binary units (#310).
 
 9. **Coverage of one.** Compare the known Billable Usage with the ConsumedQuantity of the line, in the last digit that ConsumedQuantity was exported with. If they are different by half a unit of that digit or less, Coverage counts as exactly 1. If not, the exact Decimal is recorded.
 
