@@ -149,7 +149,7 @@
 <p>Calculation Runs record their policy version, today <code>allocation-engine/1+line-classification/1+athena-billable-usage/3+athena-billing-scope/2+cost-dimensions/1</code>. <code>athena-billable-usage/3</code> sets each Query Execution's Billable Usage:</p>
 <ul>
 <li>a failed one, or one that scanned 0 bytes: 0</li>
-<li>any other one that succeeded or was canceled: the bytes that it scanned / 2<sup>40</sup> TB, with a minimum of 0.00001 TB. The queries that completed in the same UTC hour are added, and that sum is rounded down to a multiple of 0.000005 TB. Each query gets a part of the hour's sum, in proportion to the bytes that it scanned.</li>
+<li>any other one that succeeded or was canceled: the bytes that it scanned / 2<sup>40</sup> TB, with a minimum of 0.00001 TB. The queries that completed in the same UTC hour are added, and that sum is rounded down to a multiple of 0.000005 TB. Each query gets a part of the hour's sum, in proportion to its quantity after the minimum.</li>
 <li>a queued one, or one that is still in progress: 0 in that report</li>
 <li>a billed one that reported no scan: unknown</li>
 </ul>

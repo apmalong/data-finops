@@ -1,11 +1,13 @@
-"""The Athena Billable Usage policy (#82, #91; spec 03, M4 structure 8).
+"""The Athena Billable Usage policy (#82, #91, #310; spec 03, M4 structure 8).
 
-`athena-billable-usage/2`, the current version, is worked from the real 2026-11 FOCUS
-export (#91): a query that scanned nothing bills nothing, whatever its statement type, and
-any other succeeded or cancelled query bills its scan rounded up to the next megabyte, at
-least 10 MB. `athena-billable-usage/1` stays as it was, from AWS's published rule (failed
-queries and 0-byte DDL free), so that earlier Calculation Runs stay reproducible.
-Units are decimal (MB = 10^6 bytes, TB = 10^12 bytes), as the export confirms.
+`athena-billable-usage/3`, the current version, is fitted to the owner's demo lines (#310):
+the bill's TB is 2^40 bytes, and each UTC hour is rounded down (tests at the end).
+`athena-billable-usage/2` is worked from the real 2026-11 FOCUS export (#91): a query that
+scanned nothing bills nothing, whatever its statement type, and any other succeeded or
+cancelled query bills its scan rounded up to the next megabyte (10^6 bytes), at least 10 MB,
+in TB of 10^12 bytes. `athena-billable-usage/1` stays as it was, from AWS's published rule
+(failed queries and 0-byte DDL free). Both stay callable, so earlier Calculation Runs stay
+reproducible.
 """
 
 from datetime import UTC, datetime, timedelta

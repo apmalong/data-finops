@@ -88,9 +88,11 @@ def billable_quantities(
 
     `/3` (#310): a billed query is its raw scan in units of 2^40 bytes, at least 10^-5 of
     the unit, and a query that scanned nothing is 0. The queries of each UTC hour of
-    completion are summed. That sum is rounded down to a multiple of 5 x 10^-6, and each
-    query gets the part of it that its raw quantity is of the hour's (the hour's last query
-    takes what is left, so the hour sums exactly). `/1` and `/2` convert
+    completion are summed. That sum is rounded down to a multiple of 5 x 10^-6. Each query
+    gets a part of it, in proportion to its quantity after the minimum. The hour's last query
+    gets the remainder, so the hour sums exactly. The hours are those of the queries given:
+    a line whose period does not start and end on the hour would round a split hour in each
+    line (real lines are hour-aligned, #91). `/1` and `/2` convert
     `billable_bytes` of each query alone. Raises ValueError for an unknown unit or version.
     """
     if version in (BILLABLE_USAGE_V1, BILLABLE_USAGE_V2):

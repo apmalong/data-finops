@@ -104,7 +104,7 @@ The owner triaged the open issues, oldest first. The questions were asked with o
 
 Research: `docs/research/m7-athena-billing-units.md`. Two independent answers were asked for each recommendation (ask twice).
 
-| # | Decision | Answer | Source | Recorded in |
+| # | Question | Decision | Source | Recorded in |
 |---|---|---|---|---|
 | Q165 | How to read Athena's billed `TB`, and what each query bills | **Owner:** `athena-billable-usage/3`. `TB` is 2^40 bytes. Each query is its raw scan, at least 10^-5 TB. Each UTC hour's sum is rounded down to a multiple of 5 × 10^-6 TB. The other options were to keep decimal units, a binary unit with MiB rounding, and to ask AWS Support first. The owner first chose the binary unit without the hourly step. That alone gave Coverage 1.003 on the demo lines, and the owner then chose the full pattern | Owner | spec 03 item 8, ADR 0017 |
 | Q166 | Whether the Coverage tolerance grows to one 5 × 10^-6 TB step | **Owner:** no. Add it only if lines land just over 1. One of the two answers recommended it | Owner | ADR 0017 |
