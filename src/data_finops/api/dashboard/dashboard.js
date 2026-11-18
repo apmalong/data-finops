@@ -27,7 +27,7 @@ const STATIC_SOURCE = document.querySelector('meta[name="data-finops-source"]')?
   ? DataFinopsStatic.createStaticSource(DataFinopsStatic.siteFiles(fetch))
   : null;
 
-const state = { scope: 0, basis: "BilledCost", dimension: "", summaries: [], request: 0, detailRequest: 0 };
+const state = { tab: "summary", scope: 0, basis: "BilledCost", dimension: "", summaries: [], request: 0, detailRequest: 0 };
 const byId = (id) => document.getElementById(id);
 
 function element(tag, attributes = {}, ...children) {
@@ -104,9 +104,9 @@ function bySize(a, b) {
 // value is its exact amount with the currency, padded to the chart's number of decimals
 // (#313); a row's label carries its detail, and its title the full name.
 function barChart(rows, currency) {
-  const aligned = DataFinopsFormat.alignAmounts(rows.map((row) => row.amount));
+  const padded = DataFinopsFormat.alignAmounts(rows.map((row) => row.amount));
   const sized = rows
-    .map((row, i) => ({ ...row, size: Number(row.amount), shown: DataFinopsFormat.money(aligned[i], currency) }))
+    .map((row, i) => ({ ...row, size: Number(row.amount), shown: DataFinopsFormat.money(padded[i], currency) }))
     .sort(bySize);
   const highest = Math.max(0, ...sized.map((r) => r.size));
   const lowest = Math.min(0, ...sized.map((r) => r.size));
@@ -133,7 +133,7 @@ function barRow(row, zero, range) {
   });
   const track = element("span", { class: "bar-track", "aria-hidden": "true" },
     element("span", { class: "zero", style: `left:${zero}%` }), bar, value);
-  const description = `${row.amount}: ${row.title || row.name}${row.detail ? `, ${row.detail}` : ""}`;
+  const description = `${row.shown}: ${row.title || row.name}${row.detail ? `, ${row.detail}` : ""}`;
   const name = row.open
     ? opener(row.name, row.open, row.mono)
     : element("strong", { class: row.mono ? "mono" : "", text: row.name });
@@ -225,10 +225,6 @@ function currencyPanel(summary) {
       { kind: "total", cells: [`${state.basis} total`, "", summary.billed] },
       { kind: "group", cells: ["Reconciliation Delta", "total − every Allocation", summary.reconciliation_delta] },
     ]));
-}
-
-function modelExecutionName(key) {
-  return DataFinopsFormat.modelLabel(key);
 }
 
 function workloadRunName(key, item) {
@@ -378,7 +374,7 @@ async function render() {
     getJson(LINEAGE, { limit: 100 }),
   ]);
   if (!current()) return;
-  byId("rollups-model").replaceChildren(rollupPanel("Model Executions", models, modelExecutionName));
+  byId("rollups-model").replaceChildren(rollupPanel("Model Executions", models, DataFinopsFormat.modelLabel));
   byId("rollups-run").replaceChildren(rollupPanel("Workload Runs", runs, workloadRunName));
   byId("runs").replaceChildren(rootRunsPanel(roots));
   await renderDimensions(scopeParams(summary.scope), current);
@@ -404,7 +400,7 @@ function showDetail(title, hash, ...content) {
 function closeDetail() {
   state.detailRequest++;
   byId("detail").hidden = true;
-  history.replaceState(null, "", location.pathname + location.search);
+  history.replaceState(null, "", `${location.pathname}${location.search}#tab=${state.tab}`);
 }
 
 async function allPages(path, params) {
@@ -592,8 +588,9 @@ async function openLineage(runId) {
     ...identityLinkSection(lineage), ...dataAssetSection(lineage));
 }
 
-/** Open what the address names; a malformed one is reported, not thrown away silently. */
+/** Show the tab `name` and hide the others. With `address`, the address names the tab. */
 function selectTab(name, { address = false } = {}) {
+  state.tab = name;
   for (const tab of document.querySelectorAll('[role="tab"]')) {
     const chosen = tab.dataset.tab === name;
     tab.setAttribute("aria-selected", String(chosen));
@@ -603,6 +600,7 @@ function selectTab(name, { address = false } = {}) {
   if (address) history.replaceState(null, "", `#tab=${name}`);
 }
 
+/** The arrow keys, Home and End move between the tabs (the WAI-ARIA tabs pattern). */
 function tabKeys(e) {
   const tabs = [...document.querySelectorAll('[role="tab"]')];
   const at = tabs.indexOf(e.target);
@@ -614,6 +612,7 @@ function tabKeys(e) {
   tab.click();
 }
 
+/** Open what the address names; a malformed one is reported, not thrown away silently. */
 async function openFromHash() {
   const tab = DataFinopsFormat.tabFromHash(location.hash);
   if (tab) selectTab(tab);

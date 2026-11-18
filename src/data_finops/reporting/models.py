@@ -184,7 +184,7 @@ class RollupEntry(_Response):
     totals: list[RollupAmount]
     run: WorkloadRun | None = None
     """At the `workload_run` level, the run as its events describe it, so a reader sees its
-    job (#313). None for a Model Execution, and for a run with no event of its own (one
+    job name (#313). None for a Model Execution, and for a run with no event of its own (one
     known only as another run's parent or root)."""
 
 

@@ -7,7 +7,7 @@
 
   /** An ID as the chart shows it: its first eight characters (a UUID's first group). */
   function shortId(id) {
-    return id.length > 8 ? id.slice(0, 8) : id;
+    return id.slice(0, 8);
   }
 
   /** The API's exact decimal strings with one number of decimals: no digit is dropped,
@@ -63,5 +63,5 @@
 
   const exported = { TABS, shortId, alignAmounts, money, modelLabel, runLabel, tabFromHash };
   if (typeof module !== "undefined" && module.exports) module.exports = exported;
-  root.DataFinopsFormat = exported;
+  else root.DataFinopsFormat = exported;
 })(typeof window !== "undefined" ? window : globalThis);

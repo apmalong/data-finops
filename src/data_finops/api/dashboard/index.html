@@ -36,25 +36,25 @@
       <button type="button" role="tab" id="tab-dimensions" data-tab="dimensions" aria-controls="panel-dimensions" aria-selected="false" tabindex="-1">Cost Dimensions</button>
     </div>
 
-    <section id="panel-summary" role="tabpanel" aria-labelledby="tab-summary">
+    <section id="panel-summary" role="tabpanel" tabindex="0" aria-labelledby="tab-summary">
       <h2 id="summary-title" class="visually-hidden">Cost Summary</h2>
       <div id="currencies" class="multiples"></div>
     </section>
 
-    <section id="panel-models" role="tabpanel" aria-labelledby="tab-models" hidden>
+    <section id="panel-models" role="tabpanel" tabindex="0" aria-labelledby="tab-models" hidden>
       <h2 id="rollups-title">What models cost</h2>
       <p class="hint">Roll-ups: sums of the Allocations to the Query Executions each one is linked to. A view, never a further Allocation.</p>
       <div id="rollups-model"></div>
     </section>
 
-    <section id="panel-runs" role="tabpanel" aria-labelledby="tab-runs" hidden>
+    <section id="panel-runs" role="tabpanel" tabindex="0" aria-labelledby="tab-runs" hidden>
       <h2 id="runs-title">What runs cost</h2>
       <p class="hint">Roll-ups: sums of the Allocations to the Query Executions each one is linked to. A view, never a further Allocation.</p>
       <div id="rollups-run"></div>
       <div id="runs" class="runs-panel"></div>
     </section>
 
-    <section id="panel-dimensions" role="tabpanel" aria-labelledby="tab-dimensions" hidden>
+    <section id="panel-dimensions" role="tabpanel" tabindex="0" aria-labelledby="tab-dimensions" hidden>
       <h2 id="dimensions-title">Cost Dimensions</h2>
       <p class="hint">The same Allocations, grouped by an attribute that your organization configures, such as team or tenant. A value is a claim, never Evidence. The values, unassigned included, add up to the total.</p>
       <form class="filters" aria-label="Which Cost Dimension">
