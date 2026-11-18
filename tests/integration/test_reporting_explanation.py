@@ -171,7 +171,7 @@ def test_an_unallocated_amount_with_linked_evidence_rolls_up_to_nothing(tmp_path
     # Coverage that exceeds the bill leaves the line Unallocated, and its Allocation keeps the
     # query's Evidence: a Model Execution and Workload Runs. Roll-ups sum only Allocations to
     # Query Executions (#307).
-    path = tmp_path / "data-finops.sqlite"
+    path, run_id = tmp_path / "data-finops.sqlite", "calc-exceeded"
     first = fill(path)
     with Ledger(path) as ledger:
         stored = ledger.allocation_snapshot(first)
@@ -179,18 +179,18 @@ def test_an_unallocated_amount_with_linked_evidence_rolls_up_to_nothing(tmp_path
         exceeded = [
             a.model_copy(
                 update={
-                    "calculation_run_id": "calc-exceeded",
+                    "calculation_run_id": run_id,
                     "method": "coverage_exceeded",
                     "evidence_refs": METERED["evidence_refs"],
                 }
             )
             if a.target_id == "unallocated"
-            else a.model_copy(update={"calculation_run_id": "calc-exceeded"})
+            else a.model_copy(update={"calculation_run_id": run_id})
             for a in stored.allocations
         ]
         ledger.store_allocations(
             EXPORT.snapshot.scope,
-            calculation_run_id="calc-exceeded",
+            calculation_run_id=run_id,
             policy_version=stored.snapshot.policy_version,
             input_digest="exceeded",
             export_snapshot_id=EXPORT.snapshot.snapshot_id,
