@@ -134,7 +134,8 @@ class Settings:
     collector_memory_mb: int = 2048
     """The collector function's memory, in MB."""
     api_timeout_seconds: int = 30
-    """The API function's timeout, in seconds."""
+    """The API function's timeout, in seconds. API Gateway stops a request after 30 seconds, so a
+    longer timeout does not give a request more time."""
     api_memory_mb: int = 1024
     """The API function's memory, in MB."""
     api_reserved_concurrency: int | None = None

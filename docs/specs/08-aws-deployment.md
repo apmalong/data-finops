@@ -135,10 +135,10 @@ The policies that `deployment/compute.py` grants supersede the research drafts i
 ### Other policies
 - **Producer policy** (output): `s3:PutObject` on `inbox/*` only.
   - If `kmsKeyArn` is set, also `kms:GenerateDataKey` on that key. S3 requires it to write an SSE-KMS object (#270).
-- **Reader, consumer and operator policies** (outputs): `execute-api:Invoke` on the routes of the role (spec 10). Until the Command routes come (#291), each of the three gives the read routes only. A path parameter is `*` in the ARN, and so is the stage.
+- **Reader, consumer and operator policies** (outputs): `execute-api:Invoke` on the routes of the Control Role (spec 10). Until the Command routes come (#291), each of the three gives the read routes only. A path parameter is `*` in the ARN, and so is the stage.
 - **API Gateway:** a Lambda permission lets `apigateway.amazonaws.com` invoke the API function, for `GET /v1/*` of this API only.
 - **Scheduler role:** `lambda:InvokeFunction` on the collector function only. EventBridge Scheduler assumes this role to start the Collection Run (#187).
-- **Deployer:** the owner creates it, never the stack. A draft deployer policy with least privilege is `infra/pulumi/aws/iam/deployer-policy.draft.json`. It is not validated until the IAM Access Analyzer step of the deploy wizard (#192).
+- **Deployer:** the owner creates it, never the stack. A draft deployer policy with least privilege is `infra/pulumi/aws/iam/deployer-policy.draft.json`. It is not validated until the IAM Access Analyzer step of the deploy wizard (#192). It keeps `lambda:GetFunctionUrlConfig` and `lambda:DeleteFunctionUrlConfig` so that `pulumi up` can delete the Function URL of an older Deployment (#290). Remove them when no Deployment has one.
 
 ## Settings
 Required: `aws:region`, `exportBucket`, `exportName` and `workgroups`. `workgroups` is a list that must not be empty, and the stack refuses an empty list.

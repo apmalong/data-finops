@@ -178,12 +178,14 @@ def _guarded(args: StackValidationArgs, report: Report) -> None:
             report(f"each bucket needs a {name}; {buckets} bucket(s), {counts[typ]} found")
 
 
-def _api_iam_only(args: ResourceValidationArgs, report: Report) -> None:
-    """Each route of the API checks IAM, and no function URL goes around the gateway."""
-    if args.resource_type == FUNCTION_URL:
-        report("the API is reached through API Gateway only, never a function URL (spec 10)")
-    elif args.resource_type == ROUTE and args.props.get("authorizationType") != "AWS_IAM":
-        report(f"the route {args.props.get('routeKey')} must use AWS_IAM authorization")
+def _route_iam(props: dict[str, Any], report: Report) -> None:
+    if props.get("authorizationType") != "AWS_IAM":
+        report(f"the route {props.get('routeKey')} must use AWS_IAM authorization")
+
+
+def _no_function_url(props: dict[str, Any], report: Report) -> None:
+    """No function URL goes around the gateway."""
+    report("the API is reached through API Gateway only, never a function URL (spec 10)")
 
 
 def _throttled(props: dict[str, Any], report: Report) -> None:
@@ -345,7 +347,7 @@ API_IAM_ONLY = ResourceValidationPolicy(
     "api-iam-only",
     "Every API Gateway route uses AWS_IAM authorization, and no Lambda function has a URL"
     " (spec 10).",
-    _api_iam_only,
+    [_for(ROUTE, _route_iam), _for(FUNCTION_URL, _no_function_url)],
     enforcement_level=MANDATORY,
 )
 API_THROTTLED = ResourceValidationPolicy(

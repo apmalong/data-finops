@@ -22,9 +22,9 @@ OUTPUTS: dict[str, str] = {
     "producerPolicyArn": "The managed policy that lets a producer write to the Inboxes and "
     "nothing else. Attach it to whatever sends OpenLineage events or dbt artifacts.",
     "readerPolicyArn": "The managed policy that lets a principal call the API's read routes.",
-    "consumerPolicyArn": "The managed policy of the consumer role. For now, it lets a "
+    "consumerPolicyArn": "The managed policy of the consumer Control Role. For now, it lets a "
     "principal call the read routes only.",
-    "operatorPolicyArn": "The managed policy of the operator role. For now, it lets a "
+    "operatorPolicyArn": "The managed policy of the operator Control Role. For now, it lets a "
     "principal call the read routes only.",
     "collectorFunction": "The collector function's name, for its logs or to invoke a "
     "Collection Run by hand.",

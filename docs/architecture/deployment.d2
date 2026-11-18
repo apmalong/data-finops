@@ -14,14 +14,14 @@ account: "One AWS account" {
   class: boundary
 
   producer: "Producer\nAirflow, dbt\nproducer policy" {class: outside}
-  reader: "Reader\nan IAM principal allowed\nto invoke the URL" {class: outside}
+  reader: "Reader\nan IAM principal allowed\nto invoke the read routes" {class: outside}
 
   deployment: "Deployment" {
     class: boundary
 
     scheduler: "EventBridge Scheduler\nonce a day, UTC" {class: part}
     collector: "Collector function\nthe only writer" {class: part}
-    api: "API function\nread-only\nFunction URL, AWS_IAM" {class: part}
+    api: "API function\nread-only, behind an\nHTTP API with AWS_IAM routes" {class: part}
 
     bucket: "Deployment bucket\nprivate, TLS only\nencrypted, versioned" {
       class: boundary

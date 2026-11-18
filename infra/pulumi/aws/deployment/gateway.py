@@ -1,4 +1,4 @@
-"""The API's front door: an API Gateway HTTP API with IAM routes, in place of the Function URL
+"""The API Gateway HTTP API of the Deployment, with IAM routes, in place of the Function URL
 (spec 10 §The API; ADR 0032)."""
 
 import json
@@ -20,10 +20,10 @@ READ_ROUTES: dict[str, str] = {
     "lineage": "/v1/lineage",
 }
 """Each read route of the app (`data_finops.api.app`, spec 06), by a short name for its
-resource. Only these paths reach the API function: `/health` and the OpenAPI document stay
-behind the gateway."""
+resource. Only these paths reach the API function: `/health` and the OpenAPI document have no
+route."""
 ROLES = ("reader", "consumer", "operator")
-"""The roles of spec 10, each with a managed policy. Until the Command routes come (#291),
+"""The Control Roles (spec 10), each with a managed policy. Until the Command routes come (#291),
 each role may invoke the read routes only."""
 
 
@@ -36,11 +36,11 @@ class Gateway:
     resources: list[pulumi.Resource]
 
 
-def gateway(
+def build_gateway(
     name: str, settings: Settings, function: aws.lambda_.Function, child: pulumi.ResourceOptions
 ) -> Gateway:
     """The HTTP API in front of `function`: a route for each read with IAM authorization, a
-    `$default` stage with the rate limits, and a policy for each role."""
+    `$default` stage with the rate limits, and a policy for each Control Role."""
     stack = pulumi.get_stack()
     api = aws.apigatewayv2.Api(
         f"{name}-api", name=f"{name}-{stack}-api", protocol_type="HTTP", opts=child
@@ -55,14 +55,14 @@ def gateway(
     )
     routes = [
         aws.apigatewayv2.Route(
-            f"{name}-{route}",
+            f"{name}-{short_name}",
             api_id=api.id,
             route_key=f"GET {path}",
             authorization_type="AWS_IAM",
             target=integration.id.apply(lambda id: f"integrations/{id}"),
             opts=child,
         )
-        for route, path in READ_ROUTES.items()
+        for short_name, path in READ_ROUTES.items()
     ]
     stage = aws.apigatewayv2.Stage(
         f"{name}-api",

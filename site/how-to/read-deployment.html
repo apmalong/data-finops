@@ -101,7 +101,7 @@
 </ul>
 </nav>
 <!-- onpage:end -->
-<p>A Deployment's API serves the same read endpoints as <code>data-finops serve</code>, from the database the last Collection Run wrote. It sits behind an API Gateway HTTP API that accepts only requests signed with AWS Signature Version 4 (SigV4) by an IAM principal allowed to call it. There is no token. This guide grants that access, calls the API, opens the dashboard on a local copy and switches the API off when necessary.</p>
+<p>A Deployment's API serves the same read endpoints as <code>data-finops serve</code>, from the database the last Collection Run wrote. It sits behind an API Gateway HTTP API. The API accepts only requests signed with AWS Signature Version 4 (SigV4) by an IAM principal that can call it. There is no token. This guide grants that access, calls the API, opens the dashboard on a local copy and switches the API off when necessary.</p>
 <p class="notice">Not run on this page. These commands reach a real Deployment with your own AWS credentials. Only an administrator can attach a policy. Only the owner runs the <code>pulumi up</code> of the kill switch.</p>
 
 <h2 id="grant">Grant a reader access</h2>

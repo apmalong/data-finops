@@ -34,7 +34,9 @@ def _violations_of(policy: Any, typ: str, props: dict[str, Any], name: str = "x"
     args = ResourceValidationArgs(
         typ, props, f"urn:pulumi:test::data-finops::{typ}::{name}", name, _options(), None
     )
-    policy.validate(args, lambda message, urn=None: found.append(message))
+    validators = policy.validate if isinstance(policy.validate, list) else [policy.validate]
+    for validate in validators:  # a policy may hold one validator for each resource type
+        validate(args, lambda message, urn=None: found.append(message))
     return found
 
 

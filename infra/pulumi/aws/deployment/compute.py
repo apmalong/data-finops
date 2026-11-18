@@ -10,7 +10,7 @@ from typing import Any
 import pulumi
 import pulumi_aws as aws
 
-from deployment.gateway import Gateway, gateway
+from deployment.gateway import Gateway, build_gateway
 from deployment.package import ARCHITECTURE, PYTHON
 from deployment.settings import Settings
 from deployment.storage import INBOX, Storage
@@ -173,7 +173,7 @@ class Compute(pulumi.ComponentResource):
             **common,
             **api_options,
         )
-        self.gateway = gateway(name, settings, self.api, child)
+        self.gateway = build_gateway(name, settings, self.api, child)
         scheduler_role = aws.iam.Role(
             f"{name}-scheduler",
             assume_role_policy=trust_policy("scheduler.amazonaws.com"),
