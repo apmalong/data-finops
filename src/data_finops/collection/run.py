@@ -532,7 +532,10 @@ def _deliveries_to_collect(
     for obj in list_objects(s3, settings.export_bucket, settings.metadata_prefix(period)):
         folder, _, name = obj.key.removeprefix(settings.metadata_prefix(period)).rpartition("/")
         folders[folder][name] = obj
-    if "" in folders:  # files straight under the period: Data Exports' overwrite mode
+    # Files directly under the period, and no Delivery folder: Data Exports' overwrite mode.
+    # Create-new mode also keeps the newest manifest there, which is not a Delivery (#305).
+    has_root_files = folders.pop("", None) is not None
+    if has_root_files and not folders:
         warnings.append(
             f"{period}: an overwrite-mode Delivery is refused; set the export to create new files"
         )

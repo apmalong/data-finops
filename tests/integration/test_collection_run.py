@@ -626,6 +626,19 @@ def test_an_overwrite_mode_layout_is_refused_with_a_reason(tmp_path: Path) -> No
     assert summary.exit_code == 0
 
 
+def test_the_manifest_of_the_newest_delivery_at_the_period_level_is_not_a_delivery(
+    tmp_path: Path,
+) -> None:
+    created = _delivery(tmp_path, SECOND, [0.0003])
+    (key,) = (k for k in created.metadata if k.endswith(MANIFEST_NAME))
+    newest = Delivery(  # create-new mode also keeps the newest manifest under the period
+        NOV, {key.replace(SECOND, NOV): created.metadata[key]}, {}
+    )
+    summary = _run_exports(tmp_path / "data-finops.sqlite", {NOV: [newest, created]}, [created])
+    assert (summary.sources["focus"].stored, summary.warnings) == (1, [])
+    assert summary.exit_code == 0
+
+
 def _with_manifest(delivery: Delivery, change: Any) -> Delivery:
     """The Delivery with its manifest's JSON passed through `change`."""
     (key,) = (k for k in delivery.metadata if k.endswith(MANIFEST_NAME))

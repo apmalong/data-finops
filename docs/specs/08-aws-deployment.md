@@ -71,7 +71,7 @@ The bucket holds the database object, `inbox/openlineage/`, `inbox/dbt/<invocati
    - A Delivery that a run took one time (stored, replayed or rejected) is recorded in the Collection Watermark. It is never downloaded again (#182).
    - Only the data files that the manifest lists are downloaded, and only from the folder of that Delivery in the export bucket. A manifest that names a different object is rejected, and that object is not read (#182).
    - A data file over 2 GiB, or a Delivery over 8 GiB, is rejected before any data is downloaded (#182). This is not measured on a large account, and it is a revisit trigger.
-   - The export must use "create new" delivery, because ADR 0020 takes `published_at` from the execution folder. A layout in overwrite mode is refused, with a reason.
+   - The export must use "create new" delivery, because ADR 0020 takes `published_at` from the execution folder. A layout in overwrite mode is refused, with a reason. Overwrite mode puts the files directly under the Billing Period. It makes no Delivery folder. Create-new mode also keeps the manifest of the newest Delivery there. When a Billing Period has a Delivery folder, the run ignores the files directly under it (#305).
    - There is no Data Exports API permission.
 3. **Athena history:** for each configured workgroup, do these steps:
    - Page `ListQueryExecutions` up to `maxHistoryPages` (default 200 pages of 50).
