@@ -232,6 +232,19 @@ def test_the_kill_switch_sets_the_stage_limits_to_0() -> pulumi.Output[None]:
 
 
 @pulumi.runtime.test
+def test_the_reader_policy_keeps_its_description_so_it_is_not_replaced() -> pulumi.Output[None]:
+    def check() -> None:
+        # The description before the gateway (#290). A new one would replace the policy, and
+        # IAM refuses to delete a policy that is still attached.
+        (reader,) = [
+            p.inputs for p in MOCKS.of_type("aws:iam/policy:Policy") if p.name.endswith("-reader")
+        ]
+        assert reader["description"] == "data-finops: call the Deployment's read-only API"
+
+    return _after(SETTINGS, check)
+
+
+@pulumi.runtime.test
 def test_each_role_may_only_invoke_the_read_routes() -> pulumi.Output[None]:
     def check() -> None:
         # Until the Command routes come (#291), each role has the reads only.

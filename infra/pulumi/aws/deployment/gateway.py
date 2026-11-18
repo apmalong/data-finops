@@ -22,9 +22,17 @@ READ_ROUTES: dict[str, str] = {
 """Each read route of the app (`data_finops.api.app`, spec 06), by a short name for its
 resource. Only these paths reach the API function: `/health` and the OpenAPI document have no
 route."""
-ROLES = ("reader", "consumer", "operator")
-"""The Control Roles (spec 10), each with a managed policy. Until the Command routes come (#291),
-each role may invoke the read routes only."""
+ROLES = {
+    "reader": "data-finops: call the Deployment's read-only API",
+    "consumer": "data-finops: call the Deployment's API as a consumer",
+    "operator": "data-finops: call the Deployment's API as an operator",
+}
+"""The Control Roles (spec 10), each with a managed policy, and its description. Until the
+Command routes come (#291), each role may invoke the read routes only.
+
+IAM cannot change the description of a policy, so a new one replaces the policy, and IAM
+refuses to delete a policy that is still attached. The reader's description is the one that
+it had before the gateway, so its ARN and its attachments stay."""
 
 
 @dataclass(frozen=True)
@@ -86,11 +94,11 @@ def build_gateway(
     policies = {
         role: aws.iam.Policy(
             f"{name}-{role}",
-            description=f"data-finops: call the Deployment's API as a {role}",
+            description=description,
             policy=api.execution_arn.apply(_invoke_policy),
             opts=child,
         )
-        for role in ROLES
+        for role, description in ROLES.items()
     }
     return Gateway(
         url=api.api_endpoint.apply(lambda endpoint: f"{endpoint}/"),
