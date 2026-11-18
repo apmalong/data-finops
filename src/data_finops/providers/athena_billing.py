@@ -96,8 +96,8 @@ def billable_quantities(
     if version in (BILLABLE_USAGE_V1, BILLABLE_USAGE_V2):
         return [
             None
-            if (billed := billable_bytes(q, version)) is None
-            else bytes_in_consumed_unit(billed, consumed_unit)
+            if (scanned := billable_bytes(q, version)) is None
+            else bytes_in_consumed_unit(scanned, consumed_unit)
             for q in queries
         ]
     if version != BILLABLE_USAGE_V3:
