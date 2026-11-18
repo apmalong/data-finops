@@ -284,7 +284,7 @@ Designed 2026-11-06 in PR #176 (spec 08; ADRs 0026–0028; GLOSSARY: Deployment,
   - **Optional, not run:** the owner's deploy-and-verify wizard (`infra/pulumi/aws/wizards/deploy-and-verify.sh`). Spec 08 makes it optional for the exit. Its output will be added here only if the owner runs it.
 - **Owner-only, still to do:**
   - **#26:** the teardown wizard (`wizards/teardown.sh`) destroys the reference workload and checks that nothing is left. It also tears down a Deployment if one was deployed. #26 does not block the exit. — **done 2026-11-07**, see below.
-  - **Q22:** make `infra` a required CI check, after its first green runs (it has passed on every PR since #199).
+  - **Q22:** make `infra` a required CI check, after its first green runs (it has passed on every PR since #199). — **done**, see the M7 Public Demo record below (#281).
 - **Found and fixed during M6:**
   - **The first Collection Run would have looped:** without `s3:ListBucket`, S3 answers a missing object with `AccessDenied`, not `NoSuchKey`. Both roles get `ListBucket` on their own bucket (#198, #200).
   - **The reader policy would have got 403:** Function URLs created since October 2025 need `lambda:InvokeFunction` through the URL as well as `lambda:InvokeFunctionUrl` (#200).
@@ -344,7 +344,9 @@ The owner ran `deploy-and-verify.sh` against their account, in `us-east-1`. The 
 
 - **Pulumi 3.272.0.** IAM Access Analyzer gave one finding on the draft deployer policy: `SUGGESTION REDUNDANT_ACTION`. There were no findings on the deployed policies (the bucket policy, and the collector, API, producer, reader and scheduler policies).
 - **The Deployment:** the preview showed 25 to create, with only advisory policy notes ("can't be known during preview"). `pulumi up`: 25 created in 1m4s, policy pack ✅. The destroy check: `ok` (only the bucket and its settings are kept).
-- **The first Collection Run:** `exit_code 0`. All sources were read, and none failed. Two warnings: "billing_period=2026-10 / 2026-11: an overwrite-mode Delivery is refused". The owner's FOCUS export was in overwrite mode. The owner changed it to create new files, and the next Delivery is in that mode. The API answered `/health` with `{"status":"ok"}`, and `/v1/costs/summary` with no summaries yet.
+- **The first Collection Run:** `exit_code 0`. All sources were read, and none failed. Two warnings: "billing_period=2026-10 / 2026-11: an overwrite-mode Delivery is refused".
+  - The owner's FOCUS export was in overwrite mode. The owner changed it to create new files. Each Delivery since 2026-11-15 22:20 UTC is in that mode. The collector still refused November until #305 (see below).
+  - The API answered `/health` with `{"status":"ok"}`, and `/v1/costs/summary` with no summaries yet.
 - **The Public Demo:** `publicDemo true`, and `costDimensions` set to `examples/public-demo/cost-dimensions.toml`.
   - `pulumi up`: 38 created and 2 updated (the collector's policy and environment) in 2m48s, policy pack ✅. The CloudFront distribution took 159 s.
   - The generator wrote 13 files, 382,087,367 bytes. The simulator ran 3 DAG runs, none failed, with 22 queries.
@@ -354,4 +356,14 @@ The owner ran `deploy-and-verify.sh` against their account, in `us-east-1`. The 
   - Stage 3 failed on Windows. Git Bash does not convert `/c/Users/…` inside `file://`, so the AWS CLI could not open the draft policy. The wizard now builds `file://` URLs from the native path.
   - The mask replaced the export prefix, a plain word, also where it named a source in the summary. It now masks the prefix only as a path or as the setting's value.
   - `uv`'s warnings named the repository with backslashes, which the mask did not cover. It does now.
-- **Still open for #231's exit:** `demoUrl` must load a Demo Snapshot less than 48 hours old, after the first Collection Run that finds the demo's charges in a create-new Delivery.
+- **#231's exit (2026-11-18).** The owner told the agent to run the deploy steps and the collector. Each output was masked as above.
+  - **Found first:** the Collection Runs of 11-16 to 11-18 still refused November as an overwrite-mode Delivery. In create-new mode, Data Exports also keeps the newest manifest directly under the Billing Period. The collector took that file for overwrite mode. #305 fixed it.
+  - **The state passphrase:** the stack's passphrase was not known. The only encrypted values in the state were the AWS provider's cache of the two lifecycle configurations. The agent removed that cache and imported the state with a new passphrase, which is git-ignored under `.local/`. The next preview showed no change to either lifecycle configuration.
+  - **The deployer:** the deploy profile is an IAM user with `AdministratorAccess`. No deployer policy from the draft exists in the account.
+  - `pulumi up` on `bdfa674`: 14 created, 7 updated and 1 deleted (the Function URL, replaced by the HTTP API of #304), policy pack ✅.
+  - A Collection Run stored 44 FOCUS Deliveries with no warning, and calculated November (`calc-a4a2b858-…`).
+  - **Found next:** the publisher then failed with `KeyError` in the Cost Explanation of an Unallocated Allocation that has linked Evidence. #307 fixed it.
+  - `pulumi up` on `eedfa87`: 6 updated (the package and the five functions), policy pack ✅. A Collection Run started the publisher.
+  - **Result:** `current.json` names `snapshots/20261118T184216Z-23334030/`, published at 18:42:16 UTC, with 24 files. `snapshot.json` has November: `calc-a4a2b858-…`, USD, billed 0.031000, explained share 0.0000.
+  - **Q22 (#281):** `gh api repos/apmalong/data-finops/branches/main/protection/required_status_checks --jq .contexts` gives `["quality","infra"]`.
+- **Open after #231:** each demo line is Unallocated `coverage_exceeded`, with coverage 1.11 to 1.12. So the Public Demo explains no cost yet. This is a separate issue.
