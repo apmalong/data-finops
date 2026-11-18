@@ -91,6 +91,31 @@ def test_each_workload_run_named_by_the_evidence_rolls_up_the_same_amount(
     assert all(_amounts(item.totals) == EVERY_BASIS for item in page.items)
 
 
+def test_a_workload_run_rollup_carries_its_run_so_a_reader_sees_its_job(
+    reporting: Reporting,
+) -> None:
+    # fixtures/openlineage/events.json: ...0001 is the Airflow task, ...0002 the dbt run.
+    # ...0000 is only named as their root, with no event of its own (#313).
+    page = reporting.rollups(level="workload_run", billing_account_id=ACCOUNT)
+    runs = {
+        item.key: None if item.run is None else (item.run.job_name, item.run.started_at.isoformat())
+        for item in page.items
+    }
+    assert runs == {
+        "00000000-0000-4000-8000-000000000000": None,
+        "00000000-0000-4000-8000-000000000001": (
+            "daily_orders.dbt_run",
+            "2026-10-01T00:59:50+00:00",
+        ),
+        "00000000-0000-4000-8000-000000000002": ("dbt-run-demo", "2026-10-01T00:59:55+00:00"),
+    }
+
+
+def test_a_model_execution_rollup_carries_no_run(reporting: Reporting) -> None:
+    page = reporting.rollups(level="model_execution", billing_account_id=ACCOUNT)
+    assert [item.run for item in page.items] == [None]
+
+
 def test_a_superseded_snapshot_rolls_up_by_its_calculation_run(
     reporting: Reporting, database: Database
 ) -> None:

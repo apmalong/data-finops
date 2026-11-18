@@ -112,6 +112,8 @@ One Calculation Run:
 ## Dashboard
 Static HTML, CSS and JavaScript that the API serves from the package. It has no build step, no JavaScript or chart libraries and no CDN, and it works offline. It reads only the JSON API. The Public Demo is the one exception: there, the same page reads the files of a Demo Snapshot, in the shapes of the API (spec 09 §The site).
 
+**Tabs (#313).** Four tabs show one section at a time: Summary, Models, Runs and Cost Dimensions. Summary opens first. The address `#tab=<name>` opens a tab, and `#run=` opens Runs. A Workload Run's Roll-up carries the run, so the dashboard shows its job name and start time.
+
 **The static mode (#228).** `<meta name="data-finops-source">` selects the data source: `api` in the package, and `static` in the copy that the demo serves. `static.js` answers each read of the dashboard from the files of the snapshot that `current.json` names. It gives the same pages, filters and Snapshot Scope selection as the API. A read that the snapshot does not cover, or a file that the site answers with 403 or 404, shows "not in the public demo", not an error. Only the static mode shows the banner: "Simulated workload; real Athena charges, reconciled to the bill; data trails by about a day; amounts before credits", with the time of the snapshot and the Calculation Run.
 
 **The Cost Dimensions view (#223).** A section groups the Allocations of the served snapshot by one Cost Dimension, selected from a list, for the selected Cost Basis. Each value shows its amount and its sources, and unassigned cost is a value of its own. If the Calculation Run has no dimensions, the section says how to configure them.
@@ -141,7 +143,7 @@ There are three seams. Each is test-first, with hand-made mutation checks record
 2. The HTTP app, through the test client of FastAPI, over the same database. The tests cover status codes and Problem Details, and the validation of filters and pages. They also cover the 201, 202, 400, 413 and 401 of the receiver, and the token and bind rules. Responses must be valid against `schemas/openapi.json`. No response contains SQL or the token. No business numbers are asserted here.
 3. `WorkloadStore.ingest_event(bytes)`, on the current store seam. The test ingests the items of a fixture file one at a time. The counts and the stored runs are the same as from `ingest_events` on the file. The invalid fixtures are rejected with the same kinds.
 
-The command line is tested through `main(argv)` on a temporary database, without a server. The dashboard has a smoke test only. It checks that its files are served, and that each API path that it calls is in the OpenAPI document. Its design is checked by eye in the exit walkthrough.
+The command line is tested through `main(argv)` on a temporary database, without a server. The dashboard's tests check that its files are served, and that each API path that it calls is in the OpenAPI document. `format.js` (its labels, amounts and tabs) and `static.js` run in Node from pytest (#313, #228). Its design is checked by eye in the exit walkthrough.
 
 ## Exit: the demo walkthrough
 `examples/demo/README.md` is written again as `data-finops` commands, with what to see at each step. The M5 exit test runs each step through the command line and the test client:

@@ -235,6 +235,7 @@ class Reporting:
                         RollupAmount(currency=t.currency, cost_basis=t.cost_basis, amount=t.amount)
                         for t in totals
                     ],
+                    run=self._store.workload_run(key) if level == "workload_run" else None,
                 )
                 for key, totals in self._rollup_map(stored, level).items()
             ),

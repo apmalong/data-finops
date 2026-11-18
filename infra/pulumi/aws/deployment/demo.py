@@ -73,6 +73,7 @@ SITE_FILES = {
     "dashboard.css": "text/css; charset=utf-8",
     "dashboard.js": "text/javascript; charset=utf-8",
     "static.js": "text/javascript; charset=utf-8",
+    "format.js": "text/javascript; charset=utf-8",
 }
 """Each file of the dashboard, at the root of the bucket, and its media type."""
 CURRENT = "current.json"
