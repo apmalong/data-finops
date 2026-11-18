@@ -23,6 +23,7 @@ from data_finops.contracts.allocation import (
     Allocation,
     AllocationCategory,
     Confidence,
+    TargetType,
     policy_components,
 )
 from data_finops.contracts.billing import (
@@ -786,7 +787,10 @@ def _rollups_of(
     maps: dict[str, dict[str, Any]],
 ) -> list[ExplainedRollup]:
     """The Roll-ups `allocation` contributes to, in its own currency and Cost Basis, from the
-    snapshot's Roll-ups by level and key."""
+    snapshot's Roll-ups by level and key. Roll-ups sum only Allocations to Query Executions, so
+    any other Allocation has no Roll-up, though its Evidence can link a Model Execution (#307)."""
+    if allocation.target_type != TargetType.QUERY_EXECUTION:
+        return []
     keys: dict[RollupLevel, list[str]] = {
         "model_execution": [] if model is None else [model.target_id()],
         "workload_run": runs,
