@@ -16,6 +16,7 @@ The `data-finops` command (stdlib `argparse`) has these subcommands:
 Exit codes:
 - 0: everything was stored.
 - 1: something was rejected. The rest is stored.
+  - For `ingest focus`, the file is rejected when the stored snapshot does not reconcile with it (#212). Then nothing of it is stored. The output names the snapshot, the Billing Period and the currencies that differ, never line content.
 - 2: nothing was done (bad arguments, a file that cannot be read, or a file that is not a data-finops database).
 - `collect` also exits with 2 when it could not read a source. It still collected the other sources and calculated (spec 08 §6).
 

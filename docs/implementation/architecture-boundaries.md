@@ -36,7 +36,7 @@
   - A read against `--db` calls `reporting`. A read against `--deployment` sends a GET to the API of the Deployment, signed by `aws_clients` (`cli/deployments.py`). Both give the JSON of the HTTP route.
   - It is an entry point. It opens the stores and calls their public functions, and it joins nothing itself.
   - It can import both stores only together with `calculation`, to give them to the Calculation Run (#115). The import-boundary test enforces this.
-  - For a FOCUS file, it calls the `billing` readers itself. The reason is that `Ledger.import_snapshot` takes a parsed export, but the ingest functions of the workload store take paths.
+  - For a FOCUS file, it calls `Ledger.ingest_focus`, which reads the file with the `billing` readers, imports it and reconciles it (#212). A Collection Run calls it too.
 - `providers`: optional cloud-specific collectors and provider pricing policies (`providers.athena_billing`, #82). The attribution core must not import it.
   - `providers.aws` (M6, spec 08) holds the AWS collectors, behind the optional `aws` extra (boto3).
   - These collectors fetch files and API responses, and give them to the current readers. They never write to a store themselves.

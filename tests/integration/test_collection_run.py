@@ -32,6 +32,7 @@ from botocore.stub import Stubber
 from delivery_files import write_delivery
 from fixture_database import EXPORT, FIXTURES
 from fixture_database import OTHER_ACCOUNT as OTHER
+from ledger_faults import drop_one_billing_line
 
 from data_finops.billing.aws_data_exports import load_delivery
 from data_finops.collection import (
@@ -44,6 +45,7 @@ from data_finops.collection.run import (
     MAX_DATA_FILE_BYTES,
     MAX_DELIVERY_BYTES,
     MAX_INBOX_FILE_BYTES,
+    RejectedItem,
 )
 from data_finops.ledger import Ledger
 from data_finops.lineage.validation import MAX_EVENT_BYTES
@@ -962,3 +964,19 @@ def test_with_a_retention_under_7_days_every_object_not_collected_is_warned_abou
         f"{DBT}inv-001/: waiting for run_results.json",
         f"{waiting}: not collected, 0 days old, expires in 3 days",
     ]
+
+
+def test_a_delivery_that_does_not_reconcile_is_rejected_and_nothing_is_calculated_on_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    db = tmp_path / "data-finops.sqlite"
+    delivery = _delivery(tmp_path, SECOND, [0.0003])
+    drop_one_billing_line(monkeypatch)
+    summary = _run_exports(db, {NOV: [delivery]}, [delivery])
+    assert summary.sources["focus"].rejected == [
+        RejectedItem(item=SECOND, reason="does not reconcile: billing period 2026-11, currency USD")
+    ]
+    assert (summary.sources["focus"].stored, summary.exit_code) == (0, 1)
+    assert summary.calculation_run_ids == []
+    with Ledger(db) as ledger:
+        assert ledger.scopes() == []

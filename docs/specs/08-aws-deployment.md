@@ -66,6 +66,7 @@ The bucket holds the database object, `inbox/openlineage/`, `inbox/dbt/<invocati
    - Follow the real layout as it was observed (lowercase `billing_period=`, `-Manifest-FOCUS.json`), not the names in the AWS documentation.
    - Ingest each Delivery that is newer than the current Export Snapshot of its Snapshot Scope (the configured account, the period, the source of the export), oldest first. Thus the newest becomes current, and the others are kept as Superseded Snapshots (#182).
    - To ingest a Delivery, download it to `/tmp` and give it to the current FOCUS reader, unchanged.
+   - The Ledger reconciles each Delivery that it stores against the Delivery's files, in each Cost Basis (#212). On a difference, the Delivery is rejected and the Ledger keeps nothing of it. The rejection names the Billing Period and the currencies that differ. Thus no Calculation Run uses it. A retry gives the same difference, so the rejection is recorded and not retried.
    - If a folder does not have both manifests, Data Exports has not finished it yet. It stays for a later run.
    - A folder whose name is not `<CreatedAt>-<executionId>` gets a warning, and it is ignored.
    - A Delivery that a run took one time (stored, replayed or rejected) is recorded in the Collection Watermark. It is never downloaded again (#182).

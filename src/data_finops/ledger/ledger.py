@@ -17,6 +17,8 @@ from pathlib import Path
 from types import TracebackType
 from typing import Self
 
+from data_finops.billing.aws_data_exports import is_manifest, load_delivery
+from data_finops.billing.focus import load_export
 from data_finops.contracts.allocation import Allocation, AllocationSnapshot
 from data_finops.contracts.billing import (
     CostBasis,
@@ -83,6 +85,23 @@ _EPOCH = datetime(1970, 1, 1, tzinfo=UTC)
 
 class SnapshotConflictError(Exception):
     """A snapshot ID is already stored with different billing content."""
+
+    def __init__(self, snapshot_id: str):
+        self.snapshot_id = snapshot_id
+        super().__init__(f"snapshot {snapshot_id} is already stored with different billing content")
+
+
+class ReconciliationError(Exception):
+    """What the Ledger stored differs from the source it read, so the import was rolled back
+    (#212). The message names the Billing Period and the currencies that differ, never line
+    content."""
+
+    def __init__(self, snapshot: ExportSnapshot, currencies: Sequence[str]):
+        self.snapshot_id = snapshot.snapshot_id
+        super().__init__(
+            f"does not reconcile: billing period {snapshot.billing_period_start:%Y-%m},"
+            f" currency {', '.join(currencies)}"
+        )
 
 
 class AllocationSnapshotConflictError(Exception):
@@ -188,51 +207,84 @@ class Ledger:
         immutable. The current snapshot is the latest publication (`published_at`,
         ties broken by snapshot ID), so the outcome never depends on import order.
         """
+        with self._write_transaction():
+            return self._import(export)
+
+    def ingest_focus(self, path: Path, data_dir: Path | None = None) -> ImportResult:
+        """Read a FOCUS file (an Export Snapshot, or an AWS Data Exports manifest with its data
+        files in `data_dir` or beside it), import it and reconcile what was stored against it.
+
+        ReconciliationError when a Billing Line of the stored snapshot differs from the file
+        in any Cost Basis: the import rolls back, so the Ledger keeps nothing of it (#212). A
+        replay stores nothing, so it has nothing to reconcile. The readers' errors
+        (DeliveryError, ValidationError, ValueError, OSError) pass through unchanged."""
+        export = load_delivery(path, data_dir) if is_manifest(path) else load_export(path)
+        with self._write_transaction():
+            result = self._import(export)
+            if result.outcome is not ImportOutcome.REPLAY:
+                self._check_reconciles(export)
+        return result
+
+    def _import(self, export: FocusExport) -> ImportResult:
+        """`import_snapshot` inside the caller's write transaction."""
         snapshot = export.snapshot
         digest = _content_digest(export)
-        with self._write_transaction():
-            current = self._current(snapshot.scope)
-            if current is not None and current.content_digest == digest:
-                return ImportResult(outcome=ImportOutcome.REPLAY, snapshot_id=current.snapshot_id)
-            stored = self._connection.execute(
-                "SELECT content_digest FROM export_snapshot WHERE snapshot_id = ?",
-                (snapshot.snapshot_id,),
-            ).fetchone()
-            if stored is not None:
-                if stored[0] != digest:
-                    raise SnapshotConflictError(
-                        f"snapshot {snapshot.snapshot_id} is already stored"
-                        " with different billing content"
-                    )
-                # The same publication is already stored; it stays where its
-                # publication time puts it.
-                return ImportResult(outcome=ImportOutcome.REPLAY, snapshot_id=snapshot.snapshot_id)
-            self._connection.execute(
-                "INSERT INTO export_snapshot (snapshot_id, billing_account_id,"
-                " billing_period_start, billing_period_end, source, content_digest,"
-                " published_at_us, snapshot_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                (
-                    snapshot.snapshot_id,
-                    *_scope_key(snapshot.scope),
-                    digest,
-                    _microseconds(snapshot.published_at),
-                    snapshot.model_dump_json(),
-                ),
-            )
-            self._connection.executemany(
-                "INSERT INTO billing_line (snapshot_id, position, line_json) VALUES (?, ?, ?)",
-                [
-                    (snapshot.snapshot_id, position, line.model_dump_json())
-                    for position, line in enumerate(export.lines)
-                ],
-            )
-            now_current = self._current(snapshot.scope)
+        current = self._current(snapshot.scope)
+        if current is not None and current.content_digest == digest:
+            return ImportResult(outcome=ImportOutcome.REPLAY, snapshot_id=current.snapshot_id)
+        stored = self._connection.execute(
+            "SELECT content_digest FROM export_snapshot WHERE snapshot_id = ?",
+            (snapshot.snapshot_id,),
+        ).fetchone()
+        if stored is not None:
+            if stored[0] != digest:
+                raise SnapshotConflictError(snapshot.snapshot_id)
+            # The same publication is already stored; it stays where its
+            # publication time puts it.
+            return ImportResult(outcome=ImportOutcome.REPLAY, snapshot_id=snapshot.snapshot_id)
+        self._connection.execute(
+            "INSERT INTO export_snapshot (snapshot_id, billing_account_id,"
+            " billing_period_start, billing_period_end, source, content_digest,"
+            " published_at_us, snapshot_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                snapshot.snapshot_id,
+                *_scope_key(snapshot.scope),
+                digest,
+                _microseconds(snapshot.published_at),
+                snapshot.model_dump_json(),
+            ),
+        )
+        self._store_lines(snapshot.snapshot_id, export.lines)
+        now_current = self._current(snapshot.scope)
         outcome = (
             ImportOutcome.NEW
             if now_current is not None and now_current.snapshot_id == snapshot.snapshot_id
             else ImportOutcome.SUPERSEDED
         )
         return ImportResult(outcome=outcome, snapshot_id=snapshot.snapshot_id)
+
+    def _store_lines(self, snapshot_id: str, lines: Sequence[FocusBillingLine]) -> None:
+        self._connection.executemany(
+            "INSERT INTO billing_line (snapshot_id, position, line_json) VALUES (?, ?, ?)",
+            [
+                (snapshot_id, position, line.model_dump_json())
+                for position, line in enumerate(lines)
+            ],
+        )
+
+    def _check_reconciles(self, source: FocusExport) -> None:
+        """ReconciliationError unless every Billing Line stored for `source` balances with it,
+        in every Cost Basis (AGENTS.md: reconcile per line, currency, period and version)."""
+        currencies = {
+            money.currency
+            for basis in CostBasis
+            for line in self.reconcile(source, basis).lines
+            if not line.balanced
+            for money in (line.source, line.ledger)
+            if money is not None
+        }
+        if currencies:
+            raise ReconciliationError(source.snapshot, sorted(currencies))
 
     def delivery_collected(self, delivery: str) -> bool:
         """Whether a Collection Run already took this Delivery (named by its S3 folder),

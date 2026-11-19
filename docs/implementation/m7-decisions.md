@@ -111,6 +111,12 @@ Research: `docs/research/m7-athena-billing-units.md`. Two independent answers we
 | Q167 | How an hour's queries share the rounded-down sum | **Owner:** in proportion to their raw quantities. Both answers agreed. The other options were raw weights (then Coverage exceeds 1) and a rounding of each query | Owner | spec 03 item 8 |
 | Q168 | Which hour a query belongs to | **Owner:** the UTC hour of its completion. The other option was the hour of submission | Owner | spec 03 item 8 |
 
+## After M7: files straight under a Billing Period (#302, 2026-11-19)
+
+| # | Question | Decision | Source | Recorded in |
+|---|---|---|---|---|
+| Q169 | Whether a Collection Run warns about the files directly under a Billing Period that has Delivery folders | **Owner:** no warning. Create-new mode always keeps the newest manifest there (#305), so a warning would show on each run. The run ignores those files, as #306 built. The other options were a warning for each file, and a warning for each file except the export's own manifest | Owner | spec 08 §Collection Run 2 |
+
 ## Facts the decisions rest on
 
 From the research note `docs/research/m7-aws-finops-tools.md`, checked 2026-11-07:
