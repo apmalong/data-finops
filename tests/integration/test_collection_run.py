@@ -895,10 +895,22 @@ def _days_ago(days: int) -> datetime:
 
 
 def _run_at(db: Path, s3: Any, s3_stub: Stubber, retention: int) -> CollectionSummary:
-    """`_run` at NOW, with the Deployment's Inbox retention."""
+    """`_run` at NOW, with the Deployment's Inbox retention, in settings read as the collector
+    gets them."""
     expect_prefixes(s3_stub, METADATA, [])
     athena = athena_client()
-    settings = dataclasses.replace(SETTINGS, inbox_retention_days=retention)
+    settings = CollectionSettings.from_mapping(
+        {
+            "bucket": BUCKET,
+            "region": REGION,
+            "account_id": ACCOUNT,
+            "workgroups": [WORKGROUP],
+            "export_bucket": EXPORT_BUCKET,
+            "export_prefix": EXPORT_PREFIX,
+            "export_name": EXPORT_NAME,
+            "inbox_retention_days": retention,
+        }
+    )
     with stubbed(athena) as stubber:
         expect_history(stubber, [])
         return run_collection(db, settings, clients=AwsClients(s3=s3, athena=athena), now=NOW)

@@ -174,13 +174,16 @@ class CollectionSettings:
                     DEFAULT_LOOKBACK_PERIODS,
                     MAX_LOOKBACK_PERIODS,
                 ),
-                "inbox_retention_days": (
-                    _whole_number(values, "inbox_retention_days", 1, MAX_INBOX_RETENTION_DAYS)
-                    if "inbox_retention_days" in values
-                    else None
+                "inbox_retention_days": _optional_whole_number(
+                    values, "inbox_retention_days", MAX_INBOX_RETENTION_DAYS
                 ),
             }
         )
+
+
+def _optional_whole_number(values: dict[str, Any], key: str, most: int) -> int | None:
+    """The setting as a whole number from 1 to `most`, or None when it is absent."""
+    return _whole_number(values, key, 1, most) if key in values else None
 
 
 def _whole_number(values: dict[str, Any], key: str, default: int, most: int) -> int:
@@ -328,7 +331,8 @@ def _expiry_warnings(
     store: WorkloadStore, listed: list[S3Object], retention_days: int, now: datetime
 ) -> list[str]:
     """One warning for each listed Inbox object that is not collected (rejected, or not
-    processed yet) and that S3 expires within EXPIRY_WARNING_DAYS, by key and age only."""
+    processed yet) and that S3 expires within EXPIRY_WARNING_DAYS. It gives the key, the age
+    and the days left, never the content."""
     warnings = []
     for obj in listed:
         if obj.last_modified is None:
