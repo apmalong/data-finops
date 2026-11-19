@@ -269,9 +269,7 @@ def run_collection(
             # order is for readability, never correctness.
             warnings: list[str] = []
             listed: list[S3Object] = []
-            dbt = _collect_dbt(
-                store, clients.s3, settings.bucket, Path(scratch), warnings, listed
-            )
+            dbt = _collect_dbt(store, clients.s3, settings.bucket, Path(scratch), warnings, listed)
             openlineage = _collect_openlineage(
                 store, clients.s3, settings.bucket, Path(scratch), warnings, listed
             )

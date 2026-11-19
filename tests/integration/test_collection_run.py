@@ -901,9 +901,7 @@ def _run_at(db: Path, s3: Any, s3_stub: Stubber, retention: int) -> CollectionSu
     settings = dataclasses.replace(SETTINGS, inbox_retention_days=retention)
     with stubbed(athena) as stubber:
         expect_history(stubber, [])
-        return run_collection(
-            db, settings, clients=AwsClients(s3=s3, athena=athena), now=NOW
-        )
+        return run_collection(db, settings, clients=AwsClients(s3=s3, athena=athena), now=NOW)
 
 
 def test_an_inbox_object_not_collected_is_warned_about_in_its_last_7_days(
@@ -920,9 +918,7 @@ def test_an_inbox_object_not_collected_is_warned_about_in_its_last_7_days(
     s3 = s3_client()
     for attempt in range(2):  # a rejected object is never fetched again, but still warned about
         with stubbed(s3) as stubber:
-            expect_listing(
-                stubber, DBT, {waiting: MANIFEST}, modified={waiting: _days_ago(23)}
-            )
+            expect_listing(stubber, DBT, {waiting: MANIFEST}, modified={waiting: _days_ago(23)})
             expect_listing(
                 stubber,
                 OPENLINEAGE,
