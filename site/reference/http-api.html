@@ -129,7 +129,7 @@
 </table>
 </div>
 <h2 id="get-v1-costs-summary"><code>GET /v1/costs/summary</code>: Cost Summary</h2>
-<p>One Cost Summary per Snapshot Scope, for the scope&#x27;s current Allocation Snapshot. With <code>calculation_run_id</code>, the summary of that run&#x27;s snapshot alone, current or superseded.</p>
+<p>One Cost Summary per Snapshot Scope, for the scope&#x27;s current Allocation Snapshot. With <code>calculation_run_id</code>, the response has only the summary of that run&#x27;s snapshot, which can be current or superseded.</p>
 <div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
 <table>
 <thead><tr><th>Parameter</th><th>In</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
@@ -147,11 +147,11 @@
 <thead><tr><th>Status</th><th>Meaning</th><th>Body</th></tr></thead>
 <tbody>
 <tr><td>200</td><td>Successful Response</td><td><code>application/json</code>: <a href="#schema-cost-summaries">CostSummaries</a></td></tr>
-<tr><td>400</td><td>Invalid request, or filters that match more than one Snapshot Scope: the detail names the fields to give, never their values.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
+<tr><td>400</td><td>Invalid request, or a Calculation Run named together with scope filters: the detail names the fields, never their values.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
 <tr><td>401</td><td>When a token is configured: no valid bearer token (ADR 0024).</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
 <tr><td>500</td><td>An unexpected failure. The detail tells nothing about it.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
 <tr><td>503</td><td>The database cannot be opened as a current data-finops database.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
-<tr><td>404</td><td>No such Calculation Run, or no calculated Snapshot Scope matches.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
+<tr><td>404</td><td>No such Calculation Run. A filter that matches no scope gives an empty list.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
 </tbody>
 </table>
 </div>

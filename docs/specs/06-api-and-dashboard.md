@@ -23,6 +23,8 @@ One Cost Summary for each Snapshot Scope that matches, for one Cost Basis. It al
 - Each summary comes from the served Allocation Snapshot of that scope. It never mixes snapshots (#105).
 - `cost_basis` selects the Cost Basis: one of the four FOCUS cost columns. The default is BilledCost.
 - `billing_period` is the first day of the Billing Period.
+- `billing_account_id`, `billing_period` and `source` narrow the list. A filter that matches no scope gives an empty list, not 404.
+- `calculation_run_id` names a superseded or current snapshot, and the answer has only its summary (#215). With scope filters too, the answer is 400. An unknown run gives 404.
 - The billed total is the Export Snapshot that the Calculation Run read. The Ledger records it with each Allocation Snapshot.
 
 The summary gives these amounts for each currency, and never sums them across currencies:
