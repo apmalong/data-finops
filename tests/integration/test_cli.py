@@ -9,6 +9,7 @@ from decimal import Decimal
 from pathlib import Path
 
 import pytest
+from ledger_faults import drop_one_billing_line
 
 from data_finops.billing.focus import load_export
 from data_finops.cli import main
@@ -209,3 +210,21 @@ def test_an_invalid_dimensions_file_is_refused_naming_the_fault(
     err = capsys.readouterr().err
     assert "is not a known source" in err and "cost-dimensions.toml" in err
     assert "secret" not in err
+
+
+def test_a_focus_file_that_does_not_reconcile_is_rejected_and_not_stored(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    db = str(tmp_path / "db.sqlite")
+    export = str(FIXTURES / "focus" / "export-2026-10.json")
+    drop_one_billing_line(monkeypatch)
+    assert main(["ingest", "focus", export, "--db", db]) == 1
+    assert capsys.readouterr().out == (
+        "focus: rejected: Export Snapshot aws-focus-123456789012-2026-10-v1 does not reconcile:"
+        " billing period 2026-10, currency USD\n"
+    )
+    with Ledger(Path(db)) as ledger:
+        assert ledger.current_snapshot(SCOPE) is None
+    monkeypatch.undo()  # the same file, stored whole, reconciles
+    assert main(["ingest", "focus", export, "--db", db]) == 0
+    assert capsys.readouterr().out == "focus: new aws-focus-123456789012-2026-10-v1\n"

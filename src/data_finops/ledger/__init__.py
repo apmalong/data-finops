@@ -9,6 +9,7 @@ from data_finops.ledger.ledger import (
     ImportOutcome,
     ImportResult,
     Ledger,
+    ReconciliationError,
     SnapshotConflictError,
     StoredAllocations,
 )
@@ -30,6 +31,7 @@ __all__ = [
     "Ledger",
     "LineReconciliation",
     "Money",
+    "ReconciliationError",
     "ReconciliationReport",
     "SnapshotConflictError",
     "StoredAllocations",

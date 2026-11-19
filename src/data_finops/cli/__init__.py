@@ -22,14 +22,13 @@ from typing import Any
 from pydantic import ValidationError
 
 from data_finops import aws_clients
-from data_finops.billing.aws_data_exports import DeliveryError, is_manifest, load_delivery
-from data_finops.billing.focus import load_export
+from data_finops.billing.aws_data_exports import DeliveryError
 from data_finops.calculation import run_calculation
 from data_finops.cli.reads import ReadFailed, add_reads
 from data_finops.collection import AwsClients, CollectionSettings, run_collection
 from data_finops.collection.run import DimensionsUnavailable
 from data_finops.contracts.dimensions import NO_DIMENSIONS, CostDimensions
-from data_finops.ledger import Ledger, SnapshotConflictError
+from data_finops.ledger import Ledger, ReconciliationError, SnapshotConflictError
 from data_finops.reporting import BillingLineDetail
 from data_finops.workload.store import ArtifactOutcome, WorkloadStore
 
@@ -183,22 +182,22 @@ def _database_argument(command: argparse.ArgumentParser) -> None:
 
 
 def _ingest_focus(args: argparse.Namespace) -> int:
-    try:
-        if is_manifest(args.path):
-            export = load_delivery(args.path, args.data_dir)
-        else:
-            export = load_export(args.path)
-    except DeliveryError as error:  # names files only, never contents
-        raise _Failure(f"{args.path} is not a usable AWS Data Exports Delivery: {error}") from None
-    except (ValidationError, ValueError, OSError):
-        raise _Failure(f"{args.path} is not a FOCUS Export Snapshot") from None
     with Ledger(args.db) as ledger:
         try:
-            result = ledger.import_snapshot(export)
-        except SnapshotConflictError:
+            result = ledger.ingest_focus(args.path, args.data_dir)
+        except ReconciliationError as error:  # rolled back: nothing of it is stored
+            print(f"focus: rejected: {error}")
+            return REJECTED
+        except SnapshotConflictError as error:
             raise _Failure(
-                f"Export Snapshot {export.snapshot.snapshot_id} is stored with other content"
+                f"Export Snapshot {error.snapshot_id} is stored with other content"
             ) from None
+        except DeliveryError as error:  # names files only, never contents
+            raise _Failure(
+                f"{args.path} is not a usable AWS Data Exports Delivery: {error}"
+            ) from None
+        except (ValidationError, ValueError, OSError):
+            raise _Failure(f"{args.path} is not a FOCUS Export Snapshot") from None
     print(f"focus: {result.outcome} {result.snapshot_id}")
     return OK
 
@@ -344,7 +343,7 @@ def _run_demo(db: Path, fixtures: Path, port: int, start_server: StartServer) ->
     print(f"demo: database {db}")
     athena = {"account_id": "123456789012", "region": "us-east-1", "dimensions": None}
     steps: list[tuple[Callable[[argparse.Namespace], int], Path, dict[str, str | None]]] = [
-        (_ingest_focus, fixtures / "focus" / "export-2026-10.json", {}),
+        (_ingest_focus, fixtures / "focus" / "export-2026-10.json", {"data_dir": None}),
         *(
             (_ingest_athena, fixtures / "athena" / name, athena)
             for name in (

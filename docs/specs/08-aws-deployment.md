@@ -66,12 +66,13 @@ The bucket holds the database object, `inbox/openlineage/`, `inbox/dbt/<invocati
    - Follow the real layout as it was observed (lowercase `billing_period=`, `-Manifest-FOCUS.json`), not the names in the AWS documentation.
    - Ingest each Delivery that is newer than the current Export Snapshot of its Snapshot Scope (the configured account, the period, the source of the export), oldest first. Thus the newest becomes current, and the others are kept as Superseded Snapshots (#182).
    - To ingest a Delivery, download it to `/tmp` and give it to the current FOCUS reader, unchanged.
+   - The Ledger reconciles each Delivery that it stores against the Delivery's files, in each Cost Basis (#212). On a difference, the Delivery is rejected and the Ledger keeps nothing of it. The rejected item is the Delivery, which names the version. Its reason gives the Billing Period and the currencies that differ. Thus no Calculation Run uses it. A retry gives the same difference, so the rejection is recorded and not retried.
    - If a folder does not have both manifests, Data Exports has not finished it yet. It stays for a later run.
    - A folder whose name is not `<CreatedAt>-<executionId>` gets a warning, and it is ignored.
    - A Delivery that a run took one time (stored, replayed or rejected) is recorded in the Collection Watermark. It is never downloaded again (#182).
    - Only the data files that the manifest lists are downloaded, and only from the folder of that Delivery in the export bucket. A manifest that names a different object is rejected, and that object is not read (#182).
    - A data file over 2 GiB, or a Delivery over 8 GiB, is rejected before any data is downloaded (#182). This is not measured on a large account, and it is a revisit trigger.
-   - The export must use "create new" delivery, because ADR 0020 takes `published_at` from the execution folder. A layout in overwrite mode is refused, with a reason. Overwrite mode puts the files directly under the Billing Period. It makes no Delivery folder. Create-new mode also keeps the manifest of the newest Delivery there. When a Billing Period has a Delivery folder, the run ignores the files directly under it (#305).
+   - The export must use "create new" delivery, because ADR 0020 takes `published_at` from the execution folder. A layout in overwrite mode is refused, with a reason. Overwrite mode puts the files directly under the Billing Period. It makes no Delivery folder. Create-new mode also keeps the manifest of the newest Delivery there. When a Billing Period has a Delivery folder, the run ignores the files directly under it, with no warning (#305, Q169).
    - There is no Data Exports API permission.
 3. **Athena history:** for each configured workgroup, do these steps:
    - Page `ListQueryExecutions` up to `maxHistoryPages` (default 200 pages of 50).

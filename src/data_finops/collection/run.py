@@ -21,13 +21,17 @@ from data_finops.billing.aws_data_exports import (
     delivery_created,
     focus_manifest_name,
     is_manifest,
-    load_delivery,
 )
 from data_finops.calculation import run_calculation
-from data_finops.contracts.billing import FocusExport, SnapshotScope
+from data_finops.contracts.billing import SnapshotScope
 from data_finops.contracts.dimensions import NO_DIMENSIONS, CostDimensions
 from data_finops.dbt.artifacts import MAX_ARTIFACT_BYTES
-from data_finops.ledger import ImportOutcome, Ledger, SnapshotConflictError
+from data_finops.ledger import (
+    ImportOutcome,
+    Ledger,
+    ReconciliationError,
+    SnapshotConflictError,
+)
 from data_finops.providers.aws import (
     UNFINISHED,
     AthenaReader,
@@ -625,11 +629,18 @@ def _collect_delivery(
     scratch: Path,
     tally: _Tally,
 ) -> str:
-    """Download one Delivery and import it; the outcome to record in the watermark."""
+    """Download one Delivery, import it and reconcile it (#212); the outcome to record in the
+    watermark."""
     try:
-        snapshot = _download_delivery(s3, settings, delivery, manifests, scratch)
-        result = ledger.import_snapshot(snapshot)
-    except (_RejectedDelivery, DeliveryError, SnapshotConflictError, TooLarge) as error:
+        manifest = _download_delivery(s3, settings, delivery, manifests, scratch)
+        result = ledger.ingest_focus(manifest)
+    except (
+        _RejectedDelivery,
+        DeliveryError,
+        SnapshotConflictError,
+        ReconciliationError,
+        TooLarge,
+    ) as error:
         tally.rejected.append(RejectedItem(item=delivery, reason=_reason(error)))
         return "rejected"
     if result.outcome is ImportOutcome.REPLAY:
@@ -644,6 +655,8 @@ def _reason(error: Exception) -> str:
         return "a file over its cap"
     if isinstance(error, SnapshotConflictError):
         return "its Export Snapshot is stored with other content"
+    if isinstance(error, ReconciliationError):
+        return error.reason  # the rejected item, the Delivery, names the version
     return str(error)
 
 
@@ -653,10 +666,11 @@ def _download_delivery(
     delivery: str,
     manifests: list[S3Object],
     scratch: Path,
-) -> FocusExport:
+) -> Path:
     """The Delivery `delivery` (`billing_period=…/<CreatedAt>-<executionId>`), downloaded to a
-    scratch folder of its own and read as one Export Snapshot. Only its two manifests and the
-    data files the manifest lists are fetched, and only from this Delivery's folder (Q47)."""
+    scratch folder of its own: the path of its manifest, with its data files beside it. Only
+    its two manifests and the data files the manifest lists are fetched, and only from this
+    Delivery's folder (Q47)."""
     local = scratch / "delivery"
     if local.exists():
         for old in local.iterdir():
@@ -686,4 +700,4 @@ def _download_delivery(
         raise _RejectedDelivery("the Delivery's data files exceed its cap together")
     for name in sorted(names):
         download_object(s3, settings.export_bucket, listed[name], local / name, MAX_DATA_FILE_BYTES)
-    return load_delivery(manifest)
+    return manifest
