@@ -99,6 +99,7 @@
 <li><a href="#area-lineage">Lineage</a></li>
 <li><a href="#area-allocation">Allocation</a></li>
 <li><a href="#area-reconciliation">Reconciliation</a></li>
+<li><a href="#area-stores">Stores</a></li>
 <li><a href="#area-deployment">Deployment</a></li>
 <li><a href="#area-control-plane">Control plane</a></li>
 <li><a href="#area-flagged-ambiguities">Flagged ambiguities</a></li>
@@ -152,7 +153,7 @@
 <dd>A model, seed, test or other resource declared in a dbt project&#x27;s manifest, identified by its node ID within one invocation&#x27;s manifest. A dbt Node is a declaration. Its execution in an invocation is a Model Execution.</dd>
 <dd class="avoid">Avoid: model (alone), dbt object</dd>
 <dt id="workload-run">Workload Run</dt>
-<dd>One orchestrated execution that an orchestrator or lineage producer reports, for example an Airflow task run. It can have a parent run (the run that directly contains it) and a root run (the top of its chain, for example the DAG run).</dd>
+<dd>One orchestrated execution that an orchestrator or lineage Producer reports, for example an Airflow task run. It can have a parent run (the run that directly contains it) and a root run (the top of its chain, for example the DAG run).</dd>
 <dd class="avoid">Avoid: job, task (alone), pipeline run</dd>
 <dt id="identity-link">Identity Link</dt>
 <dd>An assertion that two workload identities (for example a Query Execution and a Model Execution) are the same unit of work, together with the Evidence for it.</dd>
@@ -196,6 +197,9 @@
 <dt id="cost-explanation">Cost Explanation</dt>
 <dd>The chain behind one Allocation. It gives the Billing Line, and the method, Confidence and Coverage of the Allocation. It also gives its Evidence resolved to Query Execution, Model Execution and Workload Runs, and the Roll-ups that it contributes to.</dd>
 <dd class="avoid">Avoid: drilldown, trace, breakdown, query cost</dd>
+<dt id="billing-line-detail">Billing Line Detail</dt>
+<dd>How much of a Billing Line a Cost Explanation shows: <code>minimal</code> or <code>full</code> (ADR 0028). <code>minimal</code> withholds tags and free-text names, and it is the default of a Deployment and of the Public Demo.</dd>
+<dd class="avoid">Avoid: redaction level, verbosity</dd>
 <dt id="allocation-category">Allocation Category</dt>
 <dd>The kind of share an Allocation represents: direct (from the target&#x27;s own metered usage), shared, idle or unallocated.</dd>
 <dd class="avoid">Avoid: kind, type</dd>
@@ -205,11 +209,14 @@
 <dt id="billable-usage">Billable Usage</dt>
 <dd>The quantity a provider charges a Query Execution for, after the provider&#x27;s minimums and rounding. It can differ from the quantity the query actually used.</dd>
 <dd class="avoid">Avoid: scanned bytes (unless that is what is billed)</dd>
+<dt id="billing-scope">Billing Scope</dt>
+<dd>The Query Executions whose usage a Billing Line can bill: those of its account, region and charge period (ADR 0023). If the line bills by workgroup, its Billing Scope has only that workgroup&#x27;s Query Executions. It is an accounting scope, not Evidence.</dd>
+<dd class="avoid">Avoid: matching window, time overlap</dd>
 <dt id="coverage">Coverage</dt>
-<dd>The fraction of a Billing Line&#x27;s billed usage quantity accounted for by the Billable Usage of known Query Executions in the line&#x27;s billing scope (account, region, workgroup if billed, charge period), linked or not. Only the covered fraction can become Metered Shares. Scope is accounting scope, not Evidence (ADR 0023).</dd>
+<dd>The fraction of a Billing Line&#x27;s billed usage quantity accounted for by the Billable Usage of known Query Executions in the line&#x27;s Billing Scope, linked or not. Only the covered fraction can become Metered Shares.</dd>
 <dd class="avoid">Avoid: match rate, completeness percentage</dd>
 <dt id="query-history-completeness">Query-history Completeness</dt>
-<dd>Coverage of exactly one for a Billing Line: every billable Query Execution in its scope is known.</dd>
+<dd>Coverage of exactly one for a Billing Line: every billable Query Execution in its Billing Scope is known.</dd>
 <dd class="avoid">Avoid: full history</dd>
 <dt id="confidence">Confidence</dt>
 <dd>A categorical grade of Evidence quality for an allocated amount: direct_verified, metered_estimate or heuristic_estimate. It does not apply to Unallocated amounts and is never a probability.</dd>
@@ -226,6 +233,9 @@
 <dt id="calculation-run">Calculation Run</dt>
 <dd>One deterministic execution of the Allocation Policy over a fixed set of inputs.</dd>
 <dd class="avoid">Avoid: job, batch</dd>
+<dt id="input-digest">Input Digest</dt>
+<dd>The value that identifies what one Calculation Run read. It covers the Export Snapshot&#x27;s lines and pools, the Billable Usage and Evidence of the Query Executions in scope, and each policy version. The Cost Dimensions configuration is not part of it (Q72).</dd>
+<dd class="avoid">Avoid: hash (alone), checksum</dd>
 </dl>
 <h2 id="area-reconciliation">Reconciliation</h2>
 <dl>
@@ -236,10 +246,31 @@
 <dd>The signed difference between the authoritative amount and what is held against it (the Ledger&#x27;s amount, or the sum of Allocations), in one currency. It is zero when Reconciliation holds.</dd>
 <dt id="ledger">Ledger</dt>
 <dd>The immutable, versioned record of Export Snapshots and the Allocation Snapshots computed from them. One of each is current, and all are kept.</dd>
-<dd class="avoid">Avoid: database, warehouse</dd>
+<dd class="avoid">Avoid: the Database (the Ledger is one part of it), warehouse</dd>
 <dt id="allocation-snapshot">Allocation Snapshot</dt>
-<dd>The complete set of Allocations produced by one Calculation Run. Any period can be calculated again. A new calculation with different inputs creates a new snapshot and moves the current pointer. A replay of the current snapshot stores nothing.</dd>
+<dd>The complete set of Allocations produced by one Calculation Run. Any period can be calculated again. A new calculation with different inputs creates a new snapshot and moves the current pointer. A Replay of the current snapshot stores nothing.</dd>
 <dd class="avoid">Avoid: result, rerun output</dd>
+<dt id="replay">Replay</dt>
+<dd>An import of an Export Snapshot whose content equals the current snapshot of its Snapshot Scope, or equals a snapshot stored under the same ID (ADR 0020). A Calculation Run whose Input Digest equals the current Allocation Snapshot&#x27;s is also a Replay, and neither stores anything.</dd>
+<dd class="avoid">Avoid: duplicate (that is one item), rerun</dd>
+</dl>
+<h2 id="area-stores">Stores</h2>
+<dl>
+<dt id="database">Database</dt>
+<dd>The one SQLite file that holds what data-finops stores, such as the Ledger and the Workload Store, locally or in a Deployment. In a Deployment, it is one object in the Deployment&#x27;s bucket.</dd>
+<dd class="avoid">Avoid: store (alone), warehouse</dd>
+<dt id="workload-store">Workload Store</dt>
+<dd>The record of workload metadata as Producers and providers reported it: OpenLineage events, dbt artifacts and Query Executions, each kept as an Observation. It is in the Database beside the Ledger.</dd>
+<dd class="avoid">Avoid: telemetry database, metadata warehouse</dd>
+<dt id="observation">Observation</dt>
+<dd>One stored report of a Workload Run, a Model Execution or a Query Execution, as one Producer or provider sent it. Observations are kept as they arrived, and are never merged.</dd>
+<dd class="avoid">Avoid: row, event (for a stored report)</dd>
+<dt id="duplicate">Duplicate</dt>
+<dd>An item that arrives again with the same content as an Observation that is already stored. Nothing new is stored.</dd>
+<dd class="avoid">Avoid: replay (that is a whole snapshot)</dd>
+<dt id="changed-copy">Changed Copy</dt>
+<dd>An item that arrives again with different content, for example the same event or Query Execution reported in a new form. It is kept beside the first Observation, and the item is flagged for Observations that conflict.</dd>
+<dd class="avoid">Avoid: update (for an item), overwrite</dd>
 </dl>
 <h2 id="area-deployment">Deployment</h2>
 <dl>
@@ -250,8 +281,11 @@
 <dd>One execution of the collector: it fetches every source a Deployment reads, ingests it, then starts a Calculation Run for each Snapshot Scope.</dd>
 <dd class="avoid">Avoid: job, sync, refresh</dd>
 <dt id="inbox">Inbox</dt>
-<dd>The bucket prefix producers write OpenLineage events and dbt artifacts to, for the next Collection Run to pull (ADR 0027).</dd>
+<dd>The bucket prefix Producers write OpenLineage events and dbt artifacts to, for the next Collection Run to pull (ADR 0027).</dd>
 <dd class="avoid">Avoid: drop zone, landing area</dd>
+<dt id="producer">Producer</dt>
+<dd>A system that sends workload metadata to data-finops: an OpenLineage emitter such as Airflow, or the dbt process whose artifacts are sent. In a Deployment, a Producer writes only to the Inbox.</dd>
+<dd class="avoid">Avoid: client, agent, source (for the system that sends)</dd>
 <dt id="collection-watermark">Collection Watermark</dt>
 <dd>What a Deployment has already collected, for each source: the Delivery folders ingested, the Athena query IDs stored, and the Inbox objects processed. Inbox objects are keyed by key and ETag, so an overwritten object is collected again. It is never a clock time alone.</dd>
 <dd class="avoid">Avoid: checkpoint, cursor</dd>
