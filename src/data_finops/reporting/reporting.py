@@ -114,7 +114,7 @@ class Reporting:
         self._exports: dict[str, FocusExport | None] = {}
         self._kept_by_run: dict[str, list[tuple[int, Allocation]]] = {}
         self._rollup_maps: dict[tuple[str, str], dict[str, Any]] = {}
-        self._snapshots: dict[str, StoredAllocations] = {}
+        self._allocation_snapshots: dict[str, StoredAllocations] = {}
         if not path.is_file():
             raise DatabaseUnavailable
         try:
@@ -584,12 +584,12 @@ class Reporting:
         """A stored Allocation Snapshot, read from the Ledger once for each Calculation Run.
         A stored snapshot never changes, so the copy stays right (#316). An unknown run is not
         kept, so a run stored later is found."""
-        if calculation_run_id not in self._snapshots:
+        if calculation_run_id not in self._allocation_snapshots:
             stored = self._ledger.allocation_snapshot(calculation_run_id)
             if stored is None:
                 return None
-            self._snapshots[calculation_run_id] = stored
-        return self._snapshots[calculation_run_id]
+            self._allocation_snapshots[calculation_run_id] = stored
+        return self._allocation_snapshots[calculation_run_id]
 
     def _served(
         self,
