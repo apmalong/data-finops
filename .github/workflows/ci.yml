@@ -1,12 +1,40 @@
 name: CI
+# A PR runs the checks that its paths need (#321, scripts/ci_changes.py). A push to main runs
+# every check. A push to any other branch runs nothing until it has a PR.
 on:
   push:
+    branches: [main]
   pull_request:
 permissions:
   contents: read
+concurrency:
+  # A new push to a PR cancels its run in progress. Runs on main are never cancelled.
+  group: ci-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
-  quality:
+  changes:
     runs-on: ubuntu-latest
+    outputs:
+      docs_only: ${{ steps.sort.outputs.docs_only }}
+      infra: ${{ steps.sort.outputs.infra }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # the diff against the PR's base
+      - name: Sort the changed paths
+        id: sort
+        shell: bash # with pipefail: a failed sort fails the step, not only tee
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }} # empty on a push to main: every check
+        run: python3 scripts/ci_changes.py "$BASE" | tee -a "$GITHUB_OUTPUT"
+  quality:
+    # A required check, so it always runs: a docs-only change runs only the docs gates. If the
+    # sort failed, its output is empty, and every check runs.
+    needs: changes
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    env:
+      DOCS_ONLY: ${{ needs.changes.result == 'success' && needs.changes.outputs.docs_only || 'false' }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -15,21 +43,30 @@ jobs:
         with:
           python-version: '3.12'
       - name: Sync dependencies from committed lockfiles
-        run: |
-          uv sync --extra dev --extra api --extra aws --frozen
-          uv sync --frozen --directory examples/reference-workload
+        # The site build imports data_finops (the CLI reference), so the docs gates need it too.
+        run: uv sync --extra dev --extra api --extra aws --frozen
       # The same command a contributor runs locally (#241): it stops at the first failure. It is
       # stdlib only, so the runner's python3 starts it. `uv run` would put its Python's directory
       # first on PATH, and the image's /usr/local/bin has a different Pulumi CLI than the pinned one.
+      - name: Gates (docs only)
+        if: env.DOCS_ONLY == 'true'
+        run: python3 -m scripts.gates --docs
+      - name: Sync the reference workload
+        if: env.DOCS_ONLY != 'true'
+        run: uv sync --frozen --directory examples/reference-workload
       - name: Gates (root and reference workload)
+        if: env.DOCS_ONLY != 'true'
         run: python3 -m scripts.gates root reference-workload
       - name: Audit dependencies and write CycloneDX SBOM
+        if: env.DOCS_ONLY != 'true'
         run: uv run pip-audit --format cyclonedx-json --output sbom.cdx.json
       - uses: actions/upload-artifact@v4
+        if: env.DOCS_ONLY != 'true'
         with:
           name: sbom
           path: sbom.cdx.json
       - name: Audit the reference workload's dependencies
+        if: env.DOCS_ONLY != 'true'
         working-directory: examples/reference-workload
         run: uv run pip-audit
       - name: Secret scan
@@ -39,6 +76,10 @@ jobs:
   infra:
     # The Deployment's Pulumi components and policy pack, offline: Pulumi's mocks, and the pack
     # run over the program's recorded state by the pinned CLI (spec 08 seams 6 and 7). No AWS.
+    # A required check: when the sort says the change cannot affect it, the job is skipped, and
+    # a skipped job satisfies a required check. If the sort failed, the job runs.
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.infra != 'false') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

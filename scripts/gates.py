@@ -2,6 +2,7 @@
 
     python -m scripts.gates                   # every project
     python -m scripts.gates policy stack      # only these projects
+    python -m scripts.gates --docs            # only the docs gates: site build, site, STE
 
 Each project's gates run with that project's own `.venv` (create it with `uv sync`). The
 command streams each gate's output, then prints a block that starts with `## Gates`. A PR's
@@ -9,6 +10,11 @@ Evidence section quotes that block, or links the CI run, in place of hand-writte
 The block has no timings, so the same tree gives the same block. CI runs this command too, so
 CI and a local run check the same things. `pip-audit` and the secret scan use the network, so
 they stay as separate CI steps.
+
+`--docs` runs only the gates that a change of documents alone needs (#321). These are the site
+drift check, the site check and the STE check. The drift check is necessary because ADRs and
+GLOSSARY.md feed the site. CI runs only these gates for such a change (`scripts/ci_changes.py`),
+and they also run with every project. AGENTS.md says what each kind of change runs.
 
 Two checks run inside a pytest gate, not as gates of their own. `root/pytest` compares the
 committed site with what `python -m scripts.site build` writes. `stack/pytest` runs `bash -n` on
@@ -51,6 +57,7 @@ class Gate:
     project: str
     name: str
     args: tuple[str, ...]  # run as `<project python> <args>`
+    docs: bool = False  # a docs gate, which `--docs` runs alone
 
     @property
     def label(self) -> str:
@@ -63,11 +70,15 @@ class Result:
     output: str
 
 
-def _gate(project: str, name: str, *args: str) -> Gate:
-    return Gate(project, name, args)
+def _gate(project: str, name: str, *args: str, docs: bool = False) -> Gate:
+    return Gate(project, name, args, docs)
 
 
-DEV_TOOLS = ("scripts/gates.py", "scripts/ste_check.py")  # dev tools under mypy and bandit
+DEV_TOOLS = (
+    "scripts/gates.py",
+    "scripts/ste_check.py",
+    "scripts/ci_changes.py",
+)  # dev tools under mypy and bandit
 
 GATES: tuple[Gate, ...] = (
     _gate("root", "ruff check", "-m", "ruff", "check", "--no-cache", "."),
@@ -75,8 +86,9 @@ GATES: tuple[Gate, ...] = (
     _gate("root", "mypy", "-m", "mypy", "src", "scripts/site", *DEV_TOOLS),
     _gate("root", "pytest", "-m", "pytest", "--cov=data_finops", "--cov-report=term-missing"),
     _gate("root", "bandit", "-m", "bandit", "-q", "-r", "src", "scripts/site", *DEV_TOOLS),
-    _gate("root", "site check", "-S", "-m", "scripts.site", "check"),
-    _gate("root", "ste check", "-m", "scripts.ste_check", "--gate"),
+    _gate("root", "site build", "-m", "scripts.site", "build", "--check", docs=True),
+    _gate("root", "site check", "-S", "-m", "scripts.site", "check", docs=True),
+    _gate("root", "ste check", "-m", "scripts.ste_check", "--gate", docs=True),
     _gate("reference-workload", "mypy", "-m", "mypy"),
     _gate("reference-workload", "bandit", "-m", "bandit", "-q", "-r", "infra.py", "__main__.py"),
     _gate("reference-workload", "pytest", "-m", "pytest"),
@@ -178,13 +190,20 @@ def main(
     tree: str | None = None,
 ) -> int:
     projects = list(sys.argv[1:] if argv is None else argv)
+    docs_only = "--docs" in projects
+    projects = [p for p in projects if p != "--docs"]
     unknown = [p for p in projects if p not in PROJECTS]
     if unknown:
         sys.stderr.write(
             f"Unknown project: {', '.join(unknown)}. Choose from: {', '.join(PROJECTS)}.\n"
         )
         return 2
-    chosen = [g for g in GATES if not projects or g.project in projects]
+    chosen = [
+        g for g in GATES if (not projects or g.project in projects) and (g.docs or not docs_only)
+    ]
+    if not chosen:
+        sys.stderr.write(f"No docs gates in: {', '.join(projects)}.\n")
+        return 2
     results: list[Result] = []
     for gate in chosen:
         sys.stdout.write(f"\n>>> {gate.label}\n")

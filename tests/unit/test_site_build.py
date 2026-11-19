@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from scripts.site.__main__ import main as site_main
 from scripts.site.build import SiteError, build
 from tests.unit.site_pages import NAV, NO_NAV, REPO, make_repo, page, region
 
@@ -238,3 +239,24 @@ def test_a_reference_page_without_its_region_fails_the_build(tmp_path: Path) -> 
     )
     with pytest.raises(SiteError, match="reference/glossary.html has no reference region"):
         build(repo)
+
+
+def test_build_check_names_each_stale_page_and_writes_nothing(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    repo = make_repo(
+        tmp_path,
+        NAV,
+        {"index.html": page("Home"), "how-to/index.html": page("How-to guides")},
+    )
+    before = {p: p.read_bytes() for p in (repo / "site").rglob("*") if p.is_file()}
+
+    assert site_main(["build", "--check"], repo=repo) == 1
+    out = capsys.readouterr().out
+    assert "stale: site/index.html" in out and "stale: site/how-to/index.html" in out
+    assert {p: p.read_bytes() for p in (repo / "site").rglob("*") if p.is_file()} == before
+
+    assert site_main(["build"], repo=repo) == 0
+    capsys.readouterr()
+    assert site_main(["build", "--check"], repo=repo) == 0
+    assert capsys.readouterr().out == ""

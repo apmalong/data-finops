@@ -1,5 +1,8 @@
 """`python -m scripts.site build|check`: stamp the site's shared regions, or report its problems.
 
+`build --check` writes nothing: it names each page that `build` would rewrite, and exits 1 if
+there is one. It is the site's drift check outside pytest, for a docs-only change (#321).
+
 See spec 07, "The site tool".
 """
 
@@ -13,30 +16,47 @@ from scripts.site.check import check_site
 REPO = Path(__file__).resolve().parents[2]
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(argv: list[str] | None = None, *, repo: Path = REPO) -> int:
     parser = argparse.ArgumentParser(prog="python -m scripts.site", description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
-    commands.add_parser("build", help="rewrite every page whose stamped regions are stale")
+    builder = commands.add_parser(
+        "build", help="rewrite every page whose stamped regions are stale"
+    )
+    builder.add_argument(
+        "--check", action="store_true", help="write nothing; name each stale page and exit 1"
+    )
     check = commands.add_parser("check", help="report every problem in the site")
-    check.add_argument("root", nargs="?", type=Path, default=REPO / "site")
+    check.add_argument("root", nargs="?", type=Path, default=repo / "site")
     args = parser.parse_args(argv)
-    return _build() if args.command == "build" else _check(args.root)
+    if args.command == "build":
+        return _build(repo, check_only=args.check)
+    return _check(args.root)
 
 
-def _build() -> int:
+def _build(repo: Path, *, check_only: bool) -> int:
     try:
-        built = build(REPO)
+        built = build(repo)
     except SiteError as error:
         print(f"build: {error}", file=sys.stderr)
         return 1
-    written = 0
-    for path, text in built.items():
-        target = REPO / "site" / path
-        if not target.is_file() or target.read_text(encoding="utf-8") != text:
-            target.write_text(text, encoding="utf-8", newline="\n")
-            print(f"wrote {_shown(target)}")
-            written += 1
-    print(f"{written} page(s) written, {len(built) - written} unchanged", file=sys.stderr)
+    stale = [
+        path
+        for path, text in built.items()
+        if not (repo / "site" / path).is_file()
+        or (repo / "site" / path).read_text(encoding="utf-8") != text
+    ]
+    if check_only:
+        for path in stale:
+            print(f"stale: site/{path}")
+        if stale:
+            print("run `python -m scripts.site build`", file=sys.stderr)
+        return 1 if stale else 0
+    for path in stale:
+        target = repo / "site" / path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(built[path], encoding="utf-8", newline="\n")
+        print(f"wrote {_shown(target)}")
+    print(f"{len(stale)} page(s) written, {len(built) - len(stale)} unchanged", file=sys.stderr)
     return 0
 
 
