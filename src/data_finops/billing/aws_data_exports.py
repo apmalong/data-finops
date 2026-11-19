@@ -51,8 +51,7 @@ class _DeliveryFolder:
 
     @property
     def period_end(self) -> datetime:
-        start = self.period_start
-        return datetime(start.year + start.month // 12, start.month % 12 + 1, 1, tzinfo=UTC)
+        return billing_period_end(self.period_start)
 
 
 def delivery_created(folder: str) -> datetime | None:
@@ -66,6 +65,29 @@ def billing_period_start(folder: str) -> datetime | None:
     """The first instant of the Billing Period an S3 folder `billing_period=YYYY-MM` names."""
     match = _PERIOD.fullmatch(folder)
     return datetime(int(match["year"]), int(match["month"]), 1, tzinfo=UTC) if match else None
+
+
+@dataclass(frozen=True)
+class Manifest:
+    """What a Delivery's `<export>-Manifest.json` says, as data-finops reads it."""
+
+    execution_id: object
+    """The `executionId` as the manifest gives it (a string, if the manifest is valid)."""
+    data_files: list[object]
+    """The `dataFiles` S3 URIs, as the manifest gives them. Empty when `dataFiles` is missing
+    or is not a list, so the Delivery is rejected as listing no data files."""
+
+
+def read_manifest(path: Path) -> Manifest:
+    """The manifest at `path`. DeliveryError when it is not a JSON object."""
+    try:
+        content = json.loads(path.read_text(encoding="utf-8"))
+    except ValueError:
+        raise DeliveryError("the manifest is not valid JSON") from None
+    if not isinstance(content, dict):
+        raise DeliveryError("the manifest is not valid JSON")
+    files = content.get("dataFiles") or []
+    return Manifest(content.get("executionId"), files if isinstance(files, list) else [])
 
 
 def is_manifest(path: Path) -> bool:
@@ -84,18 +106,18 @@ def load_delivery(manifest: Path, data_dir: Path | None = None) -> FocusExport:
     not downloaded, a FOCUS release other than the pinned one, or data files naming
     more than one billing account. ValueError when lines differ from the snapshot.
     """
-    content = json.loads(manifest.read_text(encoding="utf-8"))
+    listing = read_manifest(manifest)
     focus_version = _focus_version(manifest)
     if focus_version != FOCUS_VERSION:
         raise DeliveryError(f"FOCUS {focus_version}, but {FOCUS_VERSION} is pinned (ADR 0015)")
-    uris = content.get("dataFiles") or []
+    uris = [str(uri) for uri in listing.data_files]
     if not uris:
         raise DeliveryError("the manifest lists no data files")
     folders = {_delivery_folder(uri) for uri in uris}
     if len(folders) != 1:
         raise DeliveryError(f"the manifest lists files from {len(folders)} deliveries")
     (delivery,) = folders
-    if delivery.execution != content.get("executionId"):
+    if delivery.execution != listing.execution_id:
         raise DeliveryError(f"files from execution {delivery.execution}, not the manifest's")
 
     local_folder = data_dir if data_dir is not None else manifest.parent
@@ -134,7 +156,7 @@ def _focus_version(manifest: Path) -> str:
 
 def _delivery_folder(uri: str) -> _DeliveryFolder:
     parts = PurePosixPath(uri.removeprefix("s3://")).parts
-    period = _PERIOD.fullmatch(parts[-3]) if len(parts) >= 4 and parts[-4] == "data" else None
+    period = billing_period_start(parts[-3]) if len(parts) >= 4 and parts[-4] == "data" else None
     folder = _EXECUTION_FOLDER.fullmatch(parts[-2]) if len(parts) >= 2 else None
     if period is None or folder is None:
         raise DeliveryError(
@@ -142,7 +164,7 @@ def _delivery_folder(uri: str) -> _DeliveryFolder:
             "(data/billing_period=YYYY-MM/<CreatedAt>-<executionId>/)"
         )
     return _DeliveryFolder(
-        period_start=datetime(int(period["year"]), int(period["month"]), 1, tzinfo=UTC),
+        period_start=period,
         created=datetime.fromisoformat(folder["created"]),
         execution=folder["execution"],
     )

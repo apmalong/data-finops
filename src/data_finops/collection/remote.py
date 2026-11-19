@@ -9,7 +9,23 @@ from data_finops.collection.run import (
     CollectionSummary,
     run_collection,
 )
-from data_finops.providers.aws import S3Writer, fetch_file, put_file
+from data_finops.providers.aws import (
+    S3Reader,
+    S3Writer,
+    WriteConflict,
+    fetch_file,
+    put_file,
+    refresh_file,
+)
+
+__all__ = [
+    "DATABASE_KEY",
+    "CachedDatabase",
+    "S3Reader",
+    "S3Writer",
+    "WriteConflict",
+    "run_remote_collection",
+]
 
 DATABASE_KEY = "database/data-finops.sqlite"
 """Where the Deployment's database object lives in its bucket (spec 08)."""
@@ -27,3 +43,17 @@ def run_remote_collection(
     summary = run_collection(database, settings, clients=clients)
     put_file(writer, settings.bucket, DATABASE_KEY, database, etag=etag)
     return summary
+
+
+class CachedDatabase:
+    """A local copy of the database object, downloaded again only when its ETag changes: the
+    API's copy, and the publisher's (#214)."""
+
+    def __init__(self, s3: S3Reader, bucket: str, path: Path) -> None:
+        self._s3, self._bucket, self.path = s3, bucket, path
+        self._etag: str | None = None
+
+    def refresh(self) -> bool:
+        """Bring the copy up to date. False when there is no object yet, and so no copy."""
+        self._etag = refresh_file(self._s3, self._bucket, DATABASE_KEY, self.path, self._etag)
+        return self._etag is not None

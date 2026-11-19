@@ -62,7 +62,7 @@ Arrays and JSON Lines are for files only. Ingress and authentication follow ADR 
 ### What is kept
 Before storage, these fields are removed: the `query` of the `sql` facet, `errorMessage.stackTrace`, and each `extractionError.errors[].stackTrace`. All other facets are kept exactly as they are. SQL quoted inside an error message is not detected.
 
-Rejected events are never stored. The ingest result reports each rejected event by position and reason, and its content is not shown. dbt artifacts are limited to 512 MiB.
+Rejected events are never stored. The ingest result reports each rejected event by position and reason, and its content is not shown. dbt artifacts are limited to 512 MiB. An OpenLineage event file, local or in the Inbox, has the same limit (#214). A larger file is rejected whole at position 0, before it is read, and nothing of it is stored.
 
 ### Airflow
 Do not require Airflow itself to run for the demo.

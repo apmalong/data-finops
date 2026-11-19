@@ -44,9 +44,9 @@ from data_finops.collection import (
 from data_finops.collection.run import (
     MAX_DATA_FILE_BYTES,
     MAX_DELIVERY_BYTES,
-    MAX_INBOX_FILE_BYTES,
     RejectedItem,
 )
+from data_finops.contracts.limits import MAX_INPUT_FILE_BYTES
 from data_finops.ledger import Ledger
 from data_finops.lineage.validation import MAX_EVENT_BYTES
 from data_finops.providers.aws.athena import UNFINISHED
@@ -138,7 +138,7 @@ def test_an_inbox_file_over_the_cap_is_rejected_without_being_downloaded(tmp_pat
     s3 = s3_client()
     with stubbed(s3) as stubber:  # no GetObject is expected: the Stubber fails on one
         expect_listing(stubber, DBT, {})
-        expect_listing(stubber, OPENLINEAGE, {key: b""}, sizes={key: MAX_INBOX_FILE_BYTES + 1})
+        expect_listing(stubber, OPENLINEAGE, {key: b""}, sizes={key: MAX_INPUT_FILE_BYTES + 1})
         summary = _run(tmp_path / "data-finops.sqlite", s3, stubber)
     assert [(r.item, r.reason) for r in summary.sources["openlineage"].rejected] == [
         (key, "too large")
@@ -146,7 +146,7 @@ def test_an_inbox_file_over_the_cap_is_rejected_without_being_downloaded(tmp_pat
     assert summary.exit_code == 1
     with stubbed(s3) as stubber:  # rejected once, never again
         expect_listing(stubber, DBT, {})
-        expect_listing(stubber, OPENLINEAGE, {key: b""}, sizes={key: MAX_INBOX_FILE_BYTES + 1})
+        expect_listing(stubber, OPENLINEAGE, {key: b""}, sizes={key: MAX_INPUT_FILE_BYTES + 1})
         again = _run(tmp_path / "data-finops.sqlite", s3, stubber)
     assert (again.sources["openlineage"].rejected, again.exit_code) == ([], 0)
 
@@ -247,7 +247,7 @@ def test_a_dbt_artifact_over_the_cap_or_unreadable_is_rejected_by_key(tmp_path: 
     s3 = s3_client()
     with stubbed(s3) as stubber:  # the huge manifest is never fetched
         expect_listing(
-            stubber, DBT, {huge: b"", bad: secret}, sizes={huge: MAX_INBOX_FILE_BYTES + 1}
+            stubber, DBT, {huge: b"", bad: secret}, sizes={huge: MAX_INPUT_FILE_BYTES + 1}
         )
         expect_get(stubber, bad, secret)
         expect_listing(stubber, OPENLINEAGE, {})

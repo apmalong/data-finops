@@ -14,7 +14,9 @@ from ledger_faults import drop_one_billing_line
 from data_finops.billing.focus import load_export
 from data_finops.cli import main
 from data_finops.contracts.billing import CostBasis
+from data_finops.contracts.limits import MAX_INPUT_FILE_BYTES
 from data_finops.ledger import Ledger
+from data_finops.lineage import validation
 
 FIXTURES = Path(__file__).resolve().parents[2] / "fixtures"
 ACCOUNT, REGION = "123456789012", "us-east-1"
@@ -228,3 +230,23 @@ def test_a_focus_file_that_does_not_reconcile_is_rejected_and_not_stored(
     monkeypatch.undo()  # the same file, stored whole, reconciles
     assert main(["ingest", "focus", export, "--db", db]) == 0
     assert capsys.readouterr().out == "focus: new aws-focus-123456789012-2026-10-v1\n"
+
+
+def test_a_local_openlineage_file_over_the_cap_is_rejected_whole_and_not_read(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(validation, "MAX_INPUT_FILE_BYTES", 1024)
+    big = tmp_path / "events.json"
+    big.write_bytes(b"[" + b" " * 1024 + b'{"secret-field": "secret-value"}]')
+    code = main(["ingest", "openlineage", str(big), "--db", str(tmp_path / "db.sqlite")])
+    out = capsys.readouterr().out
+    assert code == 1
+    assert out.splitlines() == [
+        "openlineage: 0 accepted, 0 duplicates, 0 changed copies, 0 unsupported, 1 rejected",
+        "  0: too large: the whole file",
+    ]
+    assert "secret" not in out
+
+
+def test_the_input_file_cap_is_512_mib() -> None:
+    assert MAX_INPUT_FILE_BYTES == 512 * 1024 * 1024  # spec 04

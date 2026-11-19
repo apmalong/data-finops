@@ -171,7 +171,7 @@ def test_a_file_that_is_not_a_batch_get_query_execution_response_is_refused_whol
 def test_a_file_over_the_size_cap_is_refused_whole(
     store: WorkloadStore, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(athena, "MAX_HISTORY_BYTES", 1024)
+    monkeypatch.setattr(athena, "MAX_INPUT_FILE_BYTES", 1024)
     result = _ingest(store, QUERIES)
     assert (result.file_rejection, result.accepted) == ("too large", 0)
     assert store.query_execution(ACCOUNT, REGION, "q-001") is None

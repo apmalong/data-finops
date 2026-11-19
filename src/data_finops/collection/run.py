@@ -21,11 +21,12 @@ from data_finops.billing.aws_data_exports import (
     delivery_created,
     focus_manifest_name,
     is_manifest,
+    read_manifest,
 )
 from data_finops.calculation import run_calculation
 from data_finops.contracts.billing import SnapshotScope
 from data_finops.contracts.dimensions import NO_DIMENSIONS, CostDimensions
-from data_finops.dbt.artifacts import MAX_ARTIFACT_BYTES
+from data_finops.contracts.limits import MAX_INPUT_FILE_BYTES
 from data_finops.ledger import (
     ImportOutcome,
     Ledger,
@@ -52,10 +53,8 @@ from data_finops.workload.store import ArtifactOutcome, InboxOutcome, WorkloadSt
 DBT_INBOX = "inbox/dbt/"
 OPENLINEAGE_INBOX = "inbox/openlineage/"
 DBT_ARTIFACTS = ("manifest.json", "run_results.json")
-"""What one invocation folder holds, in the order it is ingested."""
-MAX_INBOX_FILE_BYTES = MAX_ARTIFACT_BYTES
-"""The cap on one Inbox file, the same 512 MiB as on every other input file (spec 04); each
-event within an OpenLineage file is still capped at 1 MiB by the screening it goes through."""
+"""What one invocation folder holds, in the order it is ingested. Each Inbox file is capped at
+MAX_INPUT_FILE_BYTES before it is downloaded, and each OpenLineage event in it at 1 MiB."""
 
 DEFAULT_LOOKBACK_PERIODS = 2
 """Billing Periods looked at per run by default: the current and the previous (spec 08)."""
@@ -223,6 +222,15 @@ class CollectionSummary(_Summary):
     warnings: list[str] = []
     calculation_run_ids: list[str] = []
 
+    def printed_lines(self) -> list[str]:
+        """The summary as `collect` and the collector print it: the JSON line, then each
+        rejected item on its own line, by key and reason."""
+        return [self.model_dump_json()] + [
+            f"  {rejected.item}: {rejected.reason}"
+            for source in self.sources.values()
+            for rejected in source.rejected
+        ]
+
     @computed_field  # type: ignore[prop-decorator]
     @property
     def exit_code(self) -> int:
@@ -323,7 +331,7 @@ def _fetch_new(
     if store.inbox_object_collected(obj.key, obj.etag):
         return None
     try:
-        path.write_bytes(read_object(s3, bucket, obj, MAX_INBOX_FILE_BYTES))
+        path.write_bytes(read_object(s3, bucket, obj, MAX_INPUT_FILE_BYTES))
     except TooLarge:
         tally.rejected.append(RejectedItem(item=obj.key, reason="too large"))
         store.record_inbox_object(obj.key, obj.etag, InboxOutcome.REJECTED)
@@ -681,14 +689,11 @@ def _download_delivery(
             s3, settings.export_bucket, obj, local / obj.key.rpartition("/")[2], MAX_MANIFEST_BYTES
         )
     manifest = next(path for path in local.iterdir() if is_manifest(path))
-    try:
-        uris = json.loads(manifest.read_text(encoding="utf-8")).get("dataFiles") or []
-    except (ValueError, AttributeError):
-        raise _RejectedDelivery("the manifest is not valid JSON") from None
+    uris = read_manifest(manifest).data_files  # DeliveryError when it is not JSON
     here = f"s3://{settings.export_bucket}/{settings.data_prefix(delivery)}"
     if not all(isinstance(uri, str) and uri.startswith(here) for uri in uris):
         raise _RejectedDelivery("the manifest names a data file outside the export")
-    names = {uri.removeprefix(here) for uri in uris}
+    names = {str(uri).removeprefix(here) for uri in uris}
     listed = {
         obj.key.rpartition("/")[2]: obj
         for obj in list_objects(s3, settings.export_bucket, settings.data_prefix(delivery))

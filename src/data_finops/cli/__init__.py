@@ -298,10 +298,7 @@ def _collect(args: argparse.Namespace) -> int:
         )
     except DimensionsUnavailable as error:  # names the key, never the file's content
         raise _Failure(str(error)) from None
-    print(summary.model_dump_json())
-    for source in summary.sources.values():
-        for rejected in source.rejected:
-            print(f"  {rejected.item}: {rejected.reason}")
+    print("\n".join(summary.printed_lines()))
     return summary.exit_code
 
 

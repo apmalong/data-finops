@@ -14,6 +14,8 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
+from data_finops.contracts.limits import MAX_INPUT_FILE_BYTES
+
 
 class _Provider(BaseModel):
     model_config = ConfigDict(frozen=True, extra="allow", hide_input_in_errors=True)
@@ -48,9 +50,6 @@ class AthenaQueryHistory(BaseModel):
     QueryExecutions: list[AthenaQueryExecution]
     UnprocessedQueryExecutionIds: list[dict[str, str]] = []
 
-
-MAX_HISTORY_BYTES = 512 * 1024 * 1024
-"""Per query history file (spec 04)."""
 
 _KEEP = True
 STORED_FIELDS: dict[str, Any] = {
@@ -116,10 +115,10 @@ def screen_query_history(
     """The valid entries and per-entry rejections, or why the whole file is unacceptable.
 
     The file must be a BatchGetQueryExecution response (optionally recording its account and
-    region, which must agree with those given) of at most MAX_HISTORY_BYTES. One bad entry
+    region, which must agree with those given) of at most MAX_INPUT_FILE_BYTES. One bad entry
     never stops the file; reasons name fields and rules, never values.
     """
-    if path.stat().st_size > MAX_HISTORY_BYTES:
+    if path.stat().st_size > MAX_INPUT_FILE_BYTES:
         return "too large"
     try:
         document = json.loads(path.read_bytes().decode("utf-8-sig"))

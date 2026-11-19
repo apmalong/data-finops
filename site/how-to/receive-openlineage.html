@@ -123,6 +123,9 @@
 </span><span class="line">  5: invalid ParentRunFacet: (event) (required)
 </span><span class="line">  6: unsupported JobEvent
 </span><span class="line">  7: unsupported DatasetEvent</span></pre>
+<p>A file over 512 MiB is rejected whole, before it is read. Its line has the position <code>0</code>:</p>
+<pre class="output"><span class="line">openlineage: 0 accepted, 0 duplicates, 0 changed copies, 0 unsupported, 1 rejected
+</span><span class="line">  0: too large: the whole file</span></pre>
 
 <h2 id="http">Receive events over HTTP</h2>
 <p><code>serve</code> also runs the receiver, at <code>POST /api/v1/lineage</code>, the default endpoint of OpenLineage's HTTP transport. Each request carries one event:</p>

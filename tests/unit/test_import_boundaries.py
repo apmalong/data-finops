@@ -206,6 +206,7 @@ def test_the_lambda_handlers_are_entry_points_over_collection_and_api():
         "data_finops.attribution",
         "data_finops.calculation",
         "data_finops.cli",
+        "data_finops.providers",  # through collection.remote (#214)
     ):
         assert not any(n == forbidden or n.startswith(forbidden + ".") for n in names), forbidden
 
