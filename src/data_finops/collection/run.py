@@ -655,6 +655,8 @@ def _reason(error: Exception) -> str:
         return "a file over its cap"
     if isinstance(error, SnapshotConflictError):
         return "its Export Snapshot is stored with other content"
+    if isinstance(error, ReconciliationError):
+        return error.reason  # the rejected item, the Delivery, names the version
     return str(error)
 
 

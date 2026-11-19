@@ -11,6 +11,7 @@
 - `normalization`: reserved and empty. Nothing imports it, and #214 proposes to remove it.
 - `ledger`: immutable versioned financial source records (Export Snapshots, Billing Lines) and Allocation Snapshots.
   - It also holds the reconciliation against a provider export (`ledger.reconciliation`), and the Delivery part of the Collection Watermark.
+  - `Ledger.ingest_focus` reads a FOCUS file with the `billing` readers, then imports and reconciles it (#212). This is the one way that a FOCUS file is loaded.
   - It knows no workload Evidence and no layer above it.
 - `identity`, `lineage`, `dbt`: workload and data asset Evidence, with no financial authority. `identity` holds pure link rules.
 - `workload`: the workload store.
@@ -40,7 +41,7 @@
 - `providers`: optional cloud-specific collectors and provider pricing policies (`providers.athena_billing`, #82). The attribution core must not import it.
   - `providers.aws` (M6, spec 08) holds the AWS collectors, behind the optional `aws` extra (boto3).
   - These collectors fetch files and API responses, and give them to the current readers. They never write to a store themselves.
-- `collection`: the Collection Run (M6, spec 08). It is a thin orchestrator over `providers.aws`, the `billing` Delivery reader, the public ingest functions of the stores, and `calculation`.
+- `collection`: the Collection Run (M6, spec 08). It is a thin orchestrator over `providers.aws`, the `billing` Delivery layout, the public ingest functions of the stores, and `calculation`. It loads each Delivery through `Ledger.ingest_focus` (#212).
   - `collection.remote` fetches and writes the database object.
   - The Lambda handlers (`lambda_handlers`) are entry points over `collection`, `api` and `public_demo`, as `cli` is. The API handler also keeps a copy of the database object, and gets it again only when its ETag changes, through `providers.aws`.
   - The entry points (`cli` and `lambda_handlers`) get their AWS clients from `aws_clients`, the only module that imports boto3 (#183, #184).

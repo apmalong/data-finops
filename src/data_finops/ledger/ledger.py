@@ -93,15 +93,17 @@ class SnapshotConflictError(Exception):
 
 class ReconciliationError(Exception):
     """What the Ledger stored differs from the source it read, so the import was rolled back
-    (#212). The message names the Billing Period and the currencies that differ, never line
-    content."""
+    (#212). The message names the snapshot (its version), the Billing Period and the
+    currencies that differ, never line content. `reason` leaves the snapshot out, for a
+    caller that names it already."""
 
     def __init__(self, snapshot: ExportSnapshot, currencies: Sequence[str]):
         self.snapshot_id = snapshot.snapshot_id
-        super().__init__(
+        self.reason = (
             f"does not reconcile: billing period {snapshot.billing_period_start:%Y-%m},"
             f" currency {', '.join(currencies)}"
         )
+        super().__init__(f"Export Snapshot {snapshot.snapshot_id} {self.reason}")
 
 
 class AllocationSnapshotConflictError(Exception):

@@ -186,7 +186,7 @@ def _ingest_focus(args: argparse.Namespace) -> int:
         try:
             result = ledger.ingest_focus(args.path, args.data_dir)
         except ReconciliationError as error:  # rolled back: nothing of it is stored
-            print(f"focus: rejected: Export Snapshot {error.snapshot_id} {error}")
+            print(f"focus: rejected: {error}")
             return REJECTED
         except SnapshotConflictError as error:
             raise _Failure(
