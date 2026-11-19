@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 from aws_stubs import (
     BUCKET,
+    LISTED_AT,
     athena_client,
     expect_batch,
     expect_get,
@@ -34,9 +35,9 @@ def test_listing_follows_every_page_in_order() -> None:
         expect_listing(stubber, "inbox/", {"inbox/c": b"333"}, token="t1")
         listed = list(list_objects(s3, BUCKET, "inbox/"))
     assert listed == [
-        S3Object("inbox/a", '"inbox/a"', 1),
-        S3Object("inbox/b", '"inbox/b"', 2),
-        S3Object("inbox/c", '"inbox/c"', 3),
+        S3Object("inbox/a", '"inbox/a"', 1, LISTED_AT),
+        S3Object("inbox/b", '"inbox/b"', 2, LISTED_AT),
+        S3Object("inbox/c", '"inbox/c"', 3, LISTED_AT),
     ]
 
 
