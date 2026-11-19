@@ -7,7 +7,7 @@ import tomllib
 from collections import defaultdict
 from collections.abc import Mapping
 from dataclasses import dataclass, field, fields
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -62,6 +62,12 @@ MAX_HISTORY_PAGES = 1000
 """The most pages a run may list per workgroup: 50,000 Query Executions (AGENTS.md: bound
 query limits)."""
 
+MAX_INBOX_RETENTION_DAYS = 3650
+"""The longest Inbox retention, as the Deployment's setting allows."""
+EXPIRY_WARNING_DAYS = 7
+"""A run warns about an Inbox object it did not collect in the last days before S3 expires it
+(#211). With a shorter retention, that is the whole retention."""
+
 OK, REJECTED, FAILED = 0, 1, 2
 """Exit codes, as the command line's (spec 05, spec 08 §6)."""
 
@@ -90,6 +96,10 @@ class CollectionSettings:
     cost_dimensions_key: str = ""
     """The key of the Cost Dimensions file in the Deployment's bucket (#224). Empty: no file
     in the bucket."""
+    inbox_retention_days: int | None = None
+    """After how many days S3 expires an Inbox object (the Deployment's `inboxRetentionDays`),
+    so a run warns before an object it did not collect is lost (#211). None: not known, and
+    no such warning."""
 
     def metadata_prefix(self, folder: str = "") -> str:
         """Where AWS writes manifests: `<root>metadata/`, then `folder` (a Billing Period or
@@ -164,8 +174,16 @@ class CollectionSettings:
                     DEFAULT_LOOKBACK_PERIODS,
                     MAX_LOOKBACK_PERIODS,
                 ),
+                "inbox_retention_days": _optional_whole_number(
+                    values, "inbox_retention_days", MAX_INBOX_RETENTION_DAYS
+                ),
             }
         )
+
+
+def _optional_whole_number(values: dict[str, Any], key: str, most: int) -> int | None:
+    """The setting as a whole number from 1 to `most`, or None when it is absent."""
+    return _whole_number(values, key, 1, most) if key in values else None
 
 
 def _whole_number(values: dict[str, Any], key: str, default: int, most: int) -> int:
@@ -234,6 +252,7 @@ def run_collection(
     *,
     clients: AwsClients,
     dimensions: CostDimensions | None = None,
+    now: datetime | None = None,
 ) -> CollectionSummary:
     """Collect every source into the database at `db`, then start one Calculation Run per
     Snapshot Scope on whatever was stored.
@@ -242,17 +261,25 @@ def run_collection(
     They come from `dimensions` (the `--dimensions` file), or from the bucket object that
     `settings.cost_dimensions_key` names (a Deployment, #224), or else none apply.
     DimensionsUnavailable, before anything is collected, when both are given or the object
-    cannot be read or used."""
+    cannot be read or used.
+
+    An Inbox object that is not collected is warned about before S3 expires it, counted from
+    `now` (default: the current time)."""
     dimensions = _run_dimensions(settings, clients, dimensions)
     with tempfile.TemporaryDirectory(prefix="data-finops-collect-") as scratch:
         with WorkloadStore(db) as store:
             # Workload metadata first (spec 08 §1); links are derived when queried, so the
             # order is for readability, never correctness.
             warnings: list[str] = []
-            dbt = _collect_dbt(store, clients.s3, settings.bucket, Path(scratch), warnings)
+            listed: list[S3Object] = []
+            dbt = _collect_dbt(store, clients.s3, settings.bucket, Path(scratch), warnings, listed)
             openlineage = _collect_openlineage(
-                store, clients.s3, settings.bucket, Path(scratch), warnings
+                store, clients.s3, settings.bucket, Path(scratch), warnings, listed
             )
+            if settings.inbox_retention_days is not None:
+                warnings += _expiry_warnings(
+                    store, listed, settings.inbox_retention_days, now or datetime.now(UTC)
+                )
             athena = _collect_athena(
                 store, clients.athena, settings, Path(scratch), warnings, dimensions
             )
@@ -300,8 +327,32 @@ def _fetch_new(
     return path
 
 
+def _expiry_warnings(
+    store: WorkloadStore, listed: list[S3Object], retention_days: int, now: datetime
+) -> list[str]:
+    """One warning for each listed Inbox object that is not collected (rejected, or not
+    processed yet) and that S3 expires within EXPIRY_WARNING_DAYS. It gives the key, the age
+    and the days left, never the content."""
+    warnings = []
+    for obj in listed:
+        if obj.last_modified is None:
+            continue
+        if store.inbox_object_outcome(obj.key, obj.etag) is InboxOutcome.COLLECTED:
+            continue
+        age = (now - obj.last_modified).days
+        left = max(0, retention_days - age)
+        if left <= EXPIRY_WARNING_DAYS:
+            warnings.append(f"{obj.key}: not collected, {age} days old, expires in {left} days")
+    return warnings
+
+
 def _collect_dbt(
-    store: WorkloadStore, s3: S3Reader, bucket: str, scratch: Path, warnings: list[str]
+    store: WorkloadStore,
+    s3: S3Reader,
+    bucket: str,
+    scratch: Path,
+    warnings: list[str],
+    listed: list[S3Object],
 ) -> SourceSummary:
     """Each invocation folder's manifest and run results, once both have arrived; a folder
     still missing one is reported and left for a later run."""
@@ -309,6 +360,7 @@ def _collect_dbt(
     try:
         folders: dict[str, dict[str, S3Object]] = defaultdict(dict)
         for obj in list_objects(s3, bucket, DBT_INBOX):
+            listed.append(obj)
             folder, _, name = obj.key.rpartition("/")
             folders[folder][name] = obj
         for folder, files in folders.items():
@@ -337,13 +389,19 @@ def _collect_dbt(
 
 
 def _collect_openlineage(
-    store: WorkloadStore, s3: S3Reader, bucket: str, scratch: Path, warnings: list[str]
+    store: WorkloadStore,
+    s3: S3Reader,
+    bucket: str,
+    scratch: Path,
+    warnings: list[str],
+    listed: list[S3Object],
 ) -> SourceSummary:
     """Every OpenLineage event file in the Inbox not yet collected, screened as a file;
     events of a kind data-finops does not read are listed as warnings, not rejections."""
     tally = _Tally()
     try:
         for obj in list_objects(s3, bucket, OPENLINEAGE_INBOX):
+            listed.append(obj)
             path = _fetch_new(store, s3, bucket, obj, scratch / "events.json", tally)
             if path is None:
                 continue

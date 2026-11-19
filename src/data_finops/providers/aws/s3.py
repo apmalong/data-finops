@@ -2,6 +2,7 @@
 
 from collections.abc import Iterator, Mapping
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -39,6 +40,8 @@ class S3Object:
     etag: str
     """As S3 returns it, quotes included: the version a Collection Watermark records."""
     size: int
+    last_modified: datetime | None = None
+    """When the object was written, from the listing. S3 expires it counting from here."""
 
 
 class TooLarge(ValueError):
@@ -51,7 +54,12 @@ def list_objects(s3: S3Reader, bucket: str, prefix: str) -> Iterator[S3Object]:
     while True:
         page = call(s3.list_objects_v2, **params)
         for entry in page.get("Contents", ()):
-            yield S3Object(key=entry["Key"], etag=entry["ETag"], size=entry["Size"])
+            yield S3Object(
+                key=entry["Key"],
+                etag=entry["ETag"],
+                size=entry["Size"],
+                last_modified=entry.get("LastModified"),
+            )
         if not page.get("IsTruncated"):
             return
         params["ContinuationToken"] = page["NextContinuationToken"]

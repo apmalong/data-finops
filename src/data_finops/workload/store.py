@@ -424,10 +424,15 @@ class WorkloadStore:
     def inbox_object_collected(self, key: str, etag: str) -> bool:
         """Whether this version of an Inbox object was already collected (the Inbox part of
         the Collection Watermark, spec 08), whatever became of it."""
+        return self.inbox_object_outcome(key, etag) is not None
+
+    def inbox_object_outcome(self, key: str, etag: str) -> InboxOutcome | None:
+        """What a Collection Run made of this version of an Inbox object, or None when no run
+        has processed it yet."""
         row = self._connection.execute(
-            "SELECT 1 FROM workload_inbox_object WHERE key = ? AND etag = ?", (key, etag)
+            "SELECT outcome FROM workload_inbox_object WHERE key = ? AND etag = ?", (key, etag)
         ).fetchone()
-        return row is not None
+        return None if row is None else InboxOutcome(row[0])
 
     def stored_query_execution_ids(
         self, account_id: str, region: str, query_execution_ids: list[str]
