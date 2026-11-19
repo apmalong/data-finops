@@ -9,7 +9,7 @@ from typing import Any
 
 import pytest
 
-from data_finops.lineage.openlineage import load_events
+from data_finops.lineage.validation import RejectionKind, screen_events
 from data_finops.providers.athena import load_query_executions
 
 ACCOUNT = "111122223333"
@@ -51,19 +51,20 @@ def _write(path: Path, text: str, bom: bool = False) -> Path:
 @pytest.mark.parametrize("bom", [False, True])
 def test_events_load_from_a_json_array(tmp_path: Path, bom: bool) -> None:
     path = _write(tmp_path / "events.json", json.dumps(EVENTS), bom)
-    assert [e.eventType for e in load_events(path)] == ["START", "COMPLETE"]
+    assert [e.eventType for e in screen_events(path).events] == ["START", "COMPLETE"]
 
 
 def test_events_load_from_json_lines_as_dbt_ol_writes(tmp_path: Path) -> None:
     lines = "".join(json.dumps(e) + "\n" for e in EVENTS) + "\n"
     path = _write(tmp_path / "dbt-events.jsonl", lines)
-    assert [e.eventType for e in load_events(path)] == ["START", "COMPLETE"]
+    assert [e.eventType for e in screen_events(path).events] == ["START", "COMPLETE"]
 
 
 def test_malformed_json_line_is_reported_with_its_line_number(tmp_path: Path) -> None:
     path = _write(tmp_path / "dbt-events.jsonl", json.dumps(EVENTS[0]) + "\n{not json\n")
-    with pytest.raises(ValueError, match="line 2"):
-        load_events(path)
+    screening = screen_events(path)
+    assert [e.eventType for e in screening.events] == ["START"]
+    assert [(r.position, r.kind) for r in screening.rejected] == [(2, RejectionKind.NOT_JSON)]
 
 
 @pytest.mark.parametrize("bom", [False, True])
@@ -108,17 +109,17 @@ def test_missing_or_conflicting_account_and_region_are_rejected(
 def test_event_text_may_contain_unicode_line_separators(tmp_path: Path) -> None:
     event = {**EVENTS[0], "job": {"namespace": "dbt", "name": "a\u2028b"}}
     path = _write(tmp_path / "dbt-events.jsonl", json.dumps(event, ensure_ascii=False) + "\n")
-    assert [e.job.name for e in load_events(path)] == ["a\u2028b"]
+    assert [e.job.name for e in screen_events(path).events] == ["a\u2028b"]
 
 
 @pytest.mark.parametrize("text", ["[{bad", "{not json", "[1, 2]"])
-def test_unreadable_files_are_reported_with_their_path(tmp_path: Path, text: str) -> None:
+def test_unreadable_files_are_reported(tmp_path: Path, text: str) -> None:
     events, history = (
         _write(tmp_path / "events.json", text),
         _write(tmp_path / "history.json", text),
     )
-    with pytest.raises(ValueError, match="events.json"):
-        load_events(events)
+    screening = screen_events(events)  # an event file is screened, never raised on
+    assert screening.events == [] and screening.rejected
     with pytest.raises(ValueError, match="history.json"):
         load_query_executions(history, account_id=ACCOUNT, region="us-east-1")
 

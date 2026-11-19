@@ -12,9 +12,14 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
 from data_finops.collection import AwsClients, CollectionSettings
-from data_finops.collection.remote import DATABASE_KEY, run_remote_collection
+from data_finops.collection.remote import (
+    CachedDatabase,
+    S3Reader,
+    S3Writer,
+    WriteConflict,
+    run_remote_collection,
+)
 from data_finops.collection.run import FAILED, DimensionsUnavailable
-from data_finops.providers.aws import S3Reader, S3Writer, WriteConflict, refresh_file
 
 if TYPE_CHECKING:
     from data_finops.public_demo.dataset import DatasetFile
@@ -79,10 +84,7 @@ def make_collector_handler(
                 ) from None
             except DimensionsUnavailable as error:  # names the key, never the file's content
                 raise CollectionFailed(f"Cost Dimensions: {error}") from None
-        print(summary.model_dump_json())
-        for source in summary.sources.values():
-            for rejected in source.rejected:
-                print(f"  {rejected.item}: {rejected.reason}")
+        print("\n".join(summary.printed_lines()))
         if summary.exit_code == FAILED:
             raise CollectionFailed("a source could not be read (exit code 2); see the summary")
         return summary.model_dump(mode="json")
@@ -105,19 +107,6 @@ def _settings(environ: Mapping[str, str]) -> CollectionSettings:
         raise CollectionFailed(f"{COLLECTOR_SETTINGS}: {error}") from None
 
 
-class _CachedDatabase:
-    """The API's copy of the database object, refreshed only when its ETag changes."""
-
-    def __init__(self, s3: S3Reader, bucket: str, path: Path) -> None:
-        self._s3, self._bucket, self.path = s3, bucket, path
-        self._etag: str | None = None
-
-    def refresh(self) -> None:
-        """Bring the copy up to date; with no object yet there is no copy, and the app
-        answers 503 as for any missing database."""
-        self._etag = refresh_file(self._s3, self._bucket, DATABASE_KEY, self.path, self._etag)
-
-
 def make_api_handler(
     s3: Callable[[], S3Reader], environ: Mapping[str, str], cache: Path
 ) -> Handler:
@@ -138,7 +127,7 @@ def make_api_handler(
     except ValueError:
         raise ApiMisconfigured(f"{API_EXPLANATION_DETAIL} must be minimal or full") from None
     cache.mkdir(parents=True, exist_ok=True)
-    database = _CachedDatabase(s3(), environ[API_BUCKET], cache / "data-finops.sqlite")
+    database = CachedDatabase(s3(), environ[API_BUCKET], cache / "data-finops.sqlite")
     # Mangum asks asyncio for the current event loop, which Python 3.12 deprecates when none
     # is set (an error from 3.14): give this execution environment one.
     asyncio.set_event_loop(asyncio.new_event_loop())
@@ -146,7 +135,7 @@ def make_api_handler(
     serve = Mangum(app, lifespan="off")
 
     def handler(event: Mapping[str, Any], context: Any) -> Any:
-        database.refresh()
+        database.refresh()  # no object yet: no copy, and the app answers 503
         return serve(dict(event), context)
 
     return handler
@@ -234,7 +223,7 @@ def make_publisher_handler(
         client = s3()
         scratch.mkdir(parents=True, exist_ok=True)
         path = scratch / "data-finops.sqlite"
-        if refresh_file(client, str(buckets[DEPLOYMENT_BUCKET]), DATABASE_KEY, path, None) is None:
+        if not CachedDatabase(client, str(buckets[DEPLOYMENT_BUCKET]), path).refresh():
             print(json.dumps({"published": False}))
             return {"published": False}
         pointer = publish(

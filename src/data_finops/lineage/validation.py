@@ -21,6 +21,7 @@ from jsonschema import Draft202012Validator
 from pydantic import ValidationError
 from referencing import Registry, Resource
 
+from data_finops.contracts.limits import MAX_INPUT_FILE_BYTES
 from data_finops.lineage.openlineage import RunEvent
 
 MAX_EVENT_BYTES = 1024 * 1024
@@ -43,7 +44,8 @@ class RejectionKind(StrEnum):
 @dataclass(frozen=True)
 class Rejection:
     position: int
-    """1-based: the line in a JSON Lines file, the element in a JSON array."""
+    """1-based: the line in a JSON Lines file, the element in a JSON array. WHOLE_FILE (0)
+    for the file as a whole."""
     kind: RejectionKind
     detail: str = ""
     """The failing field and rule, e.g. `run/runId (format)`; never a value from the event."""
@@ -62,9 +64,17 @@ class Screening:
     """Valid JobEvents and DatasetEvents, in file order; not stored in M2."""
 
 
+WHOLE_FILE = 0
+"""The position of a rejection of the file as a whole, which no event has."""
+
+
 def screen_events(path: Path) -> Screening:
-    """Split an event file (JSON array or JSON Lines) into valid RunEvents and the rest."""
+    """Split an event file (JSON array or JSON Lines) into valid RunEvents and the rest. A file
+    over MAX_INPUT_FILE_BYTES is rejected whole, at WHOLE_FILE, before it is read (#214)."""
     rejected: list[Rejection] = []
+    if path.stat().st_size > MAX_INPUT_FILE_BYTES:
+        rejected.append(Rejection(WHOLE_FILE, RejectionKind.TOO_LARGE, "the whole file"))
+        return Screening(events=[], rejected=rejected, unsupported=[])
     return _screen(_items(path.read_bytes(), rejected), rejected)
 
 

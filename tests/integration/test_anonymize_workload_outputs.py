@@ -12,7 +12,7 @@ from typing import Any
 import pytest
 
 from data_finops.dbt.artifacts import load_manifest, load_run_results
-from data_finops.lineage.openlineage import load_events
+from data_finops.lineage.openlineage import RunEvent
 from data_finops.providers.athena import load_query_executions
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -24,6 +24,15 @@ assert _spec and _spec.loader
 anonymizer = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(anonymizer)
 from anonymize_focus_export import Pseudonyms  # noqa: E402
+
+
+def _run_events(path: Path) -> list[RunEvent]:
+    """The file's events (JSON Lines) as RunEvent models. Only the model is checked, not the
+    OpenLineage schema: this file's synthetic events carry facets the schema does not accept,
+    and these tests check pseudonyms, not validity."""
+    lines = path.read_text(encoding="utf-8").split("\n")
+    return [RunEvent.model_validate_json(line) for line in lines if line.strip()]
+
 
 SECRET = "test-secret"
 ACCOUNT = "111122223333"
@@ -189,7 +198,7 @@ def test_pseudonyms_match_across_sources_and_the_focus_anonymizer(
     bucket = pseudonyms.text(BUCKET)
     athena = _json(target, "athena/query-executions.json")["QueryExecutions"][0]
     assert athena["ResultConfiguration"]["OutputLocation"].startswith(f"s3://{bucket}/")
-    event = load_events(target / "openlineage/dbt-events.jsonl")[0]
+    event = _run_events(target / "openlineage/dbt-events.jsonl")[0]
     facets = event.outputs[0].model_dump()["facets"]
     assert facets["dataSource"]["name"] == f"s3://{bucket}"
     glue = facets["symlinks"]["identifiers"][0]["namespace"]
@@ -211,7 +220,7 @@ def test_correlation_fields_still_link_the_sources(
     assert (
         load_run_results(target / "dbt/2-run/run_results.json").metadata.invocation_id == INVOCATION
     )
-    event = load_events(target / "openlineage/dbt-events.jsonl")[0]
+    event = _run_events(target / "openlineage/dbt-events.jsonl")[0]
     assert event.run.facets["dbt_run"]["invocation_id"] == INVOCATION
 
 
@@ -428,7 +437,7 @@ def test_known_fields_keep_their_values(allowlisted: tuple[Path, dict[str, int]]
         "success",
         8.1,
     )
-    event = load_events(target / "openlineage/dbt-events.jsonl")[0]
+    event = _run_events(target / "openlineage/dbt-events.jsonl")[0]
     assert event.job.facets["dbt_node"]["unique_id"] == NODE
 
 
@@ -495,12 +504,12 @@ def test_review_cases_for_other_projects(outputs: tuple[Path, Path]) -> None:
     assert not any(secret in text for secret in EXTRA_SECRETS)
     assert summary["dropped openlineage[].run.facets (unexpected shape)"] == 1
     assert summary["emptied manifest.nodes.*.tags[]"] == 1
-    uri = load_events(target / "openlineage/dbt-events.jsonl")[0].outputs[0].model_dump()
+    uri = _run_events(target / "openlineage/dbt-events.jsonl")[0].outputs[0].model_dump()
     assert uri["facets"]["dataSource"]["uri"].startswith("postgres://anon-")
     assert ":5432/db" in uri["facets"]["dataSource"]["uri"]
     athena_namespace = "awsathena://athena.us-east-1.amazonaws.com"
     assert (
-        load_events(target / "openlineage/dbt-events.jsonl")[0].outputs[0].namespace
+        _run_events(target / "openlineage/dbt-events.jsonl")[0].outputs[0].namespace
         == athena_namespace
     )
 

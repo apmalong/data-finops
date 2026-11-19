@@ -14,7 +14,8 @@ from pathlib import Path
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, ValidationError
 
-MAX_ARTIFACT_BYTES = 512 * 1024 * 1024
+from data_finops.contracts.limits import MAX_INPUT_FILE_BYTES
+
 _DBT_SCHEMA = re.compile(r"https://schemas\.getdbt\.com/dbt/(manifest|run-results)/v(\d+)\.json")
 
 
@@ -100,11 +101,11 @@ def load_run_results(path: Path) -> RunResults:
 def screen_dbt_artifact(path: Path) -> ScreenedArtifact | str:
     """The artifact if it is acceptable, otherwise the reason it is not.
 
-    Accepts manifest v12 and run-results v6, at most MAX_ARTIFACT_BYTES, with an invocation
+    Accepts manifest v12 and run-results v6, at most MAX_INPUT_FILE_BYTES, with an invocation
     ID; run results need aware timestamps and each node at most once, and every manifest
     node must sit under its own unique ID. Extra fields are allowed (OQ-23).
     """
-    if path.stat().st_size > MAX_ARTIFACT_BYTES:
+    if path.stat().st_size > MAX_INPUT_FILE_BYTES:
         return "too large"
     data = path.read_bytes()
     try:

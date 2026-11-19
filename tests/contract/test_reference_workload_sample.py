@@ -7,8 +7,17 @@ from functools import cache
 from pathlib import Path
 
 from data_finops.dbt.artifacts import load_manifest, load_run_results
-from data_finops.lineage.openlineage import load_events
+from data_finops.lineage.openlineage import RunEvent
+from data_finops.lineage.validation import screen_events
 from data_finops.providers.athena import AthenaQueryHistory, load_query_executions
+
+
+def _run_events(path: Path) -> list[RunEvent]:
+    """The file's RunEvents, as the product reads them; every event in it must be valid."""
+    screening = screen_events(path)
+    assert not screening.rejected and not screening.unsupported
+    return screening.events
+
 
 SAMPLE = Path(__file__).resolve().parents[2] / "fixtures" / "reference-workload"
 COMMENT = re.compile(r"-- /\* (?P<json>\{.*\}) \*/\n")
@@ -62,7 +71,7 @@ def test_uncommented_statements_are_exactly_the_alter_tables():
 
 
 def test_openlineage_dbt_run_invocations_match_the_runs():
-    events = load_events(SAMPLE / "openlineage" / "dbt-events.jsonl")
+    events = _run_events(SAMPLE / "openlineage" / "dbt-events.jsonl")
     steps = Counter(
         _step_by_invocation()[e.run.facets["dbt_run"]["invocation_id"]]
         for e in events

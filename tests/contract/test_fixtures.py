@@ -6,8 +6,17 @@ from pathlib import Path
 from data_finops.billing.focus import load_export
 from data_finops.contracts.billing import CostBasis
 from data_finops.dbt.artifacts import load_manifest, load_run_results
-from data_finops.lineage.openlineage import load_events
+from data_finops.lineage.openlineage import RunEvent
+from data_finops.lineage.validation import screen_events
 from data_finops.providers.athena import load_query_executions
+
+
+def _run_events(path: Path) -> list[RunEvent]:
+    """The file's RunEvents, as the product reads them; every event in it must be valid."""
+    screening = screen_events(path)
+    assert not screening.rejected and not screening.unsupported
+    return screening.events
+
 
 ROOT = Path(__file__).resolve().parents[2]
 FIXTURES = ROOT / "fixtures"
@@ -42,7 +51,7 @@ def test_athena_history_is_provider_native_and_carries_query_comments():
 
 
 def test_openlineage_events_link_dbt_invocation_to_airflow_run():
-    events = load_events(FIXTURES / "openlineage" / "events.json")
+    events = _run_events(FIXTURES / "openlineage" / "events.json")
     dbt_runs = [e for e in events if "dbt_run" in e.run.facets]
     assert dbt_runs, "a dbt run event must carry the dbt_run facet"
     dbt_run = dbt_runs[0]

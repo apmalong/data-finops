@@ -730,7 +730,7 @@ def test_other_run_results_versions_are_rejected(store: WorkloadStore, tmp_path:
 def test_an_oversized_artifact_is_rejected(
     store: WorkloadStore, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(dbt_artifacts, "MAX_ARTIFACT_BYTES", 1024)
+    monkeypatch.setattr(dbt_artifacts, "MAX_INPUT_FILE_BYTES", 1024)
     result = store.ingest_dbt_artifact(SAMPLE_DBT / "2-run" / "run_results.json")
     assert (result.outcome, result.reason) == (ArtifactOutcome.REJECTED, "too large")
 

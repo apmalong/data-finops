@@ -122,7 +122,7 @@
 <ul>
 <li>One OpenLineage event can be 1 MiB at most. A larger body gets <code>413</code> at the cap, before it is read in full or parsed.</li>
 <li>A compressed body gets <code>415</code>. Each event is sent uncompressed.</li>
-<li>Query history files and dbt artifacts are capped at 512 MiB each.</li>
+<li>Query history files, dbt artifacts and OpenLineage event files are capped at 512 MiB each. A larger file is rejected before it is read.</li>
 </ul>
 
 <h2 id="no-echo">Errors never echo input</h2>

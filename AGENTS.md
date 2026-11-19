@@ -75,7 +75,7 @@ A PR that changes one of the four kinds of work must not merge with `AI-reviewed
 **Claims.** A claim that something passed or was checked must have evidence. The evidence is a command and its output, a test, or a cited source.
 
 ## Repository conventions
-- `src/data_finops/{contracts,billing,normalization,ledger,identity,lineage,dbt,workload,attribution,calculation,collection,reporting,api,cli,providers,public_demo}`, plus `lambda_handlers.py` and `aws_clients.py` (the `aws` extra).
+- `src/data_finops/{contracts,billing,ledger,identity,lineage,dbt,workload,attribution,calculation,collection,reporting,api,cli,providers,public_demo}`, plus `lambda_handlers.py` and `aws_clients.py` (the `aws` extra).
 - `uv run python -m data_finops.schemas` generates the contracts into `schemas/`.
 - `scripts/` holds operator tools and upstream checks that use the network. It never holds product code.
 - `infra/pulumi/aws`: the Pulumi components of the Deployment and, in `policy/`, its policy pack. These are two more uv projects with their own checks, which run in the `infra` job of CI. Only the owner runs `infra/pulumi/aws/wizards/`. An agent never runs them.
