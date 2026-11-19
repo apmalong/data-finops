@@ -64,18 +64,16 @@ def _offset(text: str) -> int:
     return offset
 
 
-def _scope_options(command: argparse.ArgumentParser, *, run: bool = True) -> None:
+def _scope_options(command: argparse.ArgumentParser) -> None:
     """The options that select a Snapshot Scope, as the routes take them (spec 06)."""
-    if run:
-        command.add_argument("--calculation-run-id", help="the snapshot of this Calculation Run")
+    command.add_argument("--calculation-run-id", help="the snapshot of this Calculation Run")
     command.add_argument("--billing-account-id")
     command.add_argument(
         "--billing-period",
         type=date.fromisoformat,
         help="the first day of the period (YYYY-MM-DD)",
     )
-    if run:
-        command.add_argument("--source", help="the source of the Export Snapshot")
+    command.add_argument("--source", help="the source of the Export Snapshot")
 
 
 def _cost_basis_option(command: argparse.ArgumentParser, default: str | None = None) -> None:
@@ -94,7 +92,7 @@ def _page_options(command: argparse.ArgumentParser) -> None:
 
 def _summary_options(command: argparse.ArgumentParser) -> None:
     _cost_basis_option(command, CostBasis.BILLED_COST.value)
-    _scope_options(command, run=False)
+    _scope_options(command)
 
 
 def _allocations_options(command: argparse.ArgumentParser) -> None:

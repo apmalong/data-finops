@@ -7,9 +7,9 @@ By default, each read serves the current Allocation Snapshot of each Snapshot Sc
 
 Filters:
 - `billing_account_id` and `billing_period`, on each snapshot read.
-- `source` and `calculation_run_id`, on each snapshot read except the Cost Summary. Use `calculation_run_id` to read a superseded snapshot.
+- `source` and `calculation_run_id`, on each snapshot read. Use `calculation_run_id` to read a superseded snapshot.
 
-The Cost Summary always reads the current snapshots. The HTTP reference lists the parameters of each route. The Ledger gets read-only listings of Snapshot Scopes and of the Allocation Snapshots of a scope.
+The Cost Summary has one summary for each Snapshot Scope that the filters select, so `source` narrows the list. With `calculation_run_id`, it has the summary of that run's snapshot alone, current or superseded (#215). The HTTP reference lists the parameters of each route. The Ledger gets read-only listings of Snapshot Scopes and of the Allocation Snapshots of a scope.
 
 The read model can also get a filter of Billing Lines (spec 09, Q82). The API does not set it. With a filter, each read sees only the lines that the filter keeps and the Allocations of them. This applies to the Cost Summary, the Allocations, the Roll-ups, the Cost Dimensions, the reconciliation and each Cost Explanation. An Allocation keeps its ref.
 

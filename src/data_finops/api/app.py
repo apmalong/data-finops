@@ -196,18 +196,24 @@ def create_app(
             return Health(status="unavailable")
         return Health(status="ok")
 
-    @app.get("/v1/costs/summary", responses=_READ_PROBLEMS)
+    @app.get("/v1/costs/summary", responses=_SELECTION_PROBLEMS)
     def cost_summary(
         cost_basis: CostBasis = CostBasis.BILLED_COST,
+        calculation_run_id: Annotated[str | None, Query(max_length=128)] = None,
         billing_account_id: Annotated[str | None, Query(max_length=128)] = None,
         billing_period: date | None = None,
+        source: Annotated[str | None, Query(max_length=256)] = None,
     ) -> CostSummaries:
-        """One Cost Summary per Snapshot Scope, for the scope's current Allocation Snapshot."""
+        """One Cost Summary per Snapshot Scope, for the scope's current Allocation Snapshot.
+        With `calculation_run_id`, the summary of that run's snapshot alone, current or
+        superseded."""
         with Reporting(db) as read_model:
             return read_model.cost_summary(
                 cost_basis=cost_basis,
+                calculation_run_id=calculation_run_id,
                 billing_account_id=billing_account_id,
                 billing_period=billing_period,
+                source=source,
             )
 
     @app.get("/v1/allocations", responses=_SELECTION_PROBLEMS)

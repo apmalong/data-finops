@@ -129,14 +129,16 @@
 </table>
 </div>
 <h2 id="get-v1-costs-summary"><code>GET /v1/costs/summary</code>: Cost Summary</h2>
-<p>One Cost Summary per Snapshot Scope, for the scope&#x27;s current Allocation Snapshot.</p>
+<p>One Cost Summary per Snapshot Scope, for the scope&#x27;s current Allocation Snapshot. With <code>calculation_run_id</code>, the summary of that run&#x27;s snapshot alone, current or superseded.</p>
 <div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
 <table>
 <thead><tr><th>Parameter</th><th>In</th><th>Required</th><th>Type</th><th>Meaning</th></tr></thead>
 <tbody>
 <tr><td><code>cost_basis</code></td><td>query</td><td>optional</td><td>CostBasis: one of <code>&quot;BilledCost&quot;</code>, <code>&quot;EffectiveCost&quot;</code>, <code>&quot;ListCost&quot;</code>, <code>&quot;ContractedCost&quot;</code>, default &quot;BilledCost&quot;</td><td></td></tr>
+<tr><td><code>calculation_run_id</code></td><td>query</td><td>optional</td><td>string, at most 128 characters, or null</td><td></td></tr>
 <tr><td><code>billing_account_id</code></td><td>query</td><td>optional</td><td>string, at most 128 characters, or null</td><td></td></tr>
 <tr><td><code>billing_period</code></td><td>query</td><td>optional</td><td>string, date, or null</td><td></td></tr>
+<tr><td><code>source</code></td><td>query</td><td>optional</td><td>string, at most 256 characters, or null</td><td></td></tr>
 </tbody>
 </table>
 </div>
@@ -145,10 +147,11 @@
 <thead><tr><th>Status</th><th>Meaning</th><th>Body</th></tr></thead>
 <tbody>
 <tr><td>200</td><td>Successful Response</td><td><code>application/json</code>: <a href="#schema-cost-summaries">CostSummaries</a></td></tr>
-<tr><td>400</td><td>Invalid request: the detail names the fields, never their values.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
+<tr><td>400</td><td>Invalid request, or filters that match more than one Snapshot Scope: the detail names the fields to give, never their values.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
 <tr><td>401</td><td>When a token is configured: no valid bearer token (ADR 0024).</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
 <tr><td>500</td><td>An unexpected failure. The detail tells nothing about it.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
 <tr><td>503</td><td>The database cannot be opened as a current data-finops database.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
+<tr><td>404</td><td>No such Calculation Run, or no calculated Snapshot Scope matches.</td><td><code>application/problem+json</code>: Problem Details (RFC 9457)</td></tr>
 </tbody>
 </table>
 </div>

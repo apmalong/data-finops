@@ -148,18 +148,31 @@ class Reporting:
         self,
         *,
         cost_basis: CostBasis = CostBasis.BILLED_COST,
+        calculation_run_id: str | None = None,
         billing_account_id: str | None = None,
         billing_period: date | None = None,
+        source: str | None = None,
     ) -> CostSummaries:
-        """A Cost Summary for the current Allocation Snapshot of each matching scope.
+        """A Cost Summary for the current Allocation Snapshot of each matching scope, or for
+        the snapshot of `calculation_run_id` alone, current or superseded (#215).
 
+        A named run fixes its own scope: ConflictingFilters if scope filters are also given,
+        NotFound if no such run is stored, as for every snapshot read (spec 06).
         `billing_period` is the Billing Period's first day. The Cost Basis is validated at
         runtime, so an unknown name raises ValueError.
         """
         basis = CostBasis(cost_basis)
+        if calculation_run_id is not None:
+            stored = self._served(calculation_run_id, billing_account_id, billing_period, source)
+            if stored.snapshot.scope is None:
+                raise RuntimeError("the Ledger returned an Allocation Snapshot without its scope")
+            return CostSummaries(
+                summaries=[self._summary(stored.snapshot.scope, stored, basis)],
+                uncalculated_scopes=[],
+            )
         summaries: list[CostSummary] = []
         uncalculated: list[SnapshotScope] = []
-        for scope in self._scopes(billing_account_id, billing_period):
+        for scope in self._scopes(billing_account_id, billing_period, source):
             stored = self._ledger.current_allocations(scope)
             if stored is None:
                 uncalculated.append(scope)
