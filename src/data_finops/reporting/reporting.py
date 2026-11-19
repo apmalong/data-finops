@@ -114,6 +114,7 @@ class Reporting:
         self._exports: dict[str, FocusExport | None] = {}
         self._kept_by_run: dict[str, list[tuple[int, Allocation]]] = {}
         self._rollup_maps: dict[tuple[str, str], dict[str, Any]] = {}
+        self._allocation_snapshots: dict[str, StoredAllocations] = {}
         if not path.is_file():
             raise DatabaseUnavailable
         try:
@@ -506,7 +507,7 @@ class Reporting:
         current or superseded, its Billing Line shown at `detail` (ADR 0028); NotFound for an
         unknown or malformed reference."""
         parsed = _parse_allocation_ref(ref)
-        stored = self._ledger.allocation_snapshot(parsed[0]) if parsed else None
+        stored = self._allocation_snapshot(parsed[0]) if parsed else None
         if parsed is None or stored is None or parsed[1] >= len(stored.allocations):
             raise NotFound("no such Allocation")
         allocation = stored.allocations[parsed[1]]
@@ -579,6 +580,17 @@ class Reporting:
             ),
         )
 
+    def _allocation_snapshot(self, calculation_run_id: str) -> StoredAllocations | None:
+        """A stored Allocation Snapshot, read from the Ledger once for each Calculation Run.
+        A stored snapshot never changes, so the copy stays right (#316). An unknown run is not
+        kept, so a run stored later is found."""
+        if calculation_run_id not in self._allocation_snapshots:
+            stored = self._ledger.allocation_snapshot(calculation_run_id)
+            if stored is None:
+                return None
+            self._allocation_snapshots[calculation_run_id] = stored
+        return self._allocation_snapshots[calculation_run_id]
+
     def _served(
         self,
         calculation_run_id: str | None,
@@ -590,7 +602,7 @@ class Reporting:
         if calculation_run_id is not None:
             if (billing_account_id, billing_period, source) != (None, None, None):
                 raise ConflictingFilters("a named Calculation Run fixes its own scope")
-            named = self._ledger.allocation_snapshot(calculation_run_id)
+            named = self._allocation_snapshot(calculation_run_id)
             if named is None:
                 raise NotFound("no such Calculation Run")
             return named
