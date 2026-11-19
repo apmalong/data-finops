@@ -11,9 +11,10 @@ The block has no timings, so the same tree gives the same block. CI runs this co
 CI and a local run check the same things. `pip-audit` and the secret scan use the network, so
 they stay as separate CI steps.
 
-`--docs` runs the gates that a change of documents alone needs (#321): the site drift check
-(ADRs and GLOSSARY.md feed the site), the site check and the STE check. CI runs only these for
-such a change (`scripts/ci_changes.py`). They also run with every project.
+`--docs` runs only the gates that a change of documents alone needs (#321). These are the site
+drift check, the site check and the STE check. The drift check is necessary because ADRs and
+GLOSSARY.md feed the site. CI runs only these gates for such a change (`scripts/ci_changes.py`),
+and they also run with every project. AGENTS.md says what each kind of change runs.
 
 Two checks run inside a pytest gate, not as gates of their own. `root/pytest` compares the
 committed site with what `python -m scripts.site build` writes. `stack/pytest` runs `bash -n` on
@@ -200,6 +201,9 @@ def main(
     chosen = [
         g for g in GATES if (not projects or g.project in projects) and (g.docs or not docs_only)
     ]
+    if not chosen:
+        sys.stderr.write(f"No docs gates in: {', '.join(projects)}.\n")
+        return 2
     results: list[Result] = []
     for gate in chosen:
         sys.stdout.write(f"\n>>> {gate.label}\n")

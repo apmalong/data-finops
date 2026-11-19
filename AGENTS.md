@@ -32,8 +32,8 @@ All development follows the engineering skills of Matt Pocock (`mattpocock-skill
    - `main` is protected. A PR is required, and the `quality` and `infra` checks must pass.
    - CI runs on a PR and on a push to `main`, never on a push to another branch alone. A PR runs the checks that its paths need (`scripts/ci_changes.py`, #321):
      - Documents alone (`docs/`, `.claude/`, Markdown at the root): only `python -m scripts.gates --docs` and the secret scan.
-     - Code, tests or the site: the root and reference-workload gates. The `infra` job runs only for `infra/`, `src/`, the lockfiles, `scripts/gates.py` or `.github/`.
-     - An unknown path, or a push to `main`: every check.
+     - Code, tests or the site: the root and reference-workload gates. The `infra` job runs only for `infra/`, `src/`, the root `pyproject.toml` and `uv.lock`, `scripts/gates.py` or `.github/`.
+     - An unknown path, a push to `main`, or a failure of the sort itself: every check.
 7. **Documentation:** each ticket names the Diátaxis documentation type that it changes (tutorial, how-to, reference, explanation, or none) in a `## Documentation` section. Done includes that change (ADR 0025, spec 07). The code-review Spec reviewer checks it against the diff.
    - Write and edit documentation with the `simplified-technical-english` skill (`.claude/skills/`).
    - *Milestone D exception (owner, 2026-11-05):*

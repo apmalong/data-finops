@@ -106,6 +106,16 @@ def test_the_docs_gates_are_the_site_and_ste_checks_alone() -> None:
     assert ran == ["root/site build", "root/site check", "root/ste check"]
 
 
+def test_docs_with_a_project_that_has_no_docs_gates_is_refused(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    run, ran = _runner()
+
+    assert gates.main(["--docs", "policy"], run=run, tree="t") == 2
+
+    assert ran == [] and "policy" in capsys.readouterr().err
+
+
 def test_the_docs_gates_also_run_with_every_project() -> None:
     run, ran = _runner()
 

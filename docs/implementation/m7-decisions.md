@@ -117,6 +117,15 @@ Research: `docs/research/m7-athena-billing-units.md`. Two independent answers we
 |---|---|---|---|---|
 | Q169 | Whether a Collection Run warns about the files directly under a Billing Period that has Delivery folders | **Owner:** no warning. Create-new mode always keeps the newest manifest there (#305), so a warning would show on each run. The run ignores those files, as #306 built. The other options were a warning for each file, and a warning for each file except the export's own manifest | Owner | spec 08 §Collection Run 2 |
 
+## After M7: CI runs only the checks that a change needs (#321, 2026-11-19)
+
+| # | Question | Decision | Source | Recorded in |
+|---|---|---|---|---|
+| Q170 | When CI runs | On a PR and on a push to `main`. A push to another branch runs nothing until it has a PR. A new push to a PR cancels its run in progress | Owner (#321) | `.github/workflows/ci.yml`, AGENTS.md |
+| Q171 | What a documents-only change runs | `scripts.gates --docs` (site drift check, site check, STE) and the secret scan. A document is Markdown at the root, or Markdown under `docs/` or `.claude/`. Any other file there, for example an image or `settings.json`, runs every check. The root `uv sync` still runs, because the site build imports `data_finops.cli` for the CLI reference | Accepted recommendation | `scripts/ci_changes.py`, AGENTS.md |
+| Q172 | Which paths skip the `infra` job | `site/`, `tests/`, `scripts/` (except `gates.py`), `fixtures/`, `schemas/`, `examples/` and documents. The infra job reads only `infra/`, `src/`, the root `pyproject.toml` and `uv.lock`. Any other path runs every check | Accepted recommendation | `scripts/ci_changes.py`, AGENTS.md |
+| Q173 | What happens when the sort fails | Every check runs. `quality` always starts, and `infra` runs unless the sort succeeded and said that it is not needed | Accepted recommendation | `.github/workflows/ci.yml` |
+
 ## Facts the decisions rest on
 
 From the research note `docs/research/m7-aws-finops-tools.md`, checked 2026-11-07:

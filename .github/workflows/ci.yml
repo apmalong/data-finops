@@ -23,15 +23,18 @@ jobs:
           fetch-depth: 0 # the diff against the PR's base
       - name: Sort the changed paths
         id: sort
+        shell: bash # with pipefail: a failed sort fails the step, not only tee
         env:
           BASE: ${{ github.event.pull_request.base.sha }} # empty on a push to main: every check
         run: python3 scripts/ci_changes.py "$BASE" | tee -a "$GITHUB_OUTPUT"
   quality:
-    # A required check, so it always runs: a docs-only change runs only the docs gates.
+    # A required check, so it always runs: a docs-only change runs only the docs gates. If the
+    # sort failed, its output is empty, and every check runs.
     needs: changes
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     env:
-      DOCS_ONLY: ${{ needs.changes.outputs.docs_only }}
+      DOCS_ONLY: ${{ needs.changes.result == 'success' && needs.changes.outputs.docs_only || 'false' }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -73,10 +76,10 @@ jobs:
   infra:
     # The Deployment's Pulumi components and policy pack, offline: Pulumi's mocks, and the pack
     # run over the program's recorded state by the pinned CLI (spec 08 seams 6 and 7). No AWS.
-    # A required check: when the change cannot affect it, the job is skipped, and a skipped job
-    # satisfies a required check.
+    # A required check: when the sort says the change cannot affect it, the job is skipped, and
+    # a skipped job satisfies a required check. If the sort failed, the job runs.
     needs: changes
-    if: needs.changes.outputs.infra == 'true'
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.infra != 'false') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
