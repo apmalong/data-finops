@@ -84,7 +84,7 @@ def test_ci_runs_every_project_through_the_command() -> None:
         if "-m scripts.gates" in line:
             named.update(line.split("-m scripts.gates", 1)[1].split())
 
-    assert named == set(gates.PROJECTS)
+    assert named - {"--docs"} == set(gates.PROJECTS)
 
 
 def test_pytest_totals_are_read_from_windows_line_endings(
@@ -96,3 +96,19 @@ def test_pytest_totals_are_read_from_windows_line_endings(
     gates.main([], run=run, tree="t")
 
     assert f"- {pytest_gate}: passed (5 passed)" in capsys.readouterr().out
+
+
+def test_the_docs_gates_are_the_site_and_ste_checks_alone() -> None:
+    run, ran = _runner()
+
+    assert gates.main(["--docs"], run=run, tree="t") == 0
+
+    assert ran == ["root/site build", "root/site check", "root/ste check"]
+
+
+def test_the_docs_gates_also_run_with_every_project() -> None:
+    run, ran = _runner()
+
+    gates.main([], run=run, tree="t")
+
+    assert {"root/site build", "root/site check", "root/ste check"} <= set(ran)
