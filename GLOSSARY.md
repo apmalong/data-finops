@@ -58,7 +58,7 @@ A model, seed, test or other resource declared in a dbt project's manifest, iden
 _Avoid_: model (alone), dbt object
 
 **Workload Run**:
-One orchestrated execution that an orchestrator or lineage producer reports, for example an Airflow task run. It can have a parent run (the run that directly contains it) and a root run (the top of its chain, for example the DAG run).
+One orchestrated execution that an orchestrator or lineage Producer reports, for example an Airflow task run. It can have a parent run (the run that directly contains it) and a root run (the top of its chain, for example the DAG run).
 _Avoid_: job, task (alone), pipeline run
 
 **Identity Link**:
@@ -114,7 +114,7 @@ The chain behind one Allocation. It gives the Billing Line, and the method, Conf
 _Avoid_: drilldown, trace, breakdown, query cost
 
 **Billing Line Detail**:
-How much of a Billing Line a Cost Explanation shows: `minimal`, the declared FOCUS columns without tags and free-text names, or `full` (ADR 0028). A Deployment shows `minimal` unless its operator chooses `full`.
+How much of a Billing Line a Cost Explanation shows: `minimal` or `full` (ADR 0028). `minimal` withholds tags and free-text names, and it is the default of a Deployment and of the Public Demo.
 _Avoid_: redaction level, verbosity
 
 **Allocation Category**:
@@ -130,7 +130,7 @@ The quantity a provider charges a Query Execution for, after the provider's mini
 _Avoid_: scanned bytes (unless that is what is billed)
 
 **Billing Scope**:
-The Query Executions whose usage a Billing Line can bill: those of its account, region and charge period (ADR 0023). When the line bills by workgroup, only that workgroup's. It is an accounting scope, not Evidence.
+The Query Executions whose usage a Billing Line can bill: those of its account, region and charge period (ADR 0023). If the line bills by workgroup, its Billing Scope has only that workgroup's Query Executions. It is an accounting scope, not Evidence.
 _Avoid_: matching window, time overlap
 
 **Coverage**:
@@ -138,7 +138,7 @@ The fraction of a Billing Line's billed usage quantity accounted for by the Bill
 _Avoid_: match rate, completeness percentage
 
 **Query-history Completeness**:
-Coverage of exactly one for a Billing Line: every billable Query Execution in its scope is known.
+Coverage of exactly one for a Billing Line: every billable Query Execution in its Billing Scope is known.
 _Avoid_: full history
 
 **Confidence**:
@@ -162,7 +162,7 @@ One deterministic execution of the Allocation Policy over a fixed set of inputs.
 _Avoid_: job, batch
 
 **Input Digest**:
-The fingerprint of the inputs of one Calculation Run: the Export Snapshot, and the Billable Usage, Evidence and policy versions that it used. Two runs with the same inputs have the same Input Digest.
+The value that identifies what one Calculation Run read. It covers the Export Snapshot's lines and pools, the Billable Usage and Evidence of the Query Executions in scope, and each policy version. The Cost Dimensions configuration is not part of it (Q72).
 _Avoid_: hash (alone), checksum
 
 ## Reconciliation
@@ -179,34 +179,34 @@ The immutable, versioned record of Export Snapshots and the Allocation Snapshots
 _Avoid_: the Database (the Ledger is one part of it), warehouse
 
 **Allocation Snapshot**:
-The complete set of Allocations produced by one Calculation Run. Any period can be calculated again. A new calculation with different inputs creates a new snapshot and moves the current pointer. A replay of the current snapshot stores nothing.
+The complete set of Allocations produced by one Calculation Run. Any period can be calculated again. A new calculation with different inputs creates a new snapshot and moves the current pointer. A Replay of the current snapshot stores nothing.
 _Avoid_: result, rerun output
+
+**Replay**:
+An import of an Export Snapshot whose content equals the current snapshot of its Snapshot Scope, or equals a snapshot stored under the same ID (ADR 0020). A Calculation Run whose Input Digest equals the current Allocation Snapshot's is also a Replay, and neither stores anything.
+_Avoid_: duplicate (that is one item), rerun
 
 ## Stores
 
 **Database**:
-The one SQLite file that holds the Ledger and the Workload Store, locally or in a Deployment. In a Deployment, it is one object in the Deployment's bucket.
+The one SQLite file that holds what data-finops stores, such as the Ledger and the Workload Store, locally or in a Deployment. In a Deployment, it is one object in the Deployment's bucket.
 _Avoid_: store (alone), warehouse
 
 **Workload Store**:
-The record of workload metadata as Producers and providers reported it: OpenLineage events, dbt artifacts and Query Executions. It keeps each Observation as it was sent, in the Database beside the Ledger.
+The record of workload metadata as Producers and providers reported it: OpenLineage events, dbt artifacts and Query Executions, each kept as an Observation. It is in the Database beside the Ledger.
 _Avoid_: telemetry database, metadata warehouse
 
 **Observation**:
-One stored report of a Workload Run, a Model Execution or a Query Execution, as one source sent it. Facts such as the status of a run come from all of its Observations, and Observations that disagree are flagged, never merged.
-_Avoid_: record (alone), event (for a stored report)
+One stored report of a Workload Run, a Model Execution or a Query Execution, as one Producer or provider sent it. Observations are kept as they arrived, and are never merged.
+_Avoid_: row, event (for a stored report)
 
 **Duplicate**:
 An item that arrives again with the same content as an Observation that is already stored. Nothing new is stored.
 _Avoid_: replay (that is a whole snapshot)
 
 **Changed Copy**:
-An item that arrives again with different content, for example the same event or Query Execution reported in a new form. It is kept beside the first Observation, and where the two disagree, the disagreement is flagged.
-_Avoid_: update, overwrite
-
-**Replay**:
-An import of an Export Snapshot, or a Calculation Run, that gives the same content as the current snapshot of its Snapshot Scope (ADR 0020). Nothing is stored. The same is true for a snapshot ID that is already stored with the same content.
-_Avoid_: duplicate (that is one item), rerun
+An item that arrives again with different content, for example the same event or Query Execution reported in a new form. It is kept beside the first Observation, and the item is flagged for Observations that conflict.
+_Avoid_: update (for an item), overwrite
 
 ## Deployment
 
@@ -223,8 +223,8 @@ The bucket prefix Producers write OpenLineage events and dbt artifacts to, for t
 _Avoid_: drop zone, landing area
 
 **Producer**:
-A system that sends workload metadata to data-finops: an OpenLineage emitter such as Airflow, or the dbt process whose artifacts are sent. In a Deployment, a Producer can write to the Inbox and do nothing else.
-_Avoid_: client, agent, source (alone)
+A system that sends workload metadata to data-finops: an OpenLineage emitter such as Airflow, or the dbt process whose artifacts are sent. In a Deployment, a Producer writes only to the Inbox.
+_Avoid_: client, agent, source (for the system that sends)
 
 **Collection Watermark**:
 What a Deployment has already collected, for each source: the Delivery folders ingested, the Athena query IDs stored, and the Inbox objects processed. Inbox objects are keyed by key and ETag, so an overwritten object is collected again. It is never a clock time alone.
