@@ -74,7 +74,8 @@ class Manifest:
     execution_id: object
     """The `executionId` as the manifest gives it (a string, if the manifest is valid)."""
     data_files: list[object]
-    """The `dataFiles` S3 URIs, as the manifest gives them."""
+    """The `dataFiles` S3 URIs, as the manifest gives them. Empty when `dataFiles` is missing
+    or is not a list, so the Delivery is rejected as listing no data files."""
 
 
 def read_manifest(path: Path) -> Manifest:
@@ -86,7 +87,7 @@ def read_manifest(path: Path) -> Manifest:
     if not isinstance(content, dict):
         raise DeliveryError("the manifest is not valid JSON")
     files = content.get("dataFiles") or []
-    return Manifest(content.get("executionId"), files if isinstance(files, list) else [files])
+    return Manifest(content.get("executionId"), files if isinstance(files, list) else [])
 
 
 def is_manifest(path: Path) -> bool:
@@ -105,18 +106,18 @@ def load_delivery(manifest: Path, data_dir: Path | None = None) -> FocusExport:
     not downloaded, a FOCUS release other than the pinned one, or data files naming
     more than one billing account. ValueError when lines differ from the snapshot.
     """
-    content = read_manifest(manifest)
+    listing = read_manifest(manifest)
     focus_version = _focus_version(manifest)
     if focus_version != FOCUS_VERSION:
         raise DeliveryError(f"FOCUS {focus_version}, but {FOCUS_VERSION} is pinned (ADR 0015)")
-    uris = [str(uri) for uri in content.data_files]
+    uris = [str(uri) for uri in listing.data_files]
     if not uris:
         raise DeliveryError("the manifest lists no data files")
     folders = {_delivery_folder(uri) for uri in uris}
     if len(folders) != 1:
         raise DeliveryError(f"the manifest lists files from {len(folders)} deliveries")
     (delivery,) = folders
-    if delivery.execution != content.execution_id:
+    if delivery.execution != listing.execution_id:
         raise DeliveryError(f"files from execution {delivery.execution}, not the manifest's")
 
     local_folder = data_dir if data_dir is not None else manifest.parent

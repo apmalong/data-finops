@@ -3,6 +3,7 @@
 `tests/unit/test_import_boundaries.py` enforces these rules with a static import scan. It also checks that this list names each package in `src/data_finops/` (#207).
 
 - `contracts`: the Pydantic models that all other packages exchange (Billing Line, Export Snapshot, Allocation, workload records).
+  - It also holds the input limits that every reader shares (`contracts.limits`, #214).
   - Through `schemas.py`, it also holds the generated JSON Schemas (code first, OQ-15).
   - It imports nothing else from `data_finops`.
 - `billing`: provider billing readers and canonical billing facts.
@@ -42,7 +43,7 @@
   - These collectors fetch files and API responses, and give them to the current readers. They never write to a store themselves.
 - `collection`: the Collection Run (M6, spec 08). It is a thin orchestrator over `providers.aws`, the `billing` Delivery layout, the public ingest functions of the stores, and `calculation`. It loads each Delivery through `Ledger.ingest_focus` (#212).
   - `collection.remote` fetches and writes the database object.
-  - The Lambda handlers (`lambda_handlers`) are entry points over `collection`, `api` and `public_demo`, as `cli` is. The API handler and the publisher keep a copy of the database object through `collection.remote.CachedDatabase`, which gets it again only when its ETag changes. The handlers do not import `providers` (#214).
+  - The Lambda handlers (`lambda_handlers`) are entry points over `collection`, `api` and `public_demo`, as `cli` is. The API handler and the publisher keep a copy of the database object through `collection.remote.CachedDatabase`, which gets it again only when its ETag changes. The handlers do not import `providers` (#214). They get the S3 protocol types and `WriteConflict` from `collection.remote`, which gives them again.
   - The entry points (`cli` and `lambda_handlers`) get their AWS clients from `aws_clients`, the only module that imports boto3 (#183, #184).
 - `public_demo`: the parts of the public demo that run in AWS (M7, spec 09). It is not the `data-finops demo` command.
   - `public_demo.dataset` makes the demo dataset as Parquet, and writes it through `providers.aws`. It is the second module that can import pyarrow (ADR 0018, amended).
