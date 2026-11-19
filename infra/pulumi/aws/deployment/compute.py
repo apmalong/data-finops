@@ -238,6 +238,7 @@ def _collector_settings(settings: Settings, bucket: str, account_id: str) -> dic
         "export_name": settings.export_name,
         "billing_lookback_periods": settings.billing_lookback_periods,
         "max_history_pages": settings.max_history_pages,
+        "inbox_retention_days": settings.inbox_retention_days,
     } | ({"cost_dimensions_key": DIMENSIONS_KEY} if settings.cost_dimensions is not None else {})
 
 

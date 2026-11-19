@@ -157,7 +157,7 @@
 </span><span class="line">export_name = "example-focus-1-2"
 </span><span class="line">profile = "your-profile"</span></pre>
 <p><code>account_id</code> and <code>workgroups</code> name the Athena workgroups. The run also collects the query history of these workgroups. See <a href="ingest-athena-history.html#collect">Ingest Athena query history</a>. The three <code>export_</code> settings name the FOCUS export, as it is configured in Data Exports. See <a href="ingest-focus-export.html#collect">Ingest a FOCUS export</a>.</p>
-<p><code>profile</code> is optional. data-finops refuses an unknown setting. Thus a typo never fails silently. Then collect into a database:</p>
+<p><code>profile</code> is optional. So is <code>inbox_retention_days</code>: after how many days S3 expires an Inbox object. With it, the run warns about an object that it did not collect before S3 expires it. data-finops refuses an unknown setting. Thus a typo never fails silently. Then collect into a database:</p>
 <div class="shell-tabs">
 <pre class="shell-posix"><code><span class="line">data-finops collect --db finops.sqlite --config collect.toml</span></code></pre>
 <pre class="shell-windows" data-derived=""><code><span class="line">data-finops collect --db finops.sqlite --config collect.toml</span></code></pre>
@@ -166,6 +166,9 @@
 <pre class="output"><span class="line">{"sources":{"dbt":{"stored":2,…},"openlineage":{"stored":4,…,"rejected":[{"item":"inbox/openlineage/run.json#2",…}]}},"warnings":[],"calculation_run_ids":["calc-…"],"exit_code":1}
 </span><span class="line">  inbox/openlineage/run.json#2: invalid RunEvent: run/runId (format)</span></pre>
 <p>An OpenLineage JobEvent or DatasetEvent, which data-finops does not read, is listed under <code>warnings</code> by key and position. It does not change the exit code. A dbt folder that does not have both of its files yet is also in that list, until the file arrives. A file that was collected is never fetched again, unless a producer overwrites it with new content. A rejected file is not retried.</p>
+<p>Inbox objects expire after <code>inboxRetentionDays</code> (default 30). In its last 7 days, an object that was not collected is listed under <code>warnings</code>, with its key, its age and the days left:</p>
+<pre class="output"><span class="line">inbox/openlineage/run.json: not collected, 25 days old, expires in 5 days</span></pre>
+<p>To keep the data, correct a rejected file and write it to the Inbox again. For a dbt folder, send the file that it waits for. Do this before the object expires.</p>
 <p>The exit code is <code>0</code>, <code>1</code> when something was rejected, or <code>2</code> when a source could not be read. See <a href="../reference/exit-codes-and-environment.html">Exit codes and environment</a>.</p>
 <!-- pager:start -->
 <nav class="pager" aria-label="Previous and next">

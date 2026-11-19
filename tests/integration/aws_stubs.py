@@ -7,7 +7,7 @@ Stubber, which fails the test on any call it was not told to expect.
 import io
 from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 import boto3
@@ -27,6 +27,10 @@ EXPORT_BUCKET = "example-export-bucket"
 EXPORT_PREFIX = "focus"
 EXPORT_NAME = "example-focus-1-2"
 METADATA = f"{EXPORT_PREFIX}/{EXPORT_NAME}/metadata/"
+
+
+LISTED_AT = datetime(2026, 11, 1, tzinfo=UTC)
+"""When a listed object was last modified, unless a test says otherwise."""
 
 
 def _client(service: str) -> Any:
@@ -85,10 +89,12 @@ def expect_listing(
     next_token: str | None = None,
     sizes: Mapping[str, int] | None = None,
     etags: Mapping[str, str] | None = None,
+    modified: Mapping[str, datetime] | None = None,
     bucket: str = BUCKET,
 ) -> None:
     """One `ListObjectsV2` page listing `objects` (key → content) under `prefix`; with
-    `next_token`, a truncated page whose next one the caller expects too."""
+    `next_token`, a truncated page whose next one the caller expects too. An object is last
+    modified at `modified[key]`, else at LISTED_AT."""
     params: dict[str, Any] = {"Bucket": bucket, "Prefix": prefix}
     if token is not None:
         params["ContinuationToken"] = token
@@ -100,6 +106,7 @@ def expect_listing(
                 "Key": key,
                 "ETag": (etags or {}).get(key, etag(key)),
                 "Size": (sizes or {}).get(key, len(data)),
+                "LastModified": (modified or {}).get(key, LISTED_AT),
             }
             for key, data in objects.items()
         ],

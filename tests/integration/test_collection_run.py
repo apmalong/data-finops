@@ -4,6 +4,7 @@ ingested into a temporary database, asserted only through `reporting` and the su
 
 import dataclasses
 import json
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, NamedTuple
 
@@ -884,3 +885,72 @@ def test_only_the_two_manifests_are_downloaded_from_a_delivery_folder(tmp_path: 
             tmp_path / "data-finops.sqlite", SETTINGS, clients=AwsClients(s3=s3, athena=athena)
         )
     assert summary.sources["focus"].stored == 1
+
+
+NOW = datetime(2026, 11, 19, 12, tzinfo=UTC)
+
+
+def _days_ago(days: int) -> datetime:
+    return NOW - timedelta(days=days, hours=1)
+
+
+def _run_at(db: Path, s3: Any, s3_stub: Stubber, retention: int) -> CollectionSummary:
+    """`_run` at NOW, with the Deployment's Inbox retention."""
+    expect_prefixes(s3_stub, METADATA, [])
+    athena = athena_client()
+    settings = dataclasses.replace(SETTINGS, inbox_retention_days=retention)
+    with stubbed(athena) as stubber:
+        expect_history(stubber, [])
+        return run_collection(
+            db, settings, clients=AwsClients(s3=s3, athena=athena), now=NOW
+        )
+
+
+def test_an_inbox_object_not_collected_is_warned_about_in_its_last_7_days(
+    tmp_path: Path,
+) -> None:
+    db = tmp_path / "data-finops.sqlite"
+    rejected = b'{"secret-field": "secret-value"}'
+    waiting = f"{DBT}inv-001/manifest.json"  # its run_results.json never came
+    expiring = f"{OPENLINEAGE}rejected-25d.json"
+    not_yet = f"{OPENLINEAGE}rejected-22d.json"
+    collected = f"{OPENLINEAGE}collected-25d.json"
+    ages = {waiting: 23, expiring: 25, not_yet: 22, collected: 25}
+    inbox = {expiring: rejected, not_yet: rejected, collected: EVENTS}
+    s3 = s3_client()
+    for attempt in range(2):  # a rejected object is never fetched again, but still warned about
+        with stubbed(s3) as stubber:
+            expect_listing(
+                stubber, DBT, {waiting: MANIFEST}, modified={waiting: _days_ago(23)}
+            )
+            expect_listing(
+                stubber,
+                OPENLINEAGE,
+                inbox,
+                modified={key: _days_ago(ages[key]) for key in inbox},
+            )
+            if attempt == 0:
+                for key, data in inbox.items():
+                    expect_get(stubber, key, data)
+            summary = _run_at(db, s3, stubber, retention=30)
+        assert [w for w in summary.warnings if "expires" in w] == [
+            f"{waiting}: not collected, 23 days old, expires in 7 days",
+            f"{expiring}: not collected, 25 days old, expires in 5 days",
+        ]
+    assert "secret" not in json.dumps(summary.warnings)
+
+
+def test_with_a_retention_under_7_days_every_object_not_collected_is_warned_about(
+    tmp_path: Path,
+) -> None:
+    db = tmp_path / "data-finops.sqlite"
+    waiting = f"{DBT}inv-001/manifest.json"
+    s3 = s3_client()
+    with stubbed(s3) as stubber:
+        expect_listing(stubber, DBT, {waiting: MANIFEST}, modified={waiting: _days_ago(0)})
+        expect_listing(stubber, OPENLINEAGE, {})
+        summary = _run_at(db, s3, stubber, retention=3)
+    assert summary.warnings == [
+        f"{DBT}inv-001/: waiting for run_results.json",
+        f"{waiting}: not collected, 0 days old, expires in 3 days",
+    ]

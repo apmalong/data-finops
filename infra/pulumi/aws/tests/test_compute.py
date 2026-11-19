@@ -134,6 +134,7 @@ def test_the_collector_gets_its_settings_as_the_collect_files_keys() -> pulumi.O
             "export_name": "example-focus-1-2",
             "billing_lookback_periods": 2,
             "max_history_pages": 200,
+            "inbox_retention_days": 30,
         }
 
     return _after(SETTINGS, check)

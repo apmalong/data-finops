@@ -95,7 +95,7 @@ The bucket holds the database object, `inbox/openlineage/`, `inbox/dbt/<invocati
    - A dbt Inbox folder still waits for one of its files.
    - An OpenLineage event is not supported.
    - BatchGetQueryExecution did not return some Athena IDs.
-   - Planned but not built: an Inbox key older than `inboxRetentionDays`. The collector does not get this setting (#211).
+   - An Inbox object is not collected, and S3 expires it in 7 days or fewer (#211). The object is rejected, or it waits for a run to process it. When `inboxRetentionDays` is shorter than 7 days, the window is the retention. The warning gives the key, the age and the days left, never the content. The collector gets `inboxRetentionDays` as its setting `inbox_retention_days`. A settings file without this setting gets no such warning.
 8. **Summary:** one structured JSON log line for each run. It has these items:
    - for each source, the counts of stored, duplicate and rejected items
    - the rejections, by position or key and reason
