@@ -17,17 +17,19 @@ and the Cost Dimension claims. Each property's oracle comes from the spec text:
 
 The half-unit band, the scale and the tie-break restate the spec's rules, so the
 hand-worked examples at the end pin them with literal amounts. A failure that Hypothesis
-finds is kept as an `@example` of its property. None was found when this file was written:
-200 examples a property in the `ci` profile, and 20,000 in the `long` one.
+finds is kept as an `@example` of its property. The `long` profile found one: a true tie in
+largest remainder, which the engine broke by rounding, not by the lowest ID (#242).
 """
 
+import math
 from collections import defaultdict
 from collections.abc import Iterable, Mapping
-from decimal import ROUND_FLOOR, Decimal, localcontext
+from decimal import Decimal
+from fractions import Fraction
 from pathlib import Path
 
 import pytest
-from hypothesis import given
+from hypothesis import example, given
 from hypothesis import strategies as st
 
 from data_finops.attribution.dimensions import dimension_totals, resolve
@@ -192,6 +194,26 @@ def _exact_shares(pooled_line: PooledLine) -> dict[str, Decimal] | None:
     return None
 
 
+def _rational_shares(pooled_line: PooledLine) -> dict[str, Fraction] | None:
+    """`_exact_shares` as exact rationals, for comparing fractions without rounding."""
+    shares = _exact_shares(pooled_line)
+    if shares is None:
+        return None
+    pool, line = pooled_line.pool, pooled_line.line
+    if isinstance(pool, SharedCostPool):
+        total = sum((Fraction(w.weight) for w in pool.weights), Fraction(0))
+        return {w.query_execution_id: Fraction(w.weight) / total for w in pool.weights if w.weight}
+    assert isinstance(pool, MeteredCostPool) and line.ConsumedQuantity is not None
+    billed = Fraction(line.ConsumedQuantity)
+    known = sum((Fraction(u.quantity) for u in pool.usages), Fraction(0))
+    if TargetType.UNALLOCATED.value in shares:
+        fractions = {u.query_execution_id: Fraction(u.quantity) / billed for u in pool.usages}
+        fractions[TargetType.UNALLOCATED.value] = (billed - known) / billed
+    else:
+        fractions = {u.query_execution_id: Fraction(u.quantity) / known for u in pool.usages}
+    return {target: f for target, f in fractions.items() if f}
+
+
 @given(snapshots())
 def test_every_billing_line_partitions_exactly_per_cost_basis(pooled: list[PooledLine]) -> None:
     allocations = _allocate(pooled)
@@ -231,30 +253,45 @@ def test_each_part_is_within_one_unit_of_its_exact_share(pooled: list[PooledLine
                 assert abs(part.amount - exact) < _unit(pooled_line, basis)
 
 
+def _tie(*weights: int) -> list[PooledLine]:
+    """5.00 EUR shared by `weights` (q-0, q-1, ...), in every Cost Basis."""
+    line = BASE_LINE.model_copy(
+        update={basis.value: Decimal(5) for basis in CostBasis} | {"BillingCurrency": "EUR"}
+    )
+    shared = tuple(SharedWeight(f"q-{n}", Decimal(w)) for n, w in enumerate(weights))
+    return [
+        PooledLine("snap#0", line, SharedCostPool("shared", shared, Confidence.HEURISTIC_ESTIMATE))
+    ]
+
+
 @given(snapshots())
+@example(_tie(2, 5, 5))  # found by Hypothesis's long profile: a true tie of 1/300 of a cent
+@example(_tie(5, 5, 2))  # its mirror, which the engine broke the wrong way
 def test_the_leftover_units_go_to_the_largest_discarded_fractions(
     pooled: list[PooledLine],
 ) -> None:
     # Largest remainder (spec 03 step G), on the magnitude: each target gets its share
     # rounded down, and each leftover unit goes to a target whose discarded fraction is at
     # least as large as that of every target that gets none.
+    # The fractions are exact rationals, so a true tie is a tie, and it goes to the lowest
+    # Query Execution ID.
     allocations = _allocate(pooled)
-    with localcontext() as context:
-        context.prec = 60
-        for pooled_line in pooled:
-            shares = _exact_shares(pooled_line)
-            if shares is None:
-                continue
-            for basis in CostBasis:
-                cost, unit = pooled_line.line.cost(basis), _unit(pooled_line, basis)
-                bumped: list[Decimal] = []
-                kept: list[Decimal] = []
-                for part in _of(allocations, pooled_line.ref, basis):
-                    exact = abs(cost) * shares[part.target_id]
-                    floor = exact.quantize(unit, rounding=ROUND_FLOOR)
-                    (bumped if abs(part.amount) > floor else kept).append(exact - floor)
-                if bumped and kept:
-                    assert min(bumped) >= max(kept)
+    for pooled_line in pooled:
+        shares = _rational_shares(pooled_line)
+        if shares is None:
+            continue
+        for basis in CostBasis:
+            cost, unit = Fraction(pooled_line.line.cost(basis)), Fraction(_unit(pooled_line, basis))
+            bumped: list[tuple[Fraction, str]] = []
+            kept: list[tuple[Fraction, str]] = []
+            for part in _of(allocations, pooled_line.ref, basis):
+                exact = abs(cost) * shares[part.target_id]
+                floor = math.floor(exact / unit) * unit
+                entry = (exact - floor, part.target_id)
+                (bumped if abs(Fraction(part.amount)) > floor else kept).append(entry)
+            for fraction, target in bumped:
+                for other, other_target in kept:
+                    assert fraction > other or (fraction == other and target < other_target)
 
 
 WHOLE_LINE = {
@@ -433,23 +470,30 @@ def test_coverage_at_the_edges_of_the_half_unit_band(
     assert {a.coverage for a in allocations} == {Decimal(coverage)}
 
 
+EQUAL = {"q-2": 1, "q-0": 1, "q-1": 1}
+
+
 @pytest.mark.parametrize(
-    ("cost", "expected"),
+    ("cost", "currency", "weights", "expected"),
     [
         # Three equal weights of 0.10: each gets 0.03, and the leftover cent goes to the
         # lowest Query Execution ID (spec 03 step G).
-        ("0.10", {"q-0": "0.04", "q-1": "0.03", "q-2": "0.03"}),
-        ("-0.10", {"q-0": "-0.04", "q-1": "-0.03", "q-2": "-0.03"}),
+        ("0.10", "USD", EQUAL, {"q-0": "0.04", "q-1": "0.03", "q-2": "0.03"}),
+        ("-0.10", "USD", EQUAL, {"q-0": "-0.04", "q-1": "-0.03", "q-2": "-0.03"}),
         # 1 JPY has no minor unit: 0 each, and the one yen goes to q-0.
-        ("1", {"q-0": "1", "q-1": "0", "q-2": "0"}),
+        ("1", "JPY", EQUAL, {"q-0": "1", "q-1": "0", "q-2": "0"}),
+        # Found by Hypothesis (#242): 5.00 EUR by 5, 5 and 2 is 2.0833..., 2.0833... and
+        # 0.8333.... Each discards exactly 1/300 of a cent, a true tie, so the leftover cent
+        # goes to q-0. A comparison of rounded Decimals gave it to q-2.
+        ("5", "EUR", {"q-0": 5, "q-1": 5, "q-2": 2}, {"q-0": "2.09", "q-1": "2.08", "q-2": "0.83"}),
     ],
 )
-def test_a_tie_goes_to_the_lowest_query_execution_id(cost: str, expected: dict[str, str]) -> None:
-    line = _metered_line("1", cost).model_copy(
-        update={"BillingCurrency": "JPY" if "." not in cost else "USD"}
-    )
-    weights = tuple(SharedWeight(q, Decimal(1)) for q in ("q-2", "q-0", "q-1"))
-    pool = SharedCostPool("shared", weights, Confidence.HEURISTIC_ESTIMATE)
+def test_a_tie_goes_to_the_lowest_query_execution_id(
+    cost: str, currency: str, weights: dict[str, int], expected: dict[str, str]
+) -> None:
+    line = _metered_line("1", cost).model_copy(update={"BillingCurrency": currency})
+    shared = tuple(SharedWeight(q, Decimal(w)) for q, w in weights.items())
+    pool = SharedCostPool("shared", shared, Confidence.HEURISTIC_ESTIMATE)
     allocations = _of(_allocate([PooledLine("snap#0", line, pool)]), "snap#0", CostBasis.LIST_COST)
     assert {a.target_id: a.amount for a in allocations} == {
         q: Decimal(amount) for q, amount in expected.items()

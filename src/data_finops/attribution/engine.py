@@ -5,11 +5,13 @@ Pure: no I/O, clock or provider knowledge. Callers classify each Billing Line in
 Billable Usage in the line's own unit; the engine only splits money.
 """
 
+import math
 from collections import Counter
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
-from decimal import ROUND_FLOOR, Decimal, localcontext
+from decimal import Decimal, localcontext
 from enum import StrEnum
+from fractions import Fraction
 from typing import NamedTuple, assert_never
 
 from data_finops.contracts.allocation import (
@@ -346,19 +348,16 @@ def _split(
 
     Largest remainder (spec 03 step G) on the absolute value, sign restored: every target
     gets its share rounded down, then the leftover units go one each to the largest
-    discarded fractions, ties to the lowest (target type, target ID).
+    discarded fractions, ties to the lowest (target type, target ID). The shares are exact
+    rationals, so a true tie is never broken by rounding (#242).
     """
-    unit = Decimal(1).scaleb(-scale)
-    magnitude = abs(amount)
-    total = sum(weights.values(), Decimal(0))
-    with localcontext() as context:
-        context.prec = 60
-        exact = {target: magnitude * weight / total for target, weight in weights.items()}
-        parts = {
-            target: share.quantize(unit, rounding=ROUND_FLOOR) for target, share in exact.items()
-        }
-        leftover = int((magnitude - sum(parts.values(), Decimal(0))) / unit)
-        by_fraction = sorted(parts, key=lambda target: (parts[target] - exact[target], target))
-        for target in by_fraction[:leftover]:
-            parts[target] += unit
+    units = Fraction(abs(amount)) * 10**scale  # the magnitude, in units at `scale`
+    total = sum((Fraction(weight) for weight in weights.values()), Fraction(0))
+    exact = {target: units * Fraction(weight) / total for target, weight in weights.items()}
+    counts = {target: math.floor(share) for target, share in exact.items()}
+    leftover = int(units) - sum(counts.values())
+    by_fraction = sorted(counts, key=lambda target: (counts[target] - exact[target], target))
+    for target in by_fraction[:leftover]:
+        counts[target] += 1
+    parts = {target: Decimal(count).scaleb(-scale) for target, count in counts.items()}
     return {target: -part if amount < 0 else part for target, part in parts.items()}
