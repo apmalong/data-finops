@@ -16,7 +16,7 @@ from typing import Any, NamedTuple
 
 from scripts.site.nav import SiteError
 
-__all__ = ["EXCEPTIONS", "LIMITS", "stamp_limits"]
+__all__ = ["EXCEPTIONS", "LIMITS", "MARKER", "stamp_limits"]
 
 
 def _bytes(units: tuple[tuple[str, int], ...]) -> Callable[[Any], str]:
@@ -29,11 +29,11 @@ def _bytes(units: tuple[tuple[str, int], ...]) -> Callable[[Any], str]:
     return shown
 
 
-binary = _bytes((("GiB", 1024**3), ("MiB", 1024**2), ("KiB", 1024)))
-decimal = _bytes((("GB", 1000**3), ("MB", 1000**2), ("kB", 1000)))
+binary_bytes = _bytes((("GiB", 1024**3), ("MiB", 1024**2), ("KiB", 1024)))
+decimal_bytes = _bytes((("GB", 1000**3), ("MB", 1000**2), ("kB", 1000)))
 
 
-def count(value: Any) -> str:
+def thousands(value: Any) -> str:
     return f"{value:,}"
 
 
@@ -51,6 +51,7 @@ class Limit(NamedTuple):
     name: str
     """A module-level constant, or `Class.field` for a dataclass field's default."""
     shown: Callable[[Any], str]
+    """How the page shows the value."""
 
 
 _SRC = "src/data_finops"
@@ -60,72 +61,82 @@ _WORKLOAD = "examples/reference-workload/infra.py"
 _BILLING = f"{_SRC}/providers/athena_billing.py"
 
 LIMITS: dict[str, Limit] = {
-    "input-file": Limit(f"{_SRC}/contracts/limits.py", "MAX_INPUT_FILE_BYTES", binary),
-    "event": Limit(f"{_SRC}/lineage/validation.py", "MAX_EVENT_BYTES", binary),
-    "data-file": Limit(_RUN, "MAX_DATA_FILE_BYTES", binary),
-    "delivery": Limit(_RUN, "MAX_DELIVERY_BYTES", binary),
-    "database": Limit(f"{_SRC}/providers/aws/s3.py", "MAX_DATABASE_BYTES", decimal),
-    "expiry-warning-days": Limit(_RUN, "EXPIRY_WARNING_DAYS", count),
-    "history-pages-default": Limit(_RUN, "DEFAULT_HISTORY_PAGES", count),
-    "history-pages-max": Limit(_RUN, "MAX_HISTORY_PAGES", count),
-    "history-page-size": Limit(f"{_SRC}/providers/aws/athena.py", "PAGE_SIZE", count),
-    "aws-attempts": Limit(f"{_SRC}/aws_clients.py", "MAX_ATTEMPTS", count),
-    "token-min": Limit(f"{_SRC}/api/token.py", "MIN_TOKEN_LENGTH", count),
-    "claim-chars": Limit(f"{_SRC}/contracts/dimensions.py", "MAX_CLAIM_CHARS", count),
+    "input-file": Limit(f"{_SRC}/contracts/limits.py", "MAX_INPUT_FILE_BYTES", binary_bytes),
+    "event": Limit(f"{_SRC}/lineage/validation.py", "MAX_EVENT_BYTES", binary_bytes),
+    "data-file": Limit(_RUN, "MAX_DATA_FILE_BYTES", binary_bytes),
+    "delivery": Limit(_RUN, "MAX_DELIVERY_BYTES", binary_bytes),
+    "database": Limit(f"{_SRC}/providers/aws/s3.py", "MAX_DATABASE_BYTES", decimal_bytes),
+    "expiry-warning-days": Limit(_RUN, "EXPIRY_WARNING_DAYS", thousands),
+    "history-pages-default": Limit(_RUN, "DEFAULT_HISTORY_PAGES", thousands),
+    "history-pages-max": Limit(_RUN, "MAX_HISTORY_PAGES", thousands),
+    "history-page-size": Limit(f"{_SRC}/providers/aws/athena.py", "PAGE_SIZE", thousands),
+    "aws-attempts": Limit(f"{_SRC}/aws_clients.py", "MAX_ATTEMPTS", thousands),
+    "token-min": Limit(f"{_SRC}/api/token.py", "MIN_TOKEN_LENGTH", thousands),
+    "claim-chars": Limit(f"{_SRC}/contracts/dimensions.py", "MAX_CLAIM_CHARS", thousands),
     "policy-version": Limit(f"{_SRC}/calculation/__init__.py", "POLICY_VERSION", as_text),
     "billable-usage-version": Limit(_BILLING, "POLICY_VERSION", as_text),
+    "megabyte-minimum": Limit(_BILLING, "_MINIMUM", decimal_bytes),
     "billable-usage-minimum": Limit(_BILLING, "_V3_MINIMUM", as_text),
     "billable-usage-step": Limit(_BILLING, "_V3_STEP", as_text),
     "ephemeral-storage-default": Limit(_SETTINGS, "Settings.ephemeral_storage_mb", megabytes),
     "collector-memory-default": Limit(_SETTINGS, "Settings.collector_memory_mb", megabytes),
-    "inbox-retention-default": Limit(_SETTINGS, "Settings.inbox_retention_days", count),
-    "demo-snapshot-days": Limit("infra/pulumi/aws/deployment/demo.py", "SNAPSHOT_DAYS", count),
-    "workload-scan-default": Limit(_WORKLOAD, "DEFAULT_SCAN_CUTOFF_BYTES", binary),
-    "workload-scan-min": Limit(_WORKLOAD, "ATHENA_MIN_CUTOFF_BYTES", binary),
+    "inbox-retention-default": Limit(_SETTINGS, "Settings.inbox_retention_days", thousands),
+    "demo-snapshot-days": Limit("infra/pulumi/aws/deployment/demo.py", "SNAPSHOT_DAYS", thousands),
+    "workload-scan-default": Limit(_WORKLOAD, "DEFAULT_SCAN_CUTOFF_BYTES", binary_bytes),
+    "workload-scan-min": Limit(_WORKLOAD, "ATHENA_MIN_CUTOFF_BYTES", binary_bytes),
 }
 """Each limit a page can stamp: where its constant is, and how the page shows it."""
 
+_ATHENA_HISTORY = "Athena's history retention, an AWS fact that no constant enforces"
+_COST_ESTIMATE = "an assumption of the cost estimate"
+_PACKAGE_SIZE = "the size of the Lambda package, measured when the page was written"
+_WORKED_EXAMPLE = "a worked example"
+_EXPONENT = "the exponent of a power such as 2<sup>40</sup>, which the check reads apart"
+
 EXCEPTIONS: dict[str, dict[str, str]] = {
     "how-to/ingest-athena-history.html": {
-        "45 days": "Athena's history retention, an AWS fact that no constant enforces",
+        "45 days": _ATHENA_HISTORY,
     },
     "explanation/deployment-architecture.html": {
-        "45 days": "Athena's history retention, an AWS fact that no constant enforces",
-        "60 seconds": "an assumption of the cost estimate",
-        "300 seconds": "an assumption of the cost estimate",
-        "1 GB": "an assumption of the cost estimate",
-        "0.1 GB": "an assumption of the cost estimate",
-        "12 GB": "an assumption of the cost estimate",
+        "45 days": _ATHENA_HISTORY,
+        "60 seconds": _COST_ESTIMATE,
+        "300 seconds": _COST_ESTIMATE,
+        "1 GB": _COST_ESTIMATE,
+        "0.1 GB": _COST_ESTIMATE,
+        "12 GB": _COST_ESTIMATE,
+        "10,240 MB": "the Lambda maximum of ephemeral storage, an AWS fact",
+        "5 GB": "the most that one S3 PutObject holds, an AWS fact",
     },
     "explanation/compared-with-aws-tools.html": {
-        "45 days": "Athena's history retention, an AWS fact that no constant enforces",
+        "45 days": _ATHENA_HISTORY,
         "7 days": "the length of the evaluation (#232), not a limit of data-finops",
     },
     "explanation/public-demo.html": {
         "10 MB": "the demo's typical query scan, a measured size, not a limit",
     },
     "explanation/allocation-and-coverage.html": {
-        "0.001 TB": "the tutorial's bill, a worked example",
-        "1,000,000,000 bytes": "the tutorial's query, a worked example",
-        "0.000905 TB": "a worked example's result",
-        "0.00090949 TB": "a worked example's result",
+        "0.001 TB": _WORKED_EXAMPLE,
+        "1,000,000,000 bytes": _WORKED_EXAMPLE,
+        "0.000905 TB": _WORKED_EXAMPLE,
+        "0.00090949 TB": _WORKED_EXAMPLE,
         "0 bytes": "a query that scans nothing",
-        "0.0005 TB": "half the bill's rounding step in the worked example",
+        "0.0005 TB": _WORKED_EXAMPLE,
         "1 TB": "the unit that versions 2 and 3 read in different ways",
-        "10 MB": "version 2's minimum, a superseded rule",
-        "40 TB": "the exponent of 2<sup>40</sup> TB, which the text check reads apart",
-        "40 bytes": "the exponent of 2<sup>40</sup> bytes, which the text check reads apart",
-        "12 bytes": "the exponent of 10<sup>12</sup> bytes, which the text check reads apart",
+        "40 TB": _EXPONENT,
+        "40 bytes": _EXPONENT,
+        "12 bytes": _EXPONENT,
     },
     "how-to/deploy-to-aws.html": {
-        "66 MB": "the size of the Lambda package, measured when the page was written",
+        "66 MB": _PACKAGE_SIZE,
     },
     "how-to/tear-down-deployment.html": {
-        "66 MB": "the size of the Lambda package, measured when the page was written",
+        "66 MB": _PACKAGE_SIZE,
     },
 }
 """Each page's numbers that are stated by hand on purpose, with the reason."""
 
+MARKER = re.compile(r"<!-- (?:limit:[a-z0-9-]+|/limit) -->")
+"""A start or end marker of a stamped limit: inline, so search text reads it as nothing."""
 _STAMP = re.compile(r"<!-- limit:([a-z0-9-]+) -->(.*?)<!-- /limit -->")
 _HAND_STATED = re.compile(
     r"\b\d[\d,.]*\s(?:KiB|MiB|GiB|kB|MB|GB|TB|bytes|days|characters|attempts)\b"
@@ -163,7 +174,7 @@ def stamp_limits(repo: Path, page: str, text: str) -> str:
 def _value(repo: Path, path: str, name: str) -> Any:
     module = _parse(repo / path)
     if "." in name:
-        cls, field = name.split(".")
+        cls, _, field = name.partition(".")
         for node in module.body:
             if isinstance(node, ast.ClassDef) and node.name == cls:
                 for item in node.body:
@@ -194,7 +205,6 @@ def _assigned(module: ast.Module, name: str) -> ast.expr | None:
 
 _OPERATORS: dict[type[ast.operator], Callable[[Any, Any], Any]] = {
     ast.Add: lambda a, b: a + b,
-    ast.Sub: lambda a, b: a - b,
     ast.Mult: lambda a, b: a * b,
     ast.Pow: lambda a, b: a**b,
 }
@@ -206,7 +216,7 @@ def _evaluate(repo: Path, path: str, node: ast.expr) -> Any:
     `"sep".join((…))`."""
     if isinstance(node, ast.Constant):
         return node.value
-    if isinstance(node, ast.Tuple | ast.List):
+    if isinstance(node, ast.Tuple):
         return tuple(_evaluate(repo, path, item) for item in node.elts)
     if isinstance(node, ast.BinOp) and type(node.op) in _OPERATORS:
         left, right = _evaluate(repo, path, node.left), _evaluate(repo, path, node.right)

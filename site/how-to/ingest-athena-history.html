@@ -144,7 +144,7 @@
 <p>A Collection Run fetches the history itself, for the workgroups its settings name. Run one from your machine with <code>data-finops collect</code>, as <a href="send-to-inbox.html#collect">Send workload metadata to the Inbox</a> shows. A Deployment runs one every day. For each workgroup, the run does these steps:</p>
 <ul>
 <li>It lists the Query Execution IDs of the workgroup, <!-- limit:history-page-size -->50<!-- /limit --> on each page, in <code>max_history_pages</code> pages at most (default <!-- limit:history-pages-default -->200<!-- /limit -->, at most <!-- limit:history-pages-max -->1,000<!-- /limit -->).</li>
-<li>It fetches only the Query Executions that are not stored yet, 50 at a time.</li>
+<li>It fetches only the Query Executions that are not stored yet, <!-- limit:history-page-size -->50<!-- /limit --> at a time.</li>
 <li>It stores the finished Query Executions, with only the metadata listed above. A Query Execution that is still queued or in progress stays for a later run.</li>
 </ul>
 <p>Athena keeps 45 days of query history. A Collection Run shows a warning when it can have lost some history:</p>

@@ -11,6 +11,7 @@ import re
 from collections.abc import Callable
 from pathlib import Path
 
+from scripts.site.limits import MARKER as LIMIT_MARKER
 from scripts.site.limits import stamp_limits
 from scripts.site.nav import Entry, SiteError, parse_nav, walk
 from scripts.site.reference import (
@@ -280,8 +281,7 @@ _MAIN = re.compile(r"<main\b[^>]*>(.*)</main>", re.DOTALL)
 _H1 = re.compile(r"<h1\b[^>]*>.*?</h1>", re.DOTALL)
 _TAG = re.compile(r"<[^>]+>")
 _INLINE_TAG = re.compile(
-    r"</?(?:a|code|em|strong|span|abbr|kbd|b|i)\b[^>]*>"
-    r"|<!-- (?:limit:[a-z0-9-]+|/limit) -->"  # a stamped limit (#247) is inline too
+    r"</?(?:a|code|em|strong|span|abbr|kbd|b|i)\b[^>]*>|" + LIMIT_MARKER.pattern
 )
 # Not searched: a command's output, and the Windows version that build adds beside a command.
 _OUTPUT = re.compile(r'<pre\b[^>]*class="(?:output|shell-windows)[^"]*"[^>]*>.*?</pre>', re.DOTALL)

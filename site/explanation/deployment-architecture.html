@@ -162,7 +162,8 @@
 <h2 id="limits">Limits to watch</h2>
 <ul>
 <li>Each Collection Run moves the whole database in and out of S3. As it grows, so do the run's time and the API's cold start.</li>
-<li>The <code>/tmp</code> of each function that copies the database is the <code>ephemeralStorageMb</code> setting, <!-- limit:ephemeral-storage-default -->10,240 MB<!-- /limit --> by default, the Lambda maximum. The database and the Inbox file that a run collects must fit in it. One upload holds <!-- limit:database -->5 GB<!-- /limit --> at most.</li>
+<li>The <code>/tmp</code> of each function that copies the database is the <code>ephemeralStorageMb</code> setting, <!-- limit:ephemeral-storage-default -->10,240 MB<!-- /limit --> by default. Lambda permits up to 10,240 MB. The database and the Inbox file that a run collects must fit in it.</li>
+<li>A database over <!-- limit:database -->5 GB<!-- /limit --> is refused when a function downloads it, because one upload to S3 holds 5 GB at most. Multipart upload is a revisit trigger.</li>
 <li>Athena keeps query history for 45 days. If a Deployment stops collection for a longer time, it loses the history of that gap. The summary shows a warning when this can have occurred.</li>
 <li>None of these is measured on a large account yet. Each is a revisit trigger in ADR 0026 or spec 08.</li>
 </ul>
