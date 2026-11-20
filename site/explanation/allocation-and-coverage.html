@@ -140,16 +140,16 @@
 <h2 id="worked">A worked example</h2>
 <p>The tutorial's bill has one Athena Billing Line of $6.00, for 0.001 TB scanned in workgroup <code>demo</code>. Two Query Executions are in its billing scope:</p>
 <ul>
-<li><code>q-001</code> succeeded and scanned 1,000,000,000 bytes. Its Billable Usage is 0.000905 TB: 10<sup>9</sup> / 2<sup>40</sup> is 0.00090949 TB, and its hour is rounded down to a multiple of 0.000005 TB.</li>
+<li><code>q-001</code> succeeded and scanned 1,000,000,000 bytes. Its Billable Usage is 0.000905 TB: 10<sup>9</sup> / 2<sup>40</sup> is 0.00090949 TB, and its hour is rounded down to a multiple of <!-- limit:billable-usage-step -->0.000005<!-- /limit --> TB.</li>
 <li><code>q-002</code> is DDL that scanned 0 bytes. Its Billable Usage is 0.</li>
 </ul>
 <p>Known Billable Usage is 0.000905 TB. The bill exports 0.001 TB with three decimal places, so a difference of 0.0005 TB or less counts as the same quantity. Thus Coverage is 1. <code>q-001</code> gets a $6.00 Metered Share. Its <a href="../reference/glossary.html#trusted-query-comment">Trusted Query Comment</a> names Model Execution <code>model.demo.orders</code>, so the $6.00 rolls up to it. The bill's $4.00 S3 storage line is outside every policy, so it is Unallocated as <code>ineligible</code>.</p>
 
 <h2 id="policy">The current Athena policy</h2>
-<p>Calculation Runs record their policy version, today <code>allocation-engine/1+line-classification/1+athena-billable-usage/3+athena-billing-scope/2+cost-dimensions/1</code>. <code>athena-billable-usage/3</code> sets each Query Execution's Billable Usage:</p>
+<p>Calculation Runs record their policy version, today <code><!-- limit:policy-version -->allocation-engine/1+line-classification/1+athena-billable-usage/3+athena-billing-scope/2+cost-dimensions/1<!-- /limit --></code>. <code><!-- limit:billable-usage-version -->athena-billable-usage/3<!-- /limit --></code> sets each Query Execution's Billable Usage:</p>
 <ul>
 <li>a failed one, or one that scanned 0 bytes: 0</li>
-<li>any other one that succeeded or was canceled: the bytes that it scanned / 2<sup>40</sup> TB, with a minimum of 0.00001 TB. The queries that completed in the same UTC hour are added, and that sum is rounded down to a multiple of 0.000005 TB. Each query gets a part of the hour's sum, in proportion to its quantity after the minimum.</li>
+<li>any other one that succeeded or was canceled: the bytes that it scanned / 2<sup>40</sup> TB, with a minimum of <!-- limit:billable-usage-minimum -->0.00001<!-- /limit --> TB. The queries that completed in the same UTC hour are added, and that sum is rounded down to a multiple of <!-- limit:billable-usage-step -->0.000005<!-- /limit --> TB. Each query gets a part of the hour's sum, in proportion to its quantity after the minimum.</li>
 <li>a queued one, or one that is still in progress: 0 in that report</li>
 <li>a billed one that reported no scan: unknown</li>
 </ul>

@@ -123,7 +123,7 @@
 </span><span class="line">  5: invalid ParentRunFacet: (event) (required)
 </span><span class="line">  6: unsupported JobEvent
 </span><span class="line">  7: unsupported DatasetEvent</span></pre>
-<p>A file over 512 MiB is rejected whole, before it is read. Its line has the position <code>0</code>:</p>
+<p>A file over <!-- limit:input-file -->512 MiB<!-- /limit --> is rejected whole, before it is read. Its line has the position <code>0</code>:</p>
 <pre class="output"><span class="line">openlineage: 0 accepted, 0 duplicates, 0 changed copies, 0 unsupported, 1 rejected
 </span><span class="line">  0: too large: the whole file</span></pre>
 
@@ -142,7 +142,7 @@
 <li><code>201</code> with the counts above when the event is stored, or was already there.</li>
 <li><code>202</code> for an unsupported event, which is not stored.</li>
 <li><code>400</code> for a rejected event, with the reason.</li>
-<li><code>413</code> for a body over the 1 MiB event cap. It is refused before it is read in full.</li>
+<li><code>413</code> for a body over the <!-- limit:event -->1 MiB<!-- /limit --> event cap. It is refused before it is read in full.</li>
 <li><code>415</code> for a compressed body. Send each event uncompressed.</li>
 </ul>
 <p>A received event changes no Allocation until the next <a href="calculate.html"><code>calculate</code></a>.</p>

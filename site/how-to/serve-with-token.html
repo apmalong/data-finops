@@ -104,7 +104,7 @@
 <p><code>serve</code> runs the API, the dashboard and the OpenLineage receiver. On loopback, a token is optional. To serve on a different address, a token is necessary. This guide sets a token and serves with it (ADR 0024).</p>
 
 <h2 id="make">Make a token</h2>
-<p>A token is at least 16 characters. Make a long random one and keep it in a file only you can read:</p>
+<p>A token is at least <!-- limit:token-min -->16<!-- /limit --> characters. Make a long random one and keep it in a file only you can read:</p>
 <div class="shell-tabs">
 <pre class="shell-posix"><code><span class="line">python -c "import secrets; print(secrets.token_urlsafe(32))" &gt; finops.token</span></code></pre>
 <pre class="shell-windows"><code><span class="line">python -c "import secrets; print(secrets.token_urlsafe(32))" | Set-Content -Encoding ascii finops.token</span></code></pre>

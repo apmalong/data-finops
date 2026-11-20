@@ -130,7 +130,7 @@
 <p>The rules:</p>
 <ul>
 <li>A file has 8 dimensions at most, and its <code>query_comment</code> sources name 16 keys at most.</li>
-<li>Ingest keeps only the comment keys that the file names. A value longer than 128 characters is removed, and the ingest result counts it as a dropped claim.</li>
+<li>Ingest keeps only the comment keys that the file names. A value longer than <!-- limit:claim-chars -->128<!-- /limit --> characters is removed, and the ingest result counts it as a dropped claim.</li>
 <li>An unknown key or source refuses the file. The error names the file and the fault, never a value.</li>
 <li>Add <code>sensitive = true</code> to a dimension to keep its values out of the minimal Cost Explanation and out of the public demo. The full API still shows them.</li>
 </ul>

@@ -143,7 +143,7 @@
 <li>The collector runs one time each day. The demo is as fresh as its last run.</li>
 <li>AWS delivers the bill some hours after the usage. The newest queries are not published until their Billing Line arrives. Thus the demo trails by about a day.</li>
 <li>The banner shows when the snapshot was published, and the Calculation Run of the Billing Period that the dashboard shows.</li>
-<li>S3 deletes each snapshot after 30 days. If no snapshot is published for 30 days, the demo shows nothing.</li>
+<li>S3 deletes each snapshot after <!-- limit:demo-snapshot-days -->30<!-- /limit --> days. If no snapshot is published for <!-- limit:demo-snapshot-days -->30<!-- /limit --> days, the demo shows nothing.</li>
 </ul>
 
 <h2 id="cost">What it costs</h2>

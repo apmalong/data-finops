@@ -6,6 +6,9 @@ from typing import Any
 
 from data_finops.collection import AwsClients, CollectionSettings
 
+MAX_ATTEMPTS = 5
+"""The most attempts of one AWS call, the first one included (Q44)."""
+
 
 class ClientsUnavailable(RuntimeError):
     """No client could be made: the extra is missing, or the profile or region is wrong.
@@ -47,8 +50,8 @@ def _aws_session(profile: str | None, region: str) -> tuple[Any, Any]:
             f"cannot make an AWS client ({type(error).__name__}): check the profile and region"
         ) from None
     # botocore's standard retries: throttling and transient errors backed off with jitter,
-    # at most 5 attempts; then the source fails and the scheduler retries the run (Q44).
-    return session, Config(retries={"mode": "standard", "total_max_attempts": 5})
+    # at most MAX_ATTEMPTS; then the source fails and Lambda retries the run (Q44, #279).
+    return session, Config(retries={"mode": "standard", "total_max_attempts": MAX_ATTEMPTS})
 
 
 def signed_headers(url: str, *, region: str, profile: str) -> dict[str, str]:
