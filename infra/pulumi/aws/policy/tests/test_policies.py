@@ -221,7 +221,7 @@ BOUNDED = {
 }
 
 
-def test_a_function_must_set_its_timeout_and_memory_within_bounds() -> None:
+def test_a_function_must_set_its_timeout_memory_and_storage_within_bounds() -> None:
     assert _violations_of(policies.FUNCTION_BOUNDED, FUNCTION, BOUNDED) == []
     assert _violations_of(policies.FUNCTION_BOUNDED, FUNCTION, {"name": "f"}) == [
         "timeout must be set, from 1 to 900 seconds",

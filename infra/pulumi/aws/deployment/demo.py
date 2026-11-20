@@ -87,9 +87,9 @@ PUBLISHER_TIMEOUT_SECONDS = 900
 PUBLISHER_MEMORY_MB = 1024
 GENERATOR_TIMEOUT_SECONDS = 900
 GENERATOR_MEMORY_MB = 3008
+"""The generator builds one Parquet part (a million rows) in memory at a time."""
 LEAST_EPHEMERAL_STORAGE_MB = 512
 """Lambda's least `/tmp`, for the functions that never copy the database."""
-"""The generator builds one Parquet part (a million rows) in memory at a time."""
 
 
 class PublicDemo(pulumi.ComponentResource):

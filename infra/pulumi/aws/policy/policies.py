@@ -60,7 +60,7 @@ TIMEOUT_SECONDS = (1, 900)
 MEMORY_MB = (128, 10240)
 """Spec 08's bounds on a function's memory, MB (as `deployment.settings` enforces)."""
 EPHEMERAL_STORAGE_MB = (512, 10240)
-"""Spec 08's bounds on a function's `/tmp` storage, MB (#278)."""
+"""Spec 08's bounds on a function's `/tmp` storage, MB (as `deployment.settings` enforces)."""
 LOGS = frozenset({"logs:CreateLogStream", "logs:PutLogEvents"})
 POLICY_ACTIONS: dict[str, frozenset[str]] = {
     "collector": frozenset(
