@@ -21,13 +21,14 @@ Reusable, customer-managed Pulumi Python components that deploy data-finops into
 
 ### Collector function
 The collector is the only writer.
-- EventBridge Scheduler starts it (`schedule`, default `cron(0 6 * * ? *)` UTC). It gets 2 retries at most, and the schedule has no flexible window.
+- EventBridge Scheduler starts it (`schedule`, default `cron(0 6 * * ? *)` UTC). The schedule has no flexible window, and it invokes the collector asynchronously.
+- When a run fails, Lambda's asynchronous invocation retries it, 2 times at most (the Lambda default). The schedule's own retry policy (`maximum_retry_attempts: 2`) applies only when the scheduler cannot deliver the invocation to Lambda, for example when Lambda throttles it (#279).
 - It downloads the database object to `/tmp`, runs one Collection Run, and uploads with `If-Match` on the downloaded ETag.
 - A 412 fails the run before anything else is written. The next run starts again from the current object.
 - Its handler is `data_finops.lambda_handlers.collector`.
 - Its settings come in one environment variable, `DATA_FINOPS_COLLECTOR_SETTINGS`. This variable holds JSON with the keys of the `collect` TOML file, and it is validated in the same way (#183).
 - The database object is `database/data-finops.sqlite`. The first run writes it with `If-None-Match: *`.
-- Exit codes 0 and 1 return the summary. Exit code 2, a write conflict or bad settings raise `CollectionFailed`. Thus the invocation counts as an error, and the scheduler retries it.
+- Exit codes 0 and 1 return the summary. Exit code 2, a write conflict or bad settings raise `CollectionFailed`. Thus the invocation counts as an error, and Lambda retries it.
 - One `PutObject` holds up to 5 GB. Multipart upload is a revisit trigger.
 
 ### API function
@@ -88,7 +89,7 @@ The bucket holds the database object, `inbox/openlineage/`, `inbox/dbt/<invocati
    - It is never a clock time alone.
 6. **Outcome:** rejected items are logged by position or key and reason, never by content. The run still calculates.
    - This is the meaning of exit code 1 of the CLI.
-   - If a source failed (it could not be read, or access was denied: the meaning of exit code 2), the run calculates on the stored data. Then it ends as failed, so the scheduler retries it. Replay is idempotent.
+   - If a source failed (it could not be read, or access was denied: the meaning of exit code 2), the run calculates on the stored data. Then it ends as failed, so Lambda retries it. Replay is idempotent.
 7. **Warnings:** a run shows a warning in these cases:
    - The history page limit was reached.
    - The complete list of a workgroup is not empty, but it overlaps none of its stored Query Executions. Thus history can have expired before a run read it. Athena keeps 45 days. This is detected from the data, not from a stored clock (#181).
@@ -171,7 +172,7 @@ Outputs: the bucket name, the API URL, the ARNs of the producer, reader, consume
 
 ## Cost limits
 AWS has no hard limit on spend, and Budget actions cannot stop Lambda. Thus the cost limits are these:
-- limited resources: the timeouts, the memory, one daily schedule with a limited number of retries, the log retention and the S3 expiries
+- limited resources: the timeouts, the memory, one daily schedule with a limited number of retries by Lambda, the log retention and the S3 expiries
 - the optional Budget alert
 - the kill switch
 
