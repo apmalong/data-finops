@@ -110,6 +110,16 @@ _SELECTION_PROBLEMS: dict[int | str, dict[str, Any]] = {
     ),
     404: _problem_doc("No such Calculation Run, or no calculated Snapshot Scope matches."),
 }
+_SUMMARY_PROBLEMS: dict[int | str, dict[str, Any]] = {
+    **_READ_PROBLEMS,
+    400: _problem_doc(
+        "Invalid request, or a Calculation Run named together with scope filters: the detail"
+        " names the fields, never their values."
+    ),
+    404: _problem_doc(
+        "No such Calculation Run. A filter that matches no scope gives an empty list."
+    ),
+}
 _DIMENSION_PROBLEMS: dict[int | str, dict[str, Any]] = {
     **_SELECTION_PROBLEMS,
     404: _problem_doc(
@@ -196,18 +206,24 @@ def create_app(
             return Health(status="unavailable")
         return Health(status="ok")
 
-    @app.get("/v1/costs/summary", responses=_READ_PROBLEMS)
+    @app.get("/v1/costs/summary", responses=_SUMMARY_PROBLEMS)
     def cost_summary(
         cost_basis: CostBasis = CostBasis.BILLED_COST,
+        calculation_run_id: Annotated[str | None, Query(max_length=128)] = None,
         billing_account_id: Annotated[str | None, Query(max_length=128)] = None,
         billing_period: date | None = None,
+        source: Annotated[str | None, Query(max_length=256)] = None,
     ) -> CostSummaries:
-        """One Cost Summary per Snapshot Scope, for the scope's current Allocation Snapshot."""
+        """One Cost Summary per Snapshot Scope, for the scope's current Allocation Snapshot.
+        With `calculation_run_id`, the response has only the summary of that run's snapshot,
+        which can be current or superseded."""
         with Reporting(db) as read_model:
             return read_model.cost_summary(
                 cost_basis=cost_basis,
+                calculation_run_id=calculation_run_id,
                 billing_account_id=billing_account_id,
                 billing_period=billing_period,
+                source=source,
             )
 
     @app.get("/v1/allocations", responses=_SELECTION_PROBLEMS)

@@ -74,7 +74,7 @@
     "/v1/costs/summary": {
       "get": {
         "summary": "Cost Summary",
-        "description": "One Cost Summary per Snapshot Scope, for the scope's current Allocation Snapshot.",
+        "description": "One Cost Summary per Snapshot Scope, for the scope's current Allocation Snapshot.\nWith `calculation_run_id`, the response has only the summary of that run's snapshot,\nwhich can be current or superseded.",
         "operationId": "cost_summary_v1_costs_summary_get",
         "parameters": [
           {
@@ -84,6 +84,23 @@
             "schema": {
               "$ref": "#/components/schemas/CostBasis",
               "default": "BilledCost"
+            }
+          },
+          {
+            "name": "calculation_run_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 128
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Calculation Run Id"
             }
           },
           {
@@ -119,6 +136,23 @@
               ],
               "title": "Billing Period"
             }
+          },
+          {
+            "name": "source",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 256
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Source"
+            }
           }
         ],
         "responses": {
@@ -133,7 +167,7 @@
             }
           },
           "400": {
-            "description": "Invalid request: the detail names the fields, never their values.",
+            "description": "Invalid request, or a Calculation Run named together with scope filters: the detail names the fields, never their values.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -242,6 +276,42 @@
           },
           "503": {
             "description": "The database cannot be opened as a current data-finops database.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "description": "An RFC 9457 Problem Details body.",
+                  "properties": {
+                    "type": {
+                      "default": "about:blank",
+                      "title": "Type",
+                      "type": "string"
+                    },
+                    "title": {
+                      "title": "Title",
+                      "type": "string"
+                    },
+                    "status": {
+                      "title": "Status",
+                      "type": "integer"
+                    },
+                    "detail": {
+                      "title": "Detail",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "title",
+                    "status",
+                    "detail"
+                  ],
+                  "title": "Problem",
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such Calculation Run. A filter that matches no scope gives an empty list.",
             "content": {
               "application/problem+json": {
                 "schema": {

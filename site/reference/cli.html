@@ -232,8 +232,9 @@
 <p>the Cost Summary of each Snapshot Scope (GET /v1/costs/summary)</p>
 <pre class="usage"><code><span class="line">usage: data-finops summary [-h]
 </span><span class="line">                           [--cost-basis {BilledCost,EffectiveCost,ListCost,ContractedCost}]
+</span><span class="line">                           [--calculation-run-id CALCULATION_RUN_ID]
 </span><span class="line">                           [--billing-account-id BILLING_ACCOUNT_ID]
-</span><span class="line">                           [--billing-period BILLING_PERIOD]
+</span><span class="line">                           [--billing-period BILLING_PERIOD] [--source SOURCE]
 </span><span class="line">                           (--db DB | --deployment NAME)
 </span><span class="line">                           [--format {table,json}]</span></code></pre>
 <div class="table-scroll" tabindex="0" role="region" aria-label="Table, scrolls sideways">
@@ -241,8 +242,10 @@
 <thead><tr><th>Argument</th><th>Required</th><th>Default</th><th>Meaning</th></tr></thead>
 <tbody>
 <tr><td><code>--cost-basis COST_BASIS</code></td><td>optional</td><td>BilledCost</td><td>One of <code>BilledCost</code>, <code>EffectiveCost</code>, <code>ListCost</code>, <code>ContractedCost</code>.</td></tr>
+<tr><td><code>--calculation-run-id CALCULATION_RUN_ID</code></td><td>optional</td><td></td><td>the snapshot of this Calculation Run</td></tr>
 <tr><td><code>--billing-account-id BILLING_ACCOUNT_ID</code></td><td>optional</td><td></td><td></td></tr>
 <tr><td><code>--billing-period BILLING_PERIOD</code></td><td>optional</td><td></td><td>the first day of the period (YYYY-MM-DD)</td></tr>
+<tr><td><code>--source SOURCE</code></td><td>optional</td><td></td><td>the source of the Export Snapshot</td></tr>
 <tr><td><code>--db DB</code></td><td>one of <code>--db</code>, <code>--deployment</code></td><td></td><td>a local database file</td></tr>
 <tr><td><code>--deployment NAME</code></td><td>one of <code>--db</code>, <code>--deployment</code></td><td></td><td>a Deployment: the table [NAME] in ~/.data-finops/deployments.toml, with api_url, region and profile</td></tr>
 <tr><td><code>--format FORMAT</code></td><td>optional</td><td>table</td><td>default: table One of <code>table</code>, <code>json</code>.</td></tr>

@@ -7,9 +7,9 @@ By default, each read serves the current Allocation Snapshot of each Snapshot Sc
 
 Filters:
 - `billing_account_id` and `billing_period`, on each snapshot read.
-- `source` and `calculation_run_id`, on each snapshot read except the Cost Summary. Use `calculation_run_id` to read a superseded snapshot.
+- `source` and `calculation_run_id`, on each snapshot read. Use `calculation_run_id` to read a superseded snapshot.
 
-The Cost Summary always reads the current snapshots. The HTTP reference lists the parameters of each route. The Ledger gets read-only listings of Snapshot Scopes and of the Allocation Snapshots of a scope.
+The Cost Summary has one summary for each Snapshot Scope that the filters select, so `source` narrows the list. With `calculation_run_id`, it has the summary of that run's snapshot alone, current or superseded (#215). The HTTP reference lists the parameters of each route. The Ledger gets read-only listings of Snapshot Scopes and of the Allocation Snapshots of a scope.
 
 The read model can also get a filter of Billing Lines (spec 09, Q82). The API does not set it. With a filter, each read sees only the lines that the filter keeps and the Allocations of them. This applies to the Cost Summary, the Allocations, the Roll-ups, the Cost Dimensions, the reconciliation and each Cost Explanation. An Allocation keeps its ref.
 
@@ -23,6 +23,8 @@ One Cost Summary for each Snapshot Scope that matches, for one Cost Basis. It al
 - Each summary comes from the served Allocation Snapshot of that scope. It never mixes snapshots (#105).
 - `cost_basis` selects the Cost Basis: one of the four FOCUS cost columns. The default is BilledCost.
 - `billing_period` is the first day of the Billing Period.
+- `billing_account_id`, `billing_period` and `source` narrow the list. A filter that matches no scope gives an empty list, not 404.
+- `calculation_run_id` names a superseded or current snapshot, and the answer has only its summary (#215). With scope filters too, the answer is 400. An unknown run gives 404.
 - The billed total is the Export Snapshot that the Calculation Run read. The Ledger records it with each Allocation Snapshot.
 
 The summary gives these amounts for each currency, and never sums them across currencies:
