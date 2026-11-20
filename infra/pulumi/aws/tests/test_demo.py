@@ -401,6 +401,27 @@ def test_the_site_is_the_packaged_dashboard_reading_the_snapshot(
 
 
 @pulumi.runtime.test
+def test_the_functions_that_copy_the_database_get_the_ephemeral_storage_setting(
+    tmp_path: Path,
+) -> pulumi.Output[None]:
+    def check(deployment: Deployment) -> None:
+        storage = {
+            f.name.rsplit("-", 1)[-1]: f.inputs["ephemeralStorage"]["size"]
+            for f in MOCKS.of_type(FUNCTION)
+        }
+        # The generator and the simulator never copy the database, so they keep Lambda's least.
+        assert storage == {
+            "collector": 2048,
+            "api": 2048,
+            "publisher": 2048,
+            "generator": 512,
+            "simulator": 512,
+        }
+
+    return _after(tmp_path, check, public_demo=True, ephemeral_storage_mb=2048)
+
+
+@pulumi.runtime.test
 def test_the_database_object_starts_the_publisher(tmp_path: Path) -> pulumi.Output[None]:
     def check(deployment: Deployment) -> None:
         (function,) = [f.inputs for f in MOCKS.of_type(FUNCTION) if f.name.endswith("publisher")]

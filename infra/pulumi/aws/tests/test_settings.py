@@ -38,6 +38,7 @@ def test_the_defaults_are_spec_08s() -> None:
     assert (settings.api_rate_limit, settings.api_burst_limit) == (10, 20)
     assert (settings.log_retention_days, settings.noncurrent_version_days) == (30, 30)
     assert settings.inbox_retention_days == 30
+    assert settings.ephemeral_storage_mb == 10240
     assert (settings.kms_key_arn, settings.budget, settings.alarm_email) == (None, None, None)
     assert (settings.explanation_detail, settings.delete_data_on_destroy) == ("minimal", False)
     assert (settings.public_demo, settings.demo_scan_cutoff_bytes) == (False, 1_000_000_000)
@@ -57,6 +58,7 @@ def test_every_setting_can_be_given() -> None:
             "data-finops:collectorMemoryMb": "3008",
             "data-finops:apiTimeoutSeconds": "20",
             "data-finops:apiMemoryMb": "512",
+            "data-finops:ephemeralStorageMb": "2048",
             "data-finops:apiReservedConcurrency": "2",
             "data-finops:apiRateLimit": "0",
             "data-finops:apiBurstLimit": "0",
@@ -82,6 +84,7 @@ def test_every_setting_can_be_given() -> None:
     assert (settings.api_reserved_concurrency, settings.delete_data_on_destroy) == (2, True)
     assert (settings.api_rate_limit, settings.api_burst_limit) == (0, 0)
     assert settings.kms_key_arn == "arn:aws:kms:us-east-1:123456789012:key/example"
+    assert settings.ephemeral_storage_mb == 2048
 
 
 @pytest.mark.parametrize(
@@ -97,6 +100,8 @@ def test_every_setting_can_be_given() -> None:
         ({"data-finops:collectorTimeoutSeconds": "901"}, "collectorTimeoutSeconds"),
         ({"data-finops:collectorMemoryMb": "64"}, "collectorMemoryMb"),
         ({"data-finops:apiTimeoutSeconds": "0"}, "apiTimeoutSeconds"),
+        ({"data-finops:ephemeralStorageMb": "511"}, "ephemeralStorageMb"),
+        ({"data-finops:ephemeralStorageMb": "10241"}, "ephemeralStorageMb"),
         ({"data-finops:apiReservedConcurrency": "-1"}, "apiReservedConcurrency"),
         ({"data-finops:apiRateLimit": "10001"}, "apiRateLimit"),
         ({"data-finops:apiRateLimit": "-1"}, "apiRateLimit"),

@@ -213,18 +213,28 @@ def test_a_stage_without_both_limits_is_refused(settings: dict[str, Any] | None)
 
 # Policy 3: functions bounded and logged
 
-BOUNDED = {"name": "data-finops-test-api", "timeout": 30, "memorySize": 1024}
+BOUNDED = {
+    "name": "data-finops-test-api",
+    "timeout": 30,
+    "memorySize": 1024,
+    "ephemeralStorage": {"size": 10240},
+}
 
 
-def test_a_function_must_set_its_timeout_and_memory_within_bounds() -> None:
+def test_a_function_must_set_its_timeout_memory_and_storage_within_bounds() -> None:
     assert _violations_of(policies.FUNCTION_BOUNDED, FUNCTION, BOUNDED) == []
     assert _violations_of(policies.FUNCTION_BOUNDED, FUNCTION, {"name": "f"}) == [
         "timeout must be set, from 1 to 900 seconds",
         "memorySize must be set, from 128 to 10240 MB",
+        "ephemeralStorage.size must be set, from 512 to 10240 MB",
     ]
     assert _violations_of(policies.FUNCTION_BOUNDED, FUNCTION, BOUNDED | {"memorySize": 20480}) == [
         "memorySize must be set, from 128 to 10240 MB"
     ]
+    for storage in ({"size": 511}, {"size": 10241}, {}, None):
+        assert _violations_of(
+            policies.FUNCTION_BOUNDED, FUNCTION, BOUNDED | {"ephemeralStorage": storage}
+        ) == ["ephemeralStorage.size must be set, from 512 to 10240 MB"]
 
 
 def test_every_function_needs_its_log_group_with_retention() -> None:

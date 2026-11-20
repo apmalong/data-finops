@@ -88,6 +88,8 @@ PUBLISHER_MEMORY_MB = 1024
 GENERATOR_TIMEOUT_SECONDS = 900
 GENERATOR_MEMORY_MB = 3008
 """The generator builds one Parquet part (a million rows) in memory at a time."""
+LEAST_EPHEMERAL_STORAGE_MB = 512
+"""Lambda's least `/tmp`, for the functions that never copy the database."""
 
 
 class PublicDemo(pulumi.ComponentResource):
@@ -180,6 +182,7 @@ class PublicDemo(pulumi.ComponentResource):
             handler=HANDLER,
             timeout=GENERATOR_TIMEOUT_SECONDS,
             memory_size=GENERATOR_MEMORY_MB,
+            ephemeral_storage={"size": LEAST_EPHEMERAL_STORAGE_MB},
             environment={"variables": {"DATA_FINOPS_DEMO_BUCKET": self.bucket.bucket}},
             opts=pulumi.ResourceOptions(parent=self, depends_on=[group]),
             **code,
@@ -229,6 +232,7 @@ class PublicDemo(pulumi.ComponentResource):
             handler=SIMULATOR_HANDLER,
             timeout=SIMULATOR_TIMEOUT_SECONDS,
             memory_size=SIMULATOR_MEMORY_MB,
+            ephemeral_storage={"size": LEAST_EPHEMERAL_STORAGE_MB},
             environment={"variables": {"DATA_FINOPS_BUCKET": inbox.bucket}},
             opts=pulumi.ResourceOptions(parent=self, depends_on=[group]),
             **code,
@@ -388,6 +392,7 @@ class PublicDemo(pulumi.ComponentResource):
             handler=PUBLISHER_HANDLER,
             timeout=PUBLISHER_TIMEOUT_SECONDS,
             memory_size=PUBLISHER_MEMORY_MB,
+            ephemeral_storage={"size": settings.ephemeral_storage_mb},
             environment={
                 "variables": {
                     "DATA_FINOPS_BUCKET": inbox.bucket,

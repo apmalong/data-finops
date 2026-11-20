@@ -162,7 +162,7 @@
 <h2 id="limits">Limits to watch</h2>
 <ul>
 <li>Each Collection Run moves the whole database in and out of S3. As it grows, so do the run's time and the API's cold start.</li>
-<li>The <code>/tmp</code> of a function is the Lambda default of 512 MB, because the stack does not set a larger size yet. Thus today, the database must stay well below 512 MB. Lambda permits up to 10,240 MB, and one upload holds 5 GB at most.</li>
+<li>The <code>/tmp</code> of each function that copies the database is the <code>ephemeralStorageMb</code> setting, 10,240 MB by default, the Lambda maximum. The database and the Inbox file that a run collects must fit in it. One upload holds 5 GB at most.</li>
 <li>Athena keeps query history for 45 days. If a Deployment stops collection for a longer time, it loses the history of that gap. The summary shows a warning when this can have occurred.</li>
 <li>None of these is measured on a large account yet. Each is a revisit trigger in ADR 0026 or spec 08.</li>
 </ul>

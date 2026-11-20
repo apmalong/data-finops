@@ -48,6 +48,7 @@ CONFIG_KEYS: dict[str, str] = {
     "collector_memory_mb": "collectorMemoryMb",
     "api_timeout_seconds": "apiTimeoutSeconds",
     "api_memory_mb": "apiMemoryMb",
+    "ephemeral_storage_mb": "ephemeralStorageMb",
     "api_reserved_concurrency": "apiReservedConcurrency",
     "api_rate_limit": "apiRateLimit",
     "api_burst_limit": "apiBurstLimit",
@@ -74,6 +75,7 @@ BOUNDS: dict[str, tuple[int, int]] = {
     "collector_memory_mb": (128, 10240),
     "api_timeout_seconds": (1, 900),
     "api_memory_mb": (128, 10240),
+    "ephemeral_storage_mb": (512, 10240),
     "api_rate_limit": (0, 10_000),
     "api_burst_limit": (0, 5_000),
     "noncurrent_version_days": (1, 3650),
@@ -138,6 +140,10 @@ class Settings:
     longer timeout does not give a request more time."""
     api_memory_mb: int = 1024
     """The API function's memory, in MB."""
+    ephemeral_storage_mb: int = 10240
+    """The `/tmp` storage, in MB, of each function that copies the database: the collector, the
+    API and the publisher. The database and each Inbox file must fit in it. Lambda charges for
+    the storage above 512 MB."""
     api_reserved_concurrency: int | None = None
     """An optional limit on the concurrent requests of the API function, a whole number of at
     least 0. 0 switches the API off. New accounts can lack the concurrency quota to reserve
