@@ -34,6 +34,9 @@ Point 2's "one Calculation Run": the collector runs one per Snapshot Scope (`col
 
 The "10 GB `/tmp` ceiling" of the consequences is the Lambda maximum. No function sets ephemeral storage yet. Thus today `/tmp` is the Lambda default of 512 MB. It holds the database copy, and the Inbox file that the run collects at that time (each can be up to 512 MiB, ADR 0027). Thus the database must stay well below 512 MB (#206). A database over 5 GB, one `PutObject`, is a further revisit trigger (multipart upload, spec 08).
 
+## Note (#278, 2026-11-20)
+The 512 MB limit of the note above is removed. The `ephemeralStorageMb` setting gives the collector, the API and the publisher a `/tmp` from 512 to 10,240 MB. The default is 10,240 MB, the ceiling that this ADR assumes. Lambda charges for the storage above 512 MB, a fraction of a cent for each Collection Run. The generator and the simulator never copy the database, so they keep 512 MB.
+
 ## Amendment (ADR 0032, 2026-11-16)
 M8's control plane changes three points. Spec 10 has the details.
 - **Point 2:** the collector is still the only writer, and the conditional write stays. It now also applies Commands, and a Command starts a full Collection Run. The collector gets a reserved concurrency of 1, so Commands wait in turn (Q123). An account without the quota gets a debounce, and the deploy record warns (Q126).

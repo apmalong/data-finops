@@ -24,6 +24,7 @@ The collector is the only writer.
 - EventBridge Scheduler starts it (`schedule`, default `cron(0 6 * * ? *)` UTC). The schedule has no flexible window, and it invokes the collector asynchronously.
 - When a run fails, Lambda's asynchronous invocation retries it, 2 times at most (the Lambda default). The schedule's own retry policy (`maximum_retry_attempts: 2`) applies only when the scheduler cannot deliver the invocation to Lambda, for example when Lambda throttles it (#279).
 - It downloads the database object to `/tmp`, runs one Collection Run, and uploads with `If-Match` on the downloaded ETag.
+- Its `/tmp` is `ephemeralStorageMb`, 10,240 MB by default. The API and the publisher get the same size, because they also copy the database. The generator and the simulator never copy it, so they set 512 MB (#278).
 - A 412 fails the run before anything else is written. The next run starts again from the current object.
 - Its handler is `data_finops.lambda_handlers.collector`.
 - Its settings come in one environment variable, `DATA_FINOPS_COLLECTOR_SETTINGS`. This variable holds JSON with the keys of the `collect` TOML file, and it is validated in the same way (#183).
@@ -156,6 +157,7 @@ The TOML file of `data-finops collect` names the same settings in snake case (`a
 | `schedule` | `cron(0 6 * * ? *)` | Collection Run schedule, UTC |
 | `collectorTimeoutSeconds`, `collectorMemoryMb` | 900, 2048 | Collector limits |
 | `apiTimeoutSeconds`, `apiMemoryMb` | 30, 1024 | API limits |
+| `ephemeralStorageMb` | 10240 | `/tmp` of the collector, the API and the publisher, 512–10,240 MB (#278) |
 | `apiReservedConcurrency` | unset | An optional limit on the API. New accounts can lack the quota. |
 | `apiRateLimit`, `apiBurstLimit` | 10, 20 | The rate limits of the API stage (0 to 10,000, and 0 to 5,000). Both at 0 is the kill switch (spec 10) |
 | `logRetentionDays` | 30 | Both log groups, which the stack creates |
@@ -182,8 +184,8 @@ The deployment explanation page gives the researched monthly estimates. The cost
 A small custom Python pack. The open-source AWS packs of Pulumi are TypeScript only, and they are stale. All policies are mandatory. Each policy checks only literal inputs. A value that is unknown at preview gives only an advisory.
 1. S3: all four public access blocks, default encryption, a TLS-only bucket policy, and versioning on.
 2. Each API Gateway route is `AWS_IAM`, and no function has a Function URL. Each stage sets a rate limit and a burst limit of 0 or more (spec 10).
-3. Each Lambda function has its log group, `/aws/lambda/<name>`, with retention set. It sets its timeout and memory explicitly.
-   - The timeout and memory must be in the limits of spec 08 (1–900 s, 128–10,240 MB).
+3. Each Lambda function has its log group, `/aws/lambda/<name>`, with retention set. It sets its timeout, memory and ephemeral storage explicitly.
+   - The timeout, memory and ephemeral storage must be in the limits of spec 08 (1–900 s, 128–10,240 MB, 512–10,240 MB).
    - The pack cannot read the settings of the stack. Thus it checks these limits, not the configured values (#189).
 4. The IAM policies of the collector and the API use only allowlisted actions.
    - No `*` action, and nothing that runs queries or reads results.

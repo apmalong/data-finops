@@ -143,6 +143,7 @@ class Compute(pulumi.ComponentResource):
             handler=HANDLERS["collector"],
             timeout=settings.collector_timeout_seconds,
             memory_size=settings.collector_memory_mb,
+            ephemeral_storage={"size": settings.ephemeral_storage_mb},
             environment={
                 "variables": {
                     "DATA_FINOPS_COLLECTOR_SETTINGS": pulumi.Output.all(
@@ -163,6 +164,7 @@ class Compute(pulumi.ComponentResource):
             handler=HANDLERS["api"],
             timeout=settings.api_timeout_seconds,
             memory_size=settings.api_memory_mb,
+            ephemeral_storage={"size": settings.ephemeral_storage_mb},
             environment={
                 "variables": {
                     "DATA_FINOPS_BUCKET": bucket.bucket,

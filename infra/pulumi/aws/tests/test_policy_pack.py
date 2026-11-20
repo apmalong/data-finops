@@ -340,6 +340,7 @@ def _with_a_vpc(resources: list[dict[str, Any]]) -> list[dict[str, Any]]:
         (_changed(":Stage", {"defaultRouteSettings": None}), "api-throttled"),
         (_changed(":Policy", {"policy": URL_READER}, "-reader"), "iam-least-privilege"),
         (_changed(":Function", {"memorySize": None}), "function-bounded"),
+        (_changed(":Function", {"ephemeralStorage": None}), "function-bounded"),
         (_changed(":LogGroup", {"retentionInDays": None}), "function-logged"),
         (
             _granting(

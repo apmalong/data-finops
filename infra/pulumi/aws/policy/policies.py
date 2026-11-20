@@ -59,6 +59,8 @@ TIMEOUT_SECONDS = (1, 900)
 """Spec 08's bounds on a function's timeout, seconds (as `deployment.settings` enforces)."""
 MEMORY_MB = (128, 10240)
 """Spec 08's bounds on a function's memory, MB (as `deployment.settings` enforces)."""
+EPHEMERAL_STORAGE_MB = (512, 10240)
+"""Spec 08's bounds on a function's `/tmp` storage, MB (#278)."""
 LOGS = frozenset({"logs:CreateLogStream", "logs:PutLogEvents"})
 POLICY_ACTIONS: dict[str, frozenset[str]] = {
     "collector": frozenset(
@@ -199,11 +201,12 @@ def _throttled(props: dict[str, Any], report: Report) -> None:
 
 
 def _bounded(props: dict[str, Any], report: Report) -> None:
-    for name, (least, most), unit in (
-        ("timeout", TIMEOUT_SECONDS, "seconds"),
-        ("memorySize", MEMORY_MB, "MB"),
+    storage = props.get("ephemeralStorage") or {}
+    for name, value, (least, most), unit in (
+        ("timeout", props.get("timeout"), TIMEOUT_SECONDS, "seconds"),
+        ("memorySize", props.get("memorySize"), MEMORY_MB, "MB"),
+        ("ephemeralStorage.size", storage.get("size"), EPHEMERAL_STORAGE_MB, "MB"),
     ):
-        value = props.get(name)
         if not isinstance(value, int | float) or not least <= value <= most:
             report(f"{name} must be set, from {least} to {most} {unit}")
 
