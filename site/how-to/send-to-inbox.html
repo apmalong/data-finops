@@ -108,10 +108,10 @@
 
 <h2 id="layout">What goes where</h2>
 <ul>
-<li><code>inbox/openlineage/</code>: OpenLineage event files, one event per file or JSON Lines. Each event is capped at 1 MiB, as on every other path.</li>
+<li><code>inbox/openlineage/</code>: OpenLineage event files, one event per file or JSON Lines. Each event is capped at <!-- limit:event -->1 MiB<!-- /limit -->, as on every other path.</li>
 <li><code>inbox/dbt/&lt;invocation&gt;/</code>: one dbt invocation's <code>manifest.json</code> and <code>run_results.json</code>. A folder is collected when both files are in it. Until then, each Collection Run shows the warning <code>&lt;folder&gt;/: waiting for &lt;files&gt;</code>.</li>
 </ul>
-<p>Every file is capped at 512 MiB. A larger file is rejected by its key and never downloaded.</p>
+<p>Every file is capped at <!-- limit:input-file -->512 MiB<!-- /limit -->. A larger file is rejected by its key and never downloaded.</p>
 
 <h2 id="grant">Give the producer access</h2>
 <p>The identity that writes requires <code>s3:PutObject</code> on <code>inbox/*</code>. If <code>kmsKeyArn</code> is set, it also requires <code>kms:GenerateDataKey</code> on that key. The stack outputs <code>producerPolicyArn</code>, a managed policy that grants these permissions and no others. Attach it to the role your Airflow or dbt runs as, for example:</p>
@@ -166,7 +166,7 @@
 <pre class="output"><span class="line">{"sources":{"dbt":{"stored":2,…},"openlineage":{"stored":4,…,"rejected":[{"item":"inbox/openlineage/run.json#2",…}]}},"warnings":[],"calculation_run_ids":["calc-…"],"exit_code":1}
 </span><span class="line">  inbox/openlineage/run.json#2: invalid RunEvent: run/runId (format)</span></pre>
 <p>An OpenLineage JobEvent or DatasetEvent, which data-finops does not read, is listed under <code>warnings</code> by key and position. It does not change the exit code. A dbt folder that does not have both of its files yet is also in that list, until the file arrives. A file that was collected is never fetched again, unless a producer overwrites it with new content. A rejected file is not retried.</p>
-<p>In a Deployment, Inbox objects expire after <code>inboxRetentionDays</code> (default 30), and the collector gets this setting. In its last 7 days, an object that was not collected is listed under <code>warnings</code>, with its key, its age and the days left. With a retention shorter than 7 days, each such object is listed:</p>
+<p>In a Deployment, Inbox objects expire after <code>inboxRetentionDays</code> (default <!-- limit:inbox-retention-default -->30<!-- /limit -->), and the collector gets this setting. In its last <!-- limit:expiry-warning-days -->7<!-- /limit --> days, an object that was not collected is listed under <code>warnings</code>, with its key, its age and the days left. With a retention shorter than <!-- limit:expiry-warning-days -->7<!-- /limit --> days, each such object is listed:</p>
 <pre class="output"><span class="line">inbox/openlineage/run.json: not collected, 25 days old, expires in 5 days</span></pre>
 <p>To keep the data, correct a rejected file and write it to the Inbox again. For a dbt folder, send the file that it waits for. Do this before the object expires.</p>
 <p>The exit code is <code>0</code>, <code>1</code> when something was rejected, or <code>2</code> when a source could not be read. See <a href="../reference/exit-codes-and-environment.html">Exit codes and environment</a>.</p>

@@ -123,7 +123,7 @@
 <ul>
 <li><strong>The account.</strong> The FOCUS export, the Athena workgroups and the Deployment are in one account, and so are the IAM principals of its producers and readers. Nothing crosses into another account.</li>
 <li><strong>The API Gateway HTTP API.</strong> It is reachable from the internet. But before the function runs, AWS rejects a request that is not signed. It also rejects a request if the signer does not have permission to invoke the route. A principal with the reader policy has this permission. Each route is a read under <code>/v1/</code>, so there is no write route to reach.</li>
-<li><strong>Producers.</strong> A producer can put objects in the Inbox and do nothing else: not read them back, list them or touch the database. What it writes is screened like any input: each event capped at 1 MiB, each file at 512 MiB, and a rejected file reported by its key and reason, never its content.</li>
+<li><strong>Producers.</strong> A producer can put objects in the Inbox and do nothing else: not read them back, list them or touch the database. What it writes is screened like any input: each event capped at <!-- limit:event -->1 MiB<!-- /limit -->, each file at <!-- limit:input-file -->512 MiB<!-- /limit -->, and a rejected file reported by its key and reason, never its content.</li>
 <li><strong>The collector's reach.</strong> It reads the export, the Athena history of the configured workgroups and the Inbox, and writes only the database object. It cannot run queries or read their results, which an explicit deny enforces. Query text is dropped before anything is stored.</li>
 <li><strong>The bucket.</strong> The bucket blocks public access and disables ACLs. It denies requests without TLS. It encrypts objects with an S3-managed key or, as an option, with a customer-managed KMS key. S3 Versioning keeps earlier databases for <code>noncurrentVersionDays</code>.</li>
 <li><strong>What readers see.</strong> By default, a Cost Explanation shows the minimal Billing Line, without tags and free-text names. The reason is that the readers of a Deployment can be a larger group than its billing administrators.</li>
@@ -146,7 +146,7 @@
 </table>
 </div>
 <ul>
-<li>The estimates assume a daily collector run of 60 seconds (small) to 300 seconds, with the default 2 GB of memory of the collector. They also assume 10,000 API requests a month, each of 1 second at 1 GB, and a database of 0.1 GB to 12 GB.</li>
+<li>The estimates assume a daily collector run of 60 seconds (small) to 300 seconds, with the default <!-- limit:collector-memory-default -->2,048 MB<!-- /limit --> of memory of the collector. They also assume 10,000 API requests a month, each of 1 second at 1 GB, and a database of 0.1 GB to 12 GB.</li>
 <li>Without Lambda's free tier, add about $0.18 (small) or $0.37 a month, which takes the larger case to about $1.20.</li>
 <li>A customer-managed KMS key adds $1 a month.</li>
 </ul>
@@ -162,7 +162,8 @@
 <h2 id="limits">Limits to watch</h2>
 <ul>
 <li>Each Collection Run moves the whole database in and out of S3. As it grows, so do the run's time and the API's cold start.</li>
-<li>The <code>/tmp</code> of each function that copies the database is the <code>ephemeralStorageMb</code> setting, 10,240 MB by default, the Lambda maximum. The database and the Inbox file that a run collects must fit in it. One upload holds 5 GB at most.</li>
+<li>The <code>/tmp</code> of each function that copies the database is the <code>ephemeralStorageMb</code> setting, <!-- limit:ephemeral-storage-default -->10,240 MB<!-- /limit --> by default. Lambda permits up to 10,240 MB. The database and the Inbox file that a run collects must fit in it.</li>
+<li>A database over <!-- limit:database -->5 GB<!-- /limit --> is refused when a function downloads it, because one upload to S3 holds 5 GB at most. Multipart upload is a revisit trigger.</li>
 <li>Athena keeps query history for 45 days. If a Deployment stops collection for a longer time, it loses the history of that gap. The summary shows a warning when this can have occurred.</li>
 <li>None of these is measured on a large account yet. Each is a revisit trigger in ADR 0026 or spec 08.</li>
 </ul>

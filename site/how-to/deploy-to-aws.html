@@ -127,7 +127,7 @@
 <ul>
 <li>One AWS account holds the FOCUS export's bucket, the Athena workgroups and the Deployment. data-finops does not support the export or the history of a different account.</li>
 <li>The FOCUS export uses the "create new" delivery mode, as <a href="ingest-focus-export.html">Ingest a FOCUS export</a> describes. A Collection Run refuses an export that overwrites its files. An export encrypted with a KMS key is not supported yet.</li>
-<li>The database fits in a function's <code>/tmp</code>. The <code>ephemeralStorageMb</code> setting gives the collector, the API and the publisher 10,240 MB by default. The database and the Inbox file that a run collects share this space.</li>
+<li>The database fits in a function's <code>/tmp</code>. The <code>ephemeralStorageMb</code> setting gives the collector, the API and the publisher <!-- limit:ephemeral-storage-default -->10,240 MB<!-- /limit --> by default. The database and the Inbox file that a run collects share this space.</li>
 <li>An AWS profile for a dedicated deployer identity, created by the account owner. The stack never creates it. A draft least-privilege policy for it is <a href="https://github.com/apmalong/data-finops/blob/main/infra/pulumi/aws/iam/deployer-policy.draft.json"><code>iam/deployer-policy.draft.json</code></a>. It is not validated. The wizard can check it with IAM Access Analyzer. If the policy does not have a permission, <code>pulumi up</code> shows an access error.</li>
 <li>The Pulumi CLI, version 3.272.0, and uv. A test checks the installed CLI is that release.</li>
 </ul>

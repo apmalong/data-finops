@@ -112,7 +112,7 @@
 <p>If a token is configured, each route requires <code>Authorization: Bearer &lt;token&gt;</code>, also the dashboard and the API documentation. The HTTP transport of OpenLineage sends this header for its API key. A request with no token or with a wrong token gets <code>401</code>. The comparison takes constant time.</p>
 <ul>
 <li>The token comes from <code>DATA_FINOPS_TOKEN</code> or a token file, never both.</li>
-<li>It must be at least 16 characters, without the spaces at its start and end.</li>
+<li>It must be at least <!-- limit:token-min -->16<!-- /limit --> characters, without the spaces at its start and end.</li>
 <li>It is never logged, printed or stored. Errors say what is wrong with it, not what it is.</li>
 <li>It proves who has permission to send, not what a request is about: a token is never <a href="../reference/glossary.html#evidence">Evidence</a> for an <a href="../reference/glossary.html#identity-link">Identity Link</a>.</li>
 </ul>
@@ -120,9 +120,9 @@
 
 <h2 id="bounded">Bounded payloads</h2>
 <ul>
-<li>One OpenLineage event can be 1 MiB at most. A larger body gets <code>413</code> at the cap, before it is read in full or parsed.</li>
+<li>One OpenLineage event can be <!-- limit:event -->1 MiB<!-- /limit --> at most. A larger body gets <code>413</code> at the cap, before it is read in full or parsed.</li>
 <li>A compressed body gets <code>415</code>. Each event is sent uncompressed.</li>
-<li>Query history files, dbt artifacts and OpenLineage event files are capped at 512 MiB each. A larger file is rejected before it is read.</li>
+<li>Query history files, dbt artifacts and OpenLineage event files are capped at <!-- limit:input-file -->512 MiB<!-- /limit --> each. A larger file is rejected before it is read.</li>
 </ul>
 
 <h2 id="no-echo">Errors never echo input</h2>

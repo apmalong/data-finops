@@ -144,7 +144,7 @@
 <li>It finds each Delivery whose two manifests are written. A Delivery that AWS still writes stays for a later run. A Delivery that a run took before is never downloaded again.</li>
 <li>It loads each Delivery that is newer than the current Export Snapshot of its Snapshot Scope, oldest first. Thus the newest becomes current, and the others are kept as Superseded Snapshots.</li>
 <li>It downloads only the data files that the manifest lists, and only from the folder of that Delivery in the export. If a manifest names a different file, data-finops rejects the manifest and does not read that file.</li>
-<li>Before it downloads a file of a Delivery, it refuses the Delivery if its data files are more than 8 GiB together. It also refuses each data file over 2 GiB.</li>
+<li>Before it downloads a file of a Delivery, it refuses the Delivery if its data files are more than <!-- limit:delivery -->8 GiB<!-- /limit --> together. It also refuses each data file over <!-- limit:data-file -->2 GiB<!-- /limit -->.</li>
 </ul>
 <p>A refused Delivery is named by its folder and the reason, and the run exits with <code>1</code>.</p>
 
