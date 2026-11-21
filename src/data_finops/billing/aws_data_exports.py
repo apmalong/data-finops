@@ -31,6 +31,8 @@ _MANIFEST_SUFFIX = "-Manifest.json"
 _FOCUS_MANIFEST_SUFFIX = "-Manifest-FOCUS.json"
 _PERIOD = re.compile(r"billing_period=(?P<year>\d{4})-(?P<month>\d{2})")
 _UUID = r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+_VERSION = re.compile(r"\d{1,3}(\.\d{1,3}){0,2}")
+"""A FOCUS version that an error can name: digits and dots only, never other file content."""
 _EXECUTION_FOLDER = re.compile(
     rf"(?P<created>\d{{4}}-\d{{2}}-\d{{2}}T\d{{2}}:\d{{2}}:\d{{2}}(?:\.\d+)?Z)-(?P<execution>{_UUID})"
 )
@@ -82,7 +84,7 @@ def read_manifest(path: Path) -> Manifest:
     """The manifest at `path`. DeliveryError when it is not a JSON object."""
     try:
         content = json.loads(path.read_text(encoding="utf-8"))
-    except ValueError:
+    except (ValueError, RecursionError):
         raise DeliveryError("the manifest is not valid JSON") from None
     if not isinstance(content, dict):
         raise DeliveryError("the manifest is not valid JSON")
@@ -102,17 +104,24 @@ def load_delivery(manifest: Path, data_dir: Path | None = None) -> FocusExport:
 
     Raises DeliveryError when the Delivery is not as AWS writes it: a data file outside
     `data/billing_period=YYYY-MM/<CreatedAt>-<executionId>/`, files from more than one
-    execution or one other than the manifest's, no data files, a listed file that was
-    not downloaded, a FOCUS release other than the pinned one, or data files naming
-    more than one billing account. ValueError when lines differ from the snapshot.
+    execution or one other than the manifest's, no data files, a file name listed more than
+    once, a listed file that was not downloaded, a FOCUS release other than the pinned one,
+    or data files naming more than one billing account. ValueError when lines differ from the
+    snapshot.
     """
     listing = read_manifest(manifest)
     focus_version = _focus_version(manifest)
     if focus_version != FOCUS_VERSION:
-        raise DeliveryError(f"FOCUS {focus_version}, but {FOCUS_VERSION} is pinned (ADR 0015)")
+        named = (
+            focus_version if _VERSION.fullmatch(focus_version) else "a version that is not a number"
+        )
+        raise DeliveryError(f"FOCUS {named}, but {FOCUS_VERSION} is pinned (ADR 0015)")
     uris = [str(uri) for uri in listing.data_files]
     if not uris:
         raise DeliveryError("the manifest lists no data files")
+    names = [PurePosixPath(uri).name for uri in uris]  # files are found by name
+    if len(set(names)) != len(names):  # read twice, its lines would be stored twice (#282)
+        raise DeliveryError("the manifest lists a data file more than once")
     folders = {_delivery_folder(uri) for uri in uris}
     if len(folders) != 1:
         raise DeliveryError(f"the manifest lists files from {len(folders)} deliveries")
@@ -151,7 +160,10 @@ def _focus_version(manifest: Path) -> str:
     path = manifest.parent / name
     if not path.is_file():
         raise DeliveryError(f"{name} is not beside the manifest")
-    return str(json.loads(path.read_text(encoding="utf-8"))["Schema"]["FocusVersion"])
+    try:
+        return str(json.loads(path.read_text(encoding="utf-8"))["Schema"]["FocusVersion"])
+    except (ValueError, RecursionError, KeyError, TypeError):
+        raise DeliveryError(f"{name} names no FOCUS version") from None
 
 
 def _delivery_folder(uri: str) -> _DeliveryFolder:

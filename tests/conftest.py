@@ -1,9 +1,10 @@
-"""Hypothesis profiles for the property tests (#242).
+"""Hypothesis profiles for the property and fuzz tests (#242, #282).
 
 `ci`, the default, is seeded and bounded, so each run checks the same examples. `long`
 checks many more random examples. Run it on request:
 
     HYPOTHESIS_PROFILE=long python -m pytest tests/unit/test_accounting_properties.py
+    HYPOTHESIS_PROFILE=long python -m pytest tests/integration/test_reader_fuzz.py
 """
 
 import os

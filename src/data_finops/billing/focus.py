@@ -24,7 +24,9 @@ from data_finops.contracts.types import format_decimal
 
 
 def load_export(path: Path) -> FocusExport:
-    return FocusExport.model_validate_json(path.read_text(encoding="utf-8"))
+    """An Export Snapshot in the JSON fixture format. A UTF-8 BOM is allowed, as in the other
+    readers (#282)."""
+    return FocusExport.model_validate_json(path.read_text(encoding="utf-8-sig"))
 
 
 def load_parquet_export(files: Iterable[Path], snapshot: ExportSnapshot) -> FocusExport:
@@ -48,7 +50,11 @@ def load_parquet_export(files: Iterable[Path], snapshot: ExportSnapshot) -> Focu
         table = pq.read_table(pa.BufferReader(content))  # type: ignore[no-untyped-call]
         table = table.cast(zoneless_utc_schema(table.schema))
         map_columns = {f.name for f in table.schema if pa.types.is_map(f.type)}
-        lines += [_focus_line(row, map_columns) for row in table.to_pylist()]
+        try:
+            rows = table.to_pylist()
+        except OverflowError:  # a time Parquet can hold and Python cannot (#282)
+            raise ValueError(f"{path.name}: a timestamp is out of range") from None
+        lines += [_focus_line(row, map_columns) for row in rows]
     return FocusExport(snapshot=snapshot.model_copy(update={"files": hashes}), lines=lines)
 
 

@@ -8,11 +8,10 @@ query text, execution parameters and free-text failure reasons are never persist
 
 import json
 from dataclasses import dataclass
-from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, ValidationError
 
 from data_finops.contracts.limits import MAX_INPUT_FILE_BYTES
 
@@ -22,13 +21,16 @@ class _Provider(BaseModel):
 
 
 class QueryExecutionStatus(_Provider):
+    """AWS writes both times with a time zone. A time without a zone is rejected (#282)."""
+
     State: str
-    SubmissionDateTime: datetime
-    CompletionDateTime: datetime | None = None
+    SubmissionDateTime: AwareDatetime
+    CompletionDateTime: AwareDatetime | None = None
 
 
 class QueryExecutionStatistics(_Provider):
-    DataScannedInBytes: int = Field(ge=0)
+    DataScannedInBytes: int = Field(ge=0, le=2**63 - 1)
+    """At most SQLite's largest integer, where it is stored. A larger count is rejected (#282)."""
 
 
 class AthenaQueryExecution(_Provider):
