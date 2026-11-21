@@ -7,8 +7,8 @@ import pytest
 from pydantic import ValidationError
 
 from data_finops.billing.focus import load_export
-from data_finops.contracts.billing import ExportSnapshot, FocusBillingLine, FocusExport
-from data_finops.ledger import ImportOutcome, Ledger, SnapshotConflictError
+from data_finops.contracts.billing import CostBasis, ExportSnapshot, FocusBillingLine, FocusExport
+from data_finops.ledger import ImportOutcome, Ledger, ReconciliationError, SnapshotConflictError
 
 FIXTURE = Path(__file__).resolve().parents[2] / "fixtures" / "focus" / "export-2026-10.json"
 COST_COLUMNS = ("BilledCost", "EffectiveCost", "ListCost", "ContractedCost")
@@ -120,10 +120,13 @@ def test_reused_snapshot_id_with_different_content_is_rejected(tmp_path):
     altered = export.model_copy(update={"lines": export.lines[:1]})
     with Ledger(tmp_path / "ledger.db") as ledger:
         ledger.import_snapshot(export)
-        with pytest.raises(SnapshotConflictError, match="aws-focus-123456789012-2026-10-v1"):
+        with pytest.raises(
+            SnapshotConflictError, match="aws-focus-123456789012-2026-10-v1"
+        ) as error:
             ledger.import_snapshot(altered)
         current = ledger.current_snapshot(export.snapshot.scope)
 
+    assert error.value.snapshot_id == "aws-focus-123456789012-2026-10-v1"  # the CLI names it
     assert current is not None
     assert len(current.lines) == 2
 
@@ -261,3 +264,59 @@ def _republished(
         }
     )
     return FocusExport(snapshot=snapshot, lines=list(lines))
+
+
+def test_the_content_digest_keeps_its_recorded_form(tmp_path):
+    # The replay key of every Ledger already written (#8): this literal was recorded from
+    # main at 8a5d69a. A change to the digest's canonical form changes it, and then a
+    # redelivery of stored content is no longer recognised as a replay (#243).
+    export = load_export(FIXTURE)
+    with Ledger(tmp_path / "ledger.db") as ledger:
+        ledger.import_snapshot(export)
+        record = ledger.snapshot_record(export.snapshot.snapshot_id)
+
+    assert record is not None
+    assert record.content_digest == (
+        "55c21f8812856875f01ff95ff4ad32582a8d564f512f8ee4f889cbf0ca06d97a"
+    )
+
+
+def test_an_unknown_snapshot_reads_as_none_and_cannot_be_reconciled(tmp_path):
+    export = load_export(FIXTURE)
+    with Ledger(tmp_path / "ledger.db") as ledger:
+        assert ledger.snapshot(export.snapshot.snapshot_id) is None
+        with pytest.raises(
+            LookupError, match="^snapshot aws-focus-123456789012-2026-10-v1 is not in the Ledger$"
+        ):
+            ledger.reconcile(export)
+
+
+def test_a_reconciliation_report_names_its_snapshot(tmp_path):
+    export = load_export(FIXTURE)
+    with Ledger(tmp_path / "ledger.db") as ledger:
+        ledger.import_snapshot(export)
+        report = ledger.reconcile(export)
+
+    assert report.snapshot_id == "aws-focus-123456789012-2026-10-v1"
+
+
+@pytest.mark.parametrize("basis", [b for b in CostBasis if b is not CostBasis.BILLED_COST])
+def test_a_line_stored_wrong_in_any_cost_basis_rolls_the_import_back(tmp_path, monkeypatch, basis):
+    # AGENTS.md: reconcile per line, currency, period and version, in every Cost Basis.
+    store = Ledger._store_lines
+    column = basis.value  # each Cost Basis is named after its FOCUS column
+
+    def storing_one_wrong(self, snapshot_id, lines):
+        wrong = lines[-1].model_copy(update={column: getattr(lines[-1], column) + Decimal(1)})
+        store(self, snapshot_id, [*lines[:-1], wrong])
+
+    monkeypatch.setattr(Ledger, "_store_lines", storing_one_wrong)
+    export = load_export(FIXTURE)
+    with Ledger(tmp_path / "ledger.db") as ledger:
+        with pytest.raises(ReconciliationError) as error:
+            ledger.ingest_focus(FIXTURE)
+        stored = ledger.snapshot(export.snapshot.snapshot_id)
+
+    assert error.value.snapshot_id == "aws-focus-123456789012-2026-10-v1"
+    assert error.value.reason == "does not reconcile: billing period 2026-10, currency USD"
+    assert stored is None

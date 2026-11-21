@@ -90,7 +90,12 @@
 <main id="main">
 <h1>Contribute to data-finops</h1>
 <!-- onpage:start -->
-
+<nav class="on-page" aria-label="On this page">
+<p>On this page</p>
+<ul>
+<li><a href="#mutation-tests">Mutation tests</a></li>
+</ul>
+</nav>
 <!-- onpage:end -->
 <p>This site is for people who run data-finops. The documents for people who build it live in the repository, where they stay authoritative:</p>
 <ul>
@@ -104,6 +109,22 @@
 </ul>
 <p>Tasks live in <a href="https://github.com/apmalong/data-finops/issues">GitHub Issues</a>. To change this site, edit the page in <code>site/</code>, then run <code>python -m scripts.site build</code> and <code>python -m scripts.site check</code>.</p>
 <p>To run all the checks of the repository, use <code>python -m scripts.gates</code>. The <a href="https://github.com/apmalong/data-finops#run-the-checks">README</a> tells you how to prepare the environments. The tests of the dashboard's static mode also need Node.</p>
+<h2 id="mutation-tests">Mutation tests</h2>
+<p>Mutation tests measure the tests of the money logic: the code that splits a Billing Line. A tool, mutmut, makes small changes to that code, one at a time. Each change is a mutant. A good test fails for each mutant. A mutant that no test finds is a survivor.</p>
+<p>The <code>Mutation</code> workflow in GitHub Actions runs mutmut each Monday. You can also start it from the Actions tab. It compares the score with the baseline in <code>docs/implementation/mutation-baseline.json</code>, and a lower score fails the run. The report of the run gives the score and lists each survivor.</p>
+<p>mutmut needs Linux, or WSL on Windows. To run it on your computer:</p>
+<div class="shell-tabs">
+<pre class="shell-posix"><code><span class="line">uv sync --frozen --extra dev --extra api --extra aws --extra mutation
+</span><span class="line">uv run mutmut run
+</span><span class="line">uv run mutmut results --all true &gt; mutation-results.txt
+</span><span class="line">python3 -m scripts.mutation_score mutation-results.txt docs/implementation/mutation-baseline.json</span></code></pre>
+<pre class="shell-windows"><code><span class="line">wsl
+</span><span class="line">uv sync --frozen --extra dev --extra api --extra aws --extra mutation
+</span><span class="line">uv run mutmut run
+</span><span class="line">uv run mutmut results --all true &gt; mutation-results.txt
+</span><span class="line">python3 -m scripts.mutation_score mutation-results.txt docs/implementation/mutation-baseline.json</span></code></pre>
+</div>
+<p>The tests also need Node. A full run takes a long time, and mutmut keeps its work in <code>mutants/</code>. To see the change that a mutant makes, run <code>uv run mutmut show NAME</code>. For each survivor, add a test that kills it. If no test can kill it, record its name and the reason in the baseline. A change to the baseline is a change to a test oracle, so the owner checks it before the merge (AGENTS.md).</p>
 <p>To check a page against the Simplified Technical English rules, run <code>python -m scripts.ste_check site/contributing.html</code>. The rules are in the <code>simplified-technical-english</code> skill. The pages in <code>scripts/ste_converted.txt</code> are a gate in CI.</p>
 <!-- pager:start -->
 <nav class="pager" aria-label="Previous and next">

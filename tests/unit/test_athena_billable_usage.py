@@ -212,3 +212,25 @@ def test_earlier_versions_give_their_bytes_in_the_line_unit() -> None:
 def test_version_three_refuses_an_unknown_consumed_unit() -> None:
     with pytest.raises(ValueError, match="GB"):
         billable_quantities([_at(1)], "GB")
+
+
+def test_earlier_versions_differ_on_a_query_that_scanned_nothing_and_keep_unknown_usage() -> None:
+    # A DML query that scanned nothing billed the 10 MB minimum under /1 and nothing under /2.
+    queries = [_at(0), _query(scanned=None, completed=HOUR)]
+    assert billable_quantities(queries, "TB", V1) == [Decimal("0.00001"), None]
+    assert billable_quantities(queries, "TB", BILLABLE_USAGE_V2) == [Decimal(0), None]
+
+
+def test_queries_of_one_hour_share_it_whatever_their_fractions_of_a_second() -> None:
+    # As in the test above: together the two round down to 0.000025, apart to 0.00001 each.
+    first = _query(scanned=14_293_651, completed=HOUR + timedelta(minutes=10, microseconds=1))
+    second = _query(scanned=14_293_651, completed=HOUR + timedelta(minutes=40, milliseconds=500))
+    together = billable_quantities([first, second], "TB")
+    assert sum(q for q in together if q is not None) == Decimal("0.000025")
+
+
+@pytest.mark.usefixtures("local_zone_not_utc")
+def test_the_hours_are_utc_hours_whatever_the_local_zone() -> None:
+    # 04:10 and 04:40 UTC are one UTC hour, but 09:40 and 10:10 at UTC+05:30.
+    together = billable_quantities([_at(14_293_651, minute=10), _at(14_293_651, minute=40)], "TB")
+    assert sum(q for q in together if q is not None) == Decimal("0.000025")

@@ -22,6 +22,9 @@ api = ["fastapi==0.156.4", "starlette==1.9.0", "uvicorn==0.54.0"]
 # The AWS collectors (spec 08; `providers.aws`): the newest boto3 and botocore at least two
 # weeks old when added (build-vs-reuse register, #179); mangum serves the API from Lambda (#184).
 aws = ["boto3==1.43.118", "botocore==1.43.118", "mangum==0.22.0"]
+# Mutation testing of the money path (#243): Linux only, since mutmut needs `fork`. The newest
+# release at least two weeks old when added (build-vs-reuse register).
+mutation = ["mutmut==3.8.1"]
 dev = ["httpx==0.28.1", "pytest>=8,<10", "pytest-cov>=5,<8", "hypothesis>=6,<7", "ruff>=0.9,<1", "mypy>=1.14,<2", "pip-audit>=2,<3", "pre-commit>=4,<5", "bandit>=1.8,<2", "build>=1,<2", "types-jsonschema>=4.23,<5"]
 [tool.hatch.build.targets.wheel]
 packages = ["src/data_finops"]
@@ -33,6 +36,28 @@ testpaths = ["tests"]
 # The repository root, so tests import the dev tooling in scripts/site (spec 07).
 pythonpath = ["."]
 addopts = "-ra"
+[tool.mutmut]
+# The money path (AGENTS.md, "Work with AI"). Run by .github/workflows/mutation.yml (#243).
+source_paths = ["src/"]
+only_mutate = [
+    "src/data_finops/attribution/*",
+    "src/data_finops/calculation/*",
+    "src/data_finops/ledger/*",
+    "src/data_finops/billing/*",
+    "src/data_finops/providers/athena_billing.py",
+]
+# The tests read files across the repository, so mutmut's copy in mutants/ needs them too.
+also_copy = [
+    ".claude/", ".github/", "docs/", "examples/", "fixtures/", "infra/", "schemas/", "scripts/",
+    "site/", "third_party/", "AGENTS.md", "GLOSSARY.md", "README.md", "THIRD_PARTY_NOTICES.md",
+    "uv.lock",
+]
+# This test reads the source text for environment variables, and mutants change that text.
+pytest_add_cli_args_test_selection = [
+    "tests/",
+    "--deselect",
+    "tests/unit/test_site_exit_codes.py::test_the_page_lists_exactly_the_environment_variables_the_code_reads",
+]
 [tool.ruff]
 target-version = "py312"
 line-length = 100

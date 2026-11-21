@@ -1,0 +1,44 @@
+name: Mutation
+# Mutation testing of the money path by a tool, not by the agent that wrote the tests (#243).
+# Weekly and on request, never on a PR: a full run takes too long for each change. mutmut is
+# configured in pyproject.toml ([tool.mutmut]). scripts/mutation_score.py compares the score with
+# the stored baseline, and a lower score fails the run.
+on:
+  schedule:
+    - cron: '23 6 * * 1' # Mondays, 06:23 UTC
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: mutation
+  cancel-in-progress: false
+jobs:
+  mutation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.12'
+      - name: Sync dependencies from the committed lockfile
+        run: uv sync --extra dev --extra api --extra aws --extra mutation --frozen
+      - name: Run mutmut over the money path
+        # mutmut exits 0 when mutants survive. It fails only when the clean tests fail.
+        run: uv run --no-sync mutmut run
+      - name: Compare the score with the baseline
+        run: |
+          uv run --no-sync mutmut results --all true > mutation-results.txt
+          python3 -m scripts.mutation_score mutation-results.txt \
+            docs/implementation/mutation-baseline.json --report mutation-report.md
+      - name: Add the report to the run's summary
+        if: ${{ !cancelled() && hashFiles('mutation-report.md') != '' }}
+        run: cat mutation-report.md >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: mutation-report
+          path: |
+            mutation-results.txt
+            mutation-report.md
+          if-no-files-found: ignore

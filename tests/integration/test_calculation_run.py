@@ -410,3 +410,28 @@ def test_the_owners_demo_line_is_covered_exactly_in_binary_terabytes(
     assert {(a["method"], a["coverage"]) for a in athena} == {("estimated_metered_share", "1")}
     assert {a["target_id"] for a in athena} == {q["QueryExecutionId"] for q in queries}
     assert sum(Decimal(a["amount"]) for a in athena) == Decimal("6.00")
+
+
+def test_the_input_digest_keeps_its_recorded_form(stores: tuple[Ledger, WorkloadStore]) -> None:
+    # The Input digest of the golden inputs, recorded from main at 8a5d69a. Stored Allocation
+    # Snapshots keep it, and a run whose inputs are unchanged is a replay only while the
+    # digest keeps its canonical form (#88, #243). Changing the form changes this literal.
+    ledger, store = stores
+    result = run_calculation(ledger, store, SCOPE)
+    assert result.input_digest == (
+        "008b40b204cba3f8da8bdb15e78c7934f45c34da535075de42ccbcc6916fc743"
+    )
+
+
+def test_a_query_of_unknown_usage_never_hides_the_queries_after_it(
+    stores: tuple[Ledger, WorkloadStore], tmp_path: Path
+) -> None:
+    # Queries are read in ID order, so q-000 comes before q-001, which covers the line.
+    ledger, store = stores
+    history = json.loads(_query_history(tmp_path, "q-000").read_text())
+    del history["QueryExecutions"][0]["Statistics"]
+    (tmp_path / "q-000.json").write_text(json.dumps(history), encoding="utf-8")
+    store.ingest_query_history(tmp_path / "q-000.json", account_id=ACCOUNT, region=REGION)
+    result = run_calculation(ledger, store, SCOPE)
+    assert result.unknown_billable_usage == ("q-000",)
+    assert _billed(ledger, result.calculation_run_id) == _golden()

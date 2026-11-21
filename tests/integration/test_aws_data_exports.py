@@ -7,8 +7,11 @@ Delivery's S3 folder name, read from the manifest's `dataFiles` URIs.
 """
 
 import json
+import re
+from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 import pyarrow as pa
 import pyarrow.parquet as pq
@@ -184,3 +187,82 @@ def test_the_command_line_names_what_is_wrong_with_a_delivery_but_not_its_bucket
     assert code == 2
     assert "missing.parquet is listed in the manifest but not downloaded" in err
     assert "example-bucket" not in err
+
+
+DATA_FILE = "example-focus-1-2-00001.snappy.parquet"
+FOCUS_MANIFEST = "example-focus-1-2-Manifest-FOCUS.json"
+
+
+def _rewrite(path: Path, edit: Callable[[Any], Any]) -> None:
+    path.write_text(json.dumps(edit(json.loads(path.read_text(encoding="utf-8")))), "utf-8")
+
+
+def _second_account(manifest: Path) -> None:
+    other = row(1.0) | {"BillingAccountId": "210987654321"}
+    pq.write_table(pa.Table.from_pylist([other], schema=SCHEMA), manifest.parent / "b.parquet")
+    _rewrite(
+        manifest,
+        lambda m: (
+            m | {"dataFiles": [*m["dataFiles"], m["dataFiles"][0][: -len(DATA_FILE)] + "b.parquet"]}
+        ),
+    )
+
+
+@pytest.mark.parametrize(
+    ("damage", "message"),
+    [
+        (lambda m: m.write_text("{", "utf-8"), "the manifest is not valid JSON"),
+        (lambda m: m.write_text("[]", "utf-8"), "the manifest is not valid JSON"),
+        (
+            lambda m: _rewrite(m, lambda c: c | {"dataFiles": "s3://example-bucket/a.parquet"}),
+            "the manifest lists no data files",
+        ),
+        (
+            lambda m: _rewrite(m, lambda c: c | {"dataFiles": c["dataFiles"] * 2}),
+            "the manifest lists a data file more than once",
+        ),
+        (
+            lambda m: (m.parent / FOCUS_MANIFEST).unlink(),
+            f"{FOCUS_MANIFEST} is not beside the manifest",
+        ),
+        (
+            lambda m: (m.parent / FOCUS_MANIFEST).write_text("{}", "utf-8"),
+            f"{FOCUS_MANIFEST} names no FOCUS version",
+        ),
+        (
+            lambda m: _rewrite(
+                m.parent / FOCUS_MANIFEST,
+                lambda c: c | {"Schema": c["Schema"] | {"FocusVersion": "one point two"}},
+            ),
+            "FOCUS a version that is not a number, but 1.2 is pinned (ADR 0015)",
+        ),
+        (
+            lambda m: _rewrite(
+                m, lambda c: c | {"dataFiles": [f"s3://example-bucket/elsewhere/{DATA_FILE}"]}
+            ),
+            f"{DATA_FILE} is not in a Delivery folder"
+            " (data/billing_period=YYYY-MM/<CreatedAt>-<executionId>/)",
+        ),
+        (_second_account, "a Delivery bills one account, found 2"),
+    ],
+    ids=[
+        "not JSON",
+        "not an object",
+        "data files not a list",
+        "a file twice",
+        "no FOCUS manifest",
+        "no FOCUS version",
+        "a version that is not a number",
+        "not in a Delivery folder",
+        "two accounts",
+    ],
+)
+def test_each_delivery_error_says_what_is_wrong_word_for_word(
+    tmp_path: Path, damage: Callable[[Path], object], message: str
+) -> None:
+    # The CLI shows these messages to the person who ingests the Delivery (spec 05).
+    manifest = write_delivery(tmp_path)
+    damage(manifest)
+
+    with pytest.raises(DeliveryError, match=f"^{re.escape(message)}$"):
+        load_delivery(manifest)

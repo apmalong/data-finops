@@ -1,10 +1,15 @@
 """The Cost Dimensions configuration (spec 09 §Cost Dimensions, ADR 0031; #221): one TOML file,
 validated as the `collect` settings are, that names each dimension's sources in order."""
 
+from decimal import Decimal
 from pathlib import Path
 
 import pytest
 
+from data_finops.attribution.dimensions import dimension_totals, resolve
+from data_finops.attribution.engine import MeteredCostPool, MeteredUsage, PooledLine, allocate
+from data_finops.billing.focus import load_export
+from data_finops.contracts.allocation import DimensionValue
 from data_finops.contracts.dimensions import (
     NO_DIMENSIONS,
     CostDimensions,
@@ -12,6 +17,7 @@ from data_finops.contracts.dimensions import (
     SourceKind,
 )
 
+ROOT = Path(__file__).resolve().parents[2]
 TEAM_AND_TENANT = """
 [dimensions.team]
 sources = ["query_comment.team", "openlineage_tag.team", "workgroup_map"]
@@ -98,3 +104,32 @@ def test_an_error_names_the_fault_and_never_a_configured_value(tmp_path: Path) -
         with pytest.raises(ValueError) as error:
             _config(tmp_path, text)
         assert "secret" not in str(error.value)
+
+
+def test_a_sensitive_dimension_stays_sensitive_once_resolved(tmp_path: Path) -> None:
+    # The API hides a sensitive value (ADR 0031), so the flag must survive resolution.
+    config = _config(tmp_path, TEAM_AND_TENANT)
+
+    values = resolve(config, claims={"tenant_id": "t-1", "team": "a"}, tags=[], workgroup=None)
+
+    assert values["tenant"] == DimensionValue(
+        value="t-1", source="query_comment.tenant_id", sensitive=True
+    )
+    assert values["team"].sensitive is False
+
+
+def test_dimension_totals_count_every_allocation_that_carries_the_dimension() -> None:
+    # An Allocation without the dimension comes first; the ones after it still count.
+    line = load_export(ROOT / "fixtures" / "focus" / "export-2026-10.json").lines[0]
+    pool = MeteredCostPool("pool", (MeteredUsage("q-a", Decimal("0.0005")),))
+    first, second = allocate(
+        [PooledLine("line#0", line, pool)], policy_version="p", calculation_run_id="r"
+    )[:2]
+    tagged = second.model_copy(
+        update={"dimensions": {"team": DimensionValue(value="a", source="query_comment.team")}}
+    )
+
+    totals = dimension_totals([first, tagged], "team")
+
+    assert totals is not None
+    assert list(totals) == ["a"]
