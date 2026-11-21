@@ -172,7 +172,7 @@ def test_a_survivor_that_is_not_recorded_fails_the_run(tmp_path: Path) -> None:
     )
 
 
-def test_recorded_survivors_alone_pass(tmp_path: Path) -> None:
+def test_a_run_whose_survivors_are_all_recorded_passes(tmp_path: Path) -> None:
     results = _results(x_a__mutmut_1="killed", x_a__mutmut_2="survived", x_a__mutmut_3="survived")
     baseline = {
         "score": {"detected": 1, "tested": 3},

@@ -33,7 +33,7 @@ SKIPPED = frozenset({"skipped", "caught by type check"})
 STATUSES = DETECTED | SURVIVED | NOT_CHECKED | SKIPPED
 """Every status that `mutmut results` prints (mutmut 3.8.1, `mutmut.stats`)."""
 
-OK, LOWER, NO_SCORE = 0, 1, 2
+OK, FAIL, NO_SCORE = 0, 1, 2
 
 
 class NoScore(Exception):
@@ -87,17 +87,18 @@ def report(statuses: dict[str, str], floor: Score, recorded: dict[str, str]) -> 
     survivors = {n: s for n, s in statuses.items() if s in SURVIVED}
     unrecorded = sum(1 for n in survivors if n not in recorded)
     if unrecorded:
+        many = unrecorded != 1
+        noun, which = ("survivors are", "each") if many else ("survivor is", "it")
         lines.append(
-            f"{unrecorded} survivor{'s are' if unrecorded > 1 else ' is'} not recorded:"
-            f" kill {'each' if unrecorded > 1 else 'it'} with a test, or record"
-            f" {'each' if unrecorded > 1 else 'it'} with its reason in the baseline."
+            f"{unrecorded} {noun} not recorded: kill {which} with a test, or record {which}"
+            " with its reason in the baseline."
         )
     lines += ["", f"Surviving mutants: {len(survivors)}, not recorded: {unrecorded}", ""]
     lines += ["| Mutant | Status | Reason |", "|---|---|---|"]
     lines += [f"| {n} | {s} | {recorded.get(n, 'not recorded')} |" for n, s in survivors.items()]
     if gone := [n for n in recorded if n not in survivors]:
         lines += ["", f"Recorded, but no longer surviving: {', '.join(gone)}"]
-    return (LOWER if lower or unrecorded else OK), "\n".join(lines) + "\n"
+    return (FAIL if lower or unrecorded else OK), "\n".join(lines) + "\n"
 
 
 def main(argv: Sequence[str] | None = None) -> int:
