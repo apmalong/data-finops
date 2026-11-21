@@ -111,7 +111,7 @@
 <p>To run all the checks of the repository, use <code>python -m scripts.gates</code>. The <a href="https://github.com/apmalong/data-finops#run-the-checks">README</a> tells you how to prepare the environments. The tests of the dashboard's static mode also need Node.</p>
 <h2 id="mutation-tests">Mutation tests</h2>
 <p>Mutation tests measure the tests of the money logic: the code that splits a Billing Line. A tool, mutmut, makes small changes to that code, one at a time. Each change is a mutant. A good test fails for each mutant. A mutant that no test finds is a survivor.</p>
-<p>The <code>Mutation</code> workflow in GitHub Actions runs mutmut each Monday. You can also start it from the Actions tab. It compares the score with the baseline in <code>docs/implementation/mutation-baseline.json</code>, and a lower score fails the run. The report of the run gives the score and lists each survivor.</p>
+<p>The <code>Mutation</code> workflow in GitHub Actions runs mutmut each Monday. You can also start it from the Actions tab. It compares the score with the baseline in <code>docs/implementation/mutation-baseline.json</code>. A lower score fails the run, and so does a survivor that the baseline does not record. The report of the run gives the score and lists each survivor.</p>
 <p>mutmut needs Linux, or WSL on Windows. To run it on your computer:</p>
 <div class="shell-tabs">
 <pre class="shell-posix"><code><span class="line">uv sync --frozen --extra dev --extra api --extra aws --extra mutation

@@ -31,7 +31,14 @@ def _run(tmp_path: Path, results: str, baseline: Mapping[str, object]) -> tuple[
 
 def test_a_score_below_the_baseline_fails(tmp_path: Path) -> None:
     results = _results(x_a__mutmut_1="killed", x_a__mutmut_2="survived", x_a__mutmut_3="survived")
-    baseline = {"score": {"detected": 2, "tested": 3}, "survivors": {}}
+    # Both survivors are recorded, so only the lower score fails the run.
+    baseline = {
+        "score": {"detected": 2, "tested": 3},
+        "survivors": {
+            "data_finops.ledger.ledger.x_a__mutmut_2": "equivalent",
+            "data_finops.ledger.ledger.x_a__mutmut_3": "equivalent",
+        },
+    }
 
     code, report = _run(tmp_path, results, baseline)
 
@@ -49,7 +56,13 @@ def test_a_score_at_the_baseline_passes_and_counts_as_mutmut_does(tmp_path: Path
         x_a__mutmut_4="skipped",
         x_a__mutmut_5="no tests",
     )
-    baseline = {"score": {"detected": 1, "tested": 2}, "survivors": {}}
+    baseline = {
+        "score": {"detected": 1, "tested": 2},
+        "survivors": {
+            "data_finops.ledger.ledger.x_a__mutmut_3": "equivalent",
+            "data_finops.ledger.ledger.x_a__mutmut_5": "equivalent",
+        },
+    }
 
     code, report = _run(tmp_path, results, baseline)
 
@@ -76,7 +89,11 @@ def test_the_report_lists_every_survivor_with_its_recorded_reason(tmp_path: Path
 
     code, report = _run(tmp_path, results, baseline)
 
-    assert code == 0
+    assert code == 1
+    assert (
+        "2 survivors are not recorded: kill each with a test, or record each with its reason"
+        " in the baseline." in report
+    )
     assert "Surviving mutants: 3, not recorded: 2" in report
     assert "| data_finops.ledger.ledger.x_a__mutmut_2 | survived | an equivalent mutant |" in report
     assert "| data_finops.ledger.ledger.x_a__mutmut_3 | no tests | not recorded |" in report
@@ -137,3 +154,35 @@ def test_two_unchecked_mutants_are_counted_in_the_plural(tmp_path: Path) -> None
     code, report = _run(tmp_path, results, baseline)
 
     assert (code, report) == (2, "No score: 2 mutants were not checked.\n")
+
+
+def test_a_survivor_that_is_not_recorded_fails_the_run(tmp_path: Path) -> None:
+    # #243: each survivor is killed by a test or recorded with its reason. A new survivor
+    # fails the run even when the score holds, for example when another mutant died.
+    results = _results(x_a__mutmut_1="killed", x_a__mutmut_2="survived")
+    baseline = {"score": {"detected": 1, "tested": 2}, "survivors": {}}
+
+    code, report = _run(tmp_path, results, baseline)
+
+    assert code == 1
+    assert "lower" not in report
+    assert (
+        "1 survivor is not recorded: kill it with a test, or record it with its reason"
+        " in the baseline." in report
+    )
+
+
+def test_recorded_survivors_alone_pass(tmp_path: Path) -> None:
+    results = _results(x_a__mutmut_1="killed", x_a__mutmut_2="survived", x_a__mutmut_3="survived")
+    baseline = {
+        "score": {"detected": 1, "tested": 3},
+        "survivors": {
+            "data_finops.ledger.ledger.x_a__mutmut_2": "equivalent",
+            "data_finops.ledger.ledger.x_a__mutmut_3": "equivalent",
+        },
+    }
+
+    code, report = _run(tmp_path, results, baseline)
+
+    assert code == 0
+    assert "not recorded: 0" in report
