@@ -223,7 +223,7 @@ Spec 07 and ADR 0025 (design session, PR #141); spec issue #135; tickets #142–
     - `docs/implementation/screenshots/d-exit-light.png` and `d-exit-dark.png` (headless Edge, 1440px). They show the tabs, "On this page" and the collapsed nav.
     - The PRs add both tabs (`173-*.png`) and both widths (`171-*.png`).
   - **Keyboard-only pass through the nav:** passed by the owner on 2026-11-06.
-  - **The tutorial followed by hand from the live site:** followed by the owner on Windows on 2026-11-06. The owner reported that everything works but did not record a time.
+  - **The tutorial followed by hand from the live site:** followed by the owner on Windows on 2026-11-06, in 2 minutes, within spec 01's five-minute budget. Everything worked.
     - **Bug found on the first try:** the owner's first try stopped at step 3. In Windows PowerShell 5.1, `curl` is `Invoke-WebRequest`, which prompted for `Uri:`. #173 fixed it with the Windows tab's `curl.exe`.
     - **Scripted run as a timing reference:** a clean clone, `uv sync --extra api --frozen`, and every command copied from the live page's run blocks: 7 blocks, every command exiting 0, 17 s in all.
 - **Found and fixed during D:**

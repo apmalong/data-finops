@@ -9,7 +9,7 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
 
-from data_finops.billing.focus import load_export, load_parquet_export
+from data_finops.billing.focus import load_export, load_parquet_export, zoneless_utc_schema
 from data_finops.ledger import Ledger
 
 FIXTURE = Path(__file__).resolve().parents[2] / "fixtures" / "focus" / "export-2026-10.json"
@@ -163,6 +163,7 @@ def test_doubles_nested_in_struct_and_list_columns_are_converted_with_raw_values
     assert dumped["x_Detail"] == {"rate": "0.3", "note": "tiered"}
     assert dumped["x_Tiers"] == ["0.25", "0.0000001"]
     assert dumped["data_finops_raw_values"]["x_Detail.rate"] == "0.3"
+    assert dumped["data_finops_raw_values"]["x_Tiers[0]"] == "0.25"
     assert dumped["data_finops_raw_values"]["x_Tiers[1]"] == "1e-07"
 
 
@@ -226,3 +227,59 @@ def test_a_timestamp_in_another_zone_is_read_as_its_utc_instant(tmp_path):
     line = load_parquet_export([part], SNAPSHOT).lines[0]
 
     assert line.ChargePeriodStart == datetime(2026, 10, 1, tzinfo=UTC)
+
+
+def test_files_are_read_by_name_before_folder(tmp_path):
+    # Name first (the docstring's "path order, file name first"): b/a.parquet before a/z.parquet.
+    (tmp_path / "a").mkdir()
+    (tmp_path / "b").mkdir()
+    in_a = _write(tmp_path / "a" / "z.parquet", [_row(1.5)])
+    in_b = _write(tmp_path / "b" / "a.parquet", [_row(2.5)])
+
+    export = load_parquet_export([in_a, in_b], SNAPSHOT)
+
+    assert [line.model_dump(mode="json")["BilledCost"] for line in export.lines] == ["2.5", "1.5"]
+
+
+def test_a_timestamp_past_pythons_range_names_its_file(tmp_path):
+    table = pa.Table.from_pylist([_row(6.0)], schema=SCHEMA)
+    index = SCHEMA.get_field_index("ChargePeriodEnd")
+    far = pa.array([10**15], type=pa.timestamp("ms", tz="UTC"))  # about the year 33658
+    part = tmp_path / "part-00001.parquet"
+    pq.write_table(table.set_column(index, SCHEMA.field(index), far), part)
+
+    with pytest.raises(ValueError, match=r"^part-00001\.parquet: a timestamp is out of range$"):
+        load_parquet_export([part], SNAPSHOT)
+
+
+def test_every_double_in_a_struct_keeps_its_raw_value(tmp_path):
+    nested = SCHEMA.append(
+        pa.field("x_Rates", pa.struct([("a", pa.float64()), ("b", pa.float64())]))
+    )
+    row = {**_row(6.0), "x_Rates": {"a": 0.3, "b": 0.7}}
+    pq.write_table(pa.Table.from_pylist([row], schema=nested), tmp_path / "part-00001.parquet")
+
+    line = load_parquet_export([tmp_path / "part-00001.parquet"], SNAPSHOT).lines[0]
+    raw = line.model_dump(mode="json")["data_finops_raw_values"]
+
+    assert (raw["x_Rates.a"], raw["x_Rates.b"]) == ("0.3", "0.7")
+
+
+def test_the_zoneless_schema_keeps_everything_but_the_zones():
+    zoned, zoneless = pa.timestamp("ms", tz="UTC"), pa.timestamp("ms")
+    schema = pa.schema(
+        [("pair", pa.list_(zoned, 2)), ("many", pa.large_list(zoned)), ("name", pa.string())],
+        metadata={b"origin": b"test"},
+    )
+
+    assert zoneless_utc_schema(schema).equals(
+        pa.schema(
+            [
+                ("pair", pa.list_(zoneless, 2)),
+                ("many", pa.large_list(zoneless)),
+                ("name", pa.string()),
+            ],
+            metadata={b"origin": b"test"},
+        ),
+        check_metadata=True,
+    )

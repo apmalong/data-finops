@@ -19,3 +19,4 @@ Pulumi.*.yaml
 .DS_Store
 sbom.cdx.json
 .local/
+mutants/

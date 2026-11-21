@@ -155,3 +155,16 @@ def test_version_one_keyed_the_pool_by_day() -> None:
 def test_an_unknown_scope_version_is_refused() -> None:
     with pytest.raises(ValueError, match="athena-billing-scope/9"):
         pool_id(LINE, "athena-billing-scope/9")
+
+
+def test_a_line_naming_no_workgroup_is_pooled_under_a_star() -> None:
+    line = LINE.model_copy(update={"ResourceId": None})
+    assert (
+        pool_id(line)
+        == "athena-on-demand:123456789012:us-east-1:*:2026-10-01T00:00Z/2026-10-02T00:00Z"
+    )
+
+
+@pytest.mark.usefixtures("local_zone_not_utc")
+def test_the_pool_names_its_charge_period_in_utc_whatever_the_local_zone() -> None:
+    assert pool_id(LINE).endswith(":demo:2026-10-01T00:00Z/2026-10-02T00:00Z")
