@@ -82,7 +82,7 @@ def read_manifest(path: Path) -> Manifest:
     """The manifest at `path`. DeliveryError when it is not a JSON object."""
     try:
         content = json.loads(path.read_text(encoding="utf-8"))
-    except ValueError:
+    except (ValueError, RecursionError):
         raise DeliveryError("the manifest is not valid JSON") from None
     if not isinstance(content, dict):
         raise DeliveryError("the manifest is not valid JSON")
@@ -151,7 +151,10 @@ def _focus_version(manifest: Path) -> str:
     path = manifest.parent / name
     if not path.is_file():
         raise DeliveryError(f"{name} is not beside the manifest")
-    return str(json.loads(path.read_text(encoding="utf-8"))["Schema"]["FocusVersion"])
+    try:
+        return str(json.loads(path.read_text(encoding="utf-8"))["Schema"]["FocusVersion"])
+    except (ValueError, RecursionError, KeyError, TypeError):
+        raise DeliveryError(f"{name} names no FOCUS version") from None
 
 
 def _delivery_folder(uri: str) -> _DeliveryFolder:

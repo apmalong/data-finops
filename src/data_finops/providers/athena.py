@@ -8,11 +8,10 @@ query text, execution parameters and free-text failure reasons are never persist
 
 import json
 from dataclasses import dataclass
-from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, ValidationError
 
 from data_finops.contracts.limits import MAX_INPUT_FILE_BYTES
 
@@ -23,8 +22,9 @@ class _Provider(BaseModel):
 
 class QueryExecutionStatus(_Provider):
     State: str
-    SubmissionDateTime: datetime
-    CompletionDateTime: datetime | None = None
+    SubmissionDateTime: AwareDatetime
+    CompletionDateTime: AwareDatetime | None = None
+    """AWS writes both with a time zone. One without a zone is rejected (#282)."""
 
 
 class QueryExecutionStatistics(_Provider):

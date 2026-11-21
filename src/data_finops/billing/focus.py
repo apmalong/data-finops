@@ -24,7 +24,9 @@ from data_finops.contracts.types import format_decimal
 
 
 def load_export(path: Path) -> FocusExport:
-    return FocusExport.model_validate_json(path.read_text(encoding="utf-8"))
+    """An Export Snapshot in the JSON fixture format. A UTF-8 BOM is allowed, as in the other
+    readers (#282)."""
+    return FocusExport.model_validate_json(path.read_text(encoding="utf-8-sig"))
 
 
 def load_parquet_export(files: Iterable[Path], snapshot: ExportSnapshot) -> FocusExport:
