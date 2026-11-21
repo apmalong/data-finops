@@ -27,3 +27,8 @@ ADR 0032 records M8's control plane:
 - an API Gateway with IAM and OIDC
 - Overrides and versioned Cost Dimensions
 - an audit trail under Object Lock
+
+ADR 0033 records M9's incremental Deployment:
+- archives for superseded Export Snapshots
+- skips of work that did not change
+- permanent phase timings

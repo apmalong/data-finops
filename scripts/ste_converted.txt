@@ -111,3 +111,6 @@ site/explanation/compared-with-aws-tools.html
 # M8 design: spec 10 and ADR 0032.
 docs/specs/10-control-plane.md
 docs/adr/0032-control-plane-commands-through-the-collector.md
+
+# M9 design: ADR 0033.
+docs/adr/0033-incremental-deployment-archives-history-and-skips-unchanged-work.md
