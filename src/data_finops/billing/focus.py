@@ -50,7 +50,11 @@ def load_parquet_export(files: Iterable[Path], snapshot: ExportSnapshot) -> Focu
         table = pq.read_table(pa.BufferReader(content))  # type: ignore[no-untyped-call]
         table = table.cast(zoneless_utc_schema(table.schema))
         map_columns = {f.name for f in table.schema if pa.types.is_map(f.type)}
-        lines += [_focus_line(row, map_columns) for row in table.to_pylist()]
+        try:
+            rows = table.to_pylist()
+        except OverflowError:  # a time Parquet can hold and Python cannot (#282)
+            raise ValueError(f"{path.name}: a timestamp is out of range") from None
+        lines += [_focus_line(row, map_columns) for row in rows]
     return FocusExport(snapshot=snapshot.model_copy(update={"files": hashes}), lines=lines)
 
 

@@ -35,7 +35,9 @@ from collections.abc import Callable, Iterator
 from pathlib import Path
 from typing import Any
 
-from delivery_files import write_delivery
+import pyarrow as pa
+import pyarrow.parquet as pq
+from delivery_files import SCHEMA, row, write_delivery
 from fixture_database import ACCOUNT, FIXTURES, REGION
 from hypothesis import example, given, settings
 from hypothesis import strategies as st
@@ -327,12 +329,16 @@ LINEAGE_FIXTURES = {
 
 
 def _items(data: bytes) -> list[Any]:
-    """The events of a JSON array, or of JSON Lines, read with the standard library only."""
-    document = _document(data)
-    if isinstance(document, list):
-        return document
+    """The events of a JSON array, or of JSON Lines, read with the standard library only.
+
+    The format rule is the reader's (`screen_events`): a file that starts with `[` is one
+    JSON array, so a file that is not a whole array has no events."""
+    data = data.removeprefix(codecs.BOM_UTF8)
+    if data.lstrip().startswith(b"["):
+        document = _document(data)
+        return document if isinstance(document, list) else []
     items = []
-    for line in data.removeprefix(codecs.BOM_UTF8).split(b"\n"):
+    for line in data.split(b"\n"):
         if (item := _document(line)) is not None:
             items.append(item)
     return items
@@ -397,10 +403,11 @@ def _athena_by_its_rule(folder: Path, data: bytes) -> None:
     _quotes_no_value(code, output)
 
 
-def _athena_entry(**status: str) -> bytes:
-    """The Athena fixture with these Status fields in its first entry."""
+def _athena_entry(statistics: dict[str, int] | None = None, **status: str) -> bytes:
+    """The Athena fixture with these Statistics and Status fields in its first entry."""
     document = _fixture("athena", "query-executions.json")
     document["QueryExecutions"][0]["Status"].update(status)
+    document["QueryExecutions"][0]["Statistics"].update(statistics or {})
     return json.dumps(document).encode("utf-8")
 
 
@@ -409,6 +416,8 @@ def _athena_entry(**status: str) -> bytes:
 @example(DEEP)
 @example(_athena_entry(SubmissionDateTime="2026-11-01T00:00:00"))  # found: a TypeError
 @example(_athena_entry(CompletionDateTime="2026-11-01T00:00:00"))
+@example(_athena_entry({"DataScannedInBytes": 2**63}))  # found: an OverflowError
+@example(_athena_entry({"DataScannedInBytes": 2**63 - 1}))
 def test_athena_query_history_is_accepted_or_rejected_by_its_rule(data: bytes) -> None:
     _athena_by_its_rule(data)
 
@@ -467,6 +476,19 @@ def test_focus_export_snapshots_are_accepted_or_rejected_by_their_rule(data: byt
     _focus_export_by_its_rule(data)
 
 
+def _far_future_data_file() -> bytes:
+    """A Delivery data file whose charge period starts in the year 300,000, which Parquet
+    can hold and Python cannot."""
+    table = pa.Table.from_pylist([row(0.0003)], schema=SCHEMA)
+    start = pa.array([10**16], pa.int64()).cast(SCHEMA.field("ChargePeriodStart").type)
+    table = table.set_column(
+        table.schema.get_field_index("ChargePeriodStart"), "ChargePeriodStart", start
+    )
+    sink = pa.BufferOutputStream()
+    pq.write_table(table, sink)
+    return bytes(sink.getvalue().to_pybytes())
+
+
 @st.composite
 def damaged_deliveries(draw: st.DrawFn) -> tuple[str, bytes]:
     """Which file of a Delivery to damage, and its new bytes."""
@@ -489,6 +511,7 @@ FOCUS_MANIFEST = "example-focus-1-2-Manifest-FOCUS.json"
 @example((FOCUS_MANIFEST, b'{"Schema": {"FocusVersion": ["zz-fuzz-sentinel"]}}'))  # found
 @example((FOCUS_MANIFEST, b"[" * 100_000))
 @example(("example-focus-1-2-Manifest.json", b"[" * 100_000))
+@example(("example-focus-1-2-00001.snappy.parquet", _far_future_data_file()))  # found
 def test_damaged_deliveries_are_accepted_or_rejected_by_their_rule(
     damaged: tuple[str, bytes],
 ) -> None:

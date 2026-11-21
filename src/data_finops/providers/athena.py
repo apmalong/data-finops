@@ -29,7 +29,8 @@ class QueryExecutionStatus(_Provider):
 
 
 class QueryExecutionStatistics(_Provider):
-    DataScannedInBytes: int = Field(ge=0)
+    DataScannedInBytes: int = Field(ge=0, le=2**63 - 1)
+    """At most SQLite's largest integer, where it is stored. A larger count is rejected (#282)."""
 
 
 class AthenaQueryExecution(_Provider):
