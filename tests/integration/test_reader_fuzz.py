@@ -486,6 +486,7 @@ FOCUS_MANIFEST = "example-focus-1-2-Manifest-FOCUS.json"
 @given(damaged_deliveries())
 @example((FOCUS_MANIFEST, b"null"))  # found: a TypeError
 @example((FOCUS_MANIFEST, b'{"Schema": {}}'))
+@example((FOCUS_MANIFEST, b'{"Schema": {"FocusVersion": ["zz-fuzz-sentinel"]}}'))  # found
 @example((FOCUS_MANIFEST, b"[" * 100_000))
 @example(("example-focus-1-2-Manifest.json", b"[" * 100_000))
 def test_damaged_deliveries_are_accepted_or_rejected_by_their_rule(

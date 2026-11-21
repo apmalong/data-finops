@@ -31,6 +31,8 @@ _MANIFEST_SUFFIX = "-Manifest.json"
 _FOCUS_MANIFEST_SUFFIX = "-Manifest-FOCUS.json"
 _PERIOD = re.compile(r"billing_period=(?P<year>\d{4})-(?P<month>\d{2})")
 _UUID = r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+_VERSION = re.compile(r"\d{1,3}(\.\d{1,3}){0,2}")
+"""A FOCUS version that an error can name: digits and dots only, never other file content."""
 _EXECUTION_FOLDER = re.compile(
     rf"(?P<created>\d{{4}}-\d{{2}}-\d{{2}}T\d{{2}}:\d{{2}}:\d{{2}}(?:\.\d+)?Z)-(?P<execution>{_UUID})"
 )
@@ -109,7 +111,10 @@ def load_delivery(manifest: Path, data_dir: Path | None = None) -> FocusExport:
     listing = read_manifest(manifest)
     focus_version = _focus_version(manifest)
     if focus_version != FOCUS_VERSION:
-        raise DeliveryError(f"FOCUS {focus_version}, but {FOCUS_VERSION} is pinned (ADR 0015)")
+        named = (
+            focus_version if _VERSION.fullmatch(focus_version) else "a version that is not a number"
+        )
+        raise DeliveryError(f"FOCUS {named}, but {FOCUS_VERSION} is pinned (ADR 0015)")
     uris = [str(uri) for uri in listing.data_files]
     if not uris:
         raise DeliveryError("the manifest lists no data files")
