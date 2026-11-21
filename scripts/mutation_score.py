@@ -8,8 +8,9 @@ The score is mutmut's own (its `badge` command): killed and timed-out mutants ov
 mutant that was not skipped. The report gives the score and every mutant that survived, with
 the reason that the baseline records for it.
 
-Exit codes: 0 the score is at or above the baseline, 1 it is lower, 2 the run gives no score
-(a mutant not checked, no mutants, or a line that is not a result).
+Exit codes: 0 the score is at or above the baseline and the baseline records every survivor,
+1 the score is lower or a survivor is not recorded, 2 the run gives no score (a mutant not
+checked, no mutants, or a line that is not a result).
 
 Stdlib only. The comparison is exact (fractions), never floating point.
 """
@@ -32,7 +33,7 @@ SKIPPED = frozenset({"skipped", "caught by type check"})
 STATUSES = DETECTED | SURVIVED | NOT_CHECKED | SKIPPED
 """Every status that `mutmut results` prints (mutmut 3.8.1, `mutmut.stats`)."""
 
-OK, LOWER, NO_SCORE = 0, 1, 2
+OK, FAIL, NO_SCORE = 0, 1, 2
 
 
 class NoScore(Exception):
@@ -85,12 +86,19 @@ def report(statuses: dict[str, str], floor: Score, recorded: dict[str, str]) -> 
         lines.append(f"The score is lower than the baseline ({floor}).")
     survivors = {n: s for n, s in statuses.items() if s in SURVIVED}
     unrecorded = sum(1 for n in survivors if n not in recorded)
+    if unrecorded:
+        many = unrecorded != 1
+        noun, which = ("survivors are", "each") if many else ("survivor is", "it")
+        lines.append(
+            f"{unrecorded} {noun} not recorded: kill {which} with a test, or record {which}"
+            " with its reason in the baseline."
+        )
     lines += ["", f"Surviving mutants: {len(survivors)}, not recorded: {unrecorded}", ""]
     lines += ["| Mutant | Status | Reason |", "|---|---|---|"]
     lines += [f"| {n} | {s} | {recorded.get(n, 'not recorded')} |" for n, s in survivors.items()]
     if gone := [n for n in recorded if n not in survivors]:
         lines += ["", f"Recorded, but no longer surviving: {', '.join(gone)}"]
-    return (LOWER if lower else OK), "\n".join(lines) + "\n"
+    return (FAIL if lower or unrecorded else OK), "\n".join(lines) + "\n"
 
 
 def main(argv: Sequence[str] | None = None) -> int:

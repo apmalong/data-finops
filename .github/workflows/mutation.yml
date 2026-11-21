@@ -2,7 +2,7 @@ name: Mutation
 # Mutation testing of the money path by a tool, not by the agent that wrote the tests (#243).
 # Weekly and on request, never on a PR: a full run takes too long for each change. mutmut is
 # configured in pyproject.toml ([tool.mutmut]). scripts/mutation_score.py compares the score with
-# the stored baseline, and a lower score fails the run.
+# the stored baseline. A lower score fails the run, and so does a survivor that the baseline does not record.
 on:
   schedule:
     - cron: '23 6 * * 1' # Mondays, 06:23 UTC
