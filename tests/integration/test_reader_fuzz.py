@@ -207,8 +207,11 @@ def _rows(database: Path) -> int:
         )
 
 
-def _quotes_no_value(code: int, output: str) -> None:
+def _quotes_no_value(code: int, output: str, names: frozenset[str] = frozenset()) -> None:
+    """A rejection never quotes the sentinel, except as one of these file names (spec 05)."""
     if code != 0:
+        for name in names:
+            output = output.replace(name, "")
         assert SENTINEL not in output
 
 
@@ -435,7 +438,9 @@ def test_an_athena_entry_without_a_time_zone_is_rejected(tmp_path: Path) -> None
 # --- FOCUS -----------------------------------------------------------------------------
 
 
-def _focus_by_its_rule(code: int, output: str, database: Path, lines: int) -> None:
+def _focus_by_its_rule(
+    code: int, output: str, database: Path, lines: int, names: frozenset[str] = frozenset()
+) -> None:
     """Exit 0 stores the whole snapshot. Exit 1 (it does not reconcile) or 2 (nothing done)
     stores nothing (spec 05, #212)."""
     assert code in (0, 1, 2)
@@ -450,7 +455,7 @@ def _focus_by_its_rule(code: int, output: str, database: Path, lines: int) -> No
             assert len(current.lines) == lines
         else:
             assert scopes == []
-    _quotes_no_value(code, output)
+    _quotes_no_value(code, output, names)
 
 
 FOCUS_FIXTURE = _fixture("focus", "export-2026-10.json")
@@ -524,4 +529,24 @@ def test_damaged_deliveries_are_accepted_or_rejected_by_their_rule(
         code, output, _ = _run(["ingest", "focus", str(manifest), "--db", str(database)], database)
         if name.endswith(".json") and not isinstance(_document(data), dict):
             assert code == 2  # a manifest that is not a JSON object: not a usable Delivery
-        _focus_by_its_rule(code, output, database, 1)  # the Delivery's one row
+        _focus_by_its_rule(code, output, database, 1, _listed_names(manifest))  # one row
+
+
+def _listed_names(manifest: Path) -> frozenset[str]:
+    """The file names a manifest lists: a Delivery error may name them (spec 05)."""
+    document = _document(manifest.read_bytes())
+    listed = document.get("dataFiles") if isinstance(document, dict) else None
+    if not isinstance(listed, list):
+        return frozenset()
+    return frozenset(str(uri).rsplit("/", 1)[-1] for uri in listed if str(uri))
+
+
+def test_a_manifest_that_lists_a_file_twice_is_rejected(tmp_path: Path) -> None:
+    name = "example-focus-1-2-00001.snappy.parquet"
+    manifest = write_delivery(tmp_path / "delivery", listed=[name, name])
+    database = tmp_path / "data-finops.sqlite"
+    code, output, _ = _run(["ingest", "focus", str(manifest), "--db", str(database)], database)
+    assert code == 2  # found by the long profile: the file was read twice, its lines stored twice
+    assert "lists a data file more than once" in output
+    with Ledger(database) as ledger:
+        assert ledger.scopes() == []

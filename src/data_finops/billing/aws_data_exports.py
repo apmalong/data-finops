@@ -104,9 +104,10 @@ def load_delivery(manifest: Path, data_dir: Path | None = None) -> FocusExport:
 
     Raises DeliveryError when the Delivery is not as AWS writes it: a data file outside
     `data/billing_period=YYYY-MM/<CreatedAt>-<executionId>/`, files from more than one
-    execution or one other than the manifest's, no data files, a listed file that was
-    not downloaded, a FOCUS release other than the pinned one, or data files naming
-    more than one billing account. ValueError when lines differ from the snapshot.
+    execution or one other than the manifest's, no data files, a file name listed more than
+    once, a listed file that was not downloaded, a FOCUS release other than the pinned one,
+    or data files naming more than one billing account. ValueError when lines differ from the
+    snapshot.
     """
     listing = read_manifest(manifest)
     focus_version = _focus_version(manifest)
@@ -118,6 +119,9 @@ def load_delivery(manifest: Path, data_dir: Path | None = None) -> FocusExport:
     uris = [str(uri) for uri in listing.data_files]
     if not uris:
         raise DeliveryError("the manifest lists no data files")
+    names = [PurePosixPath(uri).name for uri in uris]  # files are found by name
+    if len(set(names)) != len(names):  # read twice, its lines would be stored twice (#282)
+        raise DeliveryError("the manifest lists a data file more than once")
     folders = {_delivery_folder(uri) for uri in uris}
     if len(folders) != 1:
         raise DeliveryError(f"the manifest lists files from {len(folders)} deliveries")
