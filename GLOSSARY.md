@@ -189,8 +189,12 @@ _Avoid_: duplicate (that is one item), rerun
 ## Stores
 
 **Database**:
-The one SQLite file that holds what data-finops stores, such as the Ledger and the Workload Store, locally or in a Deployment. In a Deployment, it is one object in the Deployment's bucket.
+The one SQLite file that holds what data-finops stores, such as the Ledger and the Workload Store, locally or in a Deployment. In a Deployment, it is one object in the Deployment's bucket. There, superseded snapshots move to Archives, and the Database keeps a record of each one.
 _Avoid_: store (alone), warehouse
+
+**Archive**:
+The kept copy of one superseded Export Snapshot, with the Allocation Snapshots of each Calculation Run on it, outside the Database. A report of a superseded Calculation Run reads its Archive.
+_Avoid_: backup, history file
 
 **Workload Store**:
 The record of workload metadata as Producers and providers reported it: OpenLineage events, dbt artifacts and Query Executions, each kept as an Observation. It is in the Database beside the Ledger.

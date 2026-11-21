@@ -1,6 +1,6 @@
 # ADR 0026: The AWS deployment is two Lambda functions without a VPC, which share one SQLite file in S3
 
-Status: Accepted (design, 2026-11-06). Decides OQ-5's topology for M6. Research: `docs/research/m6-aws-topology.md`, `docs/research/m6-pulumi-components-policies.md`. Amended 2026-11-07 by ADR 0029: the public demo's dashboard is hosted as a static snapshot. Amended 2026-11-16 by ADR 0032: the control plane (below).
+Status: Accepted (design, 2026-11-06). Decides OQ-5's topology for M6. Research: `docs/research/m6-aws-topology.md`, `docs/research/m6-pulumi-components-policies.md`. Amended 2026-11-07 by ADR 0029: the public demo's dashboard is hosted as a static snapshot. Amended 2026-11-16 by ADR 0032: the control plane (below). Amended 2026-11-21 by ADR 0033: archives and skips (below).
 
 ## Context
 M6 deploys data-finops to one AWS account with Pulumi Python (ADR 0002): scheduled read-only ingestion, a private API, encrypted storage and cost limits. Spec 05 rules out a mandatory VPC, NAT, RDS, Marquez or Kubernetes. The store is one SQLite file in WAL mode with one writer (ADR 0018), and sqlite.org says WAL does not work over a network filesystem. EFS and S3 Files both require a VPC, and Mountpoint for S3 cannot modify files. App Runner closed to new customers on 2026-04-30.
@@ -42,3 +42,8 @@ M8's control plane changes three points. Spec 10 has the details.
 - **Point 2:** the collector is still the only writer, and the conditional write stays. It now also applies Commands, and a Command starts a full Collection Run. The collector gets a reserved concurrency of 1, so Commands wait in turn (Q123). An account without the quota gets a debounce, and the deploy record warns (Q126).
 - **Point 3:** an API Gateway HTTP API replaces the Function URL (Q110, Q125). IAM authorizes the reader and operator routes, and a JWT authorizer authorizes the OIDC routes. The API can now write Commands, but never the Database. A Deployment Dashboard is served from CloudFront, with sign-in (Q127).
 - **Point 4:** the bucket also holds Commands under `commands/` and the versions of the Cost Dimensions under `config/`. Object Lock is turned on for it, with no default retention (Q144).
+
+## Amendment (ADR 0033, 2026-11-21)
+M9 changes point 2 and the consequences. ADR 0033 has the details.
+- **Point 2:** the collector moves each superseded Export Snapshot, and its Allocations, to an archive object under its own prefix. It skips a scope whose Input digest did not change. It does not write the file back when a run stored nothing (Q179, Q180, Q183).
+- **Consequences:** the limits now have numbers (`m9-decisions.md`, Measured). The file holds the current snapshots, not all history. Thus it stays far below the `PutObject` and `/tmp` limits at 10× today (Q174).
