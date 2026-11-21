@@ -77,6 +77,7 @@ def test_the_report_lists_every_survivor_with_its_recorded_reason(tmp_path: Path
     code, report = _run(tmp_path, results, baseline)
 
     assert code == 0
+    assert "Surviving mutants: 3, not recorded: 2" in report
     assert "| data_finops.ledger.ledger.x_a__mutmut_2 | survived | an equivalent mutant |" in report
     assert "| data_finops.ledger.ledger.x_a__mutmut_3 | no tests | not recorded |" in report
     assert "| data_finops.ledger.ledger.x_a__mutmut_4 | suspicious | not recorded |" in report
@@ -118,3 +119,21 @@ def test_the_stored_baseline_gives_a_reason_for_every_survivor() -> None:
     assert 0 < score["detected"] <= score["tested"]
     assert len(baseline["survivors"]) == score["tested"] - score["detected"]
     assert all(reason.strip() for reason in baseline["survivors"].values())
+
+
+def test_a_baseline_without_a_score_is_no_score(tmp_path: Path) -> None:
+    baseline = {"score": {"detected": 0, "tested": 0}, "survivors": {}}
+
+    code, report = _run(tmp_path, _results(x_a__mutmut_1="killed"), baseline)
+
+    assert code == 2
+    assert report == "No score: the baseline has no mutants.\n"
+
+
+def test_two_unchecked_mutants_are_counted_in_the_plural(tmp_path: Path) -> None:
+    results = _results(x_a__mutmut_1="not checked", x_a__mutmut_2="not checked")
+    baseline = {"score": {"detected": 0, "tested": 1}, "survivors": {}}
+
+    code, report = _run(tmp_path, results, baseline)
+
+    assert (code, report) == (2, "No score: 2 mutants were not checked.\n")

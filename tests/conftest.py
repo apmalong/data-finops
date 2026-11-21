@@ -21,13 +21,17 @@ settings.load_profile(os.environ.get("HYPOTHESIS_PROFILE", "ci"))
 
 
 @pytest.fixture
-def local_zone_not_utc(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+def local_zone_not_utc() -> Iterator[None]:
     """The process's local time zone is UTC+05:30 for the test. The POSIX TZ string needs no
     time-zone database. Windows cannot change the zone of a running process, so it skips."""
     if not hasattr(time, "tzset"):
         pytest.skip("time.tzset is POSIX only")
-    monkeypatch.setenv("TZ", "IST-5:30")
+    before = os.environ.get("TZ")
+    os.environ["TZ"] = "IST-5:30"
     time.tzset()
     yield
-    monkeypatch.undo()
+    if before is None:
+        del os.environ["TZ"]
+    else:
+        os.environ["TZ"] = before
     time.tzset()

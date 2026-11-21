@@ -44,8 +44,9 @@ class Score:
     detected: int
     tested: int
 
-    def __lt__(self, other: Score) -> bool:
-        return Fraction(self.detected, self.tested) < Fraction(other.detected, other.tested)
+    @property
+    def fraction(self) -> Fraction:
+        return Fraction(self.detected, self.tested)
 
     def __str__(self) -> str:
         return f"{self.detected} of {self.tested}"
@@ -64,7 +65,10 @@ def read_results(text: str) -> dict[str, str]:
 
 def score_of(statuses: dict[str, str]) -> Score:
     if unchecked := sum(1 for s in statuses.values() if s in NOT_CHECKED):
-        raise NoScore(f"{unchecked} mutant{'' if unchecked == 1 else 's'} was not checked")
+        many = unchecked != 1
+        raise NoScore(
+            f"{unchecked} mutant{'s' if many else ''} {'were' if many else 'was'} not checked"
+        )
     tested = sum(1 for s in statuses.values() if s not in SKIPPED)
     if not tested:
         raise NoScore("no mutants")
@@ -72,21 +76,21 @@ def score_of(statuses: dict[str, str]) -> Score:
 
 
 def report(statuses: dict[str, str], floor: Score, recorded: dict[str, str]) -> tuple[int, str]:
-    """The exit code and the Markdown report of one run against the baseline."""
-    try:
-        score = score_of(statuses)
-    except NoScore as error:
-        return NO_SCORE, f"No score: {error}.\n"
+    """The exit code and the Markdown report of one run against the baseline. NoScore when
+    the run gives no score."""
+    score = score_of(statuses)
+    lower = score.fraction < floor.fraction
     lines = [f"Score: {score} mutants detected. Baseline: {floor}."]
-    if score < floor:
+    if lower:
         lines.append(f"The score is lower than the baseline ({floor}).")
     survivors = {n: s for n, s in statuses.items() if s in SURVIVED}
-    lines += ["", f"Surviving mutants: {len(survivors)}", ""]
+    unrecorded = sum(1 for n in survivors if n not in recorded)
+    lines += ["", f"Surviving mutants: {len(survivors)}, not recorded: {unrecorded}", ""]
     lines += ["| Mutant | Status | Reason |", "|---|---|---|"]
     lines += [f"| {n} | {s} | {recorded.get(n, 'not recorded')} |" for n, s in survivors.items()]
     if gone := [n for n in recorded if n not in survivors]:
         lines += ["", f"Recorded, but no longer surviving: {', '.join(gone)}"]
-    return (LOWER if score < floor else OK), "\n".join(lines) + "\n"
+    return (LOWER if lower else OK), "\n".join(lines) + "\n"
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -96,13 +100,14 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--report", type=Path, help="also write the report to this file")
     args = parser.parse_args(argv)
     baseline = json.loads(args.baseline.read_text(encoding="utf-8"))
-    floor = Score(**baseline["score"])
     try:
+        floor = Score(**baseline["score"])
+        if floor.tested <= 0:
+            raise NoScore("the baseline has no mutants")
         statuses = read_results(args.results.read_text(encoding="utf-8"))
+        code, text = report(statuses, floor, baseline["survivors"])
     except NoScore as error:
         code, text = NO_SCORE, f"No score: {error}.\n"
-    else:
-        code, text = report(statuses, floor, baseline["survivors"])
     sys.stdout.buffer.write(text.encode("utf-8"))  # mutant names hold "ǁ", which cp1252 lacks
     sys.stdout.flush()
     if args.report:
