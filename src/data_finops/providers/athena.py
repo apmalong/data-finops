@@ -21,10 +21,11 @@ class _Provider(BaseModel):
 
 
 class QueryExecutionStatus(_Provider):
+    """AWS writes both times with a time zone. A time without a zone is rejected (#282)."""
+
     State: str
     SubmissionDateTime: AwareDatetime
     CompletionDateTime: AwareDatetime | None = None
-    """AWS writes both with a time zone. One without a zone is rejected (#282)."""
 
 
 class QueryExecutionStatistics(_Provider):

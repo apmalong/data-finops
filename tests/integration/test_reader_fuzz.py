@@ -1,7 +1,10 @@
 """Fuzz the four readers with generated and mutated input (#282).
 
 Each reader (FOCUS, OpenLineage, dbt, Athena) is driven through `data-finops ingest`, the
-seam agreed with the owner, into a new database. Two input strategies:
+seam agreed with the owner, into a new database. One OpenLineage event is also driven through
+`WorkloadStore.ingest_event`, the public ingest function of an HTTP request body (spec 04).
+
+Two input strategies:
 
 - **mutated:** a valid fixture with one to four changes (a field removed or renamed, a value
   of another type, out of range or a planted sentinel, a list item repeated), then perhaps
@@ -9,10 +12,15 @@ seam agreed with the owner, into a new database. Two input strategies:
 - **generated:** random bytes, or random JSON.
 
 Each reader must accept or reject by its rule (spec 05): exit 0, 1 or 2, never an unhandled
-exception. A rejected file or item stores nothing, and the output never quotes a value.
+exception. A rejected file or item stores nothing. When a file is rejected, the output does
+not quote the sentinel that the mutations plant.
 
 "Nothing stored" counts the rows of every table: no public read lists everything a
-database holds.
+database holds. FOCUS uses the Ledger's own reads instead.
+
+The oracles that can disagree with a reader use no reader code: an item identical to a
+fixture item must be accepted, and counts come from the raw JSON. The checks against a
+reader's own screening function only show that the CLI and the store agree with it.
 """
 
 import codecs
@@ -28,7 +36,7 @@ from pathlib import Path
 from typing import Any
 
 from delivery_files import write_delivery
-from fixture_database import FIXTURES
+from fixture_database import ACCOUNT, FIXTURES, REGION
 from hypothesis import example, given, settings
 from hypothesis import strategies as st
 
@@ -39,7 +47,6 @@ from data_finops.lineage.validation import screen_events
 from data_finops.providers.athena import screen_query_history
 from data_finops.workload.store import WorkloadStore
 
-ACCOUNT, REGION = "123456789012", "us-east-1"
 SENTINEL = "zz-fuzz-sentinel"
 """A value the mutations plant. A rejection must never quote it."""
 
@@ -203,7 +210,7 @@ def _quotes_no_value(code: int, output: str) -> None:
         assert SENTINEL not in output
 
 
-def _fuzzed(check: Callable[[Path, bytes], None]) -> Callable[[bytes], None]:
+def _in_a_new_folder(check: Callable[[Path, bytes], None]) -> Callable[[bytes], None]:
     def run(data: bytes) -> None:
         with tempfile.TemporaryDirectory() as folder:
             check(Path(folder), data)
@@ -242,7 +249,7 @@ DBT_FIXTURES = [_fixture("dbt", "manifest.json"), _fixture("dbt", "run_results.j
 DBT_SUPPORTED = re.compile(r"https://schemas\.getdbt\.com/dbt/(manifest/v12|run-results/v6)\.json")
 
 
-@_fuzzed
+@_in_a_new_folder
 def _dbt_by_its_rule(folder: Path, data: bytes) -> None:
     code, output, database = _ingest(folder, "dbt", data)
     document = _document(data)
@@ -294,7 +301,7 @@ def test_dbt_artifacts_are_accepted_or_rejected_by_their_rule(data: bytes) -> No
 # --- OpenLineage -----------------------------------------------------------------------
 
 
-@_fuzzed
+@_in_a_new_folder
 def _openlineage_by_its_rule(folder: Path, data: bytes) -> None:
     code, output, database = _ingest(folder, "openlineage", data)
     screening = screen_events(folder / "input-openlineage.json")
@@ -308,7 +315,7 @@ def _openlineage_by_its_rule(folder: Path, data: bytes) -> None:
     assert stored == accepted
     assert accepted + duplicates == len(screening.events)
     assert stored >= len({_canonical(item) for item in _items(data)} & LINEAGE_FIXTURES)
-    assert _rows(database) == 0 if not screening.events else _rows(database) > 0
+    assert (_rows(database) > 0) == bool(screening.events)
     _quotes_no_value(code, output)
 
 
@@ -367,7 +374,7 @@ ATHENA_FIXTURES = {
 """Valid entries: each one in an input that is not rejected whole must be stored."""
 
 
-@_fuzzed
+@_in_a_new_folder
 def _athena_by_its_rule(folder: Path, data: bytes) -> None:
     code, output, database = _ingest(folder, "athena", data)
     screening = screen_query_history(
@@ -386,13 +393,13 @@ def _athena_by_its_rule(folder: Path, data: bytes) -> None:
         with WorkloadStore(database) as store:
             assert store.stored_query_execution_ids(ACCOUNT, REGION, ids) == set(ids)
             assert set(valid) <= store.stored_query_execution_ids(ACCOUNT, REGION, valid)
-        assert _rows(database) == 0 if not ids else _rows(database) > 0
+        assert (_rows(database) > 0) == bool(ids)
     _quotes_no_value(code, output)
 
 
 def _athena_entry(**status: str) -> bytes:
     """The Athena fixture with these Status fields in its first entry."""
-    document = json.loads((FIXTURES / "athena" / "query-executions.json").read_text("utf-8"))
+    document = _fixture("athena", "query-executions.json")
     document["QueryExecutions"][0]["Status"].update(status)
     return json.dumps(document).encode("utf-8")
 
@@ -419,32 +426,35 @@ def test_an_athena_entry_without_a_time_zone_is_rejected(tmp_path: Path) -> None
 # --- FOCUS -----------------------------------------------------------------------------
 
 
-def _focus_by_its_rule(code: int, output: str, database: Path, expected: int) -> None:
-    """Exit 0 stores the whole snapshot. Exit 1 or 2 stores nothing (spec 05, #212)."""
+def _focus_by_its_rule(code: int, output: str, database: Path, lines: int) -> None:
+    """Exit 0 stores the whole snapshot. Exit 1 (it does not reconcile) or 2 (nothing done)
+    stores nothing (spec 05, #212)."""
     assert code in (0, 1, 2)
+    if code == 1:
+        assert output.startswith("focus: rejected: ")
     with Ledger(database) as ledger:
         scopes = ledger.scopes()
         if code == 0:
             (scope,) = scopes
             current = ledger.current_snapshot(scope)
             assert current is not None
-            assert len(current.lines) == expected
+            assert len(current.lines) == lines
         else:
             assert scopes == []
-    if code != 0:
-        assert _rows(database) == 0
     _quotes_no_value(code, output)
 
 
 FOCUS_FIXTURE = _fixture("focus", "export-2026-10.json")
 
 
-@_fuzzed
+@_in_a_new_folder
 def _focus_export_by_its_rule(folder: Path, data: bytes) -> None:
     code, output, database = _ingest(folder, "focus", data)
     document = _document(data)
     if document == FOCUS_FIXTURE:
         assert code == 0
+    if not isinstance(document, dict):  # not a JSON object: not an Export Snapshot
+        assert code == 2
     _focus_by_its_rule(code, output, database, len(document["lines"]) if code == 0 else 0)
 
 
@@ -488,4 +498,6 @@ def test_damaged_deliveries_are_accepted_or_rejected_by_their_rule(
         (root / "delivery" / name).write_bytes(data)
         database = root / "data-finops.sqlite"
         code, output, _ = _run(["ingest", "focus", str(manifest), "--db", str(database)], database)
+        if name.endswith(".json") and not isinstance(_document(data), dict):
+            assert code == 2  # a manifest that is not a JSON object: not a usable Delivery
         _focus_by_its_rule(code, output, database, 1)  # the Delivery's one row
