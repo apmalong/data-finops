@@ -367,3 +367,16 @@ The owner ran `deploy-and-verify.sh` against their account, in `us-east-1`. The 
   - **Result:** `current.json` names `snapshots/20261118T184216Z-23334030/`, published at 18:42:16 UTC, with 24 files. `snapshot.json` has November: `calc-a4a2b858-…`, USD, billed 0.031000, explained share 0.0000.
   - **Q22 (#281):** `gh api repos/apmalong/data-finops/branches/main/protection/required_status_checks --jq .contexts` gives `["quality","infra"]`.
 - **Open after #231:** each demo line is Unallocated `coverage_exceeded`, with coverage 1.11 to 1.12. So the Public Demo explains no cost yet. This is a separate issue.
+
+## M9: the measurement at 1×, 10× and 100× (2026-11-23, #336)
+The local numbers of ADR 0033 (Q174, Q177). The seed is a copy of the owner's Database from 2026-11-18. `scripts/measure_scale.py scale` makes each size, and `measure` runs the calculation and the publisher on it, with the phase lines of `data_finops.phases`. The machine is the owner's laptop (Windows, 16 GB). The Deployment's run, through the deploy wizard's "Phase timings" stage, comes later.
+
+| Size | File | Billing Lines | Calculation, new run | Calculation, replay | Publisher parse | Publisher render + write | Publisher files |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| 1× | 402 MB | 82,158 | 2.2 s, 181 MB | 1.3 s, 160 MB | 2.3 s | 1.0 s | 441 |
+| 10× | 3,636 MB | 821,580 | 21.7 s, 1,200 MB | 15.5 s, 1,006 MB | 25.5 s | 8.2 s | 3,324 |
+
+- **The publisher alone** (`--only publisher`): a peak of 210 MB at 1×, and 1,451 MB at 10×.
+- **At 10×, the first limit is the publisher's memory:** 1,451 MB locally, and the function has 1,024 MB. Q176 permits 2 GB as a temporary fix. The Deployment used 804 MB at 1× (2026-11-19), against 210 MB locally, so the local numbers are low. The Deployment run must show by how much.
+- **The collector at 10×:** 1,200 MB of its 2,048 MB, and a file of 3.6 GB, below the 5 GB `PutObject` and the 10 GB `/tmp`.
+- **100× was not run:** the file is about 36 GB, and the machine has 16 GB of memory. The 1× and 10× numbers grow about linearly. Thus at 100× the file passes the 5 GB `PutObject` and the 10 GB `/tmp` first, before memory. With Archives (#341), the file holds only the current lines, about 4 GB at 100×. Then the publisher's memory, at about 14 GB, passes the Lambda maximum of 10 GB. That is the revisit trigger of ADR 0033 (split the Database).

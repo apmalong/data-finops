@@ -79,6 +79,7 @@ DEV_TOOLS = (
     "scripts/ste_check.py",
     "scripts/ci_changes.py",
     "scripts/mutation_score.py",
+    "scripts/measure_scale.py",
 )  # dev tools under mypy and bandit
 
 GATES: tuple[Gate, ...] = (

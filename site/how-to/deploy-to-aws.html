@@ -100,6 +100,7 @@
 <li><a href="#preview">Check it with the policy pack</a></li>
 <li><a href="#deploy">Deploy</a></li>
 <li><a href="#first-run">Run a first Collection Run</a></li>
+<li><a href="#phase-timings">Read the phase timings</a></li>
 <li><a href="#public-demo">Add the Public Demo (optional)</a></li>
 </ul>
 </nav>
@@ -112,6 +113,7 @@
 <li>It checks what a destroy would keep.</li>
 <li>It can validate the IAM policies with IAM Access Analyzer.</li>
 <li>It runs a first Collection Run and reads its result.</li>
+<li>It can read the <a href="#phase-timings">phase timings</a> of the runs that it started.</li>
 <li>It can add the <a href="#public-demo">Public Demo</a>. Then the wizard deploys the demo, writes the demo's dataset, runs the Simulated Orchestrator one time and opens <code>demoUrl</code>.</li>
 <li>It asks before each step that changes something.</li>
 <li>It masks account IDs, buckets, profiles and the URL of the API in all that it shows and records.</li>
@@ -232,6 +234,16 @@
 <pre class="shell-windows" data-derived=""><code><span class="line">aws logs tail /aws/lambda/&lt;collectorFunction&gt; --since 1h --region &lt;region&gt; --profile &lt;your profile&gt;</span></code></pre>
 </div>
 <p>A run that could not read a source, or that lost a write to a concurrent run, ends as an error. The schedule invokes the collector asynchronously, so Lambda retries a failed run up to twice. Each run starts again from the current database. If a run reads data that is already stored, nothing changes. To read what it collected, see <a href="read-deployment.html">Read a Deployment</a>. To send it OpenLineage events and dbt artifacts, see <a href="send-to-inbox.html">Send workload metadata to the Inbox</a>.</p>
+
+<h2 id="phase-timings">Read the phase timings</h2>
+<p>Each run of the collector and of the publisher logs one line for each phase of the run (ADR 0033). A line gives the seconds that the phase took and the peak memory of the function so far, in MiB:</p>
+<pre class="output"><span class="line">{"event": "phase", "function": "collector", "phase": "calculate", "seconds": 1.852, "peak_mb": 180}</span></pre>
+<p>The collector logs the phases <code>fetch</code>, <code>ingest</code>, <code>calculate</code> and <code>write</code>. The publisher logs <code>download</code>, <code>open</code>, <code>parse</code>, <code>render</code> and <code>write</code>. To read the lines of the collector:</p>
+<div class="shell-tabs">
+<pre class="shell-posix"><code><span class="line">aws logs filter-log-events --log-group-name /aws/lambda/&lt;collectorFunction&gt; --filter-pattern '{ $.event = phase }' --query 'events[*].[message]' --output text --region &lt;region&gt; --profile &lt;your profile&gt;</span></code></pre>
+<pre class="shell-windows" data-derived=""><code><span class="line">aws logs filter-log-events --log-group-name /aws/lambda/&lt;collectorFunction&gt; --filter-pattern '{ $.event = phase }' --query 'events[*].[message]' --output text --region &lt;region&gt; --profile &lt;your profile&gt;</span></code></pre>
+</div>
+<p>For the publisher, use the output <code>demoPublisherFunction</code> in place of <code>collectorFunction</code>. The deploy wizard has a stage that reads both.</p>
 
 <h2 id="public-demo">Add the Public Demo (optional)</h2>
 <p>The owner of data-finops runs the <a href="../explanation/public-demo.html">Public Demo</a> in a Deployment. You do not need it to use data-finops. It adds a public site on CloudFront and an Athena workgroup with a generated dataset. It also adds a scheduled function that runs real queries in that workgroup. Those queries cost about $1 to $2 a month. The site publishes only the demo workgroup's lines, never the rest of the bill.</p>

@@ -35,11 +35,19 @@ OUTPUTS: dict[str, str] = {
     "dataset. Invoke it one time after the first deploy.",
     "demoSimulatorFunction": "Only with publicDemo: the simulated orchestrator, which its "
     "schedule starts. Invoke it by hand to run the DAGs due now.",
+    "demoPublisherFunction": "Only with publicDemo: the publisher, which each write of the "
+    "Database starts. Its logs hold its phase timings (ADR 0033).",
 }
 """Each stack output and what it is for. The site's generated deployment settings reference
 reads this literal from the source, and `Deployment.outputs` gives exactly these, less
 `DEMO_OUTPUTS` when `publicDemo` is off."""
-DEMO_OUTPUTS = ("demoUrl", "demoBucket", "demoGeneratorFunction", "demoSimulatorFunction")
+DEMO_OUTPUTS = (
+    "demoUrl",
+    "demoBucket",
+    "demoGeneratorFunction",
+    "demoSimulatorFunction",
+    "demoPublisherFunction",
+)
 
 
 def require_local_state() -> None:

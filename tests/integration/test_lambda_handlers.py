@@ -19,6 +19,7 @@ from aws_stubs import (
     expect_listing,
     expect_prefixes,
     expect_quiet_sources,
+    phase_names,
     s3_client,
     stubbed,
 )
@@ -77,7 +78,10 @@ def test_a_successful_collection_returns_and_logs_its_summary(
 
     assert result["exit_code"] == 0
     assert made == [DEPLOYMENT]
-    assert json.loads(capsys.readouterr().out.splitlines()[0]) == result
+    printed = capsys.readouterr()
+    assert json.loads(printed.out.splitlines()[0]) == result
+    # ADR 0033 (Q184): one log line for each phase, in order, on stderr.
+    assert phase_names(printed.err, "collector") == ["fetch", "ingest", "calculate", "write"]
 
 
 def _clients(s3: Any, athena: Any) -> Any:

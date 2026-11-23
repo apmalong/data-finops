@@ -137,7 +137,7 @@ The Deployment must not contain code that is not vetted. These tickets go first:
 
 ## Stack, settings and policy pack
 - **New settings:** `publicDemo` (default `false`), `demoScanCutoffBytes`, `demoSchedule` and `costDimensions`. Each has a docstring, so that the generated settings reference shows it.
-- **New outputs:** `demoUrl`, `demoBucket`, `demoGeneratorFunction` and `demoSimulatorFunction`. They exist only when `publicDemo` is `true`.
+- **New outputs:** `demoUrl`, `demoBucket`, `demoGeneratorFunction`, `demoSimulatorFunction` and `demoPublisherFunction` (#336). They exist only when `publicDemo` is `true`.
 - **Policy pack:**
   - The demo bucket gets the same S3 policies as the bucket of the Deployment.
   - A new policy: each CloudFront distribution uses origin access control, and redirects HTTP to HTTPS or allows HTTPS only.

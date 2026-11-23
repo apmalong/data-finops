@@ -9,6 +9,7 @@ from data_finops.collection.run import (
     CollectionSummary,
     run_collection,
 )
+from data_finops.phases import NO_PHASES, Phases
 from data_finops.providers.aws import (
     S3Reader,
     S3Writer,
@@ -32,16 +33,23 @@ DATABASE_KEY = "database/data-finops.sqlite"
 
 
 def run_remote_collection(
-    settings: CollectionSettings, *, clients: AwsClients, writer: S3Writer, scratch: Path
+    settings: CollectionSettings,
+    *,
+    clients: AwsClients,
+    writer: S3Writer,
+    scratch: Path,
+    phases: Phases = NO_PHASES,
 ) -> CollectionSummary:
     """One Collection Run over the database object in `settings.bucket`. The stores are
     closed before the upload, so SQLite has checkpointed its WAL into the file. WriteConflict
     when another writer changed the object meanwhile: nothing is overwritten."""
     scratch.mkdir(parents=True, exist_ok=True)
     database = scratch / "data-finops.sqlite"
-    etag = fetch_file(writer, settings.bucket, DATABASE_KEY, database)
-    summary = run_collection(database, settings, clients=clients)
-    put_file(writer, settings.bucket, DATABASE_KEY, database, etag=etag)
+    with phases("fetch"):
+        etag = fetch_file(writer, settings.bucket, DATABASE_KEY, database)
+    summary = run_collection(database, settings, clients=clients, phases=phases)
+    with phases("write"):
+        put_file(writer, settings.bucket, DATABASE_KEY, database, etag=etag)
     return summary
 
 

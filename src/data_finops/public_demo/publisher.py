@@ -16,6 +16,7 @@ import json
 import re
 import uuid
 from collections.abc import Callable, Iterator
+from contextlib import ExitStack
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from decimal import Decimal
@@ -26,6 +27,7 @@ from typing import Any, get_args
 from pydantic import BaseModel
 
 from data_finops.contracts.billing import CostBasis, FocusBillingLine, FocusChargeCategory
+from data_finops.phases import NO_PHASES, Phases
 from data_finops.providers.aws import WriteConflict, put_bytes, read_versioned_object
 from data_finops.public_demo.workload import WORKGROUP
 from data_finops.reporting import (
@@ -127,31 +129,46 @@ def masked(text: str) -> str:
     return ACCOUNT_ID.sub(EXAMPLE_ACCOUNT, text)
 
 
-def render(database: Path, *, published_at: datetime, lines: LineFilter) -> list[PublishedFile]:
-    """Every file of the Demo Snapshot of the database, its account IDs already masked."""
+def render(
+    database: Path, *, published_at: datetime, lines: LineFilter, phases: Phases = NO_PHASES
+) -> list[PublishedFile]:
+    """Every file of the Demo Snapshot of the database, its account IDs already masked.
+    `phases` times the opening, the parse of the snapshots (the summaries) and the rest."""
     files: list[PublishedFile] = []
-    with Reporting(database, lines=lines) as read_model:
-        periods = billing_periods(published_at)
-        summaries = {basis: _summaries(read_model, basis, periods) for basis in CostBasis}
-        for basis, summary in summaries.items():
-            files.append(_file(KEYS["summary"].format(cost_basis=basis.value), summary))
-        reached: set[str] = set()
-        for scope in summaries[CostBasis.BILLED_COST].summaries:
-            run = scope.snapshot.calculation_run_id
-            selected: dict[str, Any] = {"calculation_run_id": run, "limit": MAX_PAGE_SIZE}
-            allocations = [page for _, page in _pages(partial(read_model.allocations, **selected))]
-            files += _allocation_files(read_model, run, allocations)
-            for level in get_args(RollupLevel):
-                for n, page in _pages(partial(read_model.rollups, level=level, **selected)):
-                    files.append(_file(KEYS["rollups"].format(level=level, run=run, page=n), page))
-                    if level == "workload_run":
-                        reached |= {entry.key for entry in page.items}
-            for name in _public_dimensions(allocations):
-                pages = _pages(partial(read_model.dimension_rollups, name=name, **selected))
-                for n, page in pages:
-                    files.append(_file(KEYS["dimension"].format(name=name, run=run, page=n), page))
-        files += _lineage(read_model, reached)
-        files.append(_snapshot_file(published_at, summaries[CostBasis.BILLED_COST]))
+    with ExitStack() as stack:
+        with phases("open"):
+            read_model = stack.enter_context(Reporting(database, lines=lines))
+        with phases("parse"):
+            periods = billing_periods(published_at)
+            summaries = {basis: _summaries(read_model, basis, periods) for basis in CostBasis}
+        with phases("render"):
+            files += _rendered(read_model, summaries, published_at)
+    return files
+
+
+def _rendered(
+    read_model: Reporting, summaries: dict[CostBasis, CostSummaries], published_at: datetime
+) -> list[PublishedFile]:
+    files: list[PublishedFile] = []
+    for basis, summary in summaries.items():
+        files.append(_file(KEYS["summary"].format(cost_basis=basis.value), summary))
+    reached: set[str] = set()
+    for scope in summaries[CostBasis.BILLED_COST].summaries:
+        run = scope.snapshot.calculation_run_id
+        selected: dict[str, Any] = {"calculation_run_id": run, "limit": MAX_PAGE_SIZE}
+        allocations = [page for _, page in _pages(partial(read_model.allocations, **selected))]
+        files += _allocation_files(read_model, run, allocations)
+        for level in get_args(RollupLevel):
+            for n, page in _pages(partial(read_model.rollups, level=level, **selected)):
+                files.append(_file(KEYS["rollups"].format(level=level, run=run, page=n), page))
+                if level == "workload_run":
+                    reached |= {entry.key for entry in page.items}
+        for name in _public_dimensions(allocations):
+            pages = _pages(partial(read_model.dimension_rollups, name=name, **selected))
+            for n, page in pages:
+                files.append(_file(KEYS["dimension"].format(name=name, run=run, page=n), page))
+    files += _lineage(read_model, reached)
+    files.append(_snapshot_file(published_at, summaries[CostBasis.BILLED_COST]))
     return files
 
 
@@ -162,19 +179,22 @@ def publish(
     bucket: str,
     clock: Clock,
     lines: LineFilter | None = None,
+    phases: Phases = NO_PHASES,
 ) -> dict[str, Any]:
     """Render the Demo Snapshot, write it under a new prefix, then point `current.json` at it.
     A failed write raises AwsSourceError, and `current.json` keeps the last whole snapshot.
     The prefix has a random part, so two publishes never share one, and `current.json` moves
     only forward in time (`moved` says whether this publish moved it)."""
     published_at = clock().astimezone(UTC).replace(microsecond=0)
-    files = render(database, published_at=published_at, lines=lines or demo_lines())
+    files = render(database, published_at=published_at, lines=lines or demo_lines(), phases=phases)
     stamp = published_at.strftime("%Y%m%dT%H%M%SZ")
     prefix = f"{SNAPSHOTS}{stamp}-{uuid.uuid4().hex[:8]}/"
-    for file in files:
-        put_bytes(s3, bucket, f"{prefix}{file.key}", file.body, content_type=JSON)
-    pointer = {"prefix": prefix, "published_at": _time(published_at), "files": len(files)}
-    return pointer | {"moved": _move_current(s3, bucket, pointer)}
+    with phases("write"):
+        for file in files:
+            put_bytes(s3, bucket, f"{prefix}{file.key}", file.body, content_type=JSON)
+        pointer = {"prefix": prefix, "published_at": _time(published_at), "files": len(files)}
+        moved = _move_current(s3, bucket, pointer)
+    return pointer | {"moved": moved}
 
 
 def _move_current(s3: Any, bucket: str, pointer: dict[str, Any]) -> bool:

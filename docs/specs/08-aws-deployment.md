@@ -47,6 +47,7 @@ The collector is the only writer.
 - `python -m deployment.package` (in `infra/pulumi/aws`) builds the zip into `build/data-finops-lambda.zip` before `pulumi up`. It installs the versions in `uv.lock` with their hashes, then the wheel without dependencies (#209).
 - `pulumi up` refuses to run without the zip. It uploads the zip as `lambda/data-finops-lambda.zip`. When the SHA-256 of the zip changes, the functions are deployed again (#186, #187).
 - Measured on 2026-11-07: 66 MB zipped, and 173 MB unzipped, which is below the 250 MB limit of Lambda.
+- **Phase timings** (ADR 0033, Q184): each run logs one JSON line to stderr for each phase, with the seconds and the peak memory of the process so far (`data_finops.phases`). The collector's phases are `fetch`, `ingest`, `calculate` and `write`. The publisher's are `download`, `open`, `parse`, `render` and `write`.
 
 ### Bucket
 The bucket holds the database object, `inbox/openlineage/`, `inbox/dbt/<invocation>/` and the Lambda package. When `costDimensions` is set, it also holds `config/cost-dimensions.toml` (spec 09).
@@ -233,6 +234,7 @@ Each step is a `wizard` script that the owner runs. Agents never run them.
   - `pulumi up`
   - one Collection Run
   - read the result back through the API
+  - as an option, read the phase timings from the logs (#336)
   - record the output in progress.md
 - **Teardown** (#26 joins M6): `pulumi destroy` of the Deployment and of the reference workload. Then a check that nothing from the two stacks remains.
 

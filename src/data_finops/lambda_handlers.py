@@ -20,6 +20,7 @@ from data_finops.collection.remote import (
     run_remote_collection,
 )
 from data_finops.collection.run import FAILED, DimensionsUnavailable
+from data_finops.phases import Phases
 
 if TYPE_CHECKING:
     from data_finops.public_demo.dataset import DatasetFile
@@ -76,7 +77,11 @@ def make_collector_handler(
         with tempfile.TemporaryDirectory(prefix="data-finops-") as scratch:
             try:
                 summary = run_remote_collection(
-                    settings, clients=aws, writer=cast(S3Writer, aws.s3), scratch=Path(scratch)
+                    settings,
+                    clients=aws,
+                    writer=cast(S3Writer, aws.s3),
+                    scratch=Path(scratch),
+                    phases=Phases("collector"),
                 )
             except WriteConflict:
                 raise CollectionFailed(
@@ -223,11 +228,19 @@ def make_publisher_handler(
         client = s3()
         scratch.mkdir(parents=True, exist_ok=True)
         path = scratch / "data-finops.sqlite"
-        if not CachedDatabase(client, str(buckets[DEPLOYMENT_BUCKET]), path).refresh():
+        phases = Phases("publisher")
+        with phases("download"):
+            found = CachedDatabase(client, str(buckets[DEPLOYMENT_BUCKET]), path).refresh()
+        if not found:
             print(json.dumps({"published": False}))
             return {"published": False}
         pointer = publish(
-            path, s3=client, bucket=str(buckets[DEMO_BUCKET]), clock=clock, lines=lines
+            path,
+            s3=client,
+            bucket=str(buckets[DEMO_BUCKET]),
+            clock=clock,
+            lines=lines,
+            phases=phases,
         )
         print(json.dumps(pointer))
         return pointer

@@ -156,12 +156,16 @@ DEPLOY_ANSWERS = [
     "y", "",  # collection run
     "",  # read back
     "n",  # no Public Demo
+    "y", "",  # phase timings
     "",  # record
 ]  # fmt: skip
-DEMO_ANSWERS = DEPLOY_ANSWERS[:-2] + [
+AFTER_DEMO = 3
+"""The answers after the question whether to add the Public Demo."""
+DEMO_ANSWERS = DEPLOY_ANSWERS[: -AFTER_DEMO - 1] + [
     "y", "y", "y", "",  # the Public Demo: add it, the preview is right, pulumi up
     "y", "y", "",  # the dataset, the simulator
     "y", "",  # the collector, open demoUrl
+    "y", "",  # phase timings
     "",  # record
 ]  # fmt: skip
 
@@ -242,11 +246,40 @@ def test_the_demo_stage_deploys_it_writes_the_dataset_runs_it_and_opens_it(
     _nothing_secret(result.stdout, result.stderr, record)
 
 
+def test_the_phase_timings_of_the_runs_are_read_back_masked(tmp_path: Path) -> None:
+    # ADR 0033 (Q184): the collector's phase lines, and the publisher's with the demo.
+    result, calls, record = _dry_run(DEPLOY, DEMO_ANSWERS, tmp_path)
+    assert result.returncode == 0, result.stdout[-2000:] + result.stderr[-2000:]
+    groups = [
+        c.split("--log-group-name ")[1].split()[0]
+        for c in calls
+        if c.startswith("aws logs filter-log-events")
+    ]
+    assert groups == [
+        "/aws/lambda/data-finops-dev-collector",
+        "/aws/lambda/data-finops-dev-demo-publisher",
+    ]
+    filtered = next(c for c in calls if c.startswith("aws logs filter-log-events"))
+    assert "{ $.event = phase }" in filtered and "--start-time" in filtered
+    assert '{"event": "phase", "function": "collector", "phase": "fetch"' in record
+    assert "<account>" in record
+    _nothing_secret(result.stdout, result.stderr, record)
+
+
+def test_the_phase_timings_can_be_skipped(tmp_path: Path) -> None:
+    answers = list(DEPLOY_ANSWERS)
+    answers[-3] = "n"
+    result, calls, record = _dry_run(DEPLOY, answers, tmp_path)
+    assert result.returncode == 0, result.stdout[-2000:] + result.stderr[-2000:]
+    assert not any(c.startswith("aws logs") for c in calls)
+    assert "skipped: the phase timings" in record
+
+
 @pytest.mark.parametrize("replace", [False, True], ids=["kept", "replaced"])
 def test_the_owner_chooses_whether_their_cost_dimensions_file_stays(
     replace: bool, tmp_path: Path
 ) -> None:
-    start = len(DEPLOY_ANSWERS) - 2
+    start = len(DEPLOY_ANSWERS) - AFTER_DEMO - 1
     answers = DEMO_ANSWERS[: start + 1] + ["y" if replace else "n"] + DEMO_ANSWERS[start + 1 :]
     result, calls, record = _dry_run(DEPLOY, answers, tmp_path, STUB_DIMENSIONS="1")
     assert result.returncode == 0, result.stdout[-2000:] + result.stderr[-2000:]
@@ -258,7 +291,7 @@ def test_the_owner_chooses_whether_their_cost_dimensions_file_stays(
 
 def test_without_a_collection_run_the_demo_is_still_offered(tmp_path: Path) -> None:
     answers = list(DEPLOY_ANSWERS)
-    answers[-5] = "n"  # no to the collector; its pause follows
+    answers[-AFTER_DEMO - 4] = "n"  # no to the collector; its pause follows
     result, calls, record = _dry_run(DEPLOY, answers, tmp_path)
     assert result.returncode == 0, result.stdout[-2000:] + result.stderr[-2000:]
     assert not any(c.startswith("aws lambda invoke") for c in calls)
@@ -268,7 +301,7 @@ def test_without_a_collection_run_the_demo_is_still_offered(tmp_path: Path) -> N
 
 @pytest.mark.parametrize("no_at", [1, 2], ids=["no to the preview", "no to pulumi up"])
 def test_the_demo_is_not_deployed_without_a_yes(no_at: int, tmp_path: Path) -> None:
-    start = len(DEPLOY_ANSWERS) - 2
+    start = len(DEPLOY_ANSWERS) - AFTER_DEMO - 1
     answers = DEMO_ANSWERS[: start + no_at] + ["n"]
     result, calls, _ = _dry_run(DEPLOY, answers, tmp_path)
     assert result.returncode == 1
