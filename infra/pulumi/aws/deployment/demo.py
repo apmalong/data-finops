@@ -385,7 +385,7 @@ class PublicDemo(pulumi.ComponentResource):
             ),
             opts=child,
         )
-        function = aws.lambda_.Function(
+        function = self.publisher = aws.lambda_.Function(
             f"{name}-publisher",
             name=f"{name}-{stack}-publisher",
             role=role.arn,
@@ -435,6 +435,7 @@ class PublicDemo(pulumi.ComponentResource):
             "demoBucket": self.bucket.bucket,
             "demoGeneratorFunction": self.generator.name,
             "demoSimulatorFunction": self.simulator.name,
+            "demoPublisherFunction": self.publisher.name,
         }
 
 

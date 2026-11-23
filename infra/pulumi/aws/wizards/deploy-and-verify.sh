@@ -336,9 +336,19 @@ demo_output() {
 
 stop_before_demo() { warn "stopped before the Public Demo was created"; exit 1; }
 
+# phase_lines FUNCTION: the phase timings (ADR 0033) that FUNCTION logged since the wizard
+# started, one line for each phase, masked.
+phase_lines() {
+  run aws logs filter-log-events --log-group-name "/aws/lambda/$1" \
+    --filter-pattern '{ $.event = phase }' --start-time "$STARTED_MS" \
+    --region "$AWS_REGION_NAME" --profile "$DEPLOYER_PROFILE" \
+    --query 'events[*].[message]' --output text
+}
+
 run_wizard() {
 
-TOTAL_STAGES=$((13 + DEMO_STAGES))
+TOTAL_STAGES=$((14 + DEMO_STAGES))
+STARTED_MS=$(( $(date +%s) * 1000 )) # the phase timings stage reads the logs from here
 
 banner "Deploy data-finops to AWS and verify it"
 mkdir -p "$LOCAL/pulumi"
@@ -566,6 +576,21 @@ if (( DEMO )); then
   open_url "$DEMO_URL"
   pause
 fi
+
+stage "Phase timings (optional)"
+say "Each function logs the time and the peak memory of each phase of its runs (ADR 0033)."
+say "This reads those lines from CloudWatch Logs, for the runs since this wizard started."
+if confirm "Read the phase timings now?"; then
+  phase_lines "$COLLECTOR"
+  if (( DEMO )); then
+    note "The publisher starts when the collector writes the Database: wait a minute for its lines."
+    phase_lines "$(demo_output demoPublisherFunction)"
+  fi
+  note "Add these lines to the record in progress.md: they are the Deployment's numbers (#336)."
+else
+  show "skipped: the phase timings"
+fi
+pause
 
 stage "Record"
 say "Everything shown, masked, is in $(basename "$RECORD") under .local/. Share that file to"

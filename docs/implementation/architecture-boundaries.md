@@ -45,6 +45,7 @@
   - `collection.remote` fetches and writes the database object.
   - The Lambda handlers (`lambda_handlers`) are entry points over `collection`, `api` and `public_demo`, as `cli` is. The API handler and the publisher keep a copy of the database object through `collection.remote.CachedDatabase`, which gets it again only when its ETag changes. The handlers do not import `providers` (#214). They get the S3 protocol types and `WriteConflict` from `collection.remote`, which gives them again.
   - The entry points (`cli` and `lambda_handlers`) get their AWS clients from `aws_clients`, the only module that imports boto3 (#183, #184).
+  - `phases` times the phases of a function's run and logs them (ADR 0033, #336). It imports only the standard library. `collection`, `public_demo` and `lambda_handlers` import it. `scripts/measure_scale.py` imports it and `public_demo.publisher`, as dev tooling outside the wheel.
 - `public_demo`: the parts of the public demo that run in AWS (M7, spec 09). It is not the `data-finops demo` command.
   - `public_demo.dataset` makes the demo dataset as Parquet, and writes it through `providers.aws`. It is the second module that can import pyarrow (ADR 0018, amended).
   - `public_demo.simulator` is the simulated orchestrator. It runs the plan of a start in Athena, through `providers.aws`, and writes the records to the Inbox. `public_demo.workload` holds its DAGs and models as data.

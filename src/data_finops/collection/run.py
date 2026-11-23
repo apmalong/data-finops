@@ -33,6 +33,7 @@ from data_finops.ledger import (
     ReconciliationError,
     SnapshotConflictError,
 )
+from data_finops.phases import NO_PHASES, Phases
 from data_finops.providers.aws import (
     UNFINISHED,
     AthenaReader,
@@ -265,6 +266,7 @@ def run_collection(
     clients: AwsClients,
     dimensions: CostDimensions | None = None,
     now: datetime | None = None,
+    phases: Phases = NO_PHASES,
 ) -> CollectionSummary:
     """Collect every source into the database at `db`, then start one Calculation Run per
     Snapshot Scope on whatever was stored.
@@ -278,7 +280,10 @@ def run_collection(
     An Inbox object that is not collected is warned about before S3 expires it, counted from
     `now` (default: the current time)."""
     dimensions = _run_dimensions(settings, clients, dimensions)
-    with tempfile.TemporaryDirectory(prefix="data-finops-collect-") as scratch:
+    with (
+        phases("ingest"),
+        tempfile.TemporaryDirectory(prefix="data-finops-collect-") as scratch,
+    ):
         with WorkloadStore(db) as store:
             # Workload metadata first (spec 08 §1); links are derived when queried, so the
             # order is for readability, never correctness.
@@ -297,11 +302,12 @@ def run_collection(
             )
         with Ledger(db) as ledger:
             focus = _collect_focus(ledger, clients.s3, settings, Path(scratch), warnings)
-    with Ledger(db) as ledger, WorkloadStore(db) as store:
-        runs = [
-            run_calculation(ledger, store, scope, dimensions=dimensions).calculation_run_id
-            for scope in ledger.scopes()
-        ]
+    with phases("calculate"):
+        with Ledger(db) as ledger, WorkloadStore(db) as store:
+            runs = [
+                run_calculation(ledger, store, scope, dimensions=dimensions).calculation_run_id
+                for scope in ledger.scopes()
+            ]
     return CollectionSummary(
         sources={"dbt": dbt, "openlineage": openlineage, "athena": athena, "focus": focus},
         warnings=warnings,

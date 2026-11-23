@@ -19,6 +19,7 @@ from botocore.response import StreamingBody
 from botocore.stub import ANY
 from fixture_database import EXPORT, FIXTURES, OTHER_EXPORT
 from jsonschema import Draft202012Validator
+from phase_lines import phase_names
 
 from data_finops.api import create_app
 from data_finops.calculation import run_calculation
@@ -397,7 +398,7 @@ def test_rendering_the_same_database_twice_gives_the_same_files(
 
 
 def test_the_handler_publishes_the_database_object_of_the_deployment(
-    database: Path, tmp_path: Path
+    database: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     from data_finops.collection.remote import DATABASE_KEY
     from data_finops.lambda_handlers import DEMO_BUCKET, DEPLOYMENT_BUCKET, make_publisher_handler
@@ -426,6 +427,14 @@ def test_the_handler_publishes_the_database_object_of_the_deployment(
         result = handler({"Records": []}, None)
 
     assert result["prefix"].startswith("snapshots/20261105T070000Z-") and keys[-1] == CURRENT
+    # ADR 0033 (Q184): one log line for each phase, in order, on stderr.
+    assert phase_names(capsys.readouterr().err, "publisher") == [
+        "download",
+        "open",
+        "parse",
+        "render",
+        "write",
+    ]
 
 
 def test_with_no_database_object_yet_nothing_is_published(tmp_path: Path) -> None:

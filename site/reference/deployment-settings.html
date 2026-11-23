@@ -156,6 +156,7 @@
 <tr><td><code>demoBucket</code></td><td>Only with publicDemo: the public demo&#x27;s bucket, with the demo dataset.</td></tr>
 <tr><td><code>demoGeneratorFunction</code></td><td>Only with publicDemo: the function that writes the demo dataset. Invoke it one time after the first deploy.</td></tr>
 <tr><td><code>demoSimulatorFunction</code></td><td>Only with publicDemo: the simulated orchestrator, which its schedule starts. Invoke it by hand to run the DAGs due now.</td></tr>
+<tr><td><code>demoPublisherFunction</code></td><td>Only with publicDemo: the publisher, which each write of the Database starts. Its logs hold its phase timings (ADR 0033).</td></tr>
 </tbody>
 </table>
 </div>

@@ -92,15 +92,15 @@ PRs 7 and 8 need only PR 3, so they can go before PRs 4–6.
 ## M9: incremental Deployment
 Each function of a Deployment does work in proportion to what changed, not to all stored data. **Exit:** the measurements at 1×, 10× and 100× today are recorded in progress.md, and at 10× each limit has headroom inside today's Lambda sizes (Q174, Q176). The owner's Deployment run confirms the local numbers (Q177).
 
-Designed 2026-11-21 (#318; ADR 0033, which amends ADR 0026; owner decisions Q174–Q193 in `m9-decisions.md`). Milestone "M9: incremental Deployment". #326 (Athena system tables) joins M9 as the design for incremental reads of Query Executions. The spec issue and the tickets come next:
-1. Phase timings, the measurement at 1×, 10× and 100×, and the wizard step for the Deployment run (Q177, Q184). First, because it sets the maximum of Q189 and decides the deferred question.
-2. The collector does not write the file back when a run stored nothing, and increments the revision counter (Q180, Q190).
-3. The publisher stops when its input digest did not change (Q181).
-4. The publisher parses each Allocation Snapshot one time (Q182).
-5. The Input digest before the engine (Q183). Money logic.
-6. The archive: its format, the write order, `VACUUM`, the record and the reports of superseded runs (Q179, Q185–Q187, Q192, Q193). Money logic.
-7. The move of the stored history (Q189).
-8. Archive retention: the prefix, read access for the API, and `archiveRetentionDays` (Q188). IAM.
+Designed 2026-11-21 (#318; ADR 0033, which amends ADR 0026; owner decisions Q174–Q193 in `m9-decisions.md`). Milestone "M9: incremental Deployment". #326 (Athena system tables) joins M9 as the design for incremental reads of Query Executions. Spec issue #335, tickets #336–#343, one PR each, in this order:
+1. #336: phase timings, the measurement at 1×, 10× and 100×, and the wizard step for the Deployment run (Q177, Q184). First, because it sets the maximum of Q189 and decides the deferred question.
+2. #337: the collector does not write the file back when a run stored nothing, and increments the revision counter (Q180, Q190).
+3. #338: the publisher stops when its input digest did not change (Q181).
+4. #339: the publisher parses each Allocation Snapshot one time (Q182).
+5. #340: the Input digest before the engine (Q183). Money logic.
+6. #341: the archive: its format, the write order, `VACUUM`, the record and the reports of superseded runs (Q179, Q185–Q187, Q192, Q193). Money logic.
+7. #342: the move of the stored history (Q189).
+8. #343: archive retention: the prefix, read access for the API, and `archiveRetentionDays` (Q188). IAM.
 
 Deferred: publish only the files that changed, until the Deployment run shows where the publisher's time goes.
 

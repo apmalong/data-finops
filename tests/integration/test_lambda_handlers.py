@@ -25,6 +25,7 @@ from aws_stubs import (
 from botocore.response import StreamingBody
 from botocore.stub import ANY
 from fixture_database import fill
+from phase_lines import phase_names
 
 from data_finops.collection import AwsClients
 from data_finops.collection.remote import DATABASE_KEY
@@ -77,7 +78,10 @@ def test_a_successful_collection_returns_and_logs_its_summary(
 
     assert result["exit_code"] == 0
     assert made == [DEPLOYMENT]
-    assert json.loads(capsys.readouterr().out.splitlines()[0]) == result
+    printed = capsys.readouterr()
+    assert json.loads(printed.out.splitlines()[0]) == result
+    # ADR 0033 (Q184): one log line for each phase, in order, on stderr.
+    assert phase_names(printed.err, "collector") == ["fetch", "ingest", "calculate", "write"]
 
 
 def _clients(s3: Any, athena: Any) -> Any:
