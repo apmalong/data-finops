@@ -19,13 +19,13 @@ from aws_stubs import (
     expect_listing,
     expect_prefixes,
     expect_quiet_sources,
-    phase_names,
     s3_client,
     stubbed,
 )
 from botocore.response import StreamingBody
 from botocore.stub import ANY
 from fixture_database import fill
+from phase_lines import phase_names
 
 from data_finops.collection import AwsClients
 from data_finops.collection.remote import DATABASE_KEY

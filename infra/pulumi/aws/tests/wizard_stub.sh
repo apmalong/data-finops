@@ -37,8 +37,7 @@ case "$name $*" in
   "aws sts get-caller-identity"*) echo arn:aws:iam::${ACCOUNT}:user/owner-deployer-profile ;;
   "aws iam list-entities-for-policy"*) printf '0\t0\t0\n' ;;
   "aws logs filter-log-events"*) args="$*"; fn="${args#*/aws/lambda/data-finops-dev-}"; fn="${fn%% *}"; fn="${fn#demo-}"
-    printf '{"event": "phase", "function": "%s", "phase": "fetch", "seconds": 1.5, "peak_mb": 120}
-' "$fn"
+    printf '{"event": "phase", "function": "%s", "phase": "fetch", "seconds": 1.5, "peak_mib": 120}\n' "$fn"
     echo "arn:aws:logs:us-east-1:${ACCOUNT}:log-group:/aws/lambda/data-finops-dev-$fn" ;;
   "aws lambda invoke"*) printf '{"sources":{"focus":{"stored":0}},"exit_code":0,"bucket":"owner-secret-bucket-1a2b","account":"%s","owner":"%s"}\n' "$ACCOUNT" "$OTHER" > "$last"; echo '{"StatusCode": 200}' ;;
   "aws s3api head-bucket --bucket owner-secret-bucket-1a2b"*) [[ "${STUB_KEPT:-}" == 1 ]] && exit 0

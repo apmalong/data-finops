@@ -373,10 +373,10 @@ The local numbers of ADR 0033 (Q174, Q177). The seed is a copy of the owner's Da
 
 | Size | File | Billing Lines | Calculation, new run | Calculation, replay | Publisher parse | Publisher render + write | Publisher files |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| 1× | 402 MB | 82,158 | 2.2 s, 181 MB | 1.3 s, 160 MB | 2.3 s | 1.0 s | 441 |
-| 10× | 3,636 MB | 821,580 | 21.7 s, 1,200 MB | 15.5 s, 1,006 MB | 25.5 s | 8.2 s | 3,324 |
+| 1× | 402 MB | 82,158 | 2.2 s, 181 MiB | 1.3 s, 160 MiB | 2.3 s | 1.0 s | 441 |
+| 10× | 3,636 MB | 821,580 | 21.7 s, 1,200 MiB | 15.5 s, 1,006 MiB | 25.5 s | 8.2 s | 3,324 |
 
-- **The publisher alone** (`--only publisher`): a peak of 210 MB at 1×, and 1,451 MB at 10×.
-- **At 10×, the first limit is the publisher's memory:** 1,451 MB locally, and the function has 1,024 MB. Q176 permits 2 GB as a temporary fix. The Deployment used 804 MB at 1× (2026-11-19), against 210 MB locally, so the local numbers are low. The Deployment run must show by how much.
-- **The collector at 10×:** 1,200 MB of its 2,048 MB, and a file of 3.6 GB, below the 5 GB `PutObject` and the 10 GB `/tmp`.
+- **The publisher alone** (`--only publisher`): a peak of 210 MiB at 1×, and 1,451 MiB at 10×. Its parse phase is the cost summaries, which read and parse each current snapshot.
+- **At 10×, the first limit is the publisher's memory:** 1,451 MiB locally, and the function has 1,024 MB (Lambda's MB is a MiB). Q176 permits 2 GB as a temporary fix. The Deployment used 804 MB at 1× (2026-11-19), against 210 MiB locally, so the local numbers are low. The Deployment run must show by how much.
+- **The collector at 10×:** 1,200 MiB of its 2,048 MB, and a file of 3.6 GB, below the 5 GB `PutObject` and the 10 GB `/tmp`.
 - **100× was not run:** the file is about 36 GB, and the machine has 16 GB of memory. The 1× and 10× numbers grow about linearly. Thus at 100× the file passes the 5 GB `PutObject` and the 10 GB `/tmp` first, before memory. With Archives (#341), the file holds only the current lines, about 4 GB at 100×. Then the publisher's memory, at about 14 GB, passes the Lambda maximum of 10 GB. That is the revisit trigger of ADR 0033 (split the Database).

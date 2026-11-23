@@ -268,7 +268,7 @@ def test_the_phase_timings_of_the_runs_are_read_back_masked(tmp_path: Path) -> N
 
 def test_the_phase_timings_can_be_skipped(tmp_path: Path) -> None:
     answers = list(DEPLOY_ANSWERS)
-    answers[-3] = "n"
+    answers[-AFTER_DEMO] = "n"  # no to the phase timings
     result, calls, record = _dry_run(DEPLOY, answers, tmp_path)
     assert result.returncode == 0, result.stdout[-2000:] + result.stderr[-2000:]
     assert not any(c.startswith("aws logs") for c in calls)

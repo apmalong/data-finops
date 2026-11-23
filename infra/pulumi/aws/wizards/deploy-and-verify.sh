@@ -339,7 +339,10 @@ stop_before_demo() { warn "stopped before the Public Demo was created"; exit 1; 
 # phase_lines FUNCTION: the phase timings (ADR 0033) that FUNCTION logged since the wizard
 # started, one line for each phase, masked.
 phase_lines() {
-  run aws logs filter-log-events --log-group-name "/aws/lambda/$1"     --filter-pattern '{ $.event = phase }' --start-time "$STARTED_MS"     --region "$AWS_REGION_NAME" --profile "$DEPLOYER_PROFILE"     --query 'events[*].[message]' --output text
+  run aws logs filter-log-events --log-group-name "/aws/lambda/$1" \
+    --filter-pattern '{ $.event = phase }' --start-time "$STARTED_MS" \
+    --region "$AWS_REGION_NAME" --profile "$DEPLOYER_PROFILE" \
+    --query 'events[*].[message]' --output text
 }
 
 run_wizard() {

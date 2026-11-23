@@ -2,11 +2,12 @@
 the seconds that the phase took and the peak memory of the process so far.
 
     {"event": "phase", "function": "publisher", "phase": "render", "seconds": 1.234,
-     "peak_mb": 265}
+     "peak_mib": 265}
 
 The lines go to stderr, apart from what a function prints as its result. On Lambda, both go to
-CloudWatch Logs. `peak_mb` is the largest resident memory of the process so far, so it only
-grows from one phase to the next. It is null where the platform does not report it.
+CloudWatch Logs. `peak_mib` is the largest resident memory of the process so far, in MiB (the
+unit that Lambda calls "MB"), so it only grows from one phase to the next. It is null where the
+platform does not report it.
 
 Stdlib only.
 """
@@ -18,10 +19,10 @@ import sys
 import time
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 
-def peak_memory_mb() -> int | None:
+def peak_memory_mib() -> int | None:
     """The peak resident memory of this process so far, in MiB, or None if it is unknown."""
     if sys.platform == "win32":
         return _windows_peak()
@@ -75,20 +76,17 @@ class Phases:
 
     function: str
     log: Callable[[str], None] = _to_stderr
-    clock: Callable[[], float] = time.perf_counter
-    peak: Callable[[], int | None] = field(default=peak_memory_mb)
 
     @contextmanager
     def __call__(self, name: str) -> Iterator[None]:
-        start = self.clock()
+        start = time.perf_counter()
         yield
-        seconds = round(max(self.clock() - start, 0.0), 3)
         line = {
             "event": "phase",
             "function": self.function,
             "phase": name,
-            "seconds": float(seconds),
-            "peak_mb": self.peak(),
+            "seconds": round(time.perf_counter() - start, 3),
+            "peak_mib": peak_memory_mib(),
         }
         self.log(json.dumps(line))
 

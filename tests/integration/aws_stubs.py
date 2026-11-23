@@ -5,7 +5,6 @@ Stubber, which fails the test on any call it was not told to expect.
 """
 
 import io
-import json
 from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
 from datetime import UTC, datetime
@@ -207,20 +206,3 @@ def expect_database_put(s3_stub: Stubber, condition: dict[str, str]) -> None:
         {"ETag": '"written"'},
         {"Bucket": BUCKET, "Key": DATABASE_KEY, "Body": ANY} | condition,
     )
-
-
-def phase_names(logged: str, function: str) -> list[str]:
-    """The phases that `function` logged, in order (ADR 0033, Q184). Each phase line is one
-    JSON object with the seconds it took and the peak memory of the process so far."""
-    names = []
-    for text in logged.splitlines():
-        if not text.startswith("{"):
-            continue  # another log line, such as a warning
-        line = json.loads(text)
-        if line.get("event") != "phase" or line["function"] != function:
-            continue
-        assert set(line) == {"event", "function", "phase", "seconds", "peak_mb"}
-        assert isinstance(line["seconds"], float) and line["seconds"] >= 0
-        assert line["peak_mb"] is None or (isinstance(line["peak_mb"], int) and line["peak_mb"] > 0)
-        names.append(line["phase"])
-    return names

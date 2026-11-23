@@ -13,9 +13,12 @@ and the Allocation Snapshots are not copied: a Calculation Run makes the new cur
 Calculation Run for each Snapshot Scope, then the render of the Demo Snapshot and the write of
 its files to a temporary folder. It logs the phase lines of `data_finops.phases` to stderr,
 and prints the size of the file. Run each measurement in its own process: the peak memory is
-the peak of the process. `--only collector` or `--only publisher` runs one of the two.
+the peak of the process. `--only collector` or `--only publisher` runs one of the two. The
+calculation applies no Cost Dimensions: a Deployment's configuration is in its bucket.
 
-The Deployment's own numbers come from its logs (the wizard `measure.sh`).
+The fetch, ingest and write of the collector and the download of the publisher are S3
+transfers, so only a Deployment measures them. Its numbers come from its logs, through the
+"Phase timings" stage of `infra/pulumi/aws/wizards/deploy-and-verify.sh`.
 """
 
 from __future__ import annotations

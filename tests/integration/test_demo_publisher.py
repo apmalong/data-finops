@@ -14,11 +14,12 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from aws_stubs import phase_names, s3_client, stubbed
+from aws_stubs import s3_client, stubbed
 from botocore.response import StreamingBody
 from botocore.stub import ANY
 from fixture_database import EXPORT, FIXTURES, OTHER_EXPORT
 from jsonschema import Draft202012Validator
+from phase_lines import phase_names
 
 from data_finops.api import create_app
 from data_finops.calculation import run_calculation

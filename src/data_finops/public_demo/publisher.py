@@ -133,8 +133,9 @@ def render(
     database: Path, *, published_at: datetime, lines: LineFilter, phases: Phases = NO_PHASES
 ) -> list[PublishedFile]:
     """Every file of the Demo Snapshot of the database, its account IDs already masked.
-    `phases` times the opening, the parse of the snapshots (the summaries) and the rest."""
-    files: list[PublishedFile] = []
+    `phases` times the opening, the parse and the rest. The parse is the cost summaries: they
+    read and parse each current Export Snapshot and Allocation Snapshot, which the later files
+    then reuse, so nearly all of its time is the parse."""
     with ExitStack() as stack:
         with phases("open"):
             read_model = stack.enter_context(Reporting(database, lines=lines))
@@ -142,8 +143,7 @@ def render(
             periods = billing_periods(published_at)
             summaries = {basis: _summaries(read_model, basis, periods) for basis in CostBasis}
         with phases("render"):
-            files += _rendered(read_model, summaries, published_at)
-    return files
+            return _rendered(read_model, summaries, published_at)
 
 
 def _rendered(

@@ -237,7 +237,7 @@
 
 <h2 id="phase-timings">Read the phase timings</h2>
 <p>Each run of the collector and of the publisher logs one line for each phase of the run (ADR 0033). A line gives the seconds that the phase took and the peak memory of the function so far, in MiB:</p>
-<pre class="output"><span class="line">{"event": "phase", "function": "collector", "phase": "calculate", "seconds": 1.852, "peak_mb": 180}</span></pre>
+<pre class="output"><span class="line">{"event": "phase", "function": "collector", "phase": "calculate", "seconds": 1.852, "peak_mib": 180}</span></pre>
 <p>The collector logs the phases <code>fetch</code>, <code>ingest</code>, <code>calculate</code> and <code>write</code>. The publisher logs <code>download</code>, <code>open</code>, <code>parse</code>, <code>render</code> and <code>write</code>. To read the lines of the collector:</p>
 <div class="shell-tabs">
 <pre class="shell-posix"><code><span class="line">aws logs filter-log-events --log-group-name /aws/lambda/&lt;collectorFunction&gt; --filter-pattern '{ $.event = phase }' --query 'events[*].[message]' --output text --region &lt;region&gt; --profile &lt;your profile&gt;</span></code></pre>
